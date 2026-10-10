@@ -20,6 +20,10 @@ export default defineConfig({
                 launchOptions: { args: ['--autoplay-policy=no-user-gesture-required'] },
             },
         },
+        {
+            name: 'webkit',
+            use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 900 } },
+        },
     ],
     webServer: {
         command: 'npx vite --port 5180',
