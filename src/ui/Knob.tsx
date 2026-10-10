@@ -19,6 +19,8 @@ function Dial(props: { unit: number }) {
 export function Knob(props: {
     view: ControlView
     big?: boolean
+    small?: boolean
+    name?: string
     disabled?: boolean
     onChange: (value: number) => void
     onAdd?: () => void
@@ -50,7 +52,7 @@ export function Knob(props: {
 
     return (
         <Switch>
-            <Match when={props.view.state === 'faint'}>
+            <Match when={props.view.state === 'faint' && !props.small}>
                 <button class="kn faint" aria-label={`Add ${props.view.label}`} title={props.view.describe} disabled={props.disabled} onClick={() => props.onAdd?.()}>
                     <span class="kn-d">
                         <svg viewBox="0 0 48 48">
@@ -63,7 +65,7 @@ export function Knob(props: {
                 </button>
             </Match>
             <Match when={props.view.state === 'locked'}>
-                <div class="kn locked" title="This value is set by code. Edit it in the code.">
+                <div class="kn locked" classList={{ small: props.small }} title="This value is set by code. Edit it in the code.">
                     <span class="kn-d">
                         <Dial unit={0.5} />
                     </span>
@@ -72,12 +74,12 @@ export function Knob(props: {
                 </div>
             </Match>
             <Match when={true}>
-                <div class="kn" classList={{ big: props.big }}>
+                <div class="kn" classList={{ big: props.big, small: props.small, ghost: props.view.state === 'faint' }}>
                     <div
                         class="kn-d"
                         role="slider"
                         tabindex="0"
-                        aria-label={props.view.label}
+                        aria-label={props.name ?? props.view.label}
                         aria-valuemin={props.view.min}
                         aria-valuemax={props.view.max}
                         aria-valuenow={props.view.value}

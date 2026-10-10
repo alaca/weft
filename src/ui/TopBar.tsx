@@ -1,6 +1,8 @@
 import { For } from 'solid-js'
-import { play, setTempo, stop, toggleSounds } from '../app/controller'
-import { beat, bpm, cycle, engineState, setViewMode, song, soundsOpen, stale, viewMode, type ViewMode } from '../stores/song'
+import { play, setMasterVolume, setTempo, stop, toggleSounds } from '../app/controller'
+import type { ControlView } from '../controls/views'
+import { beat, bpm, cycle, engineState, masterVolume, setViewMode, song, soundsOpen, stale, viewMode, type ViewMode } from '../stores/song'
+import { Knob } from './Knob'
 
 const VIEWS: { id: ViewMode; label: string }[] = [
     { id: 'controls', label: 'Controls' },
@@ -9,6 +11,19 @@ const VIEWS: { id: ViewMode; label: string }[] = [
 ]
 
 export function TopBar() {
+    const volume = (): ControlView => ({
+        fn: 'master',
+        label: 'Volume',
+        group: 'effects',
+        describe: 'How loud everything is. This is your listening volume, not part of the song.',
+        state: 'number',
+        value: masterVolume(),
+        min: 0,
+        max: 1.5,
+        scale: 'linear',
+        text: `${Math.round(masterVolume() * 100)}%`,
+    })
+
     return (
         <header class="top" data-testid="top">
             <div class="word">Weft</div>
@@ -58,6 +73,9 @@ export function TopBar() {
                     <span class="cap">Cycle</span>
                 </div>
             </div>
+            <span class="mix">
+                <Knob small name="Master volume" view={volume()} onChange={setMasterVolume} />
+            </span>
             <div class="grow" />
             <div class="seg">
                 <For each={VIEWS}>

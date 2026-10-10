@@ -241,11 +241,11 @@ export function removeControl(id: string, fn: string) {
     replay()
 }
 
-export function setVolume(id: string, value: number) {
+export function setMix(id: string, fn: 'gain' | 'pan', value: number) {
     const block = find(id)
     if (!block) return
-    if (callFor(block, 'gain')) setControl(id, 'gain', value)
-    else addControl(id, 'gain', value)
+    if (callFor(block, fn)) setControl(id, fn, value)
+    else addControl(id, fn, value)
 }
 
 export function togglePanel(id: string) {

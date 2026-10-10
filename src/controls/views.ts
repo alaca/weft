@@ -77,9 +77,11 @@ function present(block: PatternBlock): ControlView[] {
     return views
 }
 
+const MIX = ['gain', 'pan']
+
 export function favourites(block: PatternBlock): ControlView[] {
     return present(block)
-        .filter((view) => view.fn !== 'gain')
+        .filter((view) => !MIX.includes(view.fn))
         .slice(0, MAX_FAVOURITES)
 }
 
@@ -107,6 +109,7 @@ export function panelFor(block: PatternBlock, filter?: FilterType): { group: Pan
     })
 }
 
-export function volumeOf(block: PatternBlock): ControlView {
-    return present(block).find((view) => view.fn === 'gain') ?? faint(findDef('gain') as ControlDef)
-}
+const mixOf = (block: PatternBlock, fn: string): ControlView => present(block).find((view) => view.fn === fn) ?? faint(findDef(fn) as ControlDef)
+
+export const volumeOf = (block: PatternBlock): ControlView => mixOf(block, 'gain')
+export const panOf = (block: PatternBlock): ControlView => mixOf(block, 'pan')

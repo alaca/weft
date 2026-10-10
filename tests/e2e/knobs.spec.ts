@@ -15,8 +15,8 @@ bass: note("d2 ~ d2 f2")
 
 const code = (page: Page) => page.evaluate(() => (window as any).__weft.engine.getCode() as string)
 
-async function open(page: Page) {
-    await page.addInitScript((text) => localStorage.setItem('weft.song', text), SONG)
+async function open(page: Page, song = SONG) {
+    await page.addInitScript((text) => localStorage.setItem('weft.song', text), song)
     await page.goto('/')
     await page.waitForFunction(() => Boolean((window as any).__weft))
 }
@@ -95,14 +95,49 @@ test('pressing a faint knob adds its line, and removing it takes the line away',
     await expect(bass.getByRole('button', { name: 'Add Delay' })).toBeVisible()
 })
 
-test('the volume slider writes gain into the code', async ({ page }) => {
+test('every strip has a volume knob that writes gain into the code when it is first turned', async ({ page }) => {
     await open(page)
-    const volume = page.getByTestId('strip-bass').getByLabel('Volume of bass')
-    await expect(volume).toHaveValue('0.8')
-    await volume.fill('1')
-    await expect.poll(() => code(page)).toContain('.gain(slider(1, 0, 1.5))')
-    await volume.fill('0.5')
-    await expect.poll(() => code(page)).toContain('.gain(slider(0.5, 0, 1.5))')
+    const volume = page.getByTestId('strip-drums').getByRole('slider', { name: 'Volume of drums', exact: true })
+    await expect(volume).toHaveAttribute('aria-valuenow', '0.8')
+    await expect.poll(() => code(page)).not.toContain('.gain(')
+    await volume.focus()
+    await page.keyboard.press('End')
+    await expect.poll(() => code(page)).toContain('.gain(slider(1.5, 0, 1.5))')
+    await expect(volume).toBeFocused()
+    await page.keyboard.press('PageDown')
+    await expect.poll(() => code(page)).toContain('.gain(slider(1.35, 0, 1.5))')
+    await expect(volume).toHaveAttribute('aria-valuenow', '1.35')
+})
+
+test('every strip has a pan knob that starts in the middle', async ({ page }) => {
+    await open(page)
+    const drums = page.getByTestId('strip-drums')
+    const pan = drums.getByRole('slider', { name: 'Pan of drums', exact: true })
+    await expect(pan).toHaveAttribute('aria-valuenow', '0.5')
+    await pan.focus()
+    await page.keyboard.press('Home')
+    await expect.poll(() => code(page)).toContain('.pan(slider(0, 0, 1))')
+    await expect(pan).toHaveAttribute('aria-valuenow', '0')
+    await expect(drums.getByRole('slider', { name: /^Pan/ })).toHaveCount(1)
+})
+
+test('volume and pan can be dragged', async ({ page }) => {
+    await open(page)
+    const volume = page.getByTestId('strip-drums').getByRole('slider', { name: 'Volume of drums', exact: true })
+    const box = (await volume.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 30, { steps: 5 })
+    await page.mouse.up()
+    await expect.poll(() => code(page)).toMatch(/\.gain\(slider\(0\.5\d?, 0, 1\.5\)\)/)
+})
+
+test('a strip with nothing else to turn still has volume and pan, also when it is muted', async ({ page }) => {
+    await open(page, 'setcpm(120/4)\n\nlead: note("c4 e4")\n')
+    const lead = page.getByTestId('strip-lead')
+    await expect(lead.getByRole('slider')).toHaveCount(2)
+    await page.getByRole('button', { name: 'Mute lead', exact: true }).click()
+    await expect(lead.getByRole('slider', { name: 'Volume of lead', exact: true })).toBeVisible()
 })
 
 test('knobs are disabled while the code does not parse', async ({ page }) => {

@@ -1,8 +1,6 @@
 import { createEffect, onCleanup, onMount } from 'solid-js'
-import { setMasterVolume, waveformOf } from '../app/controller'
-import type { ControlView } from '../controls/views'
-import { engineState, masterVolume } from '../stores/song'
-import { Knob } from './Knob'
+import { waveformOf } from '../app/controller'
+import { engineState } from '../stores/song'
 
 export function OutputStrip() {
     let canvas!: HTMLCanvasElement
@@ -53,27 +51,13 @@ export function OutputStrip() {
     })
     onCleanup(() => cancelAnimationFrame(frame))
 
-    const volume = (): ControlView => ({
-        fn: 'master',
-        label: 'Volume',
-        group: 'effects',
-        describe: 'How loud everything is. This is your listening volume, not part of the song.',
-        state: 'number',
-        value: masterVolume(),
-        min: 0,
-        max: 1.5,
-        scale: 'linear',
-        text: `${Math.round(masterVolume() * 100)}%`,
-    })
-
     return (
-        <section class="out" data-testid="output" style={{ '--h': 'var(--linen-2)' }}>
+        <section class="out" data-testid="output">
             <div>
                 <h3>Output</h3>
                 <p>What you hear, right now</p>
             </div>
             <canvas class="scope" ref={canvas} />
-            <Knob view={volume()} onChange={setMasterVolume} />
         </section>
     )
 }

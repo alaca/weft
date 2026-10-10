@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { callFor, favourites, panelFor, volumeOf } from '../../src/controls/views'
+import { callFor, favourites, panelFor, panOf, volumeOf } from '../../src/controls/views'
 import { analyze } from '../../src/song/analyze'
 
 const first = (code: string) => analyze(code).patterns[0]
 const BASS = 'bass: note("d2").s("sawtooth").lpf(slider(1200, 200, 4000)).lpq(8).pan(sine.slow(4)).gain(0.6)'
 
 describe('favourites', () => {
-    it('shows the controls that are in the code, in code order, without volume', () => {
+    it('shows the controls that are in the code, in code order, without volume and pan', () => {
         expect(favourites(first(BASS)).map((v) => [v.fn, v.state])).toEqual([
             ['lpf', 'live'],
             ['lpq', 'number'],
-            ['pan', 'locked'],
         ])
     })
 
@@ -29,7 +28,7 @@ describe('favourites', () => {
     })
 
     it('says a locked knob is set in code', () => {
-        expect(favourites(first(BASS))[2]).toMatchObject({ label: 'Pan', text: 'in code' })
+        expect(favourites(first('x: note("c").lpf(sine.range(200, 2000))'))[0]).toMatchObject({ label: 'Cutoff', state: 'locked', text: 'in code' })
     })
 
     it('gives any other slider a knob named after its function', () => {
@@ -86,6 +85,17 @@ describe('volumeOf', () => {
 
     it('is faint at the default when there is none', () => {
         expect(volumeOf(first('x: note("c")'))).toMatchObject({ fn: 'gain', state: 'faint', value: 0.8, max: 1.5 })
+    })
+})
+
+describe('panOf', () => {
+    it('reads the pan that is in the code', () => {
+        expect(panOf(first('x: note("c").pan(slider(0.2, 0, 1))'))).toMatchObject({ fn: 'pan', state: 'live', value: 0.2 })
+        expect(panOf(first(BASS))).toMatchObject({ fn: 'pan', state: 'locked', text: 'in code' })
+    })
+
+    it('is faint in the middle when there is none', () => {
+        expect(panOf(first('x: note("c")'))).toMatchObject({ fn: 'pan', state: 'faint', value: 0.5, min: 0, max: 1 })
     })
 })
 

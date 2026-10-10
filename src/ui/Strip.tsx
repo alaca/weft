@@ -1,6 +1,6 @@
 import { createMemo, For, Show } from 'solid-js'
-import { colorAt, eventsOf, openSounds, removePattern, select, setControl, setVolume, toggleMute, togglePanel, toggleSolo } from '../app/controller'
-import { favourites, volumeOf } from '../controls/views'
+import { colorAt, eventsOf, openSounds, removePattern, select, setControl, setMix, toggleMute, togglePanel, toggleSolo } from '../app/controller'
+import { favourites, panOf, volumeOf, type ControlView } from '../controls/views'
 import { sourceText } from '../song/grid'
 import { noteText } from '../song/notes'
 import type { PatternBlock, PatternView } from '../song/types'
@@ -59,7 +59,14 @@ export function Strip(props: { id: string }) {
     const isRack = () => !isRoll() && notes() === null && block() !== undefined && (steps() !== null || sourceText(block()) !== null)
 
     const knobs = createMemo(() => (block() ? favourites(block()) : []))
-    const volume = createMemo(() => (block() ? volumeOf(block()) : null))
+    const mix = createMemo((): { fn: 'gain' | 'pan'; name: string; view: ControlView }[] =>
+        block()
+            ? [
+                  { fn: 'gain', name: `Volume of ${props.id}`, view: { ...volumeOf(block()), label: 'Vol' } },
+                  { fn: 'pan', name: `Pan of ${props.id}`, view: panOf(block()) },
+              ]
+            : [],
+    )
     const showKnobs = () => !open() && knobs().length > 0
 
     return (
@@ -131,24 +138,15 @@ export function Strip(props: { id: string }) {
                                 S
                             </button>
                         </span>
-                        <Show when={volume()}>
-                            {(gain) => (
-                                <input
-                                    class="vol"
-                                    classList={{ faint: gain().state === 'faint' }}
-                                    type="range"
-                                    min={gain().min}
-                                    max={gain().max}
-                                    step="0.01"
-                                    value={gain().value}
-                                    aria-label={`Volume of ${props.id}`}
-                                    title={gain().state === 'locked' ? 'The volume is set by code' : 'Volume'}
-                                    disabled={stale() || gain().state === 'locked'}
-                                    onClick={(event) => event.stopPropagation()}
-                                    onInput={(event) => setVolume(props.id, Number(event.currentTarget.value))}
-                                />
-                            )}
-                        </Show>
+                        <span class="mix" onClick={(event) => event.stopPropagation()}>
+                            <For each={mix().map((knob) => knob.fn)}>
+                                {(fn) => (
+                                    <Show when={mix().find((knob) => knob.fn === fn)}>
+                                        {(knob) => <Knob small name={knob().name} view={knob().view} disabled={stale()} onChange={(value) => setMix(props.id, fn, value)} />}
+                                    </Show>
+                                )}
+                            </For>
+                        </span>
                         <button
                             class="st-x"
                             aria-label={`Remove the pattern ${props.id}`}
