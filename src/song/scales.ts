@@ -39,6 +39,15 @@ export function stepInKey(midi: number, direction: 1 | -1, key: Key | null): num
     return midi + direction
 }
 
+// The chord of the key that stands on this note: the note itself, the note two places up the
+// scale from it and the note two places up again. In a scale of seven notes that is its triad.
+export function chordOn(midi: number, key: Key): number[] {
+    const root = nearestInKey(midi, key)
+    const up = (from: number) => stepInKey(stepInKey(from, 1, key), 1, key)
+    const third = up(root)
+    return [root, third, up(third)]
+}
+
 export const keyText = (key: Key): string => `${ROOTS[key.root]} ${SCALES[key.kind].label.toLowerCase()}`
 
 // How a key is kept with a song: "9:minor".

@@ -80,3 +80,27 @@ test('the key belongs to the song: every roll has it, it is kept, and another so
     await expect(page.getByTestId('strip-lead').locator('.nr-r.offkey')).toHaveCount(0)
     await expect(page.getByTestId('strip-lead').getByLabel('First note of the key')).toHaveCount(0)
 })
+
+test('with chords switched on a click puts in the chord of the key that stands on the note', async ({ page }) => {
+    await open(page)
+    const lead = page.getByTestId('strip-lead')
+    await expect(lead.getByRole('button', { name: 'Chords', exact: true })).toHaveCount(0)
+    await lead.getByLabel('Scale of the song').selectOption('minor')
+    await lead.getByLabel('First note of the key').selectOption({ label: 'A' })
+    await lead.getByRole('button', { name: 'Chords', exact: true }).click()
+    const at = await point(lead, 9, 60)
+    await page.mouse.click(at.x, at.y)
+    await expect(note(lead, 'c4, step 9, 1 step')).toBeVisible()
+    await expect(note(lead, 'e4, step 9, 1 step')).toBeVisible()
+    await expect(note(lead, 'g4, step 9, 1 step')).toBeVisible()
+    await expect(lead.locator('.nt')).toHaveCount(5)
+
+    await page.getByTestId('status').click()
+    await page.keyboard.press(`${process.platform === 'darwin' ? 'Meta' : 'Control'}+z`)
+    await expect(lead.locator('.nt')).toHaveCount(2)
+
+    await lead.getByRole('button', { name: 'Chords', exact: true }).click()
+    const one = await point(lead, 9, 60)
+    await page.mouse.click(one.x, one.y)
+    await expect(lead.locator('.nt')).toHaveCount(3)
+})

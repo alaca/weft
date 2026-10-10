@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inKey, keyText, nearestInKey, readKey, stepInKey, writeKey, type Key } from '../../src/song/scales'
+import { chordOn, inKey, keyText, nearestInKey, readKey, stepInKey, writeKey, type Key } from '../../src/song/scales'
 
 const A_MINOR: Key = { root: 9, kind: 'minor' }
 const C_PENTATONIC: Key = { root: 0, kind: 'majorPentatonic' }
@@ -53,5 +53,18 @@ describe('keeping a key', () => {
     it('says it in words', () => {
         expect(keyText(A_MINOR)).toBe('A minor')
         expect(keyText({ root: 6, kind: 'blues' })).toBe('F# blues')
+    })
+})
+
+describe('chordOn', () => {
+    it('stacks every other note of the key on the note', () => {
+        expect(chordOn(57, A_MINOR)).toEqual([57, 60, 64])
+        expect(chordOn(60, A_MINOR)).toEqual([60, 64, 67])
+        expect(chordOn(59, A_MINOR)).toEqual([59, 62, 65])
+    })
+
+    it('starts from the closest note of the key', () => {
+        expect(chordOn(61, A_MINOR)).toEqual([60, 64, 67])
+        expect(chordOn(60, C_PENTATONIC)).toEqual([60, 64, 69])
     })
 })

@@ -1,10 +1,10 @@
 import { createMemo, createSignal, For, Show } from 'solid-js'
-import { addNoteAt, chooseKey, convertNotes, moveNoteTo, removeNoteAt, resizeNoteTo, setNotesLength, setNotesSteps } from '../app/controller'
+import { addNotesAt, chooseKey, convertNotes, moveNoteTo, removeNoteAt, resizeNoteTo, setNotesLength, setNotesSteps } from '../app/controller'
 import { NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, type NoteRef } from '../song/notes'
-import { inKey, nearestInKey, ROOTS, SCALE_KINDS, SCALES, stepInKey, type ScaleKind } from '../song/scales'
+import { chordOn, inKey, nearestInKey, ROOTS, SCALE_KINDS, SCALES, stepInKey, type ScaleKind } from '../song/scales'
 import type { PatternBlock } from '../song/types'
 import { noteName } from '../song/view'
-import { gridNotes, rollRanges, songKey, stale } from '../stores/song'
+import { chordClicks, gridNotes, rollRanges, setChordClicks, songKey, stale } from '../stores/song'
 import { GridFooter } from './GridFooter'
 
 const ROW = 10
@@ -95,6 +95,12 @@ export function NoteRoll(props: {
     // With a key chosen, a note can only be put on a note of the key: a click or a drag on any
     // other row lands on the closest one. A note that is already off the key stays where it is.
     const toKey = (midi: number) => Math.min(127, Math.max(0, nearestInKey(midi, songKey())))
+    // What a click on an empty place puts in: the note, or with chords switched on the chord
+    // of the key that stands on it.
+    const put = (midi: number) => {
+        const key = songKey()
+        return key && chordClicks() ? chordOn(midi, key).filter((note) => note <= 127) : [toKey(midi)]
+    }
 
     const hit = (event: MouseEvent) => {
         const box = gridEl.getBoundingClientRect()
@@ -111,11 +117,11 @@ export function NoteRoll(props: {
         const { cell, note, resize } = hit(event)
         if (!source()) {
             if (note) convertNotes(props.id)
-            else addNoteAt(props.id, { page: shown(), time: cell.time, midi: toKey(cell.midi) })
+            else addNotesAt(props.id, { page: shown(), time: cell.time, midis: put(cell.midi) })
             return
         }
         if (!note) {
-            const added = addNoteAt(props.id, { page: shown(), time: cell.time, midi: toKey(cell.midi) })
+            const added = addNotesAt(props.id, { page: shown(), time: cell.time, midis: put(cell.midi) })
             if (added) focusNote(added)
             return
         }
@@ -288,6 +294,17 @@ export function NoteRoll(props: {
                             </For>
                         </select>
                     )}
+                </Show>
+                <Show when={songKey()}>
+                    <button
+                        class="chip tgl"
+                        classList={{ on: chordClicks() }}
+                        aria-pressed={chordClicks()}
+                        title="A click puts in the whole chord of the key that stands on that note"
+                        onClick={() => setChordClicks(!chordClicks())}
+                    >
+                        Chords
+                    </button>
                 </Show>
             </GridFooter>
             <Show when={gridNotes()[props.id]}>

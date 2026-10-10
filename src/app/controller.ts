@@ -726,19 +726,29 @@ export function convertNotes(id: string) {
     changeNotes(id, (source) => ({ notes: source.grid.notes, perCycle: source.grid.perCycle, cycles: source.grid.cycles }))
 }
 
-export function addNoteAt(id: string, at: { page: number; time: number; midi: number }): NoteRef | null {
+// One note, or several that start together, as a chord does. A note that has no room where it
+// would go is left out; the rest still go in.
+export function addNotesAt(id: string, at: { page: number; time: number; midis: number[] }): NoteRef | null {
     let added: NoteRef | null = null
+    const placed: number[] = []
     changeNotes(id, (source) => {
-        const { notes, steps, perCycle, cycles } = source.grid
+        const { steps, perCycle, cycles } = source.grid
         const start = Math.min(steps - 1, (at.page % cycles) * perCycle + Math.floor(at.time * perCycle))
-        const next = addNote(notes, { start, midi: at.midi, length: lastLength.get(id) ?? 1 }, steps)
-        if (!next) return null
-        added = { start, midi: at.midi }
-        return { notes: next, perCycle, cycles }
+        let notes = source.grid.notes
+        for (const midi of at.midis) {
+            const next = addNote(notes, { start, midi, length: lastLength.get(id) ?? 1 }, steps)
+            if (!next) continue
+            notes = next
+            placed.push(midi)
+            added ??= { start, midi }
+        }
+        return placed.length ? { notes, perCycle, cycles } : null
     })
-    if (added) previewNoteOf(id, at.midi)
+    for (const midi of placed) previewNoteOf(id, midi)
     return added
 }
+
+export const addNoteAt = (id: string, at: { page: number; time: number; midi: number }): NoteRef | null => addNotesAt(id, { page: at.page, time: at.time, midis: [at.midi] })
 
 export function removeNoteAt(id: string, ref: NoteRef) {
     changeNotes(id, (source) => ({ notes: removeNote(source.grid.notes, ref), perCycle: source.grid.perCycle, cycles: source.grid.cycles }))
