@@ -1,15 +1,16 @@
 import { createMemo, createSignal, For, Show } from 'solid-js'
 import { addNoteAt, convertNotes, moveNoteTo, removeNoteAt, resizeNoteTo, setNotesLength, setNotesSteps } from '../app/controller'
-import { NOTE_RESOLUTIONS, readNotes, resampleNotes, type NoteRef } from '../song/notes'
+import { NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, type NoteRef } from '../song/notes'
 import type { PatternBlock } from '../song/types'
 import { noteName } from '../song/view'
-import { gridNotes, stale } from '../stores/song'
+import { gridNotes, rollRanges, stale } from '../stores/song'
 import { GridFooter } from './GridFooter'
 
 const ROW = 10
 const OCTAVE = 12
 const BLACK_KEYS = [1, 3, 6, 8, 10]
 const EDGE = 7
+const EMPTY_RANGE = { low: 48, high: 60 }
 
 type Drawn = { left: number; width: number; midi: number; start: number; length: number }
 type Drag = { ref: NoteRef; resize: boolean; fromStep: number; fromMidi: number }
@@ -34,15 +35,20 @@ export function NoteRoll(props: {
     const shown = () => (props.playing ? props.cycle % cycles() : Math.min(page(), cycles() - 1))
     const offset = () => shown() * perCycle()
 
+    // A pattern written as silence has no notes to fit the rows to, so its rows are the ones it
+    // was given when it was added, or an octave from c3. Before the first events of any other
+    // pattern arrive, the same rows are only a stand-in and are dropped when the notes are known.
+    const silent = () => noteText(props.block)?.text.trim() === '~'
+
     // Rows are added but never taken away, and none are added during a drag. A row that came or
     // went under the pointer would put the note it holds, or the next click, on another pitch.
     const fitted = createMemo((before: (Range & { empty: boolean }) | undefined) => {
         const grid = source()?.grid
         const pitches = grid ? grid.notes.map((note) => note.midi) : props.played.map((note) => Math.round(note.midi))
-        if (!pitches.length) return before ?? { low: 48, high: 60, empty: true }
+        if (!pitches.length) return before ?? { ...(rollRanges()[props.id] ?? EMPTY_RANGE), empty: !silent() }
         const low = Math.min(...pitches) - 2
-        const high = Math.max(Math.max(...pitches) + 2, low + OCTAVE)
-        if (!before || before.empty) return { low, high, empty: false }
+        const high = Math.max(...pitches) + 2
+        if (!before || before.empty) return { low, high: Math.max(high, low + OCTAVE), empty: false }
         return { low: Math.min(before.low, low), high: Math.max(before.high, high), empty: false }
     }, undefined)
     const [held, setHeld] = createSignal<Range | null>(null)

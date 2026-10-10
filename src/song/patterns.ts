@@ -1,57 +1,34 @@
-import { formatGrid, type GridRow } from './grid'
-import { formatNoteGrid, type Note } from './notes'
-import { noteNameToMidi } from './pitch'
 import type { PatternBlock, TextEdit } from './types'
 
-export type StarterKind = 'drums' | 'bass' | 'chords' | 'melody' | 'emptyDrums' | 'emptyNotes'
+export type StarterKind = 'drums' | 'bass' | 'chords' | 'melody'
 
-export const PATTERN_STARTERS: { kind: StarterKind; label: string; name: string }[] = [
-    { kind: 'drums', label: 'Drums', name: 'drums' },
-    { kind: 'bass', label: 'Bass line', name: 'bass' },
-    { kind: 'chords', label: 'Chords', name: 'chords' },
-    { kind: 'melody', label: 'Melody', name: 'melody' },
-    { kind: 'emptyDrums', label: 'Empty drums', name: 'drums' },
-    { kind: 'emptyNotes', label: 'Empty notes', name: 'notes' },
+export type Starter = {
+    kind: StarterKind
+    label: string
+    name: string
+    rows?: string[]
+    range?: { low: number; high: number }
+}
+
+// A new pattern starts with nothing in it. What a starter chooses is the kind of pattern, its
+// sound, and what the empty grid or roll shows first: the drum rows, or the range of notes.
+export const PATTERN_STARTERS: Starter[] = [
+    { kind: 'drums', label: 'Drums', name: 'drums', rows: ['bd', 'sd', 'cp', 'hh'] },
+    { kind: 'bass', label: 'Bass line', name: 'bass', range: { low: 28, high: 45 } },
+    { kind: 'chords', label: 'Chords', name: 'chords', range: { low: 48, high: 67 } },
+    { kind: 'melody', label: 'Melody', name: 'melody', range: { low: 60, high: 79 } },
 ]
-
-const KIT = 'RolandTR909'
-
-const hits = (sound: string, steps: string): GridRow => ({ sound, steps: [...steps].map((step) => step === 'x') })
-const tune = (...notes: [name: string, start: number, length: number][]): Note[] =>
-    notes.map(([name, start, length]) => ({ midi: noteNameToMidi(name) ?? 60, start, length }))
-
-const DRUMS = [hits('bd', 'x...x...x...x...'), hits('cp', '....x.......x...'), hits('hh', '..x...x...x...x.')]
-const BASS = tune(['d2', 0, 2], ['d2', 3, 1], ['f2', 6, 1], ['d2', 8, 2], ['a1', 12, 2], ['c2', 14, 2])
-const MELODY = tune(['a4', 0, 2], ['f4', 3, 1], ['d4', 4, 2], ['f4', 8, 1], ['g4', 10, 1], ['a4', 11, 1], ['c5', 12, 3])
-const CHORDS = tune(
-    ['d3', 0, 4],
-    ['f3', 0, 4],
-    ['a3', 0, 4],
-    ['d3', 4, 4],
-    ['f3', 4, 4],
-    ['a#3', 4, 4],
-    ['c3', 8, 4],
-    ['f3', 8, 4],
-    ['a3', 8, 4],
-    ['c3', 12, 4],
-    ['e3', 12, 4],
-    ['g3', 12, 4],
-)
 
 export function starterCode(kind: StarterKind, name: string): string {
     switch (kind) {
         case 'drums':
-            return `${name}: s(${formatGrid(DRUMS)})\n  .bank("${KIT}")`
+            return `${name}: s("~")\n  .bank("RolandTR909")`
         case 'bass':
-            return `${name}: note(${formatNoteGrid(BASS, 16)})\n  .s("sawtooth")\n  .lpf(slider(900, 100, 8000))`
+            return `${name}: note("~")\n  .s("sawtooth")\n  .lpf(slider(900, 100, 8000))`
         case 'chords':
-            return `${name}: note(${formatNoteGrid(CHORDS, 16)}).slow(4)\n  .s("gm_epiano1")\n  .room(slider(0.3, 0, 1))`
+            return `${name}: note("~")\n  .s("gm_epiano1")\n  .room(slider(0.3, 0, 1))`
         case 'melody':
-            return `${name}: note(${formatNoteGrid(MELODY, 16)})\n  .s("triangle")\n  .delay(slider(0.25, 0, 1))`
-        case 'emptyDrums':
-            return `${name}: s("~")\n  .bank("${KIT}")`
-        case 'emptyNotes':
-            return `${name}: note("~")\n  .s("triangle")`
+            return `${name}: note("~")\n  .s("triangle")\n  .delay(slider(0.25, 0, 1))`
     }
 }
 

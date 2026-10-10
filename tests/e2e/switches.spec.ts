@@ -170,6 +170,35 @@ test('a pattern added while a sound panel is open is shown in full', async ({ pa
     await expect(added.getByRole('button', { name: 'bd step 1', exact: true })).toBeVisible()
 })
 
+test('a strip opened while a sound panel is open stays open when another is added or chosen', async ({ page }) => {
+    await open(page)
+    await panel(page, 'bass')
+    const add = (name: string) => page.getByTestId('add-pattern').getByRole('button', { name, exact: true }).click()
+    await add('Drums')
+    await expect(page.getByTestId('strip-drums2').locator('.st-b')).toHaveCount(1)
+    await add('Melody')
+    await expect(page.getByTestId('strip-melody').locator('.st-b')).toHaveCount(1)
+    await expect(page.getByTestId('strip-drums2').locator('.st-b')).toHaveCount(1)
+    const drums = page.getByTestId('strip-drums')
+    await expect(drums.locator('.st-b')).toHaveCount(0)
+    await drums.locator('.st-n').click()
+    await page.getByTestId('strip-melody').locator('.st-n').click()
+    await expect(drums.locator('.st-b')).toHaveCount(1)
+    await expect(page.getByRole('button', { name: 'Sound controls for bass' })).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('the strips fold afresh each time a sound panel is opened', async ({ page }) => {
+    await open(page)
+    const drums = page.getByTestId('strip-drums')
+    const bass = await panel(page, 'bass')
+    await drums.locator('.st-n').click()
+    await expect(drums.locator('.st-b')).toHaveCount(1)
+    await bass.getByRole('button', { name: 'Sound controls for bass' }).click()
+    await expect(drums.locator('.st-b')).toHaveCount(1)
+    await bass.getByRole('button', { name: 'Sound controls for bass' }).click()
+    await expect(drums.locator('.st-b')).toHaveCount(0)
+})
+
 test('opening a sound panel selects its strip, so the one selected before folds', async ({ page }) => {
     await open(page)
     const drums = page.getByTestId('strip-drums')

@@ -10,6 +10,9 @@ export type NoteSource = { grid: NoteGrid; from: number; to: number; slow: Call 
 
 export const NOTE_RESOLUTIONS = [4, 8, 16, 32]
 
+// Silence fits every grid. It gets the one an empty roll is drawn with.
+const EMPTY_STEPS = 16
+
 const MAX_STEPS = 128
 const NAME = /^[a-gA-G][#bsf]*-?\d+$/
 
@@ -156,6 +159,7 @@ export function notesFromEvents(cycles: Sounded[][]): { notes: Note[]; cycles: n
     const period = [1, 2, 4].find((length) => length * 2 <= cycles.length && keys.every((value, i) => value === keys[i % length]))
     if (!period) return null
     const events = cycles.slice(0, period).flatMap((list, cycle) => list.map((event) => ({ ...event, start: event.start + cycle })))
+    if (!events.length) return { notes: [], cycles: 1, perCycle: EMPTY_STEPS }
     const onGrid = (value: number, perCycle: number) => Math.abs(value * perCycle - Math.round(value * perCycle)) < 1e-6
     const perCycle = NOTE_RESOLUTIONS.find((candidate) => events.every((event) => onGrid(event.start, candidate) && onGrid(event.length, candidate)))
     if (!perCycle) return null

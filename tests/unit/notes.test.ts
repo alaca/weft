@@ -194,6 +194,10 @@ describe('notesFromEvents', () => {
         })
     })
 
+    it('gives silence the sixteen steps an empty roll is drawn with', () => {
+        expect(notesFromEvents(times([cycle([])], 8))).toEqual({ notes: [], cycles: 1, perCycle: 16 })
+    })
+
     it('uses 16 steps when the line needs them', () => {
         const line = cycle([[0, 0.125, 'd2'], [0.875, 0.0625, 'c2'], [0.9375, 0.0625, 'd2']])
         const found = notesFromEvents(times([line], 8))!

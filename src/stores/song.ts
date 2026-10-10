@@ -16,9 +16,11 @@ export const [position, setPosition] = createSignal(0)
 export const [bpm, setBpm] = createSignal(120)
 export const [revision, setRevision] = createSignal(0)
 export const [openPanel, setOpenPanel] = createSignal<string | null>(null)
+export const [unfolded, setUnfolded] = createSignal<string[]>([])
 export const [masterVolume, setMasterVolumeValue] = createSignal(1)
 export const [pinnedRows, setPinnedRows] = createSignal<Record<string, string[]>>({})
 export const [gridNotes, setGridNotes] = createSignal<Record<string, boolean>>({})
+export const [rollRanges, setRollRanges] = createSignal<Record<string, { low: number; high: number }>>({})
 export const [soundsOpen, setSoundsOpen] = createSignal(false)
 
 export type Removed = { id: string; index: number; from: number; text: string; after: string }

@@ -32,6 +32,7 @@ import {
     openPanel,
     pinnedRows,
     removed,
+    rollRanges,
     selected,
     setBeat,
     setBpm,
@@ -44,15 +45,18 @@ import {
     setPosition,
     setRemoved,
     setRevision,
+    setRollRanges,
     setSelected,
     setSoloIds,
     setSong,
     setSoundsOpen,
+    setUnfolded,
     setStale,
     soloIds,
     song,
     soundsOpen,
     stale,
+    unfolded,
 } from '../stores/song'
 
 const STORAGE_KEY = 'weft.song'
@@ -80,7 +84,7 @@ function onCode(code: string) {
             setSong(next)
             setStale(false)
             if (kept.length !== soloIds().length) setSoloIds(kept)
-            if (open !== null && !ids.has(open)) setOpenPanel(null)
+            if (open !== null && !ids.has(open)) closePanel()
         })
         if (kept.length !== soloIds().length) engine.setSolo(kept)
     }
@@ -125,7 +129,7 @@ export async function mount(root: HTMLElement): Promise<void> {
     engine.onCursor((offset) => {
         if (stale()) return
         const hit = song().patterns.find((p) => offset >= p.from && offset <= p.to)
-        if (hit) setSelected(hit.id)
+        if (hit) markSelected(hit.id)
     })
     engine.onEvaluated(() =>
         batch(() => {
@@ -159,10 +163,25 @@ export const stop = () => engine.stop()
 
 export const togglePlay = () => (engineState().playing ? stop() : play())
 
+// While a sound panel is open the other strips are folded. One that is chosen opens and stays
+// open until the panel changes, so choosing or adding another never folds it again.
+function markSelected(id: string) {
+    batch(() => {
+        setSelected(id)
+        if (openPanel() !== null && !unfolded().includes(id)) setUnfolded([...unfolded(), id])
+    })
+}
+
+const closePanel = () =>
+    batch(() => {
+        setOpenPanel(null)
+        setUnfolded([])
+    })
+
 export function select(id: string) {
     const block = find(id)
     if (!block) return
-    setSelected(id)
+    markSelected(id)
     if (!stale()) engine.reveal(block.from)
 }
 
@@ -230,9 +249,12 @@ export function setVolume(id: string, value: number) {
 }
 
 export function togglePanel(id: string) {
-    const opening = openPanel() !== id
-    setOpenPanel(opening ? id : null)
-    if (opening) select(id)
+    if (openPanel() === id) return closePanel()
+    batch(() => {
+        setOpenPanel(id)
+        setUnfolded([])
+    })
+    select(id)
 }
 
 
@@ -459,6 +481,14 @@ export function addPattern(kind: StarterKind): string | null {
         starter.name,
         song().patterns.map((p) => p.id),
     )
+    // What the empty strip shows first is set before the code changes, because the strip is
+    // drawn the moment its code exists.
+    batch(() => {
+        setPinnedRows({ ...without(pinnedRows(), name), ...(starter.rows ? { [name]: starter.rows } : {}) })
+        setRollRanges({ ...without(rollRanges(), name), ...(starter.range ? { [name]: starter.range } : {}) })
+        setGridNotes(without(gridNotes(), name))
+    })
+    lastLength.delete(name)
     engine.applyEdit(appendPattern(engine.getCode(), starterCode(kind, name)))
     replay()
     select(name)
@@ -499,7 +529,7 @@ export function useSound(id: string, item: SoundItem) {
     replay()
 }
 
-const without = <T>(record: Record<string, T>, id: string): Record<string, T> => {
+function without<T>(record: Record<string, T>, id: string): Record<string, T> {
     const { [id]: _, ...rest } = record
     return rest
 }
@@ -514,6 +544,7 @@ export function removePattern(id: string) {
     lastLength.delete(id)
     batch(() => {
         setPinnedRows(without(pinnedRows(), id))
+        setRollRanges(without(rollRanges(), id))
         setGridNotes(without(gridNotes(), id))
         setRemoved({ id, index, from: edit.from, text: code.slice(edit.from, edit.to), after: engine.getCode() })
     })

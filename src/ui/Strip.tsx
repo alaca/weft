@@ -6,7 +6,7 @@ import { noteText } from '../song/notes'
 import type { PatternBlock, PatternView } from '../song/types'
 import { describe, STEPS } from '../song/view'
 import { takesKit } from '../sounds/apply'
-import { cycle, engineState, openPanel, position, revision, selected, soloIds, song, stale } from '../stores/song'
+import { cycle, engineState, openPanel, position, revision, selected, soloIds, song, stale, unfolded } from '../stores/song'
 import { Knob } from './Knob'
 import { MiniView } from './MiniView'
 import { NoteRoll } from './NoteRoll'
@@ -26,7 +26,7 @@ export function Strip(props: { id: string }) {
     const block = createMemo(() => song().patterns[index()])
     const playing = () => engineState().playing
     const open = () => openPanel() === props.id
-    const folded = () => openPanel() !== null && !open() && selected() !== props.id
+    const folded = () => openPanel() !== null && !open() && !unfolded().includes(props.id)
 
     let seenRows: string[] = []
     let seenAt = -1
