@@ -1,18 +1,21 @@
 import { createEffect, createMemo, createSignal, For, on, Show } from 'solid-js'
-import { closeSounds, colorAt, hearSound, soundCatalogue, useSound } from '../app/controller'
+import { addOwnSounds, closeSounds, colorAt, hearSound, removeOwnSound, soundCatalogue, useSound } from '../app/controller'
+import { lengthText } from '../library/sounds'
 import { fits, inUse, takesKit } from '../sounds/apply'
 import { countSounds, findSounds, SOUND_GROUPS, type SoundGroup, type SoundItem } from '../sounds/catalog'
-import { engineState, selected, song, soundsOpen, stale } from '../stores/song'
+import { engineState, ownSoundNote, ownSounds, selected, song, soundsOpen, stale } from '../stores/song'
 
 export function SoundBrowser() {
     let search: HTMLInputElement | undefined
     let list: HTMLDivElement | undefined
+    let files: HTMLInputElement | undefined
     const [query, setQuery] = createSignal('')
     const [group, setGroup] = createSignal<SoundGroup>('instruments')
     const index = () => song().patterns.findIndex((p) => p.id === selected())
     const target = () => song().patterns[index()]
     const loaded = createMemo(() => engineState().sounds)
-    const items = createMemo(() => (soundsOpen() && loaded() !== 'loading' ? soundCatalogue() : []))
+    const items = createMemo(() => (soundsOpen() && loaded() !== 'loading' && ownSounds() ? soundCatalogue() : []))
+    const lengthOf = (name: string) => ownSounds().find((sound) => sound.name === name)?.seconds
     const shown = createMemo(() => findSounds(items(), group(), query()))
     const counts = createMemo(() => countSounds(items(), query()))
     const suited = (): SoundGroup => (target() && takesKit(target()) ? 'kits' : 'instruments')
@@ -123,16 +126,45 @@ export function SoundBrowser() {
                         </p>
                     )}
                 </Show>
+                <Show when={group() === 'yours'}>
+                    <div class="sb-own">
+                        <input
+                            ref={files}
+                            type="file"
+                            accept="audio/*,.wav,.mp3,.m4a,.aac,.flac,.ogg,.aif,.aiff"
+                            multiple
+                            hidden
+                            data-testid="own-files"
+                            onChange={(event) => {
+                                const picked = [...(event.currentTarget.files ?? [])]
+                                event.currentTarget.value = ''
+                                if (picked.length) void addOwnSounds(picked)
+                            }}
+                        />
+                        <button class="btn" disabled={loaded() === 'loading'} onClick={() => files?.click()}>
+                            + Add audio files
+                        </button>
+                        <span>Recordings, vocals, hits. They are kept in the app.</span>
+                    </div>
+                    <Show when={ownSoundNote()}>
+                        <p class="sb-n" role="status" data-testid="own-note">
+                            {ownSoundNote()}
+                        </p>
+                    </Show>
+                </Show>
                 <div class="sb-l" ref={list}>
                     <For each={shown()}>
                         {(item) => (
-                            <div class="sb-i" classList={{ on: used(item) }}>
+                            <div class="sb-i" classList={{ on: used(item), own: item.group === 'yours' }}>
                                 <button class="sb-p" aria-label={`Hear ${item.label}`} onClick={() => hearSound(item)}>
                                     <svg viewBox="0 0 10 10" aria-hidden="true">
                                         <path d="M2.5 1.2v7.6L8.8 5z" />
                                     </svg>
                                     <b>{item.label}</b>
                                     <code>{item.name}</code>
+                                    <Show when={item.group === 'yours' && lengthOf(item.name) !== undefined}>
+                                        <span class="sb-c">{lengthText(lengthOf(item.name) ?? 0)}</span>
+                                    </Show>
                                 </button>
                                 <Show when={usable()}>
                                     <Show when={!used(item)} fallback={<span class="sb-on">In use</span>}>
@@ -140,6 +172,13 @@ export function SoundBrowser() {
                                             Use
                                         </button>
                                     </Show>
+                                </Show>
+                                <Show when={item.group === 'yours'}>
+                                    <button class="rx" aria-label={`Remove ${item.label} from your sounds`} onClick={() => void removeOwnSound(item.name)}>
+                                        <svg viewBox="0 0 8 8">
+                                            <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
+                                        </svg>
+                                    </button>
                                 </Show>
                                 <Show when={item.parts.length}>
                                     <div class="sb-m">
@@ -156,7 +195,11 @@ export function SoundBrowser() {
                         )}
                     </For>
                     <Show when={loaded() !== 'loading' && !shown().length}>
-                        <p class="br-e">Nothing in {labelOf(group())} matches.</p>
+                        <p class="br-e">
+                            <Show when={group() === 'yours' && !query().trim()} fallback={<>Nothing in {labelOf(group())} matches.</>}>
+                                Nothing here yet. A file you add can be the sound of a pattern that plays notes, or a row in a drum grid.
+                            </Show>
+                        </p>
                     </Show>
                 </div>
             </aside>

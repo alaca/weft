@@ -1,7 +1,7 @@
 import { drumChoices } from '../controls/drums'
 
 export type RawSound = { name: string; type: string; tag: string | null }
-export type SoundGroup = 'kits' | 'instruments' | 'synths' | 'samples'
+export type SoundGroup = 'kits' | 'instruments' | 'synths' | 'samples' | 'yours'
 export type SoundItem = { group: SoundGroup; name: string; label: string; parts: { sound: string; label: string }[] }
 
 export const SOUND_GROUPS: { id: SoundGroup; label: string }[] = [
@@ -9,10 +9,12 @@ export const SOUND_GROUPS: { id: SoundGroup; label: string }[] = [
     { id: 'instruments', label: 'Instruments' },
     { id: 'synths', label: 'Synths' },
     { id: 'samples', label: 'Samples' },
+    { id: 'yours', label: 'Yours' },
 ]
 
 export const KIT_TAG = 'drum-machines'
 export const INSTRUMENT_TAG = 'instruments'
+export const YOURS_TAG = 'yours'
 
 const SYNTHS: Record<string, string> = {
     sine: 'Sine wave',
@@ -57,6 +59,7 @@ export function catalogue(raw: RawSound[], kitNames: string[]): SoundItem[] {
     const kits = new Map<string, string[]>()
     const instruments: SoundItem[] = []
     const samples: SoundItem[] = []
+    const yours: SoundItem[] = []
     const synths = new Set<string>()
     for (const sound of raw) {
         if (sound.name.startsWith('_')) continue
@@ -68,6 +71,8 @@ export function catalogue(raw: RawSound[], kitNames: string[]): SoundItem[] {
             kits.set(kit, [...(kits.get(kit) ?? []), part])
         } else if (sound.type === 'soundfont') {
             instruments.push({ group: 'instruments', name: sound.name, label: soundLabel(sound.name), parts: [] })
+        } else if (sound.type === 'sample' && sound.tag === YOURS_TAG) {
+            yours.push({ group: 'yours', name: sound.name, label: soundLabel(sound.name), parts: [] })
         } else if (sound.type === 'sample' && sound.tag === INSTRUMENT_TAG) {
             instruments.unshift({ group: 'instruments', name: sound.name, label: soundLabel(sound.name), parts: [] })
         } else if (sound.type === 'sample') {
@@ -89,6 +94,7 @@ export function catalogue(raw: RawSound[], kitNames: string[]): SoundItem[] {
             .filter((name) => synths.has(name))
             .map((name): SoundItem => ({ group: 'synths', name, label: SYNTHS[name], parts: [] })),
         ...samples.sort(byLabel),
+        ...yours.sort(byLabel),
     ]
 }
 
@@ -106,7 +112,7 @@ export function findSounds(items: SoundItem[], group: SoundGroup, query: string)
 
 export function countSounds(items: SoundItem[], query: string): Record<SoundGroup, number> {
     const words = wordsOf(query)
-    const counts: Record<SoundGroup, number> = { kits: 0, instruments: 0, synths: 0, samples: 0 }
+    const counts: Record<SoundGroup, number> = { kits: 0, instruments: 0, synths: 0, samples: 0, yours: 0 }
     for (const item of items) if (matches(item, words)) counts[item.group]++
     return counts
 }

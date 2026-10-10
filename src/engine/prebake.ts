@@ -1,7 +1,7 @@
 import * as core from '@strudel/core'
 import { evalScope } from '@strudel/core'
-import { aliasBank, registerSynthSounds, registerZZFXSounds, samples } from '@strudel/webaudio'
-import { INSTRUMENT_TAG, KIT_TAG } from '../sounds/catalog'
+import { aliasBank, registerSynthSounds, registerZZFXSounds, samples, soundMap } from '@strudel/webaudio'
+import { INSTRUMENT_TAG, KIT_TAG, YOURS_TAG } from '../sounds/catalog'
 
 const DOUGH = 'https://raw.githubusercontent.com/felixroos/dough-samples/main'
 const ALIASES = 'https://raw.githubusercontent.com/todepond/samples/main'
@@ -38,4 +38,24 @@ export async function loadSamples(): Promise<void> {
         samples(`${DRUMKIT}/strudel.json`),
     ])
     await aliasBank(`${ALIASES}/tidal-drum-machines-alias.json`)
+}
+
+// A sound of your own is known by its name alone, and also as that name in every drum kit:
+// a drum grid says which kit it is on once, for all of its rows, so a row with a sound of
+// your own would otherwise be looked for in that kit and not be found.
+const inKits = (name: string) => kits.map((kit) => `${kit.toLowerCase()}_${name}`)
+
+export async function addOwnSound(name: string, url: string): Promise<void> {
+    await samples({ [name]: [url] }, '', { tag: YOURS_TAG })
+    const entry = soundMap.get()[name]
+    for (const key of inKits(name)) soundMap.setKey(key, entry)
+}
+
+export function removeOwnSound(name: string): void {
+    for (const key of [name, ...inKits(name)]) soundMap.setKey(key, undefined)
+}
+
+export function soundTaken(name: string): boolean {
+    const known = soundMap.get()
+    return [name, ...inKits(name)].some((key) => key in known)
 }

@@ -6,6 +6,7 @@ import { saveFile, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
 import { DEMOS } from '../library/demos'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongRecord } from '../library/shelf'
+import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
 import { gradeOf, readAudio, RING_SECONDS, type AudioOptions, type Format } from '../library/audio'
 import { encodeMp3 } from '../library/mp3'
 import { encodeWav, fileName, levelFor, peakOf, soundingLength } from '../library/wav'
@@ -32,7 +33,7 @@ import {
 import { appendPattern, freeName, PATTERN_STARTERS, removePattern as removeEdit, starterCode, type StarterKind } from '../song/patterns'
 import { STARTER } from '../song/starter'
 import type { PatternBlock, PatternEvent } from '../song/types'
-import { fits, soundEdit } from '../sounds/apply'
+import { fits, isRow, soundEdit } from '../sounds/apply'
 import { catalogue, type SoundItem } from '../sounds/catalog'
 import {
     cycle,
@@ -42,6 +43,7 @@ import {
     gridNotes,
     openDemoId,
     openPanel,
+    ownSounds,
     removed,
     rollRanges,
     selected,
@@ -62,6 +64,8 @@ import {
     waveShown,
     setOpenDemoId,
     setOpenPanel,
+    setOwnSoundNote,
+    setOwnSounds,
     setPosition,
     setRemoved,
     setRevision,
@@ -221,6 +225,7 @@ export async function mount(root: HTMLElement): Promise<void> {
     engine.onState((next) => {
         const before = engineState()
         setEngineState(next)
+        if (next.sounds !== 'loading' && before.sounds === 'loading') void loadOwnSounds()
         if (next.playing && !before.playing) {
             cancelAnimationFrame(frame)
             frame = requestAnimationFrame(tick)
@@ -550,7 +555,7 @@ const bankOf = (id: string): string | null => {
 }
 
 export function previewSound(id: string, sound: string) {
-    engine.preview(sound, bankOf(id))
+    engine.preview(sound, bankOf(id), ownSounds().some((own) => own.name === sound) ? OWN_PREVIEW_SECONDS : undefined)
 }
 
 export function soundChoices(id: string, used: string[]) {
@@ -683,6 +688,10 @@ export function hearSound(item: SoundItem, part?: string) {
         engine.preview(item.name, null)
         return
     }
+    if (item.group === 'yours') {
+        engine.preview(item.name, null, OWN_PREVIEW_SECONDS)
+        return
+    }
     const id = selected()
     const pitch = id ? eventsOf(id, 0).find((event) => event.midi !== null)?.midi : null
     engine.previewNote(pitch ?? PREVIEW_PITCH, item.name, 0.6)
@@ -691,7 +700,63 @@ export function hearSound(item: SoundItem, part?: string) {
 export function useSound(id: string, item: SoundItem) {
     const block = find(id)
     if (!block || stale() || !fits(block, item.group)) return
+    if (isRow(block, item)) return addRow(id, item.name)
     engine.applyEdit(soundEdit(engine.getCode(), block, item))
+    replay()
+}
+
+const OWN_PREVIEW_SECONDS = 4
+const ownUrls = new Map<string, string>()
+const infoOfSound = ({ name, file, seconds }: OwnSound) => ({ name, file, seconds })
+const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)
+
+async function register(sound: OwnSound) {
+    const url = URL.createObjectURL(new Blob([sound.data], { type: sound.type }))
+    ownUrls.set(sound.name, url)
+    await engine.addSound(sound.name, url)
+}
+
+// The drum kits have to be known first: a sound of your own is made known in every one of them.
+async function loadOwnSounds() {
+    try {
+        const kept = await ownSoundStore.all()
+        for (const sound of kept) await register(sound)
+        setOwnSounds(kept.map(infoOfSound).sort(byName))
+        if (kept.length) replay()
+    } catch {
+        setOwnSoundNote('Your own sounds could not be read from where the app keeps them.')
+    }
+}
+
+export async function addOwnSounds(files: File[]) {
+    const refused: string[] = []
+    for (const file of files) {
+        try {
+            const data = await file.arrayBuffer()
+            const seconds = await engine.audioLength(data.slice(0))
+            if (seconds === null) {
+                refused.push(file.name)
+                continue
+            }
+            const sound: OwnSound = { name: soundNameFor(file.name, engine.soundTaken), file: file.name, seconds, addedAt: Date.now(), type: file.type, data }
+            await ownSoundStore.put(sound)
+            await register(sound)
+            setOwnSounds([...ownSounds(), infoOfSound(sound)].sort(byName))
+        } catch {
+            refused.push(file.name)
+        }
+    }
+    setOwnSoundNote(refused.length ? `${refused.join(', ')} could not be read as sound, so ${refused.length === 1 ? 'it was' : 'they were'} not added.` : null)
+}
+
+// A song that still uses the sound keeps the name in its code and is silent there.
+export async function removeOwnSound(name: string) {
+    await ownSoundStore.remove(name).catch(() => undefined)
+    engine.removeSound(name)
+    const url = ownUrls.get(name)
+    if (url) URL.revokeObjectURL(url)
+    ownUrls.delete(name)
+    setOwnSounds(ownSounds().filter((sound) => sound.name !== name))
     replay()
 }
 

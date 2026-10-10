@@ -77,7 +77,7 @@ describe('panelFor', () => {
 
     it('uses the sample starters for a sample', () => {
         const source = panelFor(first('x: s("bd*4").bank("RolandTR909")')).find((g) => g.group === 'source')!
-        expect(source.items.map((v) => v.fn)).toEqual(['speed', 'begin'])
+        expect(source.items.map((v) => v.fn)).toEqual(['speed', 'begin', 'end'])
     })
 
     it('finds a control written with a synonym', () => {

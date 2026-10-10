@@ -17,8 +17,11 @@ export function StepGrid(props: {
 }) {
     const count = () => props.rows[0]?.steps.length ?? 16
     const now = () => (props.playing ? Math.min(count() - 1, Math.floor(props.position * count())) : -1)
+    // The names of a kit's own sounds are a few letters. A sound of your own can have a longer
+    // name, and the column of names is then made wide enough to read it, up to a point.
+    const names = () => Math.min(170, Math.max(74, Math.max(0, ...props.rows.map((row) => row.name.length)) * 6.6 + 46))
     return (
-        <div class="dg" classList={{ fine: count() > 16, edit: Boolean(props.onToggle), own: Boolean(props.controls) }}>
+        <div class="dg" classList={{ fine: count() > 16, edit: Boolean(props.onToggle), own: Boolean(props.controls) }} style={{ '--names': `${names()}px` }}>
             <Show when={props.controls}>
                 <span />
                 <span />
@@ -34,7 +37,7 @@ export function StepGrid(props: {
                     <>
                         <span class="rh" classList={{ off: row().muted }}>
                             <Show when={props.onHear} fallback={<span class="rn">{row().name}</span>}>
-                                <button class="rn" aria-label={`Hear ${row().name}`} onClick={() => props.onHear?.(row().name)}>
+                                <button class="rn" aria-label={`Hear ${row().name}`} title={row().name} onClick={() => props.onHear?.(row().name)}>
                                     {row().name}
                                 </button>
                             </Show>

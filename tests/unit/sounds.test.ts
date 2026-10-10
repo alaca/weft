@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { analyze } from '../../src/song/analyze'
 import { applyEdit } from '../../src/song/edits'
-import { fits, inUse, soundEdit } from '../../src/sounds/apply'
+import { fits, inUse, isRow, soundEdit } from '../../src/sounds/apply'
 import { catalogue, countSounds, findSounds, kitLabel, soundLabel, type RawSound, type SoundItem } from '../../src/sounds/catalog'
 
 const RAW: RawSound[] = [
@@ -17,6 +17,7 @@ const RAW: RawSound[] = [
     { name: 'piano', type: 'sample', tag: 'instruments' },
     { name: 'snare_modern', type: 'sample', tag: null },
     { name: 'cowbell', type: 'sample', tag: null },
+    { name: 'my_take', type: 'sample', tag: 'yours' },
     { name: '_base', type: 'sample', tag: null },
     { name: 'bus', type: 'input', tag: null },
 ]
@@ -78,7 +79,8 @@ describe('findSounds', () => {
     })
 
     it('counts the matches in every group', () => {
-        expect(countSounds(ITEMS, 'piano')).toEqual({ kits: 0, instruments: 2, synths: 0, samples: 0 })
+        expect(countSounds(ITEMS, 'piano')).toEqual({ kits: 0, instruments: 2, synths: 0, samples: 0, yours: 0 })
+        expect(countSounds(ITEMS, 'take').yours).toBe(1)
     })
 })
 
@@ -97,6 +99,21 @@ describe('using a sound', () => {
         expect(inUse(blockOf(drums), named('RolandTR909'))).toBe(true)
         expect(inUse(blockOf(drums), named('AkaiMPC60'))).toBe(false)
         expect(inUse(blockOf(bass), named('sine'))).toBe(false)
+    })
+
+    it('offers a sound of your own to every pattern, as its sound or as a row of a drum grid', () => {
+        const kit = 'drums: stack(\n  s("bd").struct("x ~ ~ ~"),\n  s("my_take").struct("~ ~ x ~"),\n)\n  .bank("RolandTR909")\n'
+        const mine = named('my_take')
+        expect(mine).toMatchObject({ group: 'yours', label: 'My take' })
+        expect(fits(blockOf(drums), 'yours')).toBe(true)
+        expect(fits(blockOf(bass), 'yours')).toBe(true)
+        expect(isRow(blockOf(drums), mine)).toBe(true)
+        expect(isRow(blockOf(bass), mine)).toBe(false)
+        expect(inUse(blockOf(kit), mine)).toBe(true)
+        expect(inUse(blockOf(drums), mine)).toBe(false)
+        expect(inUse(blockOf(bass), mine)).toBe(false)
+        expect(applyEdit(bass, soundEdit(bass, blockOf(bass), mine))).toBe('bass: note("c2 e2")\n  .s("my_take")\n  .lpf(800)\n')
+        expect(inUse(blockOf('bass: note("c2 e2")\n  .s("my_take")\n'), mine)).toBe(true)
     })
 
     it('replaces the kit of a drum grid', () => {

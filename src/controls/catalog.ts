@@ -46,6 +46,7 @@ export const CONTROLS: ControlDef[] = [
     control('fmdecay', 'Metal fade', 'source', 0, 2, 0.3, 'How quickly the metal dies away in each note, as in a struck bell', { names: ['fmdecay', 'fmdec'], unit: 's', only: 'synth', needs: 'fm' }),
     control('speed', 'Speed', 'source', 0.25, 2, 1, 'Plays the sample faster and higher, or slower and lower', { only: 'sample' }),
     control('begin', 'Start', 'source', 0, 1, 0, 'Where in the sample playback begins', { only: 'sample' }),
+    control('end', 'End', 'source', 0, 1, 1, 'Where in the sample playback stops', { only: 'sample' }),
     control('penv', 'Pitch sweep', 'source', -24, 24, 12, 'Bends the pitch as each note starts'),
     control('lpf', 'Cutoff', 'filter', 100, 8000, 1200, 'Cuts everything above this pitch', { names: ['lpf', 'cutoff', 'ctf', 'lp'], scale: 'log', unit: 'Hz' }),
     control('lpq', 'Resonance', 'filter', 0, 30, 8, 'How much the filter rings at its cutoff', { names: ['lpq', 'resonance'] }),
@@ -83,7 +84,7 @@ export const STARTERS: Record<SoundKind, Record<PanelGroup, string[]>> = {
         effects: ['delay', 'pan', 'room'],
     },
     sample: {
-        source: ['speed', 'begin'],
+        source: ['speed', 'begin', 'end'],
         filter: ['lpf', 'lpq', 'lpenv'],
         shape: ['attack', 'decay', 'sustain', 'release'],
         effects: ['delay', 'pan', 'room'],

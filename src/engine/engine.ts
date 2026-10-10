@@ -21,7 +21,7 @@ import { toEvents } from './events'
 import { marksField, setMarks, type BlockMark } from './marks'
 import { maskSliders } from './mask'
 import type { RawSound } from '../sounds/catalog'
-import { kitNames, loadModules, loadSamples } from './prebake'
+import { addOwnSound, kitNames, loadModules, loadSamples, removeOwnSound, soundTaken } from './prebake'
 import { registerTheme } from './theme'
 
 export type { BlockMark } from './marks'
@@ -63,7 +63,11 @@ export interface Engine {
     masterVolume(): number
     miniEvents(text: string, cycles: number): { start: number; length: number; value: unknown }[][] | null
     soundNames(bank: string | null): string[]
-    preview(sound: string, bank: string | null): void
+    preview(sound: string, bank: string | null, cutAfter?: number): void
+    addSound(name: string, url: string): Promise<void>
+    removeSound(name: string): void
+    soundTaken(name: string): boolean
+    audioLength(bytes: ArrayBuffer): Promise<number | null>
     previewNote(midi: number, sound: string | null, seconds?: number): void
     sounds(): RawSound[]
     kitNames(): string[]
@@ -521,8 +525,22 @@ export function createEngine(): Engine {
                 .filter((key) => key.toLowerCase().startsWith(prefix))
                 .map((key) => key.slice(prefix.length))
         },
-        preview(sound, bank) {
-            audition(() => (bank ? { s: sound, bank, analyze: 'weft' } : { s: sound, analyze: 'weft' }), 0.4)
+        // A sample plays to its end however short the note is. A recording of your own can
+        // be minutes long, so listening to one is cut after a few seconds.
+        preview(sound, bank, cutAfter) {
+            const cut = cutAfter ? { clip: 1 } : {}
+            audition(() => (bank ? { s: sound, bank, analyze: 'weft', ...cut } : { s: sound, analyze: 'weft', ...cut }), cutAfter ?? 0.4)
+        },
+        addSound: addOwnSound,
+        removeSound: removeOwnSound,
+        soundTaken,
+        // How long a file is as sound, or null when it is not sound this machine can read.
+        async audioLength(bytes) {
+            try {
+                return (await getAudioContext().decodeAudioData(bytes)).duration
+            } catch {
+                return null
+            }
         },
         previewNote(midi, sound, seconds = 0.3) {
             audition(() => ({ note: midi, s: sound ?? 'triangle', analyze: 'weft' }), seconds)

@@ -1,6 +1,7 @@
 import { createSignal } from 'solid-js'
 import type { EngineState } from '../engine/engine'
 import type { SongInfo, SongRecord } from '../library/shelf'
+import type { OwnSoundInfo } from '../library/sounds'
 import type { Song } from '../song/types'
 
 export type ViewMode = 'controls' | 'both' | 'code'
@@ -35,4 +36,6 @@ export const [deletedSong, setDeletedSong] = createSignal<SongRecord | null>(nul
 export const [openDemoId, setOpenDemoId] = createSignal<string | null>(null)
 export const [exporting, setExporting] = createSignal(false)
 export const [exportOpen, setExportOpen] = createSignal(false)
+export const [ownSounds, setOwnSounds] = createSignal<OwnSoundInfo[]>([])
+export const [ownSoundNote, setOwnSoundNote] = createSignal<string | null>(null)
 export const [exportNote, setExportNote] = createSignal<string | null>(null)
