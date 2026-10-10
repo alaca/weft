@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, Show } from 'solid-js'
-import { addRow, previewSound, removeGridRow, setLength, setMix, setStepsPerCycle, soundChoices, togglePanel, toggleRowMute, toggleStep } from '../app/controller'
+import { addRow, previewSound, removeGridRow, setLength, setMix, setStepsPerCycle, soundChoices, toggleAccent, togglePanel, toggleRowMute, toggleStep } from '../app/controller'
 import { drumLabel } from '../controls/drums'
 import { panOf, volumeOf } from '../controls/views'
 import { readGrid, resample, type Grid } from '../song/grid'
@@ -60,9 +60,10 @@ export function Rack(props: { id: string; block: PatternBlock; played: { name: s
         const placed: StepRow[] = current
             ? current.rows.map((row) => {
                   const steps = row.steps.slice(from, from + perCycle())
+                  const accents = row.accents?.slice(from, from + perCycle())
                   const heard = props.played.find((other) => other.name === row.sound)?.steps
                   const muted = mutedRows().includes(row.sound)
-                  return { name: row.sound, steps, muted, played: comparable && !muted ? (heard ?? steps.map(() => false)) : undefined }
+                  return { name: row.sound, steps, accents, muted, played: comparable && !muted ? (heard ?? steps.map(() => false)) : undefined }
               })
             : props.played.map((row) => ({ name: row.name, steps: row.steps }))
         const extra = current && comparable ? props.played.filter((row) => !placed.some((other) => other.name === row.name)) : []
@@ -79,6 +80,7 @@ export function Rack(props: { id: string; block: PatternBlock; played: { name: s
                     position={props.position}
                     disabled={stale()}
                     onToggle={canEdit() ? (sound, step) => toggleStep(props.id, sound, shown() * perCycle() + step) : undefined}
+                    onAccent={canEdit() ? (sound, step) => toggleAccent(props.id, sound, shown() * perCycle() + step) : undefined}
                     onHear={(sound) => previewSound(props.id, sound)}
                     onRemove={canEdit() ? (sound) => removeGridRow(props.id, sound) : undefined}
                     controls={

@@ -16,6 +16,12 @@ const SOURCES = ['s', 'sound']
 const SOUND = /^[A-Za-z_]\w*(?::\d+)?$/
 const INDENT = '  '
 
+// Louder hits are written as a level for every step, after the steps themselves:
+//   s("hh").struct("x x x x").postgain("1 1.5 1 1")
+// The call is only there when a row has a louder hit.
+export const ACCENT = 'postgain'
+const LOUDER = 1.5
+
 // Strudel's own way to silence one pattern inside a stack.
 export const MUTE = 'hush'
 
@@ -37,9 +43,12 @@ export function readKit(block: PatternBlock): Kit | null {
         if (!sound || !struct || !SOUND.test(sound.value)) return null
         const cells = struct.value.trim().split(/\s+/)
         if (cells.some((cell) => cell !== 'x' && cell !== '~') || rows.some((row) => row.sound === sound.value)) return null
+        const levels = stringOf(arg.calls.find((call) => call.name === ACCENT), [ACCENT])?.value.trim().split(/\s+/).map(Number)
+        const accents = levels && levels.length === cells.length && levels.every(Number.isFinite) ? levels.map((level, at) => level > 1 && cells[at] === 'x') : null
         rows.push({
             sound: sound.value,
             steps: cells.map((cell) => cell === 'x'),
+            ...(accents?.some(Boolean) ? { accents } : {}),
             muted: arg.calls.some((call) => call.name === MUTE),
             block: { ...block, id: rowTarget(block.id, sound.value), from: arg.from, to: arg.to, calls: arg.calls, soundName: sound.value, inline: true },
         })
@@ -69,7 +78,27 @@ export function structText(steps: boolean[]): string {
     return groups.join('   ')
 }
 
-const rowText = (row: GridRow, width: number) => `s("${row.sound}")${' '.repeat(width - row.sound.length)}.struct("${structText(row.steps)}")`
+// The level of every step, in the same groups of four as the steps. Null when no hit is louder.
+export function accentText(row: GridRow): string | null {
+    if (!row.accents?.some((loud, at) => loud && row.steps[at])) return null
+    const groups: string[] = []
+    for (let i = 0; i < row.steps.length; i += 4) {
+        groups.push(
+            row.steps
+                .slice(i, i + 4)
+                .map((on, at) => (on && row.accents?.[i + at] ? String(LOUDER) : '1'))
+                .join(' '),
+        )
+    }
+    return groups.join('   ')
+}
+
+const accentCall = (row: GridRow) => {
+    const text = accentText(row)
+    return text ? `.${ACCENT}("${text}")` : ''
+}
+
+const rowText = (row: GridRow, width: number) => `s("${row.sound}")${' '.repeat(width - row.sound.length)}.struct("${structText(row.steps)}")${accentCall(row)}`
 const widthOf = (rows: GridRow[]) => Math.max(0, ...rows.map((row) => row.sound.length))
 
 export function kitText(rows: GridRow[]): string {
@@ -114,6 +143,12 @@ export function kitEdits(code: string, kit: Kit, rows: GridRow[]): TextEdit[] {
         const arg = struct.args[0]
         const text = structText(next.steps)
         if (arg.kind === 'string' && arg.value !== text) edits.push({ from: arg.from + 1, to: arg.to - 1, insert: text })
+        const written = old.block.calls.find((call) => call.name === ACCENT)
+        const levels = stringOf(written, [ACCENT])
+        const wanted = accentText(next)
+        if (written && !wanted) edits.push({ from: written.from, to: written.to, insert: '' })
+        else if (levels && wanted && levels.value !== wanted) edits.push({ from: levels.from + 1, to: levels.to - 1, insert: wanted })
+        else if (!written && wanted) edits.push({ from: struct.to, to: struct.to, insert: `.${ACCENT}("${wanted}")` })
     }
     const added = rows.filter((row) => !kit.rows.some((old) => old.sound === row.sound))
     if (added.length) edits.push(rowInsertion(code, kit, added, width))

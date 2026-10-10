@@ -17,7 +17,20 @@ import { encodeWav, fileName, levelFor, peakOf, soundingLength } from '../librar
 import { analyze } from '../song/analyze'
 import { arrangeSong, barsOf, readArrangement, repeatEdits, songLength } from '../song/arrange'
 import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
-import { gridFromEvents, lengthEdits, readGrid, removeRow, resample, resize, sourceText, toggleStep as toggleGridStep, type Grid, type GridRow, type GridSource } from '../song/grid'
+import {
+    gridFromEvents,
+    lengthEdits,
+    readGrid,
+    removeRow,
+    resample,
+    resize,
+    sourceText,
+    toggleAccent as toggleGridAccent,
+    toggleStep as toggleGridStep,
+    type Grid,
+    type GridRow,
+    type GridSource,
+} from '../song/grid'
 import { convertEdits, kitEdits, MUTE, readKit, rowTarget } from '../song/kit'
 import {
     addNote,
@@ -616,7 +629,7 @@ function changeDrums(id: string, change: (drums: Grid) => { rows: GridRow[]; cyc
     if (!block || stale()) return false
     const kit = readKit(block)
     const legacy = kit ? null : editableGrid(block)
-    const drums: Grid | null = kit ? { ...kit, rows: kit.rows.map(({ sound, steps }) => ({ sound, steps })) } : (legacy?.grid ?? null)
+    const drums: Grid | null = kit ? { ...kit, rows: kit.rows.map(({ sound, steps, accents }) => ({ sound, steps, ...(accents ? { accents } : {}) })) } : (legacy?.grid ?? null)
     const next = drums ? change(drums) : null
     setGridNotes({ ...gridNotes(), [id]: !drums })
     if (!drums || !next) return false
@@ -645,6 +658,12 @@ export function toggleStep(id: string, sound: string, step: number) {
         return { rows: toggleGridStep(drums.rows, sound, step, drums.steps), cycles: drums.cycles }
     })
     if (placed && !engineState().playing) previewSound(id, sound)
+}
+
+// A louder hit on this step, or an ordinary one again.
+export function toggleAccent(id: string, sound: string, step: number) {
+    changeDrums(id, (drums) => ({ rows: toggleGridAccent(drums.rows, sound, step, drums.steps), cycles: drums.cycles }))
+    if (!engineState().playing) previewSound(id, sound)
 }
 
 export function addRow(id: string, sound: string) {

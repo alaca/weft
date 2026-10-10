@@ -1,6 +1,6 @@
 import { For, Index, Show, type JSX } from 'solid-js'
 
-export type StepRow = { name: string; steps: boolean[]; played?: boolean[]; muted?: boolean }
+export type StepRow = { name: string; steps: boolean[]; accents?: boolean[]; played?: boolean[]; muted?: boolean }
 
 const groupsOf = (count: number) => Array.from({ length: Math.ceil(count / 4) }, (_, group) => group)
 const INSIDE = [0, 1, 2, 3]
@@ -11,6 +11,7 @@ export function StepGrid(props: {
     position: number
     disabled?: boolean
     onToggle?: (sound: string, step: number) => void
+    onAccent?: (sound: string, step: number) => void
     onHear?: (sound: string) => void
     onRemove?: (sound: string) => void
     controls?: (sound: () => string) => JSX.Element
@@ -63,14 +64,22 @@ export function StepGrid(props: {
                                                         class="pad"
                                                         classList={{
                                                             on: on(),
+                                                            loud: on() && Boolean(row().accents?.[step]),
                                                             now: now() === step,
                                                             skip: on() && played() === false,
                                                             ghost: !on() && played() === true,
                                                         }}
                                                         aria-label={`${row().name} step ${step + 1}`}
                                                         aria-pressed={on()}
+                                                        data-loud={on() && row().accents?.[step] ? '' : undefined}
+                                                        title={props.onAccent ? 'Click for a hit. Shift click, or the A key, for a louder one.' : undefined}
                                                         disabled={props.disabled || !props.onToggle}
-                                                        onClick={() => props.onToggle?.(row().name, step)}
+                                                        onClick={(event) => (event.shiftKey && props.onAccent ? props.onAccent(row().name, step) : props.onToggle?.(row().name, step))}
+                                                        onKeyDown={(event) => {
+                                                            if (event.key.toLowerCase() !== 'a' || event.metaKey || event.ctrlKey || !props.onAccent) return
+                                                            event.preventDefault()
+                                                            props.onAccent(row().name, step)
+                                                        }}
                                                     />
                                                 )
                                             }}

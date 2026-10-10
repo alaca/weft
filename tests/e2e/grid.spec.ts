@@ -165,3 +165,27 @@ test('a converted pattern keeps its sounds in the order they were written', asyn
     await expect(drums.locator('.rn')).toHaveText(['bd', 'cp', 'hh'])
     await expect.poll(async () => (await code(page)).split('\n').slice(1, 4).map((line) => line.trim().slice(0, 7))).toEqual(['s("bd")', 's("cp")', 's("hh")'])
 })
+
+test('a hit can be made louder with Shift, or the A key, and plain again the same way', async ({ page }) => {
+    await open(page)
+    const perc = page.getByTestId('strip-perc')
+    const step = (at: number) => perc.getByRole('button', { name: `hh step ${at}`, exact: true })
+    await step(2).click({ modifiers: ['Shift'] })
+    await expect(step(2)).toHaveAttribute('aria-pressed', 'true')
+    await expect(step(2)).toHaveAttribute('data-loud', '')
+    await expect.poll(() => code(page)).toContain('  s("hh").struct("x x x ~   x ~ x ~   x ~ x ~   x ~ x ~").postgain("1 1.5 1 1   1 1 1 1   1 1 1 1   1 1 1 1"),\n')
+    await expect(page.getByTestId('code-status')).toHaveText('Stopped')
+
+    await step(3).click({ modifiers: ['Shift'] })
+    await expect(step(3)).toHaveAttribute('data-loud', '')
+    await expect.poll(() => code(page)).toContain('.postgain("1 1.5 1.5 1   ')
+
+    await step(3).focus()
+    await page.keyboard.press('a')
+    await expect(step(3)).not.toHaveAttribute('data-loud', '')
+    await expect(step(3)).toHaveAttribute('aria-pressed', 'true')
+    await step(2).click()
+    await expect(step(2)).toHaveAttribute('aria-pressed', 'false')
+    await expect.poll(() => code(page)).not.toContain('.postgain(')
+    expect(await code(page)).toContain('  s("hh").struct("x ~ x ~   x ~ x ~   x ~ x ~   x ~ x ~"),\n')
+})

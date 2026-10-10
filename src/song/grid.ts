@@ -1,7 +1,8 @@
 import { removeCall, setNumber } from './edits'
 import type { Call, PatternBlock, TextEdit } from './types'
 
-export type GridRow = { sound: string; steps: boolean[] }
+// `accents` says which of the hits are louder than the rest. A row that has none leaves it out.
+export type GridRow = { sound: string; steps: boolean[]; accents?: boolean[] }
 export type Grid = { rows: GridRow[]; steps: number; cycles: number; perCycle: number }
 export type GridSource = { grid: Grid; from: number; to: number; slow: Call | null }
 
@@ -47,7 +48,8 @@ export function readGrid(block: PatternBlock): GridSource | null {
     return { grid: { rows, steps, cycles, perCycle: steps / cycles }, from: text.from, to: text.to, slow }
 }
 
-const copy = (rows: GridRow[]): GridRow[] => rows.map((row) => ({ sound: row.sound, steps: [...row.steps] }))
+const copy = (rows: GridRow[]): GridRow[] => rows.map((row) => ({ sound: row.sound, steps: [...row.steps], ...(row.accents ? { accents: [...row.accents] } : {}) }))
+const mapped = (row: GridRow, each: (list: boolean[]) => boolean[]): GridRow => ({ sound: row.sound, steps: each(row.steps), ...(row.accents ? { accents: each(row.accents) } : {}) })
 
 export function toggleStep(rows: GridRow[], sound: string, step: number, length: number): GridRow[] {
     const next = copy(rows)
@@ -57,6 +59,22 @@ export function toggleStep(rows: GridRow[], sound: string, step: number, length:
         next.push(row)
     }
     row.steps[step] = !row.steps[step]
+    if (!row.steps[step] && row.accents) row.accents[step] = false
+    return next
+}
+
+// A louder hit, or an ordinary one again. On an empty step it puts a louder hit in.
+export function toggleAccent(rows: GridRow[], sound: string, step: number, length: number): GridRow[] {
+    const next = copy(rows)
+    let row = next.find((candidate) => candidate.sound === sound)
+    if (!row) {
+        row = { sound, steps: Array<boolean>(length).fill(false) }
+        next.push(row)
+    }
+    const accents = row.accents ?? row.steps.map(() => false)
+    accents[step] = row.steps[step] ? !accents[step] : true
+    row.steps[step] = true
+    row.accents = accents
     return next
 }
 
@@ -66,17 +84,17 @@ export function removeRow(rows: GridRow[], sound: string): GridRow[] {
 
 export function resize(grid: Grid, cycles: number): GridRow[] {
     const total = grid.perCycle * cycles
-    return grid.rows.map((row) => ({ sound: row.sound, steps: Array.from({ length: total }, (_, i) => row.steps[i % row.steps.length]) }))
+    return grid.rows.map((row) => mapped(row, (list) => Array.from({ length: total }, (_, i) => list[i % list.length])))
 }
 
 export function resample(grid: Grid, perCycle: number): GridRow[] | null {
     if (perCycle === grid.perCycle) return copy(grid.rows)
     if (perCycle === grid.perCycle * 2) {
-        return grid.rows.map((row) => ({ sound: row.sound, steps: row.steps.flatMap((on) => [on, false]) }))
+        return grid.rows.map((row) => mapped(row, (list) => list.flatMap((on) => [on, false])))
     }
     if (perCycle * 2 === grid.perCycle) {
         if (grid.rows.some((row) => row.steps.some((on, i) => on && i % 2 === 1))) return null
-        return grid.rows.map((row) => ({ sound: row.sound, steps: row.steps.filter((_, i) => i % 2 === 0) }))
+        return grid.rows.map((row) => mapped(row, (list) => list.filter((_, i) => i % 2 === 0)))
     }
     return null
 }

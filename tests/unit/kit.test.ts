@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { analyze } from '../../src/song/analyze'
 import { addCall, applyEdits, removeCall } from '../../src/song/edits'
-import { parseGrid, readGrid, removeRow, resize, toggleStep, type GridRow } from '../../src/song/grid'
+import { parseGrid, readGrid, removeRow, resample, resize, toggleAccent, toggleStep, type GridRow } from '../../src/song/grid'
 import { convertEdits, isDrums, kitEdits, kitText, readKit, structText } from '../../src/song/kit'
 import { favourites, panOf, volumeOf } from '../../src/controls/views'
 
@@ -248,5 +248,44 @@ describe('convertEdits', () => {
         const plainCode = 'drums: s("bd ~ ~ ~")\n'
         const four = applyEdits(plainCode, convertEdits(first(plainCode), null, [row('bd', [0, 4], 8)], 2))
         expect(four).toBe('drums: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~"),\n).slow(2)\n')
+    })
+})
+
+describe('louder hits', () => {
+    const KIT = 'drums: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~"),\n  s("hh").struct("x x x x   x x x x").postgain("1 1.5 1 1   1 1.5 1 1").gain(slider(0.5, 0, 1.5)),\n)\n  .bank("RolandTR909")\n'
+    const kitOf = (code: string) => readKit(analyze(code).patterns[0])!
+    const rowsOf = (code: string) => kitOf(code).rows.map(({ sound, steps, accents }) => ({ sound, steps, ...(accents ? { accents } : {}) }))
+
+    it('are read from the level written for every step', () => {
+        const [bd, hh] = kitOf(KIT).rows
+        expect(bd.accents).toBeUndefined()
+        expect(hh.accents).toEqual([false, true, false, false, false, true, false, false])
+    })
+
+    it('are written straight after the steps of a row that had none', () => {
+        const rows = toggleAccent(rowsOf(KIT), 'bd', 4, 8)
+        const next = applyEdits(KIT, kitEdits(KIT, kitOf(KIT), rows))
+        expect(next).toContain('  s("bd").struct("x ~ ~ ~   x ~ ~ ~").postgain("1 1 1 1   1.5 1 1 1"),\n')
+        expect(kitOf(next).rows[0].accents).toEqual([false, false, false, false, true, false, false, false])
+    })
+
+    it('put a louder hit on an empty step', () => {
+        const rows = toggleAccent(rowsOf(KIT), 'bd', 2, 8)
+        expect(rows[0].steps[2]).toBe(true)
+        expect(applyEdits(KIT, kitEdits(KIT, kitOf(KIT), rows))).toContain('s("bd").struct("x ~ x ~   x ~ ~ ~").postgain("1 1 1.5 1   1 1 1 1")')
+    })
+
+    it('go when the hit goes, and the call goes with the last of them', () => {
+        const once = toggleStep(rowsOf(KIT), 'hh', 1, 8)
+        const one = applyEdits(KIT, kitEdits(KIT, kitOf(KIT), once))
+        expect(one).toContain('s("hh").struct("x ~ x x   x x x x").postgain("1 1 1 1   1 1.5 1 1").gain(slider(0.5, 0, 1.5))')
+        const none = applyEdits(one, kitEdits(one, kitOf(one), toggleAccent(rowsOf(one), 'hh', 5, 8)))
+        expect(none).toContain('  s("hh").struct("x ~ x x   x x x x").gain(slider(0.5, 0, 1.5)),\n')
+    })
+
+    it('keep their place when the grid is made longer or finer', () => {
+        const grid = { rows: rowsOf(KIT), steps: 8, cycles: 1, perCycle: 8 }
+        expect(resize(grid, 2)[1].accents).toEqual([false, true, false, false, false, true, false, false, false, true, false, false, false, true, false, false])
+        expect(resample(grid, 16)![1].accents?.slice(0, 6)).toEqual([false, false, true, false, false, false])
     })
 })
