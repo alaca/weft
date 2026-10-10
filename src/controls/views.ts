@@ -137,7 +137,9 @@ export function panelFor(block: PatternBlock, filter?: FilterType): { group: Pan
     })
 }
 
-const mixOf = (block: PatternBlock, fn: string): ControlView => present(block).find((view) => view.fn === fn) ?? faint(findDef(fn) as ControlDef)
+// One control of a pattern as a knob: as it is in the code, or faint when it is not there.
+export const controlOf = (block: PatternBlock, fn: string): ControlView => present(block).find((view) => view.fn === fn) ?? faint(findDef(fn) as ControlDef)
+const mixOf = controlOf
 
 export const volumeOf = (block: PatternBlock): ControlView => mixOf(block, 'gain')
 export const panOf = (block: PatternBlock): ControlView => mixOf(block, 'pan')

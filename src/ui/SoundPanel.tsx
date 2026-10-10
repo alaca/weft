@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js'
-import { addControl, cutsItself, removeControl, setControl, setCut, setEcho, setFilterType, setWave } from '../app/controller'
+import { addControl, cutsItself, isPumped, pumpDepth, pumpFor, removeControl, setControl, setCut, setEcho, setFilterType, setPump, setPumpDepth, setWave } from '../app/controller'
 import { filterTypeOf, soundKind, type FilterType, type PanelGroup } from '../controls/catalog'
 import { drumLabel } from '../controls/drums'
 import { envelopeOf, envelopePoints } from '../controls/envelope'
@@ -147,6 +147,18 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
                                                 )}
                                             </For>
                                         </div>
+                                        <Show when={!props.only}>
+                                            <button
+                                                class="chip tgl"
+                                                classList={{ on: isPumped(props.block) }}
+                                                aria-pressed={isPumped(props.block)}
+                                                disabled={stale() || (!isPumped(props.block) && !pumpFor(props.id).can)}
+                                                title={pumpFor(props.id).why}
+                                                onClick={() => setPump(props.id, !isPumped(props.block))}
+                                            >
+                                                Pump
+                                            </button>
+                                        </Show>
                                     </Match>
                                 </Switch>
                             </div>
@@ -166,6 +178,9 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
                                         </Show>
                                     )}
                                 </For>
+                                <Show when={group.id === 'effects' && !props.only && isPumped(props.block) ? pumpDepth() : null}>
+                                    {(depth) => <Knob view={depth()} disabled={stale()} onChange={setPumpDepth} />}
+                                </Show>
                             </div>
                         </div>
                     )}

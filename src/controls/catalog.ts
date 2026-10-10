@@ -75,6 +75,8 @@ export const CONTROLS: ControlDef[] = [
     control('phaser', 'Phaser', 'effects', 0, 8, 1, 'A slow, sweeping swirl', { names: ['phaser', 'ph'] }),
     control('chorus', 'Chorus', 'effects', 0, 1, 0.5, 'Thickens the sound with detuned copies'),
     control('gain', 'Volume', 'effects', 0, 1.5, 0.8, 'How loud this pattern is'),
+    control('duckdepth', 'Pump', 'effects', 0, 1, 0.8, 'How far the pumped patterns drop each time this sound hits', { needs: 'duckorbit' }),
+    control('duckattack', 'Pump time', 'effects', 0.02, 0.6, 0.2, 'How long the pumped patterns take to come back up', { unit: 's', needs: 'duckorbit' }),
     control('swingBy', 'Swing', 'pattern', 0, 0.5, 0.2, 'Plays every second sixteenth late, so the pattern leans back', { wrap: ['', ', 8'] }),
     control('nudge', 'Loose timing', 'pattern', 0, 0.05, 0.012, 'Lets each hit come a little late, by a different amount every time', { unit: 's', wrap: ['rand.range(0, ', ')'] }),
     control('velocity', 'Loose volume', 'pattern', 0.3, 1, 0.75, 'Lets each hit be quieter by a different amount every time, down to this level', { wrap: ['rand.range(', ', 1)'] }),

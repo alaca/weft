@@ -223,6 +223,42 @@ export function createEngine(): Engine {
         }
     }
 
+    // A sound that ducks a mixing channel can only duck one that exists, and Strudel makes a
+    // channel when the first sound is played on it. The kick that opens a song would find none
+    // and duck nothing, so the channel is made before a sound that ducks it is played.
+    const readyToDuck = (value: any) => {
+        const target = value?.duckorbit
+        if (target === undefined || target === null) return
+        try {
+            for (const channel of String(target).split(':').map(Number)) {
+                if (Number.isFinite(channel)) getSuperdoughAudioController().getOrbit(channel)
+            }
+        } catch {
+            return
+        }
+    }
+
+    // Strudel ducks a channel from a timer that asks what time it is when it goes off, a moment
+    // before the sound. On the clock a file is made on, time runs as fast as the machine can,
+    // so that moment has no meaning there and the ducking would land anywhere. For a file the
+    // same drop and rise are written onto the channel's level at the time of the sound itself.
+    const first = (value: unknown, usual: number) => {
+        const number = Number(String(value ?? '').split(':')[0])
+        return value !== undefined && value !== null && Number.isFinite(number) ? number : usual
+    }
+    const duckAt = (value: any, time: number) => {
+        const low = Math.min(1, Math.max(0.01, 1 - Math.sqrt(first(value.duckdepth, 1))))
+        const drop = time + first(value.duckonset, 0)
+        const back = drop + Math.max(first(value.duckattack, 0.1), 0.002)
+        for (const channel of String(value.duckorbit).split(':').map(Number)) {
+            if (!Number.isFinite(channel)) continue
+            const level = getSuperdoughAudioController().getOrbit(channel).output.gain
+            level.cancelScheduledValues(drop)
+            level.setValueAtTime(low, drop)
+            level.exponentialRampToValueAtTime(1, back)
+        }
+    }
+
     const audition = (make: () => Record<string, unknown>, seconds: number) => {
         wakeAudio()
         const fire = async () => {
@@ -270,7 +306,10 @@ export function createEngine(): Engine {
 
     const makeMirror = (root: HTMLElement, initialCode: string) =>
         new StrudelMirror({
-            defaultOutput: webaudioOutput,
+            defaultOutput: (hap: any, deadline: number, duration: number, cps: number, time: number) => {
+                readyToDuck(hap.value)
+                return webaudioOutput(hap, deadline, duration, cps, time)
+            },
             getTime: () => getAudioContext().currentTime,
             transpiler,
             root,
@@ -523,7 +562,9 @@ export function createEngine(): Engine {
                     for (; next < haps.length && startOf(haps[next]) < until; next++) {
                         const hap = haps[next]
                         hap.ensureObjectValue()
-                        await superdough({ ...hap.value }, startOf(hap), hap.duration.valueOf() / cps, cps, hap.whole.begin.valueOf()).catch(() => void missed++)
+                        const { duckorbit, ...value } = hap.value
+                        if (duckorbit !== undefined && duckorbit !== null) duckAt(hap.value, startOf(hap))
+                        await superdough(value, startOf(hap), hap.duration.valueOf() / cps, cps, hap.whole.begin.valueOf()).catch(() => void missed++)
                     }
                 }
                 await handOver(STRETCH)

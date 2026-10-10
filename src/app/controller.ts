@@ -1,7 +1,7 @@
 import { batch, createEffect, createRoot } from 'solid-js'
 import { FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '../controls/catalog'
 import { drumChoices } from '../controls/drums'
-import { callFor, valueArg } from '../controls/views'
+import { callFor, controlOf, valueArg, type ControlView } from '../controls/views'
 import { installViewMenu } from '../desktop/menu'
 import { saveFile, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
@@ -474,6 +474,55 @@ export function setFilterType(id: string, type: FilterType) {
     if (!edits.length) return
     engine.applyEdit(edits)
     replay()
+}
+
+// Pump: the patterns that are switched to it drop every time the kick hits and come back up, the
+// way a compressor keyed by the kick makes them breathe. Strudel does it between two of its
+// mixing channels: the pumped patterns are put on a channel of their own, and the kick is told
+// to duck that channel. The kick is the first drum row called bd.
+const PUMP_CHANNEL = 2
+const DUCKING = ['duckorbit', 'duckattack', 'duckdepth', 'duckonset']
+
+const kickRow = (): PatternBlock | undefined => song().patterns.flatMap((block) => readKit(block)?.rows ?? []).find((row) => row.sound === 'bd')?.block
+
+export const isPumped = (block: PatternBlock): boolean => block.calls.some((call) => call.name === 'orbit' && call.args[0]?.kind === 'number' && call.args[0].value === PUMP_CHANNEL)
+
+// Whether a pattern can be pumped, and when it cannot, why not.
+export function pumpFor(id: string): { can: boolean; why: string } {
+    const kick = kickRow()
+    if (!kick) return { can: false, why: 'Pump needs a kick to follow: a drum row called bd' }
+    if (ownerOf(kick.id) === id) return { can: false, why: 'The kick is in this pattern, and it cannot pump itself' }
+    return { can: true, why: 'Drops this pattern every time the kick hits' }
+}
+
+export function setPump(id: string, on: boolean) {
+    const block = find(id)
+    const kick = kickRow()
+    if (!block || stale() || isPumped(block) === on) return
+    const code = engine.getCode()
+    if (on) {
+        if (!kick || !pumpFor(id).can) return
+        const edits = [addCall(code, block, `.orbit(${PUMP_CHANNEL})`)]
+        if (!kick.calls.some((call) => call.name === 'duckorbit')) edits.push(addCall(code, kick, `.duckorbit(${PUMP_CHANNEL}).duckattack(0.2).duckdepth(slider(0.8, 0, 1))`))
+        engine.applyEdit(edits)
+    } else {
+        const orbit = block.calls.find((call) => call.name === 'orbit')
+        const others = song().patterns.some((other) => other.id !== id && isPumped(other))
+        const ducks = others || !kick ? [] : kick.calls.filter((call) => DUCKING.includes(call.name))
+        engine.applyEdit([...(orbit ? [removeCall(orbit)] : []), ...ducks.map(removeCall)])
+    }
+    replay()
+}
+
+// How far the pumped patterns drop. It is the kick's setting, shown with every pumped pattern.
+export function pumpDepth(): ControlView | null {
+    const kick = kickRow()
+    return kick?.calls.some((call) => call.name === 'duckdepth') ? { ...controlOf(kick, 'duckdepth'), label: 'Pump' } : null
+}
+
+export function setPumpDepth(value: number) {
+    const kick = kickRow()
+    if (kick) setControl(kick.id, 'duckdepth', value)
 }
 
 // Sounds that share a number here cut each other off: a new hit stops the one before it. Each
