@@ -1,3 +1,5 @@
+import { DEFAULT_STEPS } from './grid'
+import { kitText } from './kit'
 import type { PatternBlock, TextEdit } from './types'
 
 export type StarterKind = 'drums' | 'bass' | 'chords' | 'melody'
@@ -6,14 +8,16 @@ export type Starter = {
     kind: StarterKind
     label: string
     name: string
-    rows?: string[]
     range?: { low: number; high: number }
 }
 
 // A new pattern starts with nothing in it. What a starter chooses is the kind of pattern, its
-// sound, and what the empty grid or roll shows first: the drum rows, or the range of notes.
+// sound, and what the empty grid or roll shows first: four drum sounds with no hits, or the
+// range of notes.
+const DRUM_SOUNDS = ['bd', 'sd', 'cp', 'hh']
+
 export const PATTERN_STARTERS: Starter[] = [
-    { kind: 'drums', label: 'Drums', name: 'drums', rows: ['bd', 'sd', 'cp', 'hh'] },
+    { kind: 'drums', label: 'Drums', name: 'drums' },
     { kind: 'bass', label: 'Bass line', name: 'bass', range: { low: 28, high: 45 } },
     { kind: 'chords', label: 'Chords', name: 'chords', range: { low: 48, high: 67 } },
     { kind: 'melody', label: 'Melody', name: 'melody', range: { low: 60, high: 79 } },
@@ -22,7 +26,7 @@ export const PATTERN_STARTERS: Starter[] = [
 export function starterCode(kind: StarterKind, name: string): string {
     switch (kind) {
         case 'drums':
-            return `${name}: s("~")\n  .bank("RolandTR909")`
+            return `${name}: ${kitText(DRUM_SOUNDS.map((sound) => ({ sound, steps: Array<boolean>(DEFAULT_STEPS).fill(false) })))}\n  .bank("RolandTR909")`
         case 'bass':
             return `${name}: note("~")\n  .s("sawtooth")\n  .lpf(slider(900, 100, 8000))`
         case 'chords':

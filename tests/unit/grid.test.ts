@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { analyze } from '../../src/song/analyze'
-import { applyEdits } from '../../src/song/edits'
-import { formatGrid, gridEdits, gridFromEvents, parseGrid, readGrid, removeRow, resample, resize, sourceText, toggleStep } from '../../src/song/grid'
+import { gridFromEvents, parseGrid, readGrid, removeRow, resample, resize, sourceText, toggleStep } from '../../src/song/grid'
 
 const first = (code: string) => analyze(code).patterns[0]
 const hits = (steps: boolean[]) => steps.flatMap((on, i) => (on ? [i] : []))
@@ -30,25 +29,6 @@ describe('parseGrid', () => {
         expect(parseGrid('bd')).toBeNull()
         expect(parseGrid('<bd sd> ~ ~ ~')).toBeNull()
         expect(parseGrid('')).toBeNull()
-    })
-})
-
-describe('formatGrid', () => {
-    it('writes one aligned line per row with steps grouped in fours', () => {
-        const rows = [
-            { sound: 'bd', steps: [true, false, false, false, true, false, false, false] },
-            { sound: 'rim', steps: [false, false, true, false, false, false, true, false] },
-        ]
-        expect(formatGrid(rows)).toBe('`\n  bd  ~   ~   ~     bd  ~   ~   ~ ,\n  ~   ~   rim ~     ~   ~   rim ~\n`')
-    })
-
-    it('reads back what it wrote', () => {
-        const rows = parseGrid('bd ~ ~ ~ bd ~ ~ ~, ~ ~ cp ~ ~ ~ cp ~')!
-        expect(parseGrid(formatGrid(rows).slice(1, -1))).toEqual(rows)
-    })
-
-    it('writes a single rest when there are no rows', () => {
-        expect(formatGrid([])).toBe('"~"')
     })
 })
 
@@ -98,8 +78,10 @@ describe('changing a grid', () => {
         expect(hits(next[2].steps)).toEqual([1])
     })
 
-    it('drops a row when its last hit is removed', () => {
-        expect(toggleStep(rows, 'cp', 2, 4).map((r) => r.sound)).toEqual(['bd'])
+    it('keeps a row when its last hit is removed', () => {
+        const next = toggleStep(rows, 'cp', 2, 4)
+        expect(next.map((r) => r.sound)).toEqual(['bd', 'cp'])
+        expect(hits(next[1].steps)).toEqual([])
     })
 
     it('removes a row', () => {
@@ -162,43 +144,5 @@ describe('gridFromEvents', () => {
 
     it('gives no rows for silence', () => {
         expect(gridFromEvents([[], []])).toEqual([])
-    })
-})
-
-describe('gridEdits', () => {
-    it('rewrites only the grid text when the length does not change', () => {
-        const block = first(GRID)
-        const source = readGrid(block)!
-        const rows = toggleStep(source.grid.rows, 'cp', 0, 16)
-        const next = applyEdits(GRID, gridEdits(block, source, rows, 1))
-        expect(next).toContain('  cp ~  ~  ~    cp ~  ~  ~    ~  ~  ~  ~    cp ~  ~  ~\n`)\n  .bank("RolandTR909")')
-        expect(readGrid(first(next))!.grid.rows[1].steps.filter(Boolean)).toHaveLength(3)
-    })
-
-    it('adds, changes and removes slow with the length', () => {
-        const block = first(GRID)
-        const source = readGrid(block)!
-        const two = applyEdits(GRID, gridEdits(block, source, resize(source.grid, 2), 2))
-        expect(two).toContain('`).slow(2)\n  .bank("RolandTR909")')
-        expect(readGrid(first(two))!.grid).toMatchObject({ steps: 32, cycles: 2, perCycle: 16 })
-
-        const blockTwo = first(two)
-        const sourceTwo = readGrid(blockTwo)!
-        const four = applyEdits(two, gridEdits(blockTwo, sourceTwo, resize(sourceTwo.grid, 4), 4))
-        expect(four).toContain('`).slow(4)\n')
-
-        const blockFour = first(four)
-        const sourceFour = readGrid(blockFour)!
-        const one = applyEdits(four, gridEdits(blockFour, sourceFour, resize(sourceFour.grid, 1), 1))
-        expect(one).toBe(GRID)
-    })
-
-    it('turns a compact string into a grid in place', () => {
-        const code = 'drums: s("bd*4, [~ cp]*2")\n  .bank("RolandTR909")\n'
-        const block = first(code)
-        const text = sourceText(block)!
-        const rows = parseGrid('bd ~ ~ ~ bd ~ ~ ~ bd ~ ~ ~ bd ~ ~ ~, ~ ~ ~ ~ cp ~ ~ ~ ~ ~ ~ ~ cp ~ ~ ~')!
-        const source = { grid: { rows, steps: 16, cycles: 1, perCycle: 16 }, from: text.from, to: text.to, slow: null }
-        expect(applyEdits(code, gridEdits(block, source, rows, 1))).toBe(GRID)
     })
 })

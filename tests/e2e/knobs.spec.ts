@@ -118,7 +118,7 @@ test('every strip has a pan knob that starts in the middle', async ({ page }) =>
     await page.keyboard.press('Home')
     await expect.poll(() => code(page)).toContain('.pan(slider(0, 0, 1))')
     await expect(pan).toHaveAttribute('aria-valuenow', '0')
-    await expect(drums.getByRole('slider', { name: /^Pan/ })).toHaveCount(1)
+    await expect(drums.locator('.st-r').getByRole('slider', { name: /^Pan/ })).toHaveCount(0)
 })
 
 test('volume and pan can be dragged', async ({ page }) => {

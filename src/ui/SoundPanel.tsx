@@ -1,6 +1,7 @@
 import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js'
 import { addControl, removeControl, setControl, setEcho, setFilterType, setWave } from '../app/controller'
 import { filterTypeOf, soundKind, type FilterType, type PanelGroup } from '../controls/catalog'
+import { drumLabel } from '../controls/drums'
 import { envelopeOf, envelopePoints } from '../controls/envelope'
 import { callFor, panelFor } from '../controls/views'
 import type { PatternBlock } from '../song/types'
@@ -37,7 +38,7 @@ const ECHOES = [
 const ENVELOPE_WIDTH = 180
 const ENVELOPE_HEIGHT = 44
 
-export function SoundPanel(props: { id: string; block: PatternBlock }) {
+export function SoundPanel(props: { id: string; block: PatternBlock; only?: string }) {
     const [choice, setChoice] = createSignal<FilterType>('low')
     const [browsing, setBrowsing] = createSignal(false)
     const filter = () => filterTypeOf(props.block) ?? choice()
@@ -60,8 +61,15 @@ export function SoundPanel(props: { id: string; block: PatternBlock }) {
     }
 
     return (
-        <div onClick={(event) => event.stopPropagation()}>
-            <div class="sp">
+        <div onClick={(event) => event.stopPropagation()} data-testid={props.only ? 'row-panel' : 'sound-panel'}>
+            <Show when={props.only}>
+                {(sound) => (
+                    <p class="sp-o">
+                        These controls are for <b>{drumLabel(sound())}</b> <code>{sound()}</code> only. The Sound button at the top of the strip is for the whole kit.
+                    </p>
+                )}
+            </Show>
+            <div class="sp" classList={{ sub: Boolean(props.only) }}>
                 <For each={GROUPS}>
                     {(group) => (
                         <div>

@@ -5,10 +5,11 @@ export type GridRow = { sound: string; steps: boolean[] }
 export type Grid = { rows: GridRow[]; steps: number; cycles: number; perCycle: number }
 export type GridSource = { grid: Grid; from: number; to: number; slow: Call | null }
 
+export const DEFAULT_STEPS = 16
+export const MAX_STEPS = 64
+
 const CELL = /^(~|[A-Za-z_]\w*(?::\d+)?)$/
 const SOURCES = ['s', 'sound']
-const MAX_STEPS = 64
-const DEFAULT_STEPS = 16
 
 export function parseGrid(text: string): GridRow[] | null {
     const lines = text.split(',').map((line) => line.trim().split(/\s+/).filter(Boolean))
@@ -22,18 +23,6 @@ export function parseGrid(text: string): GridRow[] | null {
         rows.push({ sound: sounds[0], steps: cells.map((cell) => cell !== '~') })
     }
     return rows
-}
-
-export function formatGrid(rows: GridRow[]): string {
-    if (!rows.length) return '"~"'
-    const width = Math.max(...rows.map((row) => row.sound.length))
-    const lines = rows.map((row) => {
-        const cells = row.steps.map((on) => (on ? row.sound : '~').padEnd(width))
-        const groups: string[] = []
-        for (let i = 0; i < cells.length; i += 4) groups.push(cells.slice(i, i + 4).join(' '))
-        return `  ${groups.join('   ').trimEnd()}`
-    })
-    return `\`\n${lines.join(' ,\n')}\n\``
 }
 
 export function sourceText(block: PatternBlock): { text: string; from: number; to: number } | null {
@@ -58,7 +47,6 @@ export function readGrid(block: PatternBlock): GridSource | null {
 }
 
 const copy = (rows: GridRow[]): GridRow[] => rows.map((row) => ({ sound: row.sound, steps: [...row.steps] }))
-const withHits = (rows: GridRow[]): GridRow[] => rows.filter((row) => row.steps.some(Boolean))
 
 export function toggleStep(rows: GridRow[], sound: string, step: number, length: number): GridRow[] {
     const next = copy(rows)
@@ -68,7 +56,7 @@ export function toggleStep(rows: GridRow[], sound: string, step: number, length:
         next.push(row)
     }
     row.steps[step] = !row.steps[step]
-    return withHits(next)
+    return next
 }
 
 export function removeRow(rows: GridRow[], sound: string): GridRow[] {
@@ -77,7 +65,7 @@ export function removeRow(rows: GridRow[], sound: string): GridRow[] {
 
 export function resize(grid: Grid, cycles: number): GridRow[] {
     const total = grid.perCycle * cycles
-    return withHits(grid.rows.map((row) => ({ sound: row.sound, steps: Array.from({ length: total }, (_, i) => row.steps[i % row.steps.length]) })))
+    return grid.rows.map((row) => ({ sound: row.sound, steps: Array.from({ length: total }, (_, i) => row.steps[i % row.steps.length]) }))
 }
 
 export function resample(grid: Grid, perCycle: number): GridRow[] | null {
@@ -130,8 +118,4 @@ export function lengthEdits(block: PatternBlock, slow: Call | null, cycles: numb
         return [{ from: end, to: end, insert: `.slow(${cycles})` }]
     }
     return []
-}
-
-export function gridEdits(block: PatternBlock, source: GridSource, rows: GridRow[], cycles: number): TextEdit[] {
-    return [{ from: source.from, to: source.to, insert: formatGrid(rows) }, ...lengthEdits(block, source.slow, cycles)]
 }

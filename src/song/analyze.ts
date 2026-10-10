@@ -29,6 +29,10 @@ function toArg(node: Node): Arg {
             return { kind: 'slider', value: start, min, max, from: node.start, to: node.end, valueFrom: first.start, valueTo: first.end }
         }
     }
+    if (node.type === 'CallExpression') {
+        const calls = callChain(node)
+        if (calls.length) return { kind: 'chain', calls, from: node.start, to: node.end }
+    }
     return { kind: 'other', from: node.start, to: node.end }
 }
 

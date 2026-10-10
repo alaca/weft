@@ -78,15 +78,20 @@ test('unfolds the other strips when the pattern with the open sound panel is rem
     await expect(page.getByTestId('strip-drums').locator('.st-b')).toHaveCount(1)
 })
 
-test('forgets the rows that were waiting in a removed drum grid', async ({ page }) => {
+test('puts a drum kit back with every sound and control it had', async ({ page }) => {
     await open(page)
     const drums = page.getByTestId('strip-drums')
     await drums.getByRole('button', { name: 'Add a sound' }).click()
-    await drums.getByRole('menuitem').first().click()
-    await expect(drums.locator('.rn')).toHaveCount(2)
+    await drums.getByRole('menuitem', { name: /Open hat/ }).click()
+    await drums.getByRole('slider', { name: 'Volume of oh', exact: true }).focus()
+    await page.keyboard.press('End')
+    await expect.poll(() => code(page)).toContain('.gain(slider(1.5, 0, 1.5)),\n)')
+    const before = await code(page)
     await remove(page, 'drums').click()
+    await expect.poll(() => code(page)).not.toContain('drums')
     await page.getByTestId('removed').getByRole('button', { name: 'Put it back' }).click()
-    await expect(page.getByTestId('strip-drums').locator('.rn')).toHaveCount(1)
+    await expect.poll(() => code(page)).toBe(before)
+    await expect(page.getByTestId('strip-drums').locator('.rn')).toHaveText(['bd', 'oh'])
 })
 
 test('removes nothing while the code has an error', async ({ page }) => {

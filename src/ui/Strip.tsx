@@ -1,7 +1,7 @@
 import { createMemo, For, Show } from 'solid-js'
 import { colorAt, eventsOf, openSounds, removePattern, select, setControl, setMix, toggleMute, togglePanel, toggleSolo } from '../app/controller'
 import { favourites, panOf, volumeOf, type ControlView } from '../controls/views'
-import { sourceText } from '../song/grid'
+import { isDrums, readKit } from '../song/kit'
 import { noteText } from '../song/notes'
 import type { PatternBlock, PatternView } from '../song/types'
 import { describe, STEPS } from '../song/view'
@@ -25,8 +25,14 @@ export function Strip(props: { id: string }) {
     const index = createMemo(() => song().patterns.findIndex((p) => p.id === props.id))
     const block = createMemo(() => song().patterns[index()])
     const playing = () => engineState().playing && !block()?.muted
+    const panelOwner = () => openPanel()?.split('/')[0] ?? null
     const open = () => openPanel() === props.id
-    const folded = () => openPanel() !== null && !open() && !unfolded().includes(props.id)
+    const folded = () => panelOwner() !== null && panelOwner() !== props.id && !unfolded().includes(props.id)
+    const soundOpen = createMemo(() => {
+        const target = openPanel()
+        if (!block() || panelOwner() !== props.id || target === props.id) return undefined
+        return readKit(block())?.rows.find((row) => row.block.id === target)
+    })
 
     let seenRows: string[] = []
     let seenAt = -1
@@ -56,7 +62,7 @@ export function Strip(props: { id: string }) {
     })
 
     const isRoll = () => block() !== undefined && noteText(block()) !== null
-    const isRack = () => !isRoll() && notes() === null && block() !== undefined && (steps() !== null || sourceText(block()) !== null)
+    const isRack = () => !isRoll() && notes() === null && block() !== undefined && (steps() !== null || isDrums(block()))
 
     const knobs = createMemo(() => (block() ? favourites(block()) : []))
     const mix = createMemo((): { fn: 'gain' | 'pan'; name: string; view: ControlView }[] =>
@@ -198,6 +204,7 @@ export function Strip(props: { id: string }) {
                         <Show when={open()}>
                             <SoundPanel id={props.id} block={current()} />
                         </Show>
+                        <Show when={soundOpen()}>{(row) => <SoundPanel id={row().block.id} block={row().block} only={row().sound} />}</Show>
                     </Show>
                     <Show when={forcesSolo(current())}>
                         <p class="st-note">Strudel treats a name that starts with a capital S as solo, so the other patterns are silent.</p>

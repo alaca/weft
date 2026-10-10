@@ -1,41 +1,67 @@
 import { createMemo, createSignal, For, Show } from 'solid-js'
-import { addRow, previewSound, removeGridRow, setLength, setStepsPerCycle, soundChoices, toggleStep } from '../app/controller'
-import { readGrid, resample, sourceText } from '../song/grid'
+import { addRow, previewSound, removeGridRow, setLength, setMix, setStepsPerCycle, soundChoices, togglePanel, toggleStep } from '../app/controller'
+import { drumLabel } from '../controls/drums'
+import { panOf, volumeOf } from '../controls/views'
+import { readGrid, resample, type Grid } from '../song/grid'
+import { isDrums, readKit, rowTarget } from '../song/kit'
 import type { PatternBlock } from '../song/types'
-import { gridNotes, pinnedRows, stale } from '../stores/song'
+import { gridNotes, openPanel, stale } from '../stores/song'
 import { GridFooter } from './GridFooter'
+import { Knob } from './Knob'
 import { StepGrid, type StepRow } from './StepGrid'
 
 const RESOLUTIONS = [16, 32]
+const NO_CONTROLS: PatternBlock = { id: '', label: '', muted: false, labelFrom: 0, labelTo: 0, from: 0, to: 0, lineFrom: 0, lineTo: 0, soundName: null, calls: [] }
+
+function RowControls(props: { id: string; sound: string; block: PatternBlock | undefined }) {
+    const target = () => rowTarget(props.id, props.sound)
+    const name = () => drumLabel(props.sound)
+    return (
+        <span class="rc">
+            <Knob small name={`Volume of ${props.sound}`} view={volumeOf(props.block ?? NO_CONTROLS)} disabled={stale()} onChange={(value) => setMix(target(), 'gain', value)} />
+            <Knob small name={`Pan of ${props.sound}`} view={panOf(props.block ?? NO_CONTROLS)} disabled={stale()} onChange={(value) => setMix(target(), 'pan', value)} />
+            <button
+                class="rs"
+                classList={{ on: openPanel() === target() }}
+                aria-label={`Sound controls for ${props.sound}`}
+                aria-pressed={openPanel() === target()}
+                title={`Controls for ${name()} only`}
+                disabled={stale()}
+                onClick={() => togglePanel(target())}
+            >
+                <svg viewBox="0 0 14 14" aria-hidden="true">
+                    <path d="M2 4.5h10M2 9.5h10" />
+                    <circle cx="5" cy="4.5" r="1.7" />
+                    <circle cx="9" cy="9.5" r="1.7" />
+                </svg>
+            </button>
+        </span>
+    )
+}
 
 export function Rack(props: { id: string; block: PatternBlock; played: { name: string; steps: boolean[] }[]; playing: boolean; position: number; cycle: number }) {
     const [page, setPage] = createSignal(0)
     const [menu, setMenu] = createSignal(false)
-    const source = createMemo(() => readGrid(props.block))
-    const canEdit = () => sourceText(props.block) !== null
-    const cycles = () => source()?.grid.cycles ?? 1
-    const perCycle = () => source()?.grid.perCycle ?? props.played[0]?.steps.length ?? 16
+    const kit = createMemo(() => readKit(props.block))
+    const grid = createMemo((): Grid | null => kit() ?? readGrid(props.block)?.grid ?? null)
+    const canEdit = () => isDrums(props.block)
+    const cycles = () => grid()?.cycles ?? 1
+    const perCycle = () => grid()?.perCycle ?? props.played[0]?.steps.length ?? 16
     const shown = () => (props.playing ? props.cycle % cycles() : Math.min(page(), cycles() - 1))
 
     const rows = createMemo((): StepRow[] => {
-        const grid = source()?.grid
+        const current = grid()
         const from = shown() * perCycle()
         const comparable = props.playing && perCycle() === 16
-        const placed: StepRow[] = grid
-            ? grid.rows.map((row) => {
+        const placed: StepRow[] = current
+            ? current.rows.map((row) => {
                   const steps = row.steps.slice(from, from + perCycle())
                   const heard = props.played.find((other) => other.name === row.sound)?.steps
                   return { name: row.sound, steps, played: comparable ? (heard ?? steps.map(() => false)) : undefined }
               })
             : props.played.map((row) => ({ name: row.name, steps: row.steps }))
-        const extra = grid && comparable ? props.played.filter((row) => !placed.some((other) => other.name === row.name)) : []
-        const names = [...placed, ...extra].map((row) => row.name)
-        const empty = (pinnedRows()[props.id] ?? []).filter((name) => !names.includes(name))
-        return [
-            ...placed,
-            ...extra.map((row) => ({ name: row.name, steps: row.steps.map(() => false), played: row.steps })),
-            ...empty.map((name) => ({ name, steps: Array<boolean>(perCycle()).fill(false) })),
-        ]
+        const extra = current && comparable ? props.played.filter((row) => !placed.some((other) => other.name === row.name)) : []
+        return [...placed, ...extra.map((row) => ({ name: row.name, steps: row.steps.map(() => false), played: row.steps }))]
     })
 
     const choices = () => soundChoices(props.id, rows().map((row) => row.name))
@@ -50,6 +76,7 @@ export function Rack(props: { id: string; block: PatternBlock; played: { name: s
                     onToggle={canEdit() ? (sound, step) => toggleStep(props.id, sound, shown() * perCycle() + step) : undefined}
                     onHear={(sound) => previewSound(props.id, sound)}
                     onRemove={canEdit() ? (sound) => removeGridRow(props.id, sound) : undefined}
+                    controls={canEdit() ? (sound) => <RowControls id={props.id} sound={sound()} block={kit()?.rows.find((row) => row.sound === sound())?.block} /> : undefined}
                 />
             </Show>
             <Show when={canEdit()}>
@@ -58,8 +85,8 @@ export function Rack(props: { id: string; block: PatternBlock; played: { name: s
                     perCycle={perCycle()}
                     resolutions={RESOLUTIONS}
                     canUse={(resolution) => {
-                        const grid = source()?.grid
-                        return !grid || resample(grid, resolution) !== null
+                        const current = grid()
+                        return !current || resample(current, resolution) !== null
                     }}
                     shown={shown()}
                     disabled={stale()}

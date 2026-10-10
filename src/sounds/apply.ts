@@ -1,9 +1,9 @@
 import { addCall, setString } from '../song/edits'
-import { sourceText } from '../song/grid'
+import { isDrums } from '../song/kit'
 import type { PatternBlock, TextEdit } from '../song/types'
 import type { SoundGroup, SoundItem } from './catalog'
 
-export const takesKit = (block: PatternBlock): boolean => sourceText(block) !== null
+export const takesKit = (block: PatternBlock): boolean => isDrums(block)
 
 export const fits = (block: PatternBlock, group: SoundGroup): boolean => (group === 'kits') === takesKit(block)
 

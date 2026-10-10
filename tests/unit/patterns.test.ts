@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { analyze } from '../../src/song/analyze'
 import { applyEdit } from '../../src/song/edits'
-import { readGrid, sourceText } from '../../src/song/grid'
+import { readKit } from '../../src/song/kit'
 import { noteText, readNotes } from '../../src/song/notes'
 import { appendPattern, freeName, PATTERN_STARTERS, removePattern, starterCode } from '../../src/song/patterns'
 
@@ -13,15 +13,23 @@ const blockOf = (code: string) => {
 
 describe('starterCode', () => {
     it('starts every pattern with nothing in it', () => {
-        expect(starterCode('drums', 'drums2')).toBe('drums2: s("~")\n  .bank("RolandTR909")')
+        expect(starterCode('drums', 'drums2')).toBe(
+            'drums2: stack(\n' +
+                '  s("bd").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n' +
+                '  s("sd").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n' +
+                '  s("cp").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n' +
+                '  s("hh").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n' +
+                ')\n  .bank("RolandTR909")',
+        )
         expect(starterCode('bass', 'bass')).toBe('bass: note("~")\n  .s("sawtooth")\n  .lpf(slider(900, 100, 8000))')
         expect(starterCode('chords', 'chords')).toBe('chords: note("~")\n  .s("gm_epiano1")\n  .room(slider(0.3, 0, 1))')
         expect(starterCode('melody', 'melody')).toBe('melody: note("~")\n  .s("triangle")\n  .delay(slider(0.25, 0, 1))')
     })
 
-    it('writes drums for the drum grid and the others for the piano roll', () => {
-        expect(sourceText(blockOf(starterCode('drums', 'drums')))?.text).toBe('~')
-        expect(readGrid(blockOf(starterCode('drums', 'drums')))).toBeNull()
+    it('writes drums as a kit of four sounds with no hits, and the others for the piano roll', () => {
+        const kit = readKit(blockOf(starterCode('drums', 'drums')))
+        expect(kit?.rows.map((row) => row.sound)).toEqual(['bd', 'sd', 'cp', 'hh'])
+        expect(kit?.rows.every((row) => row.steps.length === 16 && !row.steps.some(Boolean))).toBe(true)
         for (const kind of ['bass', 'chords', 'melody'] as const) {
             expect(noteText(blockOf(starterCode(kind, kind)))?.text).toBe('~')
             expect(readNotes(blockOf(starterCode(kind, kind)))).toBeNull()
@@ -32,14 +40,10 @@ describe('starterCode', () => {
         for (const starter of PATTERN_STARTERS) expect(blockOf(starterCode(starter.kind, starter.name)).soundName).not.toBeNull()
     })
 
-    it('gives drums rows to click and the others a range of notes to click in', () => {
+    it('gives the pitched starters a range of notes to click in', () => {
         const [drums, ...pitched] = PATTERN_STARTERS
-        expect(drums.rows).toEqual(['bd', 'sd', 'cp', 'hh'])
         expect(drums.range).toBeUndefined()
-        for (const starter of pitched) {
-            expect(starter.rows).toBeUndefined()
-            expect(starter.range && starter.range.high - starter.range.low).toBeGreaterThanOrEqual(12)
-        }
+        for (const starter of pitched) expect(starter.range && starter.range.high - starter.range.low).toBeGreaterThanOrEqual(12)
     })
 })
 

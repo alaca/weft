@@ -1,7 +1,9 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 const SONG = 'setcpm(120/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n'
-const CLEAN_DRUMS = (name: string) => `${name}: s("~")\n  .bank("RolandTR909")\n`
+const NONE = '~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~'
+const CLEAN_DRUMS = (name: string) =>
+    `${name}: stack(\n${['bd', 'sd', 'cp', 'hh'].map((sound) => `  s("${sound}").struct("${NONE}"),\n`).join('')})\n  .bank("RolandTR909")\n`
 
 const code = (page: Page) => page.evaluate(() => (window as any).__weft.engine.getCode() as string)
 const chip = (page: Page, name: string) => page.getByTestId('add-pattern').getByRole('button', { name, exact: true })
@@ -35,7 +37,7 @@ test('adds drums under a free name, with empty rows ready to click', async ({ pa
     await expect(strip.locator('.rn')).toHaveText(['bd', 'sd', 'cp', 'hh'])
     await expect(lit(strip)).toHaveCount(0)
     await step(strip, 'bd', 1).click()
-    await expect.poll(() => code(page)).toContain('drums2: s(`\n  bd ~  ~  ~    ~  ~  ~  ~    ~  ~  ~  ~    ~  ~  ~  ~\n`)\n  .bank("RolandTR909")\n')
+    await expect.poll(() => code(page)).toContain('drums2: stack(\n  s("bd").struct("x ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n  s("sd")')
     await expect(strip.locator('.rn')).toHaveText(['bd', 'sd', 'cp', 'hh'])
 })
 
@@ -59,10 +61,11 @@ test('a second pattern of the same kind takes nothing from the first', async ({ 
     await first.getByRole('menuitem', { name: /Open hat/ }).click()
     await chip(page, 'Drums').click()
     const second = page.getByTestId('strip-drums3')
-    await expect.poll(() => code(page)).toMatch(/\n\ndrums3: s\("~"\)\n  \.bank\("RolandTR909"\)\n$/)
+    await expect.poll(async () => (await code(page)).endsWith(`\n\n${CLEAN_DRUMS('drums3')}`)).toBe(true)
     await expect(second.locator('.rn')).toHaveText(['bd', 'sd', 'cp', 'hh'])
     await expect(lit(second)).toHaveCount(0)
     await expect(lit(first)).toHaveCount(2)
+    await expect(first.locator('.rn')).toHaveText(['bd', 'sd', 'cp', 'hh', 'oh'])
 })
 
 test('a pattern added under the name of one that was removed starts clean too', async ({ page }) => {

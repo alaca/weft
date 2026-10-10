@@ -5,7 +5,8 @@ import { callFor } from '../controls/views'
 import { createEngine } from '../engine/engine'
 import { analyze } from '../song/analyze'
 import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
-import { gridEdits, gridFromEvents, readGrid, removeRow, resample, resize, sourceText, toggleStep as toggleGridStep, type GridRow, type GridSource } from '../song/grid'
+import { gridFromEvents, lengthEdits, readGrid, removeRow, resample, resize, sourceText, toggleStep as toggleGridStep, type Grid, type GridRow, type GridSource } from '../song/grid'
+import { convertEdits, kitEdits, readKit, rowTarget } from '../song/kit'
 import {
     addNote,
     moveNote,
@@ -30,7 +31,6 @@ import {
     engineState,
     gridNotes,
     openPanel,
-    pinnedRows,
     removed,
     rollRanges,
     selected,
@@ -41,7 +41,6 @@ import {
     setGridNotes,
     setMasterVolumeValue,
     setOpenPanel,
-    setPinnedRows,
     setPosition,
     setRemoved,
     setRevision,
@@ -69,7 +68,17 @@ let frame = 0
 
 export const colorAt = (index: number) => COLORS[index % COLORS.length]
 
-const find = (id: string) => song().patterns.find((p) => p.id === id)
+// A target is a pattern, or one sound of a drum kit written as "pattern/sound".
+const ownerOf = (target: string) => target.split('/')[0]
+
+function resolve(patterns: PatternBlock[], target: string): PatternBlock | undefined {
+    const owner = ownerOf(target)
+    const block = patterns.find((p) => p.id === owner)
+    if (!block || owner === target) return block
+    return readKit(block)?.rows.find((row) => row.sound === target.slice(owner.length + 1))?.block
+}
+
+const find = (target: string) => resolve(song().patterns, target)
 
 function onCode(code: string) {
     if (removed() && code !== removed()?.after) setRemoved(null)
@@ -84,7 +93,7 @@ function onCode(code: string) {
             setSong(next)
             setStale(false)
             if (kept.length !== soloIds().length) setSoloIds(kept)
-            if (open !== null && !ids.has(open)) closePanel()
+            if (open !== null && !resolve(next.patterns, open)) closePanel()
         })
         if (kept.length !== soloIds().length) engine.setSolo(kept)
     }
@@ -225,7 +234,7 @@ export function setControl(id: string, fn: string, value: number) {
 }
 
 export function addControl(id: string, fn: string, value?: number) {
-    const block = find(id)
+    const block = forEdit(id)
     const def = findDef(fn)
     if (!block || !def || stale() || callFor(block, fn)) return
     const start = writeNumber(value ?? def.initial, def.min, def.max)
@@ -243,18 +252,18 @@ export function removeControl(id: string, fn: string) {
 
 export function setMix(id: string, fn: 'gain' | 'pan', value: number) {
     const block = find(id)
-    if (!block) return
-    if (callFor(block, fn)) setControl(id, fn, value)
+    if (block && callFor(block, fn)) setControl(id, fn, value)
     else addControl(id, fn, value)
 }
 
-export function togglePanel(id: string) {
-    if (openPanel() === id) return closePanel()
+export function togglePanel(target: string) {
+    if (openPanel() === target) return closePanel()
+    if (!forEdit(target)) return
     batch(() => {
-        setOpenPanel(id)
+        setOpenPanel(target)
         setUnfolded([])
     })
-    select(id)
+    select(ownerOf(target))
 }
 
 
@@ -283,7 +292,7 @@ export function setFilterType(id: string, type: FilterType) {
 }
 
 export function setEcho(id: string, value: number | null) {
-    const block = find(id)
+    const block = value === null ? find(id) : forEdit(id)
     if (!block || stale()) return
     const call = callFor(block, 'delaysync')
     const arg = call?.args[0]
@@ -327,53 +336,61 @@ function editableGrid(block: PatternBlock): GridSource | null {
     return { grid: { rows, steps, cycles: 1, perCycle: steps }, from: text.from, to: text.to, slow: null }
 }
 
-function changeGrid(id: string, change: (source: GridSource) => { rows: GridRow[]; cycles: number } | null) {
+function changeDrums(id: string, change: (drums: Grid) => { rows: GridRow[]; cycles: number } | null): boolean {
     const block = find(id)
-    if (!block || stale()) return
-    const source = editableGrid(block)
-    const next = source ? change(source) : null
-    setGridNotes({ ...gridNotes(), [id]: !source })
-    if (!source || !next) return
-    engine.applyEdit(gridEdits(block, source, next.rows, next.cycles))
+    if (!block || stale()) return false
+    const kit = readKit(block)
+    const legacy = kit ? null : editableGrid(block)
+    const drums: Grid | null = kit ? { ...kit, rows: kit.rows.map(({ sound, steps }) => ({ sound, steps })) } : (legacy?.grid ?? null)
+    const next = drums ? change(drums) : null
+    setGridNotes({ ...gridNotes(), [id]: !drums })
+    if (!drums || !next) return false
+    const edits = kit
+        ? [...kitEdits(engine.getCode(), kit, next.rows), ...lengthEdits(block, kit.slow, next.cycles)]
+        : convertEdits(block, legacy?.slow ?? null, next.rows, next.cycles)
+    if (!edits.length) return true
+    engine.applyEdit(edits)
     replay()
+    return true
 }
 
-const pin = (id: string, sound: string) => {
-    const current = pinnedRows()[id] ?? []
-    if (!current.includes(sound)) setPinnedRows({ ...pinnedRows(), [id]: [...current, sound] })
+// One sound of a kit can have controls of its own only when the kit is written with a line for
+// each sound, so a kit written the older way is rewritten before the first one is added.
+function forEdit(target: string): PatternBlock | undefined {
+    const found = find(target)
+    if (found || ownerOf(target) === target) return found
+    changeDrums(ownerOf(target), (drums) => ({ rows: drums.rows, cycles: drums.cycles }))
+    return find(target)
 }
 
 export function toggleStep(id: string, sound: string, step: number) {
-    pin(id, sound)
     let placed = false
-    changeGrid(id, (source) => {
-        placed = !source.grid.rows.find((row) => row.sound === sound)?.steps[step]
-        return { rows: toggleGridStep(source.grid.rows, sound, step, source.grid.steps), cycles: source.grid.cycles }
+    changeDrums(id, (drums) => {
+        placed = !drums.rows.find((row) => row.sound === sound)?.steps[step]
+        return { rows: toggleGridStep(drums.rows, sound, step, drums.steps), cycles: drums.cycles }
     })
     if (placed && !engineState().playing) previewSound(id, sound)
 }
 
 export function addRow(id: string, sound: string) {
-    pin(id, sound)
+    changeDrums(id, (drums) =>
+        drums.rows.some((row) => row.sound === sound) ? null : { rows: [...drums.rows, { sound, steps: Array<boolean>(drums.steps).fill(false) }], cycles: drums.cycles },
+    )
     previewSound(id, sound)
 }
 
 export function removeGridRow(id: string, sound: string) {
-    setPinnedRows({ ...pinnedRows(), [id]: (pinnedRows()[id] ?? []).filter((other) => other !== sound) })
-    const block = find(id)
-    const source = block ? editableGrid(block) : null
-    if (!source || !source.grid.rows.some((row) => row.sound === sound)) return
-    changeGrid(id, (current) => ({ rows: removeRow(current.grid.rows, sound), cycles: current.grid.cycles }))
+    changeDrums(id, (drums) => (drums.rows.some((row) => row.sound === sound) ? { rows: removeRow(drums.rows, sound), cycles: drums.cycles } : null))
 }
 
 export function setLength(id: string, cycles: number) {
-    changeGrid(id, (source) => (source.grid.cycles === cycles ? null : { rows: resize(source.grid, cycles), cycles }))
+    changeDrums(id, (drums) => (drums.cycles === cycles ? null : { rows: resize(drums, cycles), cycles }))
 }
 
 export function setStepsPerCycle(id: string, perCycle: number) {
-    changeGrid(id, (source) => {
-        const rows = resample(source.grid, perCycle)
-        return rows && perCycle !== source.grid.perCycle ? { rows, cycles: source.grid.cycles } : null
+    changeDrums(id, (drums) => {
+        const rows = resample(drums, perCycle)
+        return rows && perCycle !== drums.perCycle ? { rows, cycles: drums.cycles } : null
     })
 }
 
@@ -484,7 +501,6 @@ export function addPattern(kind: StarterKind): string | null {
     // What the empty strip shows first is set before the code changes, because the strip is
     // drawn the moment its code exists.
     batch(() => {
-        setPinnedRows({ ...without(pinnedRows(), name), ...(starter.rows ? { [name]: starter.rows } : {}) })
         setRollRanges({ ...without(rollRanges(), name), ...(starter.range ? { [name]: starter.range } : {}) })
         setGridNotes(without(gridNotes(), name))
     })
@@ -543,7 +559,6 @@ export function removePattern(id: string) {
     engine.applyEdit(edit)
     lastLength.delete(id)
     batch(() => {
-        setPinnedRows(without(pinnedRows(), id))
         setRollRanges(without(rollRanges(), id))
         setGridNotes(without(gridNotes(), id))
         setRemoved({ id, index, from: edit.from, text: code.slice(edit.from, edit.to), after: engine.getCode() })

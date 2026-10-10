@@ -1,7 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
 
-const PERC = 'perc: s(`\n  hh ~  hh ~    hh ~  hh ~    hh ~  hh ~    hh ~  hh ~\n`)\n'
-const SONG = `setcpm(120/4)\n\ndrums: s("bd*4, [~ cp]*2")\n  .bank("RolandTR909")\n\n${PERC}\nbass: note("d2 ~ d2 f2").s("sawtooth")\n`
+const HH = 'x ~ x ~   x ~ x ~   x ~ x ~   x ~ x ~'
+const NONE = '~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~'
+const PERC = `perc: stack(\n  s("hh").struct("${HH}"),\n)\n`
+const OLD = 'old: s(`\n  hh ~  hh ~    hh ~  hh ~    hh ~  hh ~    hh ~  hh ~\n`)\n'
+const SONG = `setcpm(120/4)\n\ndrums: s("bd*4, [~ cp]*2")\n  .bank("RolandTR909")\n\n${PERC}\n${OLD}\nbass: note("d2 ~ d2 f2").s("sawtooth")\n`
+const DRUMS_KIT = 'drums: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~   x ~ ~ ~   x ~ ~ ~"),\n  s("cp").struct("~ ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~   x ~ ~ ~"),\n'
 
 const code = (page: Page) => page.evaluate(() => (window as any).__weft.engine.getCode() as string)
 
@@ -17,38 +21,50 @@ test('clicking a step adds a hit and clicking it again removes it', async ({ pag
     const step = perc.getByRole('button', { name: 'hh step 2', exact: true })
     await expect(step).toHaveAttribute('aria-pressed', 'false')
     await step.click()
-    await expect.poll(() => code(page)).toContain('  hh hh hh ~    hh ~  hh ~    hh ~  hh ~    hh ~  hh ~\n')
+    await expect.poll(() => code(page)).toContain('  s("hh").struct("x x x ~   x ~ x ~   x ~ x ~   x ~ x ~"),\n')
     await expect(step).toHaveAttribute('aria-pressed', 'true')
     await step.click()
     await expect.poll(() => code(page)).toContain(PERC)
 })
 
-test('the first click on a compact pattern turns it into a grid', async ({ page }) => {
+test('the first click on a compact pattern gives each sound a line of its own', async ({ page }) => {
     await open(page)
     const drums = page.getByTestId('strip-drums')
     await drums.getByRole('button', { name: 'cp step 1', exact: true }).click()
     await expect
         .poll(() => code(page))
-        .toContain('drums: s(`\n  bd ~  ~  ~    bd ~  ~  ~    bd ~  ~  ~    bd ~  ~  ~ ,\n  cp ~  ~  ~    cp ~  ~  ~    ~  ~  ~  ~    cp ~  ~  ~\n`)\n  .bank("RolandTR909")')
+        .toContain('drums: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~   x ~ ~ ~   x ~ ~ ~"),\n  s("cp").struct("x ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~   x ~ ~ ~"),\n)\n  .bank("RolandTR909")')
     await expect(drums.getByRole('button', { name: 'cp step 1', exact: true })).toHaveAttribute('aria-pressed', 'true')
     await expect(drums.getByRole('button', { name: 'bd step 5', exact: true })).toHaveAttribute('aria-pressed', 'true')
 })
 
-test('a sound can be added, given a hit and removed', async ({ page }) => {
+test('a grid written the older way as one text is read, and rewritten on the first click', async ({ page }) => {
+    await open(page)
+    const old = page.getByTestId('strip-old')
+    await expect(old.locator('.pad.on')).toHaveCount(8)
+    await old.getByRole('button', { name: 'hh step 2', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('old: stack(\n  s("hh").struct("x x x ~   x ~ x ~   x ~ x ~   x ~ x ~"),\n)\n')
+    await expect(old.locator('.pad.on')).toHaveCount(9)
+})
+
+test('a sound can be added, given a hit, emptied and removed', async ({ page }) => {
     await open(page)
     const drums = page.getByTestId('strip-drums')
-    const before = await code(page)
     await drums.getByRole('button', { name: 'Add a sound' }).click()
     await drums.getByRole('menuitem', { name: /Open hat/ }).click()
     await expect(drums.getByRole('button', { name: 'Hear oh' })).toBeVisible()
-    expect(await code(page)).toBe(before)
+    await expect.poll(() => code(page)).toContain(`${DRUMS_KIT}  s("oh").struct("${NONE}"),\n)\n  .bank("RolandTR909")`)
 
-    await drums.getByRole('button', { name: 'oh step 3', exact: true }).click()
-    await expect.poll(() => code(page)).toContain('  ~  ~  oh ~    ~  ~  ~  ~    ~  ~  ~  ~    ~  ~  ~  ~\n`)')
+    const step = drums.getByRole('button', { name: 'oh step 3', exact: true })
+    await step.click()
+    await expect.poll(() => code(page)).toContain('  s("oh").struct("~ ~ x ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n')
+    await step.click()
+    await expect.poll(() => code(page)).toContain(`  s("oh").struct("${NONE}"),\n`)
+    await expect(drums.getByRole('button', { name: 'Hear oh' })).toBeVisible()
 
     await drums.getByRole('button', { name: 'Hear oh' }).hover()
     await drums.getByRole('button', { name: 'Remove oh' }).click()
-    await expect.poll(() => code(page)).not.toContain('oh')
+    await expect.poll(() => code(page)).toContain(`${DRUMS_KIT})\n  .bank("RolandTR909")`)
     await expect(drums.getByRole('button', { name: 'Hear oh' })).toHaveCount(0)
 })
 
@@ -56,14 +72,15 @@ test('a longer pattern repeats its steps, gets pages and writes slow', async ({ 
     await open(page)
     const perc = page.getByTestId('strip-perc')
     await perc.getByRole('button', { name: 'Length 2 cycles' }).click()
-    await expect.poll(() => code(page)).toContain('`).slow(2)')
-    await expect.poll(async () => ((await code(page)).match(/hh/g) ?? []).length).toBe(16)
+    await expect.poll(() => code(page)).toContain(`perc: stack(\n  s("hh").struct("${HH}   ${HH}"),\n).slow(2)\n`)
 
     await perc.getByRole('button', { name: 'Cycle 2', exact: true }).click()
     await perc.getByRole('button', { name: 'hh step 2', exact: true }).click()
-    await expect.poll(() => code(page)).toContain('hh ~  hh ~    hh ~  hh ~    hh ~  hh ~    hh ~  hh ~    hh hh hh ~')
+    await expect.poll(() => code(page)).toContain(`  s("hh").struct("${HH}   x x x ~   x ~ x ~   x ~ x ~   x ~ x ~"),\n`)
     await perc.getByRole('button', { name: 'Cycle 1', exact: true }).click()
     await expect(perc.getByRole('button', { name: 'hh step 2', exact: true })).toHaveAttribute('aria-pressed', 'false')
+    await perc.getByRole('button', { name: 'Cycle 2', exact: true }).click()
+    await perc.getByRole('button', { name: 'hh step 2', exact: true }).click()
 
     await perc.getByRole('button', { name: 'Length 1 cycles' }).click()
     await expect.poll(() => code(page)).toContain(PERC)
@@ -80,6 +97,19 @@ test('32 steps a cycle doubles the grid and 16 brings it back', async ({ page })
     await expect(perc.getByRole('button', { name: 'hh step 3', exact: true })).toHaveAttribute('aria-pressed', 'false')
     await perc.getByRole('button', { name: '16 steps a cycle' }).click()
     await expect.poll(() => code(page)).toContain(PERC)
+})
+
+test('a kit with no sounds says so and takes a first one', async ({ page }) => {
+    await open(page, 'drums: stack(\n)\n  .bank("RolandTR909")\n')
+    const drums = page.getByTestId('strip-drums')
+    await expect(drums).toContainText('No sounds yet. Add one below.')
+    await drums.getByRole('button', { name: 'Add a sound' }).click()
+    await drums.getByRole('menuitem', { name: /Kick/ }).click()
+    await expect.poll(() => code(page)).toBe(`drums: stack(\n  s("bd").struct("${NONE}"),\n)\n  .bank("RolandTR909")\n`)
+    await drums.getByRole('button', { name: 'Hear bd' }).hover()
+    await drums.getByRole('button', { name: 'Remove bd' }).click()
+    await expect.poll(() => code(page)).toBe('drums: stack(\n)\n  .bank("RolandTR909")\n')
+    await expect(drums).toContainText('No sounds yet. Add one below.')
 })
 
 test('a pattern a grid cannot show says so and is left alone', async ({ page }) => {
@@ -108,8 +138,9 @@ test('a note pattern has no grid controls', async ({ page }) => {
 test('clicking while stopped keeps the code in step without starting playback', async ({ page }) => {
     await open(page)
     await page.getByTestId('strip-perc').getByRole('button', { name: 'hh step 2', exact: true }).click()
-    await expect.poll(() => code(page)).toContain('hh hh hh ~')
+    await expect.poll(() => code(page)).toContain('.struct("x x x ~')
     await expect(page.getByTestId('code-status')).toHaveText('Stopped')
+    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.events('perc', 0).length)).toBe(9)
 })
 
 test('a converted pattern keeps its sounds in the order they were written', async ({ page }) => {
@@ -117,5 +148,5 @@ test('a converted pattern keeps its sounds in the order they were written', asyn
     const drums = page.getByTestId('strip-drums')
     await drums.getByRole('button', { name: 'cp step 1', exact: true }).click()
     await expect(drums.locator('.rn')).toHaveText(['bd', 'cp', 'hh'])
-    await expect.poll(async () => (await code(page)).split('\n').slice(1, 4).map((line) => line.trim().split(' ')[0])).toEqual(['bd', 'cp', 'hh'])
+    await expect.poll(async () => (await code(page)).split('\n').slice(1, 4).map((line) => line.trim().slice(0, 7))).toEqual(['s("bd")', 's("cp")', 's("hh")'])
 })

@@ -4,6 +4,7 @@ export type Arg =
     | { kind: 'number'; value: number; from: number; to: number }
     | { kind: 'slider'; value: number; min: number; max: number; from: number; to: number; valueFrom: number; valueTo: number }
     | { kind: 'string'; value: string; from: number; to: number }
+    | { kind: 'chain'; calls: Call[]; from: number; to: number }
     | { kind: 'other'; from: number; to: number }
 
 export type Call = {
@@ -27,6 +28,7 @@ export type PatternBlock = {
     lineTo: number
     soundName: string | null
     calls: Call[]
+    inline?: boolean
 }
 
 export type Tempo = { bpm: number; from: number; to: number; unit: 'cpm' | 'cps' }

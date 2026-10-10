@@ -1,4 +1,4 @@
-import { For, Index, Show } from 'solid-js'
+import { For, Index, Show, type JSX } from 'solid-js'
 
 export type StepRow = { name: string; steps: boolean[]; played?: boolean[] }
 
@@ -13,11 +13,21 @@ export function StepGrid(props: {
     onToggle?: (sound: string, step: number) => void
     onHear?: (sound: string) => void
     onRemove?: (sound: string) => void
+    controls?: (sound: () => string) => JSX.Element
 }) {
     const count = () => props.rows[0]?.steps.length ?? 16
     const now = () => (props.playing ? Math.min(count() - 1, Math.floor(props.position * count())) : -1)
     return (
-        <div class="dg" classList={{ fine: count() > 16, edit: Boolean(props.onToggle) }}>
+        <div class="dg" classList={{ fine: count() > 16, edit: Boolean(props.onToggle), own: Boolean(props.controls) }}>
+            <Show when={props.controls}>
+                <span />
+                <span />
+                <span class="rc rc-h" aria-hidden="true">
+                    <span class="cap">Vol</span>
+                    <span class="cap">Pan</span>
+                    <span />
+                </span>
+            </Show>
             <Index each={props.rows}>
                 {(row) => (
                     <>
@@ -65,6 +75,7 @@ export function StepGrid(props: {
                                 )}
                             </For>
                         </div>
+                        <Show when={props.controls}>{(controls) => controls()(() => row().name)}</Show>
                     </>
                 )}
             </Index>

@@ -58,11 +58,11 @@ test('muting a strip leaves it open, so the pattern can still be seen and change
     await expect(drums.locator('.prow').nth(0).locator('.pad.on')).toHaveCount(4)
     await expect(drums.getByRole('button', { name: 'Sound controls for drums' })).toBeVisible()
     await drums.getByRole('button', { name: 'bd step 2', exact: true }).click()
-    await expect.poll(() => code(page)).toContain('_drums: s(`\n  bd bd ~  ~')
+    await expect.poll(() => code(page)).toContain('_drums: stack(\n  s("bd").struct("x x ~ ~')
     await page.getByRole('button', { name: 'Mute drums', exact: true }).click()
     await expect(drums).not.toHaveClass(/muted/)
     await expect(drums.locator('.st-b')).toHaveCount(1)
-    await expect.poll(() => code(page)).toContain('\ndrums: s(`\n  bd bd ~  ~')
+    await expect.poll(() => code(page)).toContain('\ndrums: stack(\n  s("bd").struct("x x ~ ~')
 })
 
 test('a pattern that is muted in the code is drawn in full, without a moving line', async ({ page }) => {

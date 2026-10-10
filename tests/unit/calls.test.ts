@@ -36,11 +36,13 @@ describe('calls', () => {
         expect(first('x: s("bd").gain(slider(0.5))').calls[1].args[0]).toMatchObject({ kind: 'slider', value: 0.5, min: 0, max: 1 })
     })
 
-    it('reads strings and marks everything else as other', () => {
-        const calls = first('x: note("c").s("sawtooth").pan(sine.slow(4)).lastOf(4, y => y.rev())').calls
+    it('reads strings, chains of calls, and marks everything else as other', () => {
+        const calls = first('x: note("c").s("sawtooth").pan(sine.slow(4)).lastOf(4, y => y.rev()).add(perlin)').calls
         expect(calls[1].args[0]).toMatchObject({ kind: 'string', value: 'sawtooth' })
-        expect(calls[2].args[0].kind).toBe('other')
+        const signal = calls[2].args[0]
+        expect(signal.kind === 'chain' && signal.calls.map((call) => call.name)).toEqual(['slow'])
         expect(calls[3].args.map((a) => a.kind)).toEqual(['number', 'other'])
+        expect(calls[4].args[0].kind).toBe('other')
     })
 
     it('gives each call the range that removes it cleanly', () => {

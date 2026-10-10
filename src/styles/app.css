@@ -274,3 +274,19 @@ svg.mini rect { fill: var(--h); }
 .kn.ghost .kp { stroke: var(--linen-2); }
 .top .mix { --h: var(--linen-2); }
 .top .kn.small .kn-d { width: 28px; height: 28px; }
+.dg.own { grid-template-columns: 74px 1fr auto; }
+.rc { display: grid; grid-template-columns: 24px 24px 22px; gap: 9px; align-items: center; justify-items: center; margin-left: 14px; }
+.rc .kn.small { gap: 0; }
+.rc .kn.small .cap { display: none; }
+.rc-h { height: 11px; }
+.rc-h .cap { font-size: 8.5px; letter-spacing: 0.08em; }
+.rs { width: 22px; height: 20px; border-radius: 5px; display: grid; place-items: center; background: var(--cloth-3); color: var(--linen-3); }
+.rs svg { width: 12px; height: 12px; fill: var(--cloth-3); stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; }
+.rs:hover:not(:disabled):not(.on) { color: var(--linen); }
+.rs.on { background: var(--linen); color: var(--vat); }
+.rs.on svg { fill: var(--linen); }
+.rs:disabled { opacity: 0.4; cursor: default; }
+.sp-o { margin: 0 16px 0 17px; padding: 11px 0 0; border-top: 1px solid var(--seam); color: var(--linen-3); font-size: 11.5px; }
+.sp-o b { color: var(--linen); font-weight: 600; }
+.sp-o code { font: 500 10.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); }
+.sp.sub { border-top: 0; padding-top: 11px; }
