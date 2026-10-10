@@ -23,6 +23,9 @@ export function StatusBar() {
             <span>
                 <kbd>{MOD} .</kbd>silence
             </span>
+            <span>
+                <kbd>{MOD} Z</kbd>undo
+            </span>
             <div class="grow" />
             <Show when={!layoutIsUsual()}>
                 <button class="sbar-b" title="Every part shown, at its usual width" onClick={resetLayout}>

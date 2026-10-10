@@ -1,5 +1,5 @@
 import { onCleanup, onMount } from 'solid-js'
-import { saveSong, togglePlay } from './app/controller'
+import { redoChange, saveSong, togglePlay, undoChange } from './app/controller'
 import { SOUNDS_WIDTH } from './library/layout'
 import { codeWidth, soundsOpen, soundsWidth, viewMode } from './stores/song'
 import { CodePane } from './ui/CodePane'
@@ -16,8 +16,17 @@ export function App() {
             saveSong()
             return
         }
-        if (event.code !== 'Space') return
         const target = event.target as HTMLElement | null
+        // The editor and text boxes undo by themselves. Anywhere else the same keys undo the
+        // last change to the song, so a wrong click in a grid is one key away.
+        const letter = event.key.toLowerCase()
+        if ((event.metaKey || event.ctrlKey) && !event.altKey && (letter === 'z' || letter === 'y') && !target?.closest('.cm-editor, input, textarea, [role="dialog"]')) {
+            event.preventDefault()
+            if (letter === 'y' || event.shiftKey) redoChange()
+            else undoChange()
+            return
+        }
+        if (event.code !== 'Space') return
         if (target?.closest('.cm-editor, input, textarea, button, [role="dialog"]')) return
         event.preventDefault()
         togglePlay()

@@ -293,6 +293,16 @@ export async function mount(root: HTMLElement): Promise<void> {
 
 export const play = () => void engine.evaluate()
 
+// One step back, or forward again, in everything that changed the song: a click in a grid, a
+// knob, a sound, or typing in the code.
+export function undoChange() {
+    if (engine.undo()) replay()
+}
+
+export function redoChange() {
+    if (engine.redo()) replay()
+}
+
 // The code is evaluated in a turn of its own, after the screen has followed the change. Both
 // are work on the thread that Strudel keeps time on, and two short stretches are not heard
 // where one long one is. Changes made in the same turn are evaluated once.

@@ -1,4 +1,5 @@
-import { EditorState, Prec, StateEffect } from '@codemirror/state'
+import { history, isolateHistory, redo, undo } from '@codemirror/commands'
+import { Annotation, EditorState, Prec, StateEffect } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { StrudelMirror, codemirrorSettings } from '@strudel/codemirror'
 import { Pattern, silence } from '@strudel/core'
@@ -43,6 +44,8 @@ export interface Engine {
     getCode(): string
     setCode(code: string): void
     applyEdit(edit: TextEdit | TextEdit[]): void
+    undo(): boolean
+    redo(): boolean
     selectAll(): void
     moveSlider(from: number, text: string): boolean
     evaluate(): Promise<void>
@@ -81,6 +84,7 @@ export interface Engine {
 }
 
 const bareId = (id: string) => id.replace(/^_+|_+$/g, '')
+const sameGesture = Annotation.define<boolean>()
 const pause = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))
 const SETTLE = 300
 const STRETCH = 2
@@ -130,6 +134,13 @@ export function createEngine(): Engine {
     let evaluated = false
     let lastCode = ''
     let master = 1
+    let gesture = 0
+    let editedIn = -1
+    const step = () => {
+        const joins = gesture === editedIn
+        editedIn = gesture
+        return joins ? sameGesture.of(true) : isolateHistory.of('before')
+    }
     const applyMaster = () => {
         try {
             const gain = getSuperdoughAudioController().output.destinationGain
@@ -280,6 +291,8 @@ export function createEngine(): Engine {
 
     const engine: Engine = {
         async mount(root, initialCode) {
+            window.addEventListener('pointerdown', () => gesture++, true)
+            window.addEventListener('keydown', () => gesture++, true)
             registerTheme()
             initAudioOnFirstClick()
             lastCode = initialCode
@@ -318,6 +331,7 @@ export function createEngine(): Engine {
                 })
                 mirror.editor.dispatch({
                     effects: StateEffect.appendConfig.of([
+                        history({ joinToEvent: (tr) => tr.annotation(sameGesture) === true }),
                         marksField,
                         Prec.highest(
                             keymap.of([
@@ -373,20 +387,27 @@ export function createEngine(): Engine {
             lastCode = code
             codeFns.forEach((fn) => fn(code))
         },
+        // What one press of the pointer or of a key changes is one step to undo, however many
+        // changes it makes: a knob that is dragged, a note that is moved, bars that are painted.
+        // The next press starts a new step, also when it follows at once.
         applyEdit(edit) {
             const changes = Array.isArray(edit) ? [...edit].sort((a, b) => a.from - b.from) : edit
-            mirror.editor.dispatch({ changes })
+            mirror.editor.dispatch({ changes, annotations: step() })
         },
         selectAll() {
             mirror.editor.dispatch({ selection: { anchor: 0, head: mirror.editor.state.doc.length } })
             mirror.editor.focus()
         },
+        // Every change a control makes is a change to the code, so the editor's own memory of
+        // changes is the one memory there is, whatever made the change.
+        undo: () => undo(mirror.editor),
+        redo: () => redo(mirror.editor),
         moveSlider(from, text) {
             type Widget = HTMLInputElement & { from: number; originalFrom: number; originalValue: string }
             const inputs = mirror.root.querySelectorAll('.cm-slider input') as NodeListOf<Widget>
             for (const input of inputs) {
                 if (input.from !== from) continue
-                mirror.editor.dispatch({ changes: { from, to: from + input.originalValue.length, insert: text } })
+                mirror.editor.dispatch({ changes: { from, to: from + input.originalValue.length, insert: text }, annotations: step() })
                 input.originalValue = text
                 input.value = text
                 window.postMessage({ type: 'cm-slider', value: Number(text), id: `slider_${input.originalFrom}` })
