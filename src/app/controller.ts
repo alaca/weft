@@ -229,7 +229,11 @@ export function setVolume(id: string, value: number) {
     else addControl(id, 'gain', value)
 }
 
-export const togglePanel = (id: string) => setOpenPanel(openPanel() === id ? null : id)
+export function togglePanel(id: string) {
+    const opening = openPanel() !== id
+    setOpenPanel(opening ? id : null)
+    if (opening) select(id)
+}
 
 
 export function setWave(id: string, name: string) {

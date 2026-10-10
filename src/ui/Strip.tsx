@@ -26,7 +26,7 @@ export function Strip(props: { id: string }) {
     const block = createMemo(() => song().patterns[index()])
     const playing = () => engineState().playing
     const open = () => openPanel() === props.id
-    const folded = () => openPanel() !== null && !open()
+    const folded = () => openPanel() !== null && !open() && selected() !== props.id
 
     let seenRows: string[] = []
     let seenAt = -1

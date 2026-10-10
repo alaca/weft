@@ -146,6 +146,41 @@ test('other strips fold while a sound panel is open', async ({ page }) => {
     await expect(drums.locator('.mini')).toHaveCount(0)
 })
 
+test('the selected strip stays open while another has its sound panel open', async ({ page }) => {
+    await open(page)
+    const drums = page.getByTestId('strip-drums')
+    await panel(page, 'bass')
+    await expect(drums.locator('.st-b')).toHaveCount(0)
+    await drums.locator('.st-n').click()
+    await expect(drums.locator('.st-b')).toHaveCount(1)
+    await expect(drums.locator('.mini')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Sound controls for bass' })).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('button', { name: 'Mute drums', exact: true }).click()
+    await expect(drums.locator('.st-b')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Mute drums', exact: true }).click()
+    await expect(drums.locator('.st-b')).toHaveCount(1)
+})
+
+test('a pattern added while a sound panel is open is shown in full', async ({ page }) => {
+    await open(page)
+    await panel(page, 'bass')
+    await page.getByTestId('add-pattern').getByRole('button', { name: 'Drums', exact: true }).click()
+    const added = page.getByTestId('strip-drums2')
+    await expect(added.locator('.st-b')).toHaveCount(1)
+    await expect(added.getByRole('button', { name: 'bd step 1', exact: true })).toBeVisible()
+})
+
+test('opening a sound panel selects its strip, so the one selected before folds', async ({ page }) => {
+    await open(page)
+    const drums = page.getByTestId('strip-drums')
+    await drums.locator('.st-n').click()
+    await expect(drums).toHaveClass(/sel/)
+    await panel(page, 'bass')
+    await expect(page.getByTestId('strip-bass')).toHaveClass(/sel/)
+    await expect(drums.locator('.st-b')).toHaveCount(0)
+    await expect(drums.locator('.mini')).toHaveCount(1)
+})
+
 test('the output strip has a master volume that is remembered and never written into the code', async ({ page }) => {
     await open(page)
     const output = page.getByTestId('output')
