@@ -1,5 +1,5 @@
 import { createMemo, For, Show } from 'solid-js'
-import { song } from '../stores/song'
+import { song, stale } from '../stores/song'
 import { OutputStrip } from './OutputStrip'
 import { Strip } from './Strip'
 
@@ -12,9 +12,14 @@ export function StripList() {
             <Show
                 when={ids().length}
                 fallback={
-                    <p class="ctl-empty">
-                        Give a pattern a name to get controls for it, for example <code>drums: s("bd*4")</code>
-                    </p>
+                    <Show
+                        when={!stale()}
+                        fallback={<p class="ctl-empty">The code has an error, so its controls cannot be drawn. Fix it in the code and they will appear.</p>}
+                    >
+                        <p class="ctl-empty">
+                            Give a pattern a name to get controls for it, for example <code>drums: s("bd*4")</code>
+                        </p>
+                    </Show>
                 }
             >
                 <For each={ids()}>{(id) => <Strip id={id} />}</For>

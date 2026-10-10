@@ -119,3 +119,9 @@ test('moves a playhead across the bass while playing', async ({ page }) => {
     await page.getByRole('button', { name: 'Play' }).click()
     await expect(page.getByTestId('strip-bass').locator('.ph')).toHaveCount(1)
 })
+
+test('says the code has an error when a saved song does not parse', async ({ page }) => {
+    await open(page, 'drums: s("bd*4"\n')
+    await expect(page.getByTestId('controls')).toContainText('The code has an error')
+    await expect(page.getByTestId('controls')).not.toContainText('Give a pattern a name')
+})
