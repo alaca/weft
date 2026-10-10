@@ -218,3 +218,15 @@ svg.mini rect { fill: var(--h); }
 .menu button:hover, .menu button:focus-visible { background: var(--cloth-3); }
 .menu code { font: 400 10px/1 var(--mono); font-stretch: 87%; color: var(--linen-3); }
 .rk-n { color: var(--linen-3); font-size: 11.5px; margin-top: 9px; }
+
+.nr { display: grid; grid-template-columns: 44px 1fr; }
+.nr-k { position: relative; }
+.nr-k span { position: absolute; left: 0; font: 500 10px/1 var(--mono); font-stretch: 87%; color: var(--linen-3); transform: translateY(-50%); }
+.nr-g { position: relative; border-radius: 7px; overflow: hidden; cursor: crosshair; touch-action: none; background-color: var(--vat); box-shadow: inset 0 0 0 1px var(--seam-soft); background-image: repeating-linear-gradient(to right, var(--seam) 0 1px, transparent 1px calc(100% / 4)), repeating-linear-gradient(to right, var(--seam-soft) 0 1px, transparent 1px calc(100% / var(--steps))); }
+.nr-r { position: absolute; left: 0; right: 0; height: 10px; pointer-events: none; }
+.nr-r.bk { background: rgba(0, 0, 0, 0.24); }
+.nr-r.c { box-shadow: inset 0 -1px 0 var(--seam); }
+.nt { position: absolute; height: 10px; padding: 0; border-radius: 2.5px; background: var(--h); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); cursor: grab; }
+.nt:focus-visible { outline: 2px solid var(--linen); outline-offset: 1px; z-index: 2; }
+.nt.ro { cursor: pointer; }
+.nt-h { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; max-width: 40%; cursor: ew-resize; border-radius: 0 2.5px 2.5px 0; background: rgba(0, 0, 0, 0.28); }

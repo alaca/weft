@@ -2,11 +2,13 @@ import { createMemo, For, Show } from 'solid-js'
 import { colorAt, eventsOf, select, setControl, setVolume, toggleMute, togglePanel, toggleSolo } from '../app/controller'
 import { favourites, volumeOf } from '../controls/views'
 import { sourceText } from '../song/grid'
+import { noteText } from '../song/notes'
 import type { PatternBlock, PatternView } from '../song/types'
 import { describe, STEPS } from '../song/view'
 import { cycle, engineState, openPanel, position, revision, selected, soloIds, song, stale } from '../stores/song'
 import { Knob } from './Knob'
 import { MiniView } from './MiniView'
+import { NoteRoll } from './NoteRoll'
 import { PianoRoll } from './PianoRoll'
 import { SoundPanel } from './SoundPanel'
 import { Rack } from './Rack'
@@ -52,7 +54,8 @@ export function Strip(props: { id: string }) {
         return current.kind === 'notes' ? current : null
     })
 
-    const isRack = () => notes() === null && block() !== undefined && (steps() !== null || sourceText(block()) !== null)
+    const isRoll = () => block() !== undefined && noteText(block()) !== null
+    const isRack = () => !isRoll() && notes() === null && block() !== undefined && (steps() !== null || sourceText(block()) !== null)
 
     const knobs = createMemo(() => (block() ? favourites(block()) : []))
     const volume = createMemo(() => (block() ? volumeOf(block()) : null))
@@ -144,12 +147,20 @@ export function Strip(props: { id: string }) {
                                 <Show when={isRack()}>
                                     <Rack id={props.id} block={current()} played={steps()?.rows ?? []} playing={playing()} position={position()} cycle={cycle()} />
                                 </Show>
-                                <Show when={notes()}>
+                                <Show when={isRoll()}>
+                                    <NoteRoll id={props.id} block={current()} played={notes()?.notes ?? []} playing={playing()} position={position()} cycle={cycle()} />
+                                </Show>
+                                <Show when={!isRoll() && notes()}>
                                     {(roll) => (
-                                        <PianoRoll lowest={roll().lowest} highest={roll().highest} notes={roll().notes} playing={playing()} position={position()} />
+                                        <>
+                                            <PianoRoll lowest={roll().lowest} highest={roll().highest} notes={roll().notes} playing={playing()} position={position()} />
+                                            <Show when={current().calls[0]?.name === 'n'}>
+                                                <p class="rk-n">This pattern is written in scale steps. It is drawn here but cannot be edited by clicking yet.</p>
+                                            </Show>
+                                        </>
                                     )}
                                 </Show>
-                                <Show when={!isRack() && view().kind === 'empty'}>
+                                <Show when={!isRack() && !isRoll() && view().kind === 'empty'}>
                                     <p class="st-empty">Nothing to draw. This pattern makes no sound in this cycle.</p>
                                 </Show>
                             </div>

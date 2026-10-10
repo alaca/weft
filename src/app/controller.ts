@@ -6,6 +6,21 @@ import { createEngine } from '../engine/engine'
 import { analyze } from '../song/analyze'
 import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
 import { gridEdits, gridFromEvents, readGrid, removeRow, resample, resize, sourceText, toggleStep as toggleGridStep, type GridRow, type GridSource } from '../song/grid'
+import {
+    addNote,
+    moveNote,
+    noteEdits,
+    notesFromEvents,
+    noteText,
+    readNotes,
+    removeNote,
+    resampleNotes,
+    resizeNote,
+    resizeNotes,
+    type Note,
+    type NoteRef,
+    type NoteSource,
+} from '../song/notes'
 import { STARTER } from '../song/starter'
 import type { PatternBlock, PatternEvent } from '../song/types'
 import {
@@ -337,4 +352,88 @@ export function previewSound(id: string, sound: string) {
 
 export function soundChoices(id: string, used: string[]) {
     return drumChoices(engine.soundNames(bankOf(id)), used)
+}
+
+const lastLength = new Map<string, number>()
+
+function editableNotes(block: PatternBlock): NoteSource | null {
+    const direct = readNotes(block)
+    if (direct) return direct
+    const text = noteText(block)
+    if (!text || block.calls[1]?.name === 'slow') return null
+    const cycles = engine.miniEvents(text.text, 8)
+    const found = cycles ? notesFromEvents(cycles) : null
+    if (!found) return null
+    return { grid: { notes: found.notes, steps: found.perCycle * found.cycles, cycles: found.cycles, perCycle: found.perCycle }, from: text.from, to: text.to, slow: null }
+}
+
+function changeNotes(id: string, change: (source: NoteSource) => { notes: Note[]; perCycle: number; cycles: number } | null): boolean {
+    const block = find(id)
+    if (!block || stale()) return false
+    const source = editableNotes(block)
+    const next = source ? change(source) : null
+    setGridNotes({ ...gridNotes(), [id]: !source })
+    if (!source || !next) return false
+    engine.applyEdit(noteEdits(block, source, next.notes, next.perCycle * next.cycles, next.cycles))
+    replay()
+    return true
+}
+
+const previewNoteOf = (id: string, midi: number) => {
+    if (!engineState().playing) engine.previewNote(midi, find(id)?.soundName ?? null)
+}
+
+export function convertNotes(id: string) {
+    const block = find(id)
+    if (!block || readNotes(block)) return
+    changeNotes(id, (source) => ({ notes: source.grid.notes, perCycle: source.grid.perCycle, cycles: source.grid.cycles }))
+}
+
+export function addNoteAt(id: string, at: { page: number; time: number; midi: number }): NoteRef | null {
+    let added: NoteRef | null = null
+    changeNotes(id, (source) => {
+        const { notes, steps, perCycle, cycles } = source.grid
+        const start = Math.min(steps - 1, (at.page % cycles) * perCycle + Math.floor(at.time * perCycle))
+        const next = addNote(notes, { start, midi: at.midi, length: lastLength.get(id) ?? 1 }, steps)
+        if (!next) return null
+        added = { start, midi: at.midi }
+        return { notes: next, perCycle, cycles }
+    })
+    if (added) previewNoteOf(id, at.midi)
+    return added
+}
+
+export function removeNoteAt(id: string, ref: NoteRef) {
+    changeNotes(id, (source) => ({ notes: removeNote(source.grid.notes, ref), perCycle: source.grid.perCycle, cycles: source.grid.cycles }))
+}
+
+export function moveNoteTo(id: string, ref: NoteRef, to: NoteRef): NoteRef | null {
+    const moved = changeNotes(id, (source) => {
+        const next = moveNote(source.grid.notes, ref, to, source.grid.steps)
+        return next ? { notes: next, perCycle: source.grid.perCycle, cycles: source.grid.cycles } : null
+    })
+    if (moved && to.midi !== ref.midi) previewNoteOf(id, to.midi)
+    return moved ? to : null
+}
+
+export function resizeNoteTo(id: string, ref: NoteRef, length: number): boolean {
+    const resized = changeNotes(id, (source) => {
+        const current = source.grid.notes.find((note) => note.start === ref.start && note.midi === ref.midi)
+        if (!current || current.length === length) return null
+        const next = resizeNote(source.grid.notes, ref, length, source.grid.steps)
+        return next ? { notes: next, perCycle: source.grid.perCycle, cycles: source.grid.cycles } : null
+    })
+    if (resized) lastLength.set(id, length)
+    return resized
+}
+
+export function setNotesLength(id: string, cycles: number) {
+    changeNotes(id, (source) => (source.grid.cycles === cycles ? null : { notes: resizeNotes(source.grid, cycles), perCycle: source.grid.perCycle, cycles }))
+}
+
+export function setNotesSteps(id: string, perCycle: number) {
+    changeNotes(id, (source) => {
+        const notes = resampleNotes(source.grid, perCycle)
+        return notes && perCycle !== source.grid.perCycle ? { notes, perCycle, cycles: source.grid.cycles } : null
+    })
 }

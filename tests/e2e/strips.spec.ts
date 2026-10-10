@@ -41,8 +41,8 @@ test('shows the sound, the lines and the right kind of picture', async ({ page }
     await expect(drums.locator('.prow').nth(2).locator('.pad.on')).toHaveCount(8)
 
     const bass = page.getByTestId('strip-bass')
-    await expect(bass.locator('.roll rect.n')).toHaveCount(7)
-    await expect(bass.locator('.keys span')).toHaveText(['f2', 'a1'])
+    await expect(bass.locator('.nt')).toHaveCount(7)
+    await expect(bass.locator('.nr-k span')).toHaveText(['g2', 'c2', 'g1'])
 
     const lead = page.getByTestId('strip-lead')
     await expect(lead).toHaveClass(/muted/)
@@ -126,9 +126,9 @@ test('says the code has an error when a saved song does not parse', async ({ pag
     await expect(page.getByTestId('controls')).not.toContainText('Give a pattern a name')
 })
 
-test('draws piano rolls in pixel-scale units, which WebKit needs to repaint them correctly', async ({ page }) => {
-    await open(page, SONG)
-    const svg = page.getByTestId('strip-bass').locator('.roll svg')
+test('draws read-only piano rolls in pixel-scale units, which WebKit needs to repaint them correctly', async ({ page }) => {
+    await open(page, 'keys: n("0 2 4 2").scale("C:major")\n')
+    const svg = page.getByTestId('strip-keys').locator('.roll svg')
     expect(await svg.getAttribute('viewBox')).toMatch(/^0 0 1000 \d+$/)
     const first = svg.locator('rect.n').first()
     expect(Number(await first.getAttribute('width'))).toBeGreaterThan(100)

@@ -47,9 +47,10 @@ export interface Engine {
     waveform(): Float32Array | null
     setMasterVolume(value: number): void
     masterVolume(): number
-    miniEvents(text: string, cycles: number): { start: number; value: unknown }[][] | null
+    miniEvents(text: string, cycles: number): { start: number; length: number; value: unknown }[][] | null
     soundNames(bank: string | null): string[]
     preview(sound: string, bank: string | null): void
+    previewNote(midi: number, sound: string | null): void
     markBlocks(marks: BlockMark[]): void
     reveal(offset: number): void
     onCodeChange(fn: (code: string) => void): void
@@ -107,6 +108,20 @@ export function createEngine(): Engine {
             if (soloIds.length && !soloIds.includes(key)) return silence
             return original.call(this, id)
         }
+    }
+
+    // Strudel drops a hit whose sample is still loading when it falls due. If that happened, the
+    // sample is in memory by the time the call returns, so a second try is heard. Each try gets
+    // its own value object because Strudel rewrites the one it is given.
+    const audition = (make: () => Record<string, unknown>, seconds: number) => {
+        const fire = async () => {
+            const due = getAudioContext().currentTime + 0.05
+            await superdough(make(), due, seconds)
+            return getAudioContext().currentTime > due
+        }
+        fire()
+            .then((missed) => (missed ? fire() : false))
+            .catch(() => undefined)
     }
 
     const query = (pattern: any, cycle: number): PatternEvent[] => {
@@ -247,7 +262,7 @@ export function createEngine(): Engine {
                     pattern
                         .queryArc(cycle, cycle + 1)
                         .filter((hap: any) => hap.whole && hap.hasOnset())
-                        .map((hap: any) => ({ start: hap.whole.begin.valueOf() - cycle, value: hap.value })),
+                        .map((hap: any) => ({ start: hap.whole.begin.valueOf() - cycle, length: hap.whole.end.valueOf() - hap.whole.begin.valueOf(), value: hap.value })),
                 )
             } catch {
                 return null
@@ -261,17 +276,10 @@ export function createEngine(): Engine {
                 .map((key) => key.slice(prefix.length))
         },
         preview(sound, bank) {
-            const fire = async () => {
-                const due = getAudioContext().currentTime + 0.05
-                await superdough(bank ? { s: sound, bank, analyze: 'weft' } : { s: sound, analyze: 'weft' }, due, 0.4)
-                return getAudioContext().currentTime > due
-            }
-            // Strudel drops a hit whose sample is still loading when it falls due. If that happened, the
-            // sample is in memory by the time the call returns, so a second try is heard. Each try gets
-            // its own value object because Strudel rewrites the one it is given.
-            fire()
-                .then((missed) => (missed ? fire() : false))
-                .catch(() => undefined)
+            audition(() => (bank ? { s: sound, bank, analyze: 'weft' } : { s: sound, analyze: 'weft' }), 0.4)
+        },
+        previewNote(midi, sound) {
+            audition(() => ({ note: midi, s: sound ?? 'triangle', analyze: 'weft' }), 0.3)
         },
         markBlocks(marks) {
             mirror?.editor.dispatch({ effects: setMarks.of(marks) })
