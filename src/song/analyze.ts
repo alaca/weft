@@ -1,5 +1,5 @@
 import { parse } from 'acorn'
-import type { Arg, Call, PatternBlock, Song } from './types'
+import type { Arg, Call, PatternBlock, Song, Tempo } from './types'
 
 type Node = { type: string; start: number; end: number; loc: { start: { line: number }; end: { line: number } }; [key: string]: any }
 
@@ -72,6 +72,35 @@ function soundName(calls: Call[]): string | null {
     return null
 }
 
+const TEMPO_UNITS: Record<string, Tempo['unit']> = { setcpm: 'cpm', setCpm: 'cpm', setcps: 'cps', setCps: 'cps' }
+
+function staticNumber(node: Node): number | null {
+    const direct = numberOf(node)
+    if (direct !== null) return direct
+    if (node.type === 'BinaryExpression' && (node.operator === '/' || node.operator === '*')) {
+        const left = staticNumber(node.left)
+        const right = staticNumber(node.right)
+        if (left === null || right === null) return null
+        return node.operator === '/' ? left / right : left * right
+    }
+    return null
+}
+
+function tempoOf(body: Node[]): { tempo: Tempo | null; locked: boolean } {
+    for (const node of body) {
+        if (node.type !== 'ExpressionStatement' || node.expression.type !== 'CallExpression') continue
+        const call: Node = node.expression
+        if (call.callee.type !== 'Identifier' || call.arguments.length !== 1) continue
+        const unit = TEMPO_UNITS[call.callee.name]
+        if (!unit) continue
+        const value = staticNumber(call.arguments[0])
+        if (value === null) return { tempo: null, locked: true }
+        const bpm = Math.round((unit === 'cpm' ? value * 4 : value * 240) * 100) / 100
+        return { tempo: { bpm, from: call.arguments[0].start, to: call.arguments[0].end, unit }, locked: false }
+    }
+    return { tempo: null, locked: false }
+}
+
 export function analyze(code: string): Song {
     let ast: Node
     try {
@@ -80,6 +109,9 @@ export function analyze(code: string): Song {
         const e = err as { message?: string; loc?: { line?: number } }
         return {
             patterns: [],
+            tempo: null,
+            tempoLocked: false,
+            insertAt: 0,
             error: { message: String(e.message ?? err).replace(/\s*\(\d+:\d+\)$/, ''), line: e.loc?.line ?? 1 },
         }
     }
@@ -105,5 +137,7 @@ export function analyze(code: string): Song {
             calls,
         })
     }
-    return { patterns, error: null }
+    const body = ast.body as Node[]
+    const { tempo, locked } = tempoOf(body)
+    return { patterns, tempo, tempoLocked: locked, insertAt: body[0]?.start ?? 0, error: null }
 }

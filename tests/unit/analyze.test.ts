@@ -48,7 +48,8 @@ describe('analyze', () => {
 
     it('ignores code that is not a labelled pattern', () => {
         const song = analyze('const x = 1\nsetcpm(30)\ns("bd")')
-        expect(song).toEqual({ patterns: [], error: null })
+        expect(song.patterns).toEqual([])
+        expect(song.error).toBeNull()
     })
 
     it('reports a parse error with its line and no patterns', () => {

@@ -1,5 +1,18 @@
 import type { Call, PatternBlock } from '../song/types'
-import { CONTROLS, findDef, soundKind, STARTERS, writeNumber, type ControlDef, type Group, type PanelGroup, type Scale } from './catalog'
+import {
+    CONTROLS,
+    familyOf,
+    filterTypeOf,
+    findDef,
+    soundKind,
+    startersFor,
+    writeNumber,
+    type ControlDef,
+    type FilterType,
+    type Group,
+    type PanelGroup,
+    type Scale,
+} from './catalog'
 
 export type ControlView = {
     fn: string
@@ -70,9 +83,23 @@ export function favourites(block: PatternBlock): ControlView[] {
         .slice(0, MAX_FAVOURITES)
 }
 
-export function panelFor(block: PatternBlock): { group: PanelGroup; items: ControlView[] }[] {
+export function browserItems(block: PatternBlock, filter: FilterType): ControlDef[] {
+    const kind = soundKind(block)
+    const starters = Object.values(startersFor(kind, filterTypeOf(block) ?? filter)).flat()
+    return CONTROLS.filter(
+        (def) =>
+            def.group !== 'pattern' &&
+            def.fn !== 'gain' &&
+            !starters.includes(def.fn) &&
+            !familyOf(def.fn) &&
+            (!def.only || def.only === kind) &&
+            !callFor(block, def.fn),
+    )
+}
+
+export function panelFor(block: PatternBlock, filter?: FilterType): { group: PanelGroup; items: ControlView[] }[] {
     const inCode = present(block).filter((view) => view.fn !== 'gain')
-    const starters = STARTERS[soundKind(block)]
+    const starters = startersFor(soundKind(block), filterTypeOf(block) ?? filter ?? 'low')
     return PANEL_GROUPS.map((group) => {
         const first = starters[group].map((fn) => inCode.find((view) => view.fn === fn) ?? faint(CONTROLS.find((def) => def.fn === fn) as ControlDef))
         const rest = inCode.filter((view) => view.group === group && !starters[group].includes(view.fn))

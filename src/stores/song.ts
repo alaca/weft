@@ -4,7 +4,7 @@ import type { Song } from '../song/types'
 
 export type ViewMode = 'controls' | 'both' | 'code'
 
-export const [song, setSong] = createSignal<Song>({ patterns: [], error: null })
+export const [song, setSong] = createSignal<Song>({ patterns: [], tempo: null, tempoLocked: false, insertAt: 0, error: null })
 export const [stale, setStale] = createSignal(false)
 export const [engineState, setEngineState] = createSignal<EngineState>({ playing: false, dirty: false, error: null, sounds: 'loading' })
 export const [selected, setSelected] = createSignal<string | null>(null)

@@ -4,6 +4,7 @@ export type Group = 'source' | 'filter' | 'shape' | 'effects' | 'pattern'
 export type PanelGroup = Exclude<Group, 'pattern'>
 export type Scale = 'linear' | 'log'
 export type SoundKind = 'synth' | 'sample'
+export type FilterType = 'low' | 'high' | 'band'
 
 export type ControlDef = {
     fn: string
@@ -16,9 +17,10 @@ export type ControlDef = {
     scale: Scale
     unit: string
     describe: string
+    only?: SoundKind
 }
 
-type Extra = Partial<Pick<ControlDef, 'names' | 'scale' | 'unit'>>
+type Extra = Partial<Pick<ControlDef, 'names' | 'scale' | 'unit' | 'only'>>
 
 const control = (fn: string, label: string, group: Group, min: number, max: number, initial: number, describe: string, extra: Extra = {}): ControlDef => ({
     fn,
@@ -35,19 +37,24 @@ const control = (fn: string, label: string, group: Group, min: number, max: numb
 })
 
 export const CONTROLS: ControlDef[] = [
-    control('vib', 'Vibrato', 'source', 0, 12, 4, 'How fast the pitch wobbles', { names: ['vib', 'vibrato', 'v'], unit: 'Hz' }),
-    control('vibmod', 'Vibrato depth', 'source', 0, 2, 0.5, 'How far the pitch wobbles, in semitones', { names: ['vibmod', 'vmod'] }),
-    control('noise', 'Noise', 'source', 0, 1, 0.2, 'Mixes hiss into the tone'),
-    control('fm', 'Metal', 'source', 0, 8, 2, 'Bell-like, metallic overtones', { names: ['fm', 'fmi'] }),
-    control('fmh', 'Metal ratio', 'source', 0.5, 8, 2, 'Changes which overtones the metal has'),
-    control('speed', 'Speed', 'source', 0.25, 2, 1, 'Plays the sample faster and higher, or slower and lower'),
-    control('begin', 'Start', 'source', 0, 1, 0, 'Where in the sample playback begins'),
+    control('vib', 'Vibrato', 'source', 0, 12, 4, 'How fast the pitch wobbles', { names: ['vib', 'vibrato', 'v'], unit: 'Hz', only: 'synth' }),
+    control('vibmod', 'Vibrato depth', 'source', 0, 2, 0.5, 'How far the pitch wobbles, in semitones', { names: ['vibmod', 'vmod'], only: 'synth' }),
+    control('noise', 'Noise', 'source', 0, 1, 0.2, 'Mixes hiss into the tone', { only: 'synth' }),
+    control('fm', 'Metal', 'source', 0, 8, 2, 'Bell-like, metallic overtones', { names: ['fm', 'fmi'], only: 'synth' }),
+    control('fmh', 'Metal ratio', 'source', 0.5, 8, 2, 'Changes which overtones the metal has', { only: 'synth' }),
+    control('speed', 'Speed', 'source', 0.25, 2, 1, 'Plays the sample faster and higher, or slower and lower', { only: 'sample' }),
+    control('begin', 'Start', 'source', 0, 1, 0, 'Where in the sample playback begins', { only: 'sample' }),
     control('penv', 'Pitch sweep', 'source', -24, 24, 12, 'Bends the pitch as each note starts'),
     control('lpf', 'Cutoff', 'filter', 100, 8000, 1200, 'Cuts everything above this pitch', { names: ['lpf', 'cutoff', 'ctf', 'lp'], scale: 'log', unit: 'Hz' }),
     control('lpq', 'Resonance', 'filter', 0, 30, 8, 'How much the filter rings at its cutoff', { names: ['lpq', 'resonance'] }),
     control('lpenv', 'Sweep', 'filter', 0, 8, 3, 'How far the filter opens on each note', { names: ['lpenv', 'lpe'] }),
     control('lpdecay', 'Sweep time', 'filter', 0, 1, 0.2, 'How quickly the filter closes again', { names: ['lpdecay', 'lpd'], unit: 's' }),
     control('hpf', 'Low cut', 'filter', 20, 4000, 300, 'Cuts everything below this pitch', { names: ['hpf', 'hp', 'hcutoff'], scale: 'log', unit: 'Hz' }),
+    control('hpq', 'Resonance', 'filter', 0, 30, 8, 'How much the filter rings at its cutoff', { names: ['hpq', 'hresonance'] }),
+    control('hpenv', 'Sweep', 'filter', 0, 8, 3, 'How far the filter moves on each note', { names: ['hpenv', 'hpe'] }),
+    control('bpf', 'Band centre', 'filter', 100, 8000, 1000, 'Keeps only the pitches around this one', { names: ['bpf', 'bandf', 'bp'], scale: 'log', unit: 'Hz' }),
+    control('bpq', 'Resonance', 'filter', 0, 30, 4, 'How narrow the band is', { names: ['bpq', 'bandq'] }),
+    control('bpenv', 'Sweep', 'filter', 0, 8, 3, 'How far the filter moves on each note', { names: ['bpenv', 'bpe'] }),
     control('attack', 'Attack', 'shape', 0, 1, 0.01, 'How slowly each note fades in', { names: ['attack', 'att'], unit: 's' }),
     control('decay', 'Decay', 'shape', 0, 2, 0.2, 'How quickly each note falls to its held level', { names: ['decay', 'dec'], unit: 's' }),
     control('sustain', 'Hold', 'shape', 0, 1, 0.5, 'The level a note stays at while it is held', { names: ['sustain', 'sus'] }),
@@ -61,6 +68,7 @@ export const CONTROLS: ControlDef[] = [
     control('crush', 'Crush', 'effects', 1, 16, 8, 'Gritty, low-resolution digital sound'),
     control('coarse', 'Coarse', 'effects', 1, 32, 4, 'Lowers the sample rate for a rough sound'),
     control('phaser', 'Phaser', 'effects', 0, 8, 1, 'A slow, sweeping swirl', { names: ['phaser', 'ph'] }),
+    control('chorus', 'Chorus', 'effects', 0, 1, 0.5, 'Thickens the sound with detuned copies'),
     control('gain', 'Volume', 'effects', 0, 1.5, 0.8, 'How loud this pattern is'),
     control('degradeBy', 'Skip hits', 'pattern', 0, 1, 0.15, 'Leaves out this share of the hits at random'),
 ]
@@ -80,10 +88,32 @@ export const STARTERS: Record<SoundKind, Record<PanelGroup, string[]>> = {
     },
 }
 
+export const FILTERS: Record<FilterType, string[]> = {
+    low: ['lpf', 'lpq', 'lpenv'],
+    high: ['hpf', 'hpq', 'hpenv'],
+    band: ['bpf', 'bpq', 'bpenv'],
+}
+
+const FILTER_TYPES = Object.keys(FILTERS) as FilterType[]
 const SYNTHS = ['sine', 'triangle', 'square', 'sawtooth', 'supersaw', 'pulse']
 const SOUND_CALLS = ['s', 'sound', 'bank']
 
 export const findDef = (name: string): ControlDef | undefined => CONTROLS.find((def) => def.names.includes(name))
+
+export const familyOf = (fn: string): FilterType | null => FILTER_TYPES.find((type) => FILTERS[type].includes(fn)) ?? null
+
+export function filterTypeOf(block: PatternBlock): FilterType | null {
+    for (const call of block.calls) {
+        const def = findDef(call.name)
+        const family = def ? familyOf(def.fn) : null
+        if (family) return family
+    }
+    return null
+}
+
+export function startersFor(kind: SoundKind, filter: FilterType): Record<PanelGroup, string[]> {
+    return { ...STARTERS[kind], filter: FILTERS[filter] }
+}
 
 export function soundKind(block: PatternBlock): SoundKind {
     if (block.soundName) return SYNTHS.includes(block.soundName) ? 'synth' : 'sample'

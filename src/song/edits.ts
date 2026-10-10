@@ -1,4 +1,4 @@
-import type { Arg, Call, PatternBlock, TextEdit } from './types'
+import type { Arg, Call, PatternBlock, Song, TextEdit } from './types'
 
 type Numeric = Extract<Arg, { kind: 'number' | 'slider' }>
 
@@ -24,4 +24,26 @@ export function removeCall(call: Call): TextEdit {
 
 export function applyEdit(code: string, edit: TextEdit): string {
     return code.slice(0, edit.from) + edit.insert + code.slice(edit.to)
+}
+
+export function setString(arg: Extract<Arg, { kind: 'string' }>, value: string): TextEdit {
+    return { from: arg.from + 1, to: arg.to - 1, insert: value }
+}
+
+export function renameCalls(calls: Call[], rename: (name: string) => string | null): TextEdit[] {
+    return calls.flatMap((call) => {
+        const next = rename(call.name)
+        return next && next !== call.name ? [{ from: call.nameFrom, to: call.nameTo, insert: next }] : []
+    })
+}
+
+export function setTempo(song: Song, bpm: number): TextEdit {
+    if (song.tempo) {
+        return { from: song.tempo.from, to: song.tempo.to, insert: song.tempo.unit === 'cpm' ? `${bpm}/4` : `${bpm}/240` }
+    }
+    return { from: song.insertAt, to: song.insertAt, insert: `setcpm(${bpm}/4)\n\n` }
+}
+
+export function applyEdits(code: string, edits: TextEdit[]): string {
+    return [...edits].sort((a, b) => b.from - a.from).reduce(applyEdit, code)
 }

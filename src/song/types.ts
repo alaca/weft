@@ -29,8 +29,13 @@ export type PatternBlock = {
     calls: Call[]
 }
 
+export type Tempo = { bpm: number; from: number; to: number; unit: 'cpm' | 'cps' }
+
 export type Song = {
     patterns: PatternBlock[]
+    tempo: Tempo | null
+    tempoLocked: boolean
+    insertAt: number
     error: { message: string; line: number } | null
 }
 
