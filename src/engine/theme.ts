@@ -38,7 +38,7 @@ export function registerTheme(): void {
         syntaxHighlighting(
             HighlightStyle.define([
                 { tag: t.labelName, color: `var(--h, ${LINEN})`, fontWeight: '600' },
-                { tag: t.comment, color: LINEN_3, fontStyle: 'italic' },
+                { tag: t.comment, color: LINEN_3, fontStyle: 'italic', fontFamily: "'Piazzolla Variable', Georgia, serif", fontSize: '14.5px' },
                 { tag: [t.string, t.special(t.string)], color: LINEN },
                 { tag: [t.number, t.bool, t.atom], color: LINEN },
                 { tag: [t.propertyName, t.variableName, t.definition(t.variableName)], color: LINEN },

@@ -91,7 +91,11 @@ kbd { font: 500 9.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); b
 .ed .cm-gutters { border: 0; background: transparent; }
 .ed .cm-lineNumbers .cm-gutterElement { padding: 0 12px 0 14px; font-size: 10.5px; }
 .ed .cm-line { padding: 0 14px; }
-.ed .cm-line.weft-block { box-shadow: inset 3px 0 0 var(--h); }
+.ed .cm-line.weft-block { box-shadow: inset 3px 0 0 var(--h); --foreground: var(--h); }
+.ed .cm-line span[style*='outline'] { outline-width: 1.5px !important; outline-offset: 1px; border-radius: 3px; background: color-mix(in srgb, var(--foreground) 28%, transparent); }
+.ed .cm-slider input { -webkit-appearance: none; appearance: none; width: 56px !important; height: 4px; border-radius: 2px; background: var(--cloth-3); margin: 0 9px 0 3px !important; transform: translateY(-3px) !important; cursor: pointer; }
+.ed .cm-slider input::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: var(--linen); box-shadow: 0 0 0 2px var(--cloth); }
+.ed .cm-slider input::-moz-range-thumb { width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--linen); box-shadow: 0 0 0 2px var(--cloth); }
 .ed .cm-line.weft-sel { background: color-mix(in srgb, var(--h) 7%, transparent); }
 .ed .cm-line.weft-off { opacity: 0.45; }
 
