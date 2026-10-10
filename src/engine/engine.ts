@@ -261,12 +261,17 @@ export function createEngine(): Engine {
                 .map((key) => key.slice(prefix.length))
         },
         preview(sound, bank) {
-            try {
-                const value = bank ? { s: sound, bank } : { s: sound }
-                Promise.resolve(superdough(value, getAudioContext().currentTime + 0.02, 0.4)).catch(() => undefined)
-            } catch {
-                return
+            const fire = async () => {
+                const due = getAudioContext().currentTime + 0.05
+                await superdough(bank ? { s: sound, bank, analyze: 'weft' } : { s: sound, analyze: 'weft' }, due, 0.4)
+                return getAudioContext().currentTime > due
             }
+            // Strudel drops a hit whose sample is still loading when it falls due. If that happened, the
+            // sample is in memory by the time the call returns, so a second try is heard. Each try gets
+            // its own value object because Strudel rewrites the one it is given.
+            fire()
+                .then((missed) => (missed ? fire() : false))
+                .catch(() => undefined)
         },
         markBlocks(marks) {
             mirror?.editor.dispatch({ effects: setMarks.of(marks) })

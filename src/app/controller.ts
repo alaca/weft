@@ -294,11 +294,17 @@ const pin = (id: string, sound: string) => {
 
 export function toggleStep(id: string, sound: string, step: number) {
     pin(id, sound)
-    changeGrid(id, (source) => ({ rows: toggleGridStep(source.grid.rows, sound, step, source.grid.steps), cycles: source.grid.cycles }))
+    let placed = false
+    changeGrid(id, (source) => {
+        placed = !source.grid.rows.find((row) => row.sound === sound)?.steps[step]
+        return { rows: toggleGridStep(source.grid.rows, sound, step, source.grid.steps), cycles: source.grid.cycles }
+    })
+    if (placed && !engineState().playing) previewSound(id, sound)
 }
 
 export function addRow(id: string, sound: string) {
     pin(id, sound)
+    previewSound(id, sound)
 }
 
 export function removeGridRow(id: string, sound: string) {
