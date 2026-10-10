@@ -1,5 +1,6 @@
 import { createSignal } from 'solid-js'
 import type { EngineState } from '../engine/engine'
+import type { SongInfo, SongRecord } from '../library/shelf'
 import type { Song } from '../song/types'
 
 export type ViewMode = 'controls' | 'both' | 'code'
@@ -26,3 +27,6 @@ export const [startBar, setStartBar] = createSignal(0)
 
 export type Removed = { id: string; index: number; from: number; text: string; after: string }
 export const [removed, setRemoved] = createSignal<Removed | null>(null)
+export const [songs, setSongs] = createSignal<SongInfo[]>([])
+export const [currentSong, setCurrentSong] = createSignal<SongInfo | null>(null)
+export const [deletedSong, setDeletedSong] = createSignal<SongRecord | null>(null)

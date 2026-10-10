@@ -73,7 +73,14 @@ test('remembers the code across a reload', async ({ page }) => {
     await page.goto('/')
     await ready(page)
     await page.evaluate(() => (window as any).__weft.engine.applyEdit({ from: 0, to: 0, insert: '// kept\n' }))
-    await expect.poll(() => page.evaluate(() => localStorage.getItem('weft.song') ?? '')).toContain('// kept')
+    await expect
+        .poll(() =>
+            page.evaluate(() => {
+                const id = localStorage.getItem('weft.current')
+                return localStorage.getItem(`weft.songs.${id}`) ?? ''
+            }),
+        )
+        .toContain('// kept')
     await page.reload()
     await ready(page)
     expect(await code(page)).toContain('// kept')

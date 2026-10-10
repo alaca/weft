@@ -52,11 +52,7 @@ export function OutputStrip() {
     onCleanup(() => cancelAnimationFrame(frame))
 
     return (
-        <section class="out" data-testid="output">
-            <div>
-                <h3>Output</h3>
-                <p>What you hear, right now</p>
-            </div>
+        <section class="out" data-testid="output" aria-label="What you hear, right now">
             <canvas class="scope" ref={canvas} />
         </section>
     )

@@ -1,8 +1,8 @@
 import { onMount } from 'solid-js'
 import { mount, play } from '../app/controller'
 import { engineState } from '../stores/song'
+import { MOD } from './keys'
 
-const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? 'Cmd' : 'Ctrl'
 
 export function CodePane() {
     let root!: HTMLDivElement

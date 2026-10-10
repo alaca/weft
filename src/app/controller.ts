@@ -3,6 +3,7 @@ import { FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '..
 import { drumChoices } from '../controls/drums'
 import { callFor } from '../controls/views'
 import { createEngine } from '../engine/engine'
+import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongRecord } from '../library/shelf'
 import { analyze } from '../song/analyze'
 import { arrangeSong, barsOf, readArrangement, songLength } from '../song/arrange'
 import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
@@ -30,6 +31,7 @@ import { fits, soundEdit } from '../sounds/apply'
 import { catalogue, type SoundItem } from '../sounds/catalog'
 import {
     cycle,
+    deletedSong,
     engineState,
     gridNotes,
     openPanel,
@@ -38,7 +40,9 @@ import {
     selected,
     setBeat,
     setBpm,
+    setCurrentSong,
     setCycle,
+    setDeletedSong,
     setEngineState,
     setGridNotes,
     setMasterVolumeValue,
@@ -51,6 +55,7 @@ import {
     setSoloIds,
     setSong,
     setSongBars,
+    setSongs,
     setSoundsOpen,
     setStartBar,
     setUnfolded,
@@ -64,7 +69,10 @@ import {
     unfolded,
 } from '../stores/song'
 
-const STORAGE_KEY = 'weft.song'
+// Where the one song was kept before there could be several. It is read once, to become the
+// first song of the shelf.
+const FIRST_SONG_KEY = 'weft.song'
+const STARTER_NAME = 'Night bus'
 const VOLUME_KEY = 'weft.volume'
 const COLORS = ['var(--madder)', 'var(--saffron)', 'var(--woad)', 'var(--lichen)', 'var(--orchil)']
 
@@ -86,6 +94,43 @@ function resolve(patterns: PatternBlock[], target: string): PatternBlock | undef
 
 const find = (target: string) => resolve(song().patterns, target)
 
+// ---- songs. Every song has the version that was saved and the version being worked on. The
+// second is written half a second after each change, so closing the app loses nothing.
+const shelf = createShelf(localStorage)
+let current: SongRecord | null = null
+
+function refreshSongs() {
+    batch(() => {
+        setSongs(shelf.list())
+        setCurrentSong(current ? infoOf(current) : null)
+    })
+}
+
+function flush() {
+    window.clearTimeout(saveTimer)
+    if (current) shelf.write(current)
+}
+
+function keepDraft(code: string) {
+    if (!current || code === current.draft) return
+    current = { ...current, draft: code, changedAt: Date.now() }
+    setCurrentSong(infoOf(current))
+    window.clearTimeout(saveTimer)
+    saveTimer = window.setTimeout(flush, 500)
+}
+
+function firstSong(): SongRecord {
+    const open = shelf.current()
+    const found = (open ? shelf.read(open) : null) ?? shelf.list().flatMap((entry) => shelf.read(entry.id) ?? [])[0]
+    if (found) return found
+    const before = localStorage.getItem(FIRST_SONG_KEY)
+    const code = before ?? STARTER
+    const record: SongRecord = { id: newId(), name: before === null ? STARTER_NAME : UNTITLED, saved: code, draft: code, changedAt: Date.now() }
+    shelf.write(record)
+    shelf.setCurrent(record.id)
+    return record
+}
+
 function onCode(code: string) {
     if (removed() && code !== removed()?.after) setRemoved(null)
     const next = analyze(code)
@@ -103,8 +148,7 @@ function onCode(code: string) {
         })
         if (kept.length !== soloIds().length) engine.setSolo(kept)
     }
-    window.clearTimeout(saveTimer)
-    saveTimer = window.setTimeout(() => localStorage.setItem(STORAGE_KEY, code), 500)
+    keepDraft(code)
 }
 
 function tick() {
@@ -123,7 +167,10 @@ export async function mount(root: HTMLElement): Promise<void> {
     const startVolume = Number.isFinite(storedVolume) ? storedVolume : 1
     setMasterVolumeValue(startVolume)
     engine.setMasterVolume(startVolume)
-    const initial = localStorage.getItem(STORAGE_KEY) ?? STARTER
+    current = firstSong()
+    refreshSongs()
+    const initial = current.draft
+    window.addEventListener('pagehide', flush)
     engine.onState((next) => {
         const wasPlaying = engineState().playing
         setEngineState(next)
@@ -653,3 +700,97 @@ export const restsNow = (id: string): boolean => {
     const written = block ? readArrangement(block)?.bars : undefined
     return Boolean(written && engineState().playing && !written[cycle() % written.length])
 }
+
+function show(record: SongRecord) {
+    engine.stop()
+    current = record
+    shelf.setCurrent(record.id)
+    lastLength.clear()
+    batch(() => {
+        setSelected(null)
+        closePanel()
+        setSoloIds([])
+        setRemoved(null)
+        setGridNotes({})
+        setRollRanges({})
+        setSongBars(16)
+        setStartBar(0)
+        setCycle(0)
+    })
+    engine.setSolo([])
+    engine.setStart(0)
+    engine.setCode(record.draft)
+    refreshSongs()
+    replay()
+}
+
+const titles = () => shelf.list().map((entry) => entry.name)
+
+export function newSong() {
+    flush()
+    const record: SongRecord = { id: newId(), name: freeTitle(UNTITLED, titles()), saved: NEW_SONG, draft: NEW_SONG, changedAt: Date.now() }
+    shelf.write(record)
+    show(record)
+}
+
+export function openSong(id: string) {
+    if (id === current?.id) return
+    flush()
+    const record = shelf.read(id)
+    if (record) show(record)
+}
+
+export function saveSong() {
+    if (!current) return
+    current = { ...current, saved: current.draft }
+    flush()
+    refreshSongs()
+}
+
+export function revertSong() {
+    if (!current || current.draft === current.saved) return
+    engine.applyEdit({ from: 0, to: engine.getCode().length, insert: current.saved })
+    replay()
+}
+
+export function renameSong(id: string, name: string): boolean {
+    const clean = cleanName(name)
+    const record = id === current?.id ? current : shelf.read(id)
+    if (!clean || !record) return false
+    const renamed = { ...record, name: clean }
+    if (id === current?.id) current = renamed
+    shelf.write(renamed)
+    refreshSongs()
+    return true
+}
+
+export function duplicateSong() {
+    if (!current) return
+    flush()
+    const copy: SongRecord = { ...current, id: newId(), name: freeTitle(`${current.name} copy`, titles()), changedAt: Date.now() }
+    shelf.write(copy)
+    show(copy)
+}
+
+export function deleteSong(id: string) {
+    flush()
+    const record = shelf.read(id)
+    if (!record) return
+    shelf.remove(id)
+    setDeletedSong(record)
+    if (id !== current?.id) return refreshSongs()
+    const next = shelf.list().flatMap((entry) => shelf.read(entry.id) ?? [])[0]
+    if (next) return show(next)
+    current = null
+    newSong()
+}
+
+export function restoreSong() {
+    const record = deletedSong()
+    if (!record) return
+    shelf.write(record)
+    setDeletedSong(null)
+    refreshSongs()
+}
+
+export const listSongs = () => refreshSongs()

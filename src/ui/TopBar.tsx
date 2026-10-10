@@ -3,6 +3,7 @@ import { play, setMasterVolume, setTempo, stop, toggleSounds } from '../app/cont
 import type { ControlView } from '../controls/views'
 import { beat, bpm, cycle, engineState, masterVolume, setViewMode, song, soundsOpen, stale, viewMode, type ViewMode } from '../stores/song'
 import { Knob } from './Knob'
+import { SongMenu } from './SongMenu'
 
 const VIEWS: { id: ViewMode; label: string }[] = [
     { id: 'controls', label: 'Controls' },
@@ -27,9 +28,7 @@ export function TopBar() {
     return (
         <header class="top" data-testid="top">
             <div class="word">Weft</div>
-            <div class="proj">
-                <b>Untitled</b>
-            </div>
+            <SongMenu />
             <div class="grow" />
             <div class="tp">
                 <button class="play" aria-label="Play" aria-pressed={engineState().playing} onClick={play}>

@@ -1,6 +1,6 @@
 import { engineState } from '../stores/song'
+import { MOD } from './keys'
 
-const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? 'Cmd' : 'Ctrl'
 
 const SOUNDS = {
     loading: 'Loading sounds',
