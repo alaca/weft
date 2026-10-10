@@ -9,12 +9,15 @@ import type { Arg, Call, PatternBlock, TextEdit } from './types'
 //     s("hh").struct("~ ~ x ~   ~ ~ x ~   ~ ~ x ~   ~ ~ x ~").hpf(slider(4000, 20, 8000)),
 //   )
 //     .bank("RolandTR909")
-export type KitRow = GridRow & { block: PatternBlock }
+export type KitRow = GridRow & { block: PatternBlock; muted: boolean }
 export type Kit = { rows: KitRow[]; steps: number; cycles: number; perCycle: number; slow: Call | null; stack: Call }
 
 const SOURCES = ['s', 'sound']
 const SOUND = /^[A-Za-z_]\w*(?::\d+)?$/
 const INDENT = '  '
+
+// Strudel's own way to silence one pattern inside a stack.
+export const MUTE = 'hush'
 
 export const rowTarget = (id: string, sound: string) => `${id}/${sound}`
 
@@ -37,6 +40,7 @@ export function readKit(block: PatternBlock): Kit | null {
         rows.push({
             sound: sound.value,
             steps: cells.map((cell) => cell === 'x'),
+            muted: arg.calls.some((call) => call.name === MUTE),
             block: { ...block, id: rowTarget(block.id, sound.value), from: arg.from, to: arg.to, calls: arg.calls, soundName: sound.value, inline: true },
         })
     }

@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, Show } from 'solid-js'
-import { addRow, previewSound, removeGridRow, setLength, setMix, setStepsPerCycle, soundChoices, togglePanel, toggleStep } from '../app/controller'
+import { addRow, previewSound, removeGridRow, setLength, setMix, setStepsPerCycle, soundChoices, togglePanel, toggleRowMute, toggleStep } from '../app/controller'
 import { drumLabel } from '../controls/drums'
 import { panOf, volumeOf } from '../controls/views'
 import { readGrid, resample, type Grid } from '../song/grid'
@@ -13,11 +13,14 @@ import { StepGrid, type StepRow } from './StepGrid'
 const RESOLUTIONS = [16, 32]
 const NO_CONTROLS: PatternBlock = { id: '', label: '', muted: false, labelFrom: 0, labelTo: 0, from: 0, to: 0, lineFrom: 0, lineTo: 0, soundName: null, calls: [] }
 
-function RowControls(props: { id: string; sound: string; block: PatternBlock | undefined }) {
+function RowControls(props: { id: string; sound: string; block: PatternBlock | undefined; muted: boolean }) {
     const target = () => rowTarget(props.id, props.sound)
     const name = () => drumLabel(props.sound)
     return (
         <span class="rc">
+            <button class="rm" classList={{ on: props.muted }} aria-label={`Mute ${props.sound}`} aria-pressed={props.muted} title={`Mute ${name()} only`} disabled={stale()} onClick={() => toggleRowMute(props.id, props.sound)}>
+                M
+            </button>
             <Knob small name={`Volume of ${props.sound}`} view={volumeOf(props.block ?? NO_CONTROLS)} disabled={stale()} onChange={(value) => setMix(target(), 'gain', value)} />
             <Knob small name={`Pan of ${props.sound}`} view={panOf(props.block ?? NO_CONTROLS)} disabled={stale()} onChange={(value) => setMix(target(), 'pan', value)} />
             <button
@@ -45,6 +48,7 @@ export function Rack(props: { id: string; block: PatternBlock; played: { name: s
     const kit = createMemo(() => readKit(props.block))
     const grid = createMemo((): Grid | null => kit() ?? readGrid(props.block)?.grid ?? null)
     const canEdit = () => isDrums(props.block)
+    const mutedRows = createMemo(() => (kit()?.rows ?? []).flatMap((row) => (row.muted ? [row.sound] : [])))
     const cycles = () => grid()?.cycles ?? 1
     const perCycle = () => grid()?.perCycle ?? props.played[0]?.steps.length ?? 16
     const shown = () => (props.playing ? props.cycle % cycles() : Math.min(page(), cycles() - 1))
@@ -57,7 +61,8 @@ export function Rack(props: { id: string; block: PatternBlock; played: { name: s
             ? current.rows.map((row) => {
                   const steps = row.steps.slice(from, from + perCycle())
                   const heard = props.played.find((other) => other.name === row.sound)?.steps
-                  return { name: row.sound, steps, played: comparable ? (heard ?? steps.map(() => false)) : undefined }
+                  const muted = mutedRows().includes(row.sound)
+                  return { name: row.sound, steps, muted, played: comparable && !muted ? (heard ?? steps.map(() => false)) : undefined }
               })
             : props.played.map((row) => ({ name: row.name, steps: row.steps }))
         const extra = current && comparable ? props.played.filter((row) => !placed.some((other) => other.name === row.name)) : []
@@ -76,7 +81,11 @@ export function Rack(props: { id: string; block: PatternBlock; played: { name: s
                     onToggle={canEdit() ? (sound, step) => toggleStep(props.id, sound, shown() * perCycle() + step) : undefined}
                     onHear={(sound) => previewSound(props.id, sound)}
                     onRemove={canEdit() ? (sound) => removeGridRow(props.id, sound) : undefined}
-                    controls={canEdit() ? (sound) => <RowControls id={props.id} sound={sound()} block={kit()?.rows.find((row) => row.sound === sound())?.block} /> : undefined}
+                    controls={
+                        canEdit()
+                            ? (sound) => <RowControls id={props.id} sound={sound()} block={kit()?.rows.find((row) => row.sound === sound())?.block} muted={mutedRows().includes(sound())} />
+                            : undefined
+                    }
                 />
             </Show>
             <Show when={canEdit()}>

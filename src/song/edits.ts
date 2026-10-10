@@ -13,7 +13,11 @@ export function setNumber(arg: Numeric, text: string): TextEdit {
 }
 
 export function addCall(code: string, block: PatternBlock, callText: string): TextEdit {
-    if (block.inline) return { from: block.to, to: block.to, insert: callText }
+    if (block.inline) {
+        const last = block.calls[block.calls.length - 1]
+        const at = last?.name === 'hush' ? last.from : block.to
+        return { from: at, to: at, insert: callText }
+    }
     const lines = code.slice(block.from, block.to).split('\n')
     const found = lines.length > 1 ? /^[ \t]*/.exec(lines[1])?.[0] : ''
     return { from: block.to, to: block.to, insert: `\n${found || '  '}${callText}` }

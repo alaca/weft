@@ -275,7 +275,12 @@ svg.mini rect { fill: var(--h); }
 .top .mix { --h: var(--linen-2); }
 .top .kn.small .kn-d { width: 28px; height: 28px; }
 .dg.own { grid-template-columns: 74px 1fr auto; }
-.rc { display: grid; grid-template-columns: 24px 24px 22px; gap: 9px; align-items: center; justify-items: center; margin-left: 14px; }
+.rc { display: grid; grid-template-columns: 21px 24px 24px 22px; gap: 9px; align-items: center; justify-items: center; margin-left: 14px; }
+.rm { width: 21px; height: 19px; border-radius: 5px; background: var(--cloth-3); display: grid; place-items: center; font: 600 9.5px/1 var(--ui); color: var(--linen-3); }
+.rm.on { background: var(--linen); color: var(--vat); }
+.rm:disabled { opacity: 0.4; cursor: default; }
+.prow.off { opacity: 0.4; }
+.rh.off .rn { opacity: 0.5; }
 .rc .kn.small { gap: 0; }
 .rc .kn.small .cap { display: none; }
 .rc-h { height: 11px; }

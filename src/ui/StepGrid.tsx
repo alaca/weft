@@ -1,6 +1,6 @@
 import { For, Index, Show, type JSX } from 'solid-js'
 
-export type StepRow = { name: string; steps: boolean[]; played?: boolean[] }
+export type StepRow = { name: string; steps: boolean[]; played?: boolean[]; muted?: boolean }
 
 const groupsOf = (count: number) => Array.from({ length: Math.ceil(count / 4) }, (_, group) => group)
 const INSIDE = [0, 1, 2, 3]
@@ -23,6 +23,7 @@ export function StepGrid(props: {
                 <span />
                 <span />
                 <span class="rc rc-h" aria-hidden="true">
+                    <span />
                     <span class="cap">Vol</span>
                     <span class="cap">Pan</span>
                     <span />
@@ -31,7 +32,7 @@ export function StepGrid(props: {
             <Index each={props.rows}>
                 {(row) => (
                     <>
-                        <span class="rh">
+                        <span class="rh" classList={{ off: row().muted }}>
                             <Show when={props.onHear} fallback={<span class="rn">{row().name}</span>}>
                                 <button class="rn" aria-label={`Hear ${row().name}`} onClick={() => props.onHear?.(row().name)}>
                                     {row().name}
@@ -45,7 +46,7 @@ export function StepGrid(props: {
                                 </button>
                             </Show>
                         </span>
-                        <div class="prow">
+                        <div class="prow" classList={{ off: row().muted }}>
                             <For each={groupsOf(count())}>
                                 {(group) => (
                                     <div class="grp">

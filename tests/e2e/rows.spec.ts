@@ -129,9 +129,53 @@ test('a kit written the older way is rewritten when the panel of one sound is op
     await expect.poll(() => code(page)).toContain('drums: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~   x ~ ~ ~   x ~ ~ ~"),\n')
 })
 
+const mute = (page: Page, sound: string) => page.getByTestId('strip-drums').getByRole('button', { name: `Mute ${sound}`, exact: true })
+const heard = (page: Page) => page.evaluate(() => ((window as any).__weft.engine.events('drums', 0) as { sound: string }[]).map((event) => event.sound).sort().join(' '))
+
+test('every sound has a mute button that silences that sound only', async ({ page }) => {
+    await open(page)
+    await expect.poll(() => heard(page)).toBe('bd bd bd bd hh hh hh hh')
+    await expect(mute(page, 'hh')).toHaveAttribute('aria-pressed', 'false')
+    await mute(page, 'hh').click()
+    await expect.poll(() => code(page)).toContain(`${BD},\n${HH}.hush(),\n)\n  .bank("RolandTR909")\n`)
+    await expect(mute(page, 'hh')).toHaveAttribute('aria-pressed', 'true')
+    await expect(mute(page, 'bd')).toHaveAttribute('aria-pressed', 'false')
+    await expect.poll(() => heard(page)).toBe('bd bd bd bd')
+    await expect(page.getByTestId('strip-drums')).not.toHaveClass(/muted/)
+
+    await mute(page, 'hh').click()
+    await expect.poll(() => code(page)).toContain(`${BD},\n${HH},\n)\n`)
+    await expect.poll(() => heard(page)).toBe('bd bd bd bd hh hh hh hh')
+})
+
+test('a muted sound keeps its steps and controls, and can still be changed', async ({ page }) => {
+    await open(page)
+    await knob(page, 'Volume of hh').focus()
+    await page.keyboard.press('End')
+    await mute(page, 'hh').click()
+    await expect.poll(() => code(page)).toContain(`${HH}.gain(slider(1.5, 0, 1.5)).hush(),\n`)
+    await knob(page, 'Pan of hh').focus()
+    await page.keyboard.press('Home')
+    await expect.poll(() => code(page)).toContain(`${HH}.gain(slider(1.5, 0, 1.5)).pan(slider(0, 0, 1)).hush(),\n`)
+    await page.getByTestId('strip-drums').getByRole('button', { name: 'hh step 1', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('  s("hh").struct("x ~ x ~   ~ ~ x ~   ~ ~ x ~   ~ ~ x ~").gain(slider(1.5, 0, 1.5)).pan(slider(0, 0, 1)).hush(),\n')
+    await expect(mute(page, 'hh')).toHaveAttribute('aria-pressed', 'true')
+    await expect.poll(() => heard(page)).toBe('bd bd bd bd')
+})
+
+test('muting one sound of a kit written the older way rewrites the kit first', async ({ page }) => {
+    await open(page, OLDER)
+    await mute(page, 'bd').click()
+    await expect
+        .poll(() => code(page))
+        .toBe('setcpm(120/4)\n\ndrums: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~   x ~ ~ ~   x ~ ~ ~").hush(),\n  s("hh").struct("x ~ x ~   x ~ x ~   x ~ x ~   x ~ x ~"),\n).bank("RolandTR909")\n')
+    await expect(mute(page, 'bd')).toHaveAttribute('aria-pressed', 'true')
+})
+
 test('the controls of a sound are disabled while the code has an error', async ({ page }) => {
     await open(page)
     await page.evaluate(() => (window as any).__weft.engine.applyEdit({ from: 0, to: 0, insert: 'broken: s("bd"\n' }))
     await expect(knob(page, 'Volume of hh')).toHaveAttribute('aria-disabled', 'true')
     await expect(soundButton(page, 'hh')).toBeDisabled()
+    await expect(mute(page, 'hh')).toBeDisabled()
 })

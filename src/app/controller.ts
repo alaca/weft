@@ -6,7 +6,7 @@ import { createEngine } from '../engine/engine'
 import { analyze } from '../song/analyze'
 import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
 import { gridFromEvents, lengthEdits, readGrid, removeRow, resample, resize, sourceText, toggleStep as toggleGridStep, type Grid, type GridRow, type GridSource } from '../song/grid'
-import { convertEdits, kitEdits, readKit, rowTarget } from '../song/kit'
+import { convertEdits, kitEdits, MUTE, readKit, rowTarget } from '../song/kit'
 import {
     addNote,
     moveNote,
@@ -377,6 +377,15 @@ export function addRow(id: string, sound: string) {
         drums.rows.some((row) => row.sound === sound) ? null : { rows: [...drums.rows, { sound, steps: Array<boolean>(drums.steps).fill(false) }], cycles: drums.cycles },
     )
     previewSound(id, sound)
+}
+
+export function toggleRowMute(id: string, sound: string) {
+    if (stale()) return
+    const block = forEdit(rowTarget(id, sound))
+    if (!block) return
+    const hush = block.calls.find((call) => call.name === MUTE)
+    engine.applyEdit(hush ? removeCall(hush) : addCall(engine.getCode(), block, `.${MUTE}()`))
+    replay()
 }
 
 export function removeGridRow(id: string, sound: string) {

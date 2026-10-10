@@ -182,6 +182,37 @@ describe('controls of one sound', () => {
     })
 })
 
+describe('muting one sound', () => {
+    const MUTED = KIT.replace(CP, CP.replace('.gain(0.6),', '.gain(0.6).hush(),'))
+
+    it('is read from a hush at the end of its line', () => {
+        expect(readKit(first(KIT))!.rows.map((r) => r.muted)).toEqual([false, false, false])
+        expect(readKit(first(MUTED))!.rows.map((r) => r.muted)).toEqual([false, true, false])
+        expect(favourites(readKit(first(MUTED))!.rows[1].block).map((view) => view.fn)).toEqual(['hpf'])
+    })
+
+    it('is written after the controls the sound already has', () => {
+        const [, cp] = readKit(first(KIT))!.rows
+        expect(applyEdits(KIT, [addCall(KIT, cp.block, '.hush()')])).toBe(MUTED)
+    })
+
+    it('stays last when the sound is given another control', () => {
+        const [, cp] = readKit(first(MUTED))!.rows
+        expect(applyEdits(MUTED, [addCall(MUTED, cp.block, '.pan(slider(0.5, 0, 1))')])).toContain('.gain(0.6).pan(slider(0.5, 0, 1)).hush(),\n')
+    })
+
+    it('is taken away without touching the rest of the line', () => {
+        const [, cp] = readKit(first(MUTED))!.rows
+        const hush = cp.block.calls.find((call) => call.name === 'hush')!
+        expect(applyEdits(MUTED, [removeCall(hush)])).toBe(KIT)
+    })
+
+    it('keeps its steps editable', () => {
+        const next = change(MUTED, (rows) => toggleStep(rows, 'cp', 0, 16))
+        expect(next).toContain('  s("cp").struct("x ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~   x ~ ~ ~").hpf(slider(400, 20, 4000)).gain(0.6).hush(),\n')
+    })
+})
+
 describe('convertEdits', () => {
     it('rewrites a grid written as one text into one line for each sound', () => {
         const code = 'drums: s(`\n  bd ~  ~  ~    bd ~  ~  ~    bd ~  ~  ~    bd ~  ~  ~ ,\n  ~  ~  ~  ~    cp ~  ~  ~    ~  ~  ~  ~    cp ~  ~  ~\n`)\n  .bank("RolandTR909")\n'
