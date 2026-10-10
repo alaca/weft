@@ -50,6 +50,7 @@ export interface Engine {
     events(id: string, cycle: number, everyBar?: boolean): PatternEvent[]
     inStep(): boolean
     setStart(bar: number): void
+    setEnd(bar: number | null): void
     audible(cycle: number): PatternEvent[]
     waveform(): Float32Array | null
     setMasterVolume(value: number): void
@@ -87,6 +88,7 @@ export function createEngine(): Engine {
     let unmasked = new Map<string, any>()
     let pendingUnmasked = new Map<string, any>()
     let startBar = 0
+    let endBar: number | null = null
     let offset = 0
     // Strudel's own pause plays everything it missed at once when it goes on. Pausing here is
     // stopping while remembering where the song was, and going on is starting from there.
@@ -128,7 +130,13 @@ export function createEngine(): Engine {
             pending.set(key, this)
             pendingUnmasked.set(key, this[BEFORE_MASK] ?? this)
             if (soloIds.length && !soloIds.includes(key)) return silence
-            return original.call(offset ? this.early(offset) : this, id)
+            // Strudel looks a little ahead, so the bar after the last one would already have
+            // started to sound by the time the song is stopped at its end. Nothing that starts
+            // at or after the end is let through. The end is read as it is now, not as it was
+            // when the code was evaluated, because the song grows and shrinks as it is arranged.
+            const shift = offset
+            const within = (hap: any) => endBar === null || (hap.whole ?? hap.part).begin.valueOf() + shift < endBar
+            return original.call((shift ? this.early(shift) : this).filterHaps(within), id)
         }
     }
 
@@ -363,6 +371,9 @@ export function createEngine(): Engine {
             if (!state.playing || blank()) return
             offset = bar - Math.floor(mirror.repl.scheduler.now())
             void mirror.evaluate(true)
+        },
+        setEnd(bar) {
+            endBar = bar
         },
         stop() {
             resumeAt = null

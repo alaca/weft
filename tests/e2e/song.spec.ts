@@ -322,3 +322,35 @@ test('a song whose first bars are silent still starts', async ({ page }) => {
     await expect.poll(() => now(page)).toBeGreaterThan(0.5)
     await expect(page.getByTestId('cycle')).not.toHaveText('1', { timeout: 15_000 })
 })
+
+const sounding = (page: Page, cycle: number) => page.evaluate((at) => (window as any).__weft.engine.audible(at).length as number, cycle)
+
+test('an arranged song stops at its end and goes back to the start', async ({ page }) => {
+    await open(page, 'setcpm(480/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n  .mask("<0 1!3>")\n\nbass: note("c2 e2")\n  .s("sawtooth")\n')
+    await expect(page.getByTestId('song-length')).toContainText('4 bars')
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    expect(await sounding(page, 3)).toBeGreaterThan(0)
+    expect(await sounding(page, 4)).toBe(0)
+    await expect(page.getByTestId('code-status')).toHaveText('Stopped', { timeout: 8000 })
+    await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible()
+    await expect(page.getByTestId('cycle')).toHaveText('1')
+    expect(await now(page)).toBe(0)
+
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await drag(page, 'bass', 5, 8)
+    await expect(page.getByTestId('song-length')).toContainText('8 bars')
+    await expect.poll(() => now(page)).toBeGreaterThan(4.5)
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Stopped', { timeout: 8000 })
+})
+
+test('a song with nothing arranged goes round until it is stopped', async ({ page }) => {
+    await open(page, 'setcpm(1920/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n')
+    await expect(page.getByTestId('song-length')).toContainText('16 bars')
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect.poll(() => now(page), { timeout: 10000 }).toBeGreaterThan(17)
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    expect(await sounding(page, 18)).toBeGreaterThan(0)
+})

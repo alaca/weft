@@ -184,8 +184,14 @@ function onCode(code: string) {
     keepDraft(code)
 }
 
+// A song that has been arranged ends with its last bar and stops there. One with nothing
+// arranged is a loop that is still being worked on, and goes round until it is stopped.
+const songEnd = (): number | null => (song().patterns.some((block) => readArrangement(block)) ? songLength(song().patterns, songBars()) : null)
+
 function tick() {
     const now = engine.now()
+    const end = songEnd()
+    if (end !== null && now >= end) return engine.stop()
     const whole = Math.floor(now)
     batch(() => {
         setCycle(whole)
@@ -236,6 +242,7 @@ export async function mount(root: HTMLElement): Promise<void> {
     onCode(initial)
     await engine.mount(root, initial)
     createRoot(() => {
+        createEffect(() => engine.setEnd(songEnd()))
         createEffect(() => {
             const current = selected()
             const patterns = song().patterns
