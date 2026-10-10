@@ -1,0 +1,19 @@
+:root {
+    --vat: #18181a;
+    --cloth: #1f1f22;
+    --cloth-2: #28282c;
+    --cloth-3: #38383e;
+    --seam: #3a3a40;
+    --seam-soft: #2b2b2f;
+    --linen: #ece6d6;
+    --linen-2: #b9b6af;
+    --linen-3: #8d8b86;
+    --madder: #e5583f;
+    --saffron: #ecb739;
+    --woad: #79b4f2;
+    --lichen: #9fca7e;
+    --orchil: #d48bd6;
+    --ui: 'Archivo Variable', system-ui, sans-serif;
+    --mono: 'Martian Mono Variable', ui-monospace, Menlo, monospace;
+    --voice: 'Piazzolla Variable', Georgia, serif;
+}
