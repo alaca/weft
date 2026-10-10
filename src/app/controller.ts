@@ -2,9 +2,11 @@ import { batch, createEffect, createRoot } from 'solid-js'
 import { FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '../controls/catalog'
 import { drumChoices } from '../controls/drums'
 import { callFor } from '../controls/views'
+import { saveFile, type FileKind } from '../desktop/save'
 import { createEngine } from '../engine/engine'
 import { DEMOS } from '../library/demos'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongRecord } from '../library/shelf'
+import { encodeWav, fileName, levelFor, peakOf, soundingLength } from '../library/wav'
 import { analyze } from '../song/analyze'
 import { arrangeSong, barsOf, readArrangement, songLength } from '../song/arrange'
 import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
@@ -34,6 +36,7 @@ import {
     cycle,
     deletedSong,
     engineState,
+    exporting,
     gridNotes,
     openDemoId,
     openPanel,
@@ -46,6 +49,8 @@ import {
     setCycle,
     setDeletedSong,
     setEngineState,
+    setExportNote,
+    setExporting,
     setGridNotes,
     setMasterVolumeValue,
     setSongShown,
@@ -780,6 +785,7 @@ function show(record: SongRecord, demo: string | null = null) {
     shelf.setCurrent(demo === null ? record.id : DEMO + demo)
     lastLength.clear()
     batch(() => {
+        setExportNote(null)
         setSelected(null)
         closePanel()
         setSoloIds([])
@@ -876,3 +882,43 @@ export function restoreSong() {
 }
 
 export const listSongs = () => refreshSongs()
+
+const CODE_FILE: FileKind = { extension: 'js', label: 'Strudel code', type: 'text/javascript' }
+const AUDIO_FILE: FileKind = { extension: 'wav', label: 'WAV audio', type: 'audio/wav' }
+const TAIL_SECONDS = 4
+
+const told = (saved: 'saved' | 'cancelled', name: string) => (saved === 'saved' ? `Saved as ${name}.` : 'Not saved.')
+
+export async function exportCode() {
+    if (!current) return
+    const name = fileName(current.name, CODE_FILE.extension)
+    try {
+        setExportNote(told(await saveFile(name, engine.getCode(), CODE_FILE), name))
+    } catch (err) {
+        setExportNote(`The file could not be saved: ${String((err as Error)?.message ?? err)}`)
+    }
+}
+
+// The song from its first bar to its last, with what still rings after it, as a WAV file.
+export async function exportAudio() {
+    if (!current || exporting()) return
+    if (engineState().sounds !== 'ready') return void setExportNote('The sounds are still loading. Try again in a moment.')
+    const name = fileName(current.name, AUDIO_FILE.extension)
+    const bars = songLengthNow()
+    setExporting(true)
+    setExportNote('Making the audio file.')
+    try {
+        const made = await engine.render(bars, TAIL_SECONDS, (done) => setExportNote(`Making the audio file, ${Math.round(done * 100)}%.`))
+        const whole = Math.round((bars / (engine.bpm() / 240)) * made.sampleRate)
+        const length = soundingLength(made.channels, made.sampleRate, Math.min(whole, made.channels[0].length))
+        const peak = peakOf(made.channels, length)
+        if (!peak) return void setExportNote('Nothing sounds in this song, so there is no audio to save.')
+        const saved = await saveFile(name, encodeWav(made.channels, made.sampleRate, length, levelFor(peak)), AUDIO_FILE)
+        const missing = made.missed ? ` ${made.missed} ${made.missed === 1 ? 'sound' : 'sounds'} could not be loaded and ${made.missed === 1 ? 'is' : 'are'} missing from it.` : ''
+        setExportNote(told(saved, name) + (saved === 'saved' ? missing : ''))
+    } catch (err) {
+        setExportNote(`The audio file could not be made: ${String((err as Error)?.message ?? err)}`)
+    } finally {
+        setExporting(false)
+    }
+}

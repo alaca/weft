@@ -8,7 +8,10 @@ import {
     getAnalyzerData,
     getAudioContext,
     getSuperdoughAudioController,
+    initAudio,
     initAudioOnFirstClick,
+    setAudioContext,
+    setSuperdoughAudioController,
     soundMap,
     superdough,
     webaudioOutput,
@@ -24,6 +27,7 @@ import { registerTheme } from './theme'
 export type { BlockMark } from './marks'
 
 export type EvalError = { message: string; line: number | null }
+export type Rendered = { channels: Float32Array[]; sampleRate: number; missed: number }
 
 export type EngineState = {
     playing: boolean
@@ -51,6 +55,7 @@ export interface Engine {
     inStep(): boolean
     setStart(bar: number): void
     setEnd(bar: number | null): void
+    render(bars: number, tailSeconds: number, onProgress?: (done: number) => void): Promise<Rendered>
     audible(cycle: number): PatternEvent[]
     waveform(): Float32Array | null
     setMasterVolume(value: number): void
@@ -70,6 +75,8 @@ export interface Engine {
 }
 
 const bareId = (id: string) => id.replace(/^_+|_+$/g, '')
+const pause = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))
+const SETTLE = 300
 const BEFORE_MASK = '__weftBeforeMask'
 
 function toEvalError(err: unknown): EvalError {
@@ -80,7 +87,22 @@ function toEvalError(err: unknown): EvalError {
     }
 }
 
+// Strudel keeps some of the parts a sound is built from, to use them again, and does not ask
+// which audio clock a part belongs to. A song is made into a file on a clock of its own, so
+// without this a part of the one clock would be handed to a sound on the other, and that sound
+// would fail. Strudel holds the kept parts weakly; a part of another clock is reported as gone.
+function keepPartsToTheirClock() {
+    const Weak = globalThis.WeakRef
+    globalThis.WeakRef = class<T extends WeakKey> extends Weak<T> {
+        deref(): T | undefined {
+            const held = super.deref()
+            return held instanceof AudioNode && held.context !== getAudioContext() ? undefined : held
+        }
+    } as typeof WeakRef
+}
+
 export function createEngine(): Engine {
+    keepPartsToTheirClock()
     let mirror: any = null
     let state: EngineState = { playing: false, paused: false, dirty: false, error: null, sounds: 'loading' }
     let registry = new Map<string, any>()
@@ -374,6 +396,66 @@ export function createEngine(): Engine {
         },
         setEnd(bar) {
             endBar = bar
+        },
+        // The song as a recording, made faster than it plays: every sound of the song is
+        // handed to an audio clock that is not the one you listen on, and that clock then runs
+        // through the song as fast as the machine can. The song is evaluated from its first
+        // bar with nothing soloed for this, and put back as it was afterwards.
+        async render(bars, tailSeconds, onProgress) {
+            if (blank()) throw new Error('There is nothing in this song to play.')
+            engine.stop()
+            const before = { soloIds, offset, endBar }
+            const live = getAudioContext()
+            const liveController = getSuperdoughAudioController()
+            // Strudel tidies up after each sound with a timer that takes for granted there is
+            // one audio clock, and fails when a sound ends while the other clock is the one in
+            // use. So the clock you listen on is held still for as long as the other one is in
+            // use, after a moment for what still rings, and the other one is given a moment to
+            // finish tidying before the first is put back.
+            await pause(SETTLE)
+            await live.suspend().catch(() => undefined)
+            let missed = 0
+            soloIds = []
+            offset = 0
+            endBar = bars
+            try {
+                await mirror.repl.evaluate(mirror.code, false)
+                if (state.error) throw new Error(state.error.message)
+                const pattern = mirror.repl.state.pattern
+                const cps: number = mirror.repl.scheduler.cps
+                const rate = live.sampleRate
+                const clock = new OfflineAudioContext(2, Math.ceil((bars / cps + tailSeconds) * rate), rate)
+                setAudioContext(clock)
+                setSuperdoughAudioController(null)
+                await initAudio()
+                const haps = pattern
+                    .queryArc(0, bars, { _cps: cps })
+                    .filter((hap: any) => hap.hasOnset())
+                    .sort((a: any, b: any) => a.whole.begin.valueOf() - b.whole.begin.valueOf())
+                for (let at = 0; at < haps.length; at++) {
+                    const hap = haps[at]
+                    const begin = hap.whole.begin.valueOf()
+                    hap.ensureObjectValue()
+                    await superdough({ ...hap.value }, begin / cps, hap.duration.valueOf() / cps, cps, begin).catch(() => void missed++)
+                    if (at % 200 === 199) {
+                        onProgress?.((at + 1) / haps.length)
+                        await pause(0)
+                    }
+                }
+                onProgress?.(1)
+                const buffer = await clock.startRendering()
+                await pause(SETTLE)
+                return { channels: [buffer.getChannelData(0), buffer.getChannelData(1)], sampleRate: rate, missed }
+            } finally {
+                setAudioContext(live)
+                setSuperdoughAudioController(liveController)
+                soloIds = before.soloIds
+                offset = before.offset
+                endBar = before.endBar
+                await mirror.repl.evaluate(mirror.code, false).catch(() => undefined)
+                applyMaster()
+                void live.resume().catch(() => undefined)
+            }
         },
         stop() {
             resumeAt = null

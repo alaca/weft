@@ -299,3 +299,76 @@ test('the pictures in the playlist are of the song that is open, not the one bef
     const bass = await picture('bass').getAttribute('d')
     expect((bass?.match(/M/g) ?? []).length).toBeGreaterThan(40)
 })
+
+const ARRANGED = 'setcpm(240/4)\n\ndrums: s("bd*4, hh*8")\n  .bank("RolandTR909")\n  .lpf(4000)\n  .mask("<1!3 0>")\n\nbass: note("c2 e2 g2 e2")\n  .s("sawtooth")\n  .lpf(slider(800, 100, 8000))\n  .room(.3)\n'
+
+test('the code of a song can be exported as a file', async ({ page }) => {
+    await open(page)
+    await name(page).click()
+    const [download] = await Promise.all([page.waitForEvent('download'), menu(page).getByRole('button', { name: 'Code (.js)', exact: true }).click()])
+    expect(download.suggestedFilename()).toBe('Untitled.js')
+    const { readFile } = await import('node:fs/promises')
+    expect(await readFile(await download.path(), 'utf8')).toBe(SONG)
+    await expect(page.getByTestId('export-note')).toHaveText('Saved as Untitled.js.')
+})
+
+test('a song can be exported as audio, from its first bar to its last, and plays as before afterwards', async ({ page }) => {
+    test.setTimeout(90000)
+    const errors: string[] = []
+    page.on('pageerror', (error) => errors.push(error.message))
+    await open(page, ARRANGED)
+    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.now() as number)).toBeGreaterThan(1.5)
+    await page.getByRole('button', { name: 'Solo bass', exact: true }).click()
+    await name(page).click()
+    const [download] = await Promise.all([
+        page.waitForEvent('download', { timeout: 60000 }),
+        menu(page).getByRole('button', { name: 'Audio (.wav)', exact: true }).click(),
+    ])
+    expect(download.suggestedFilename()).toBe('Untitled.wav')
+    await expect(page.getByTestId('export-note')).toHaveText('Saved as Untitled.wav.')
+    await expect(page.getByTestId('code-status')).toHaveText('Stopped')
+
+    const { readFile } = await import('node:fs/promises')
+    const bytes = await readFile(await download.path())
+    expect(bytes.subarray(0, 4).toString('latin1')).toBe('RIFF')
+    const rate = bytes.readUInt32LE(24)
+    const frames = (bytes.length - 44) / 4
+    const seconds = frames / rate
+    expect(seconds).toBeGreaterThan(3.9)
+    expect(seconds).toBeLessThan(8.1)
+    const loudest = (from: number, to: number) => {
+        let peak = 0
+        for (let frame = Math.floor(from * rate); frame < Math.min(frames, Math.floor(to * rate)); frame++) peak = Math.max(peak, Math.abs(bytes.readInt16LE(44 + frame * 4)))
+        return peak / 32767
+    }
+    expect(loudest(0, 0.05)).toBeGreaterThan(0.2)
+    expect(loudest(0, 4)).toBeGreaterThan(0.4)
+    expect(loudest(0, seconds)).toBeLessThanOrEqual(1)
+    // The kick is in the file although only the bass was soloed, and rests in the last bar.
+    const low = (from: number, to: number) => {
+        let sum = 0
+        let count = 0
+        for (let frame = Math.floor(from * rate); frame < Math.floor(to * rate); frame++) {
+            sum += Math.abs(bytes.readInt16LE(44 + frame * 4))
+            count++
+        }
+        return sum / count / 32767
+    }
+    expect(low(0, 0.1)).toBeGreaterThan(low(3, 3.1) * 1.3)
+
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.now() as number)).toBeGreaterThan(0.5)
+    await expect
+        .poll(() =>
+            page.evaluate(() => {
+                const wave = (window as any).__weft.engine.waveform() as Float32Array | null
+                return wave ? Math.max(...Array.from(wave, Math.abs)) : 0
+            }),
+        )
+        .toBeGreaterThan(0.05)
+    expect(errors).toEqual([])
+})
