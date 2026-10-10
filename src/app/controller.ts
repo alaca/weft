@@ -125,6 +125,11 @@ export async function mount(root: HTMLElement): Promise<void> {
 
 export const play = () => void engine.evaluate()
 
+function replay() {
+    if (engineState().playing) play()
+    else void engine.refresh()
+}
+
 export const stop = () => engine.stop()
 
 export const togglePlay = () => (engineState().playing ? stop() : play())
@@ -140,7 +145,7 @@ export function toggleMute(id: string) {
     const block = find(id)
     if (!block || stale()) return
     engine.applyEdit(muteEdit(block))
-    if (engineState().playing) play()
+    replay()
 }
 
 export function toggleSolo(id: string) {
@@ -154,10 +159,10 @@ export const eventsOf = (id: string, whichCycle: number): PatternEvent[] => engi
 let evaluateTimer: number | undefined
 
 function scheduleEvaluate() {
-    if (!engineState().playing || evaluateTimer !== undefined) return
+    if (evaluateTimer !== undefined) return
     evaluateTimer = window.setTimeout(() => {
         evaluateTimer = undefined
-        play()
+        replay()
     }, 120)
 }
 
@@ -181,7 +186,7 @@ export function addControl(id: string, fn: string, value?: number) {
     if (!block || !def || stale() || callFor(block, fn)) return
     const start = writeNumber(value ?? def.initial, def.min, def.max)
     engine.applyEdit(addCall(engine.getCode(), block, `.${def.fn}(slider(${start}, ${def.min}, ${def.max}))`))
-    if (engineState().playing) play()
+    replay()
 }
 
 export function removeControl(id: string, fn: string) {
@@ -189,7 +194,7 @@ export function removeControl(id: string, fn: string) {
     const call = block ? callFor(block, fn) : undefined
     if (!call || stale()) return
     engine.applyEdit(removeCall(call))
-    if (engineState().playing) play()
+    replay()
 }
 
 export function setVolume(id: string, value: number) {
@@ -201,9 +206,6 @@ export function setVolume(id: string, value: number) {
 
 export const togglePanel = (id: string) => setOpenPanel(openPanel() === id ? null : id)
 
-const replay = () => {
-    if (engineState().playing) play()
-}
 
 export function setWave(id: string, name: string) {
     const block = find(id)

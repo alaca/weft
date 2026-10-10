@@ -37,6 +37,7 @@ export interface Engine {
     applyEdit(edit: TextEdit | TextEdit[]): void
     moveSlider(from: number, text: string): boolean
     evaluate(): Promise<void>
+    refresh(): Promise<void>
     stop(): void
     setSolo(ids: string[]): void
     now(): number
@@ -213,6 +214,9 @@ export function createEngine(): Engine {
         async evaluate() {
             await mirror.evaluate(true)
         },
+        async refresh() {
+            await mirror.repl.evaluate(mirror.code, false)
+        },
         stop() {
             mirror.stop()
         },
@@ -243,8 +247,7 @@ export function createEngine(): Engine {
                     pattern
                         .queryArc(cycle, cycle + 1)
                         .filter((hap: any) => hap.whole && hap.hasOnset())
-                        .map((hap: any) => ({ start: hap.whole.begin.valueOf() - cycle, value: hap.value }))
-                        .sort((a: { start: number }, b: { start: number }) => a.start - b.start),
+                        .map((hap: any) => ({ start: hap.whole.begin.valueOf() - cycle, value: hap.value })),
                 )
             } catch {
                 return null
