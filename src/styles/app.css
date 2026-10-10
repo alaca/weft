@@ -429,6 +429,7 @@ svg.mini rect { fill: var(--h); }
 /* A knob that moves by itself, the small button that sets one moving, and the box that says how. */
 .kn.moving .kn-d { cursor: pointer; padding: 0; }
 .kn.moving .kn-d:disabled { cursor: default; }
+.sp .kn.moving b { white-space: normal; max-width: 58px; text-align: center; line-height: 1.25; }
 .kn.moving .kv { stroke-dasharray: 3 4; animation: sway 2.4s ease-in-out infinite alternate; }
 @keyframes sway { from { opacity: 0.45; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .kn.moving .kv { animation: none; } }
