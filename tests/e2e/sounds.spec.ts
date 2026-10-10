@@ -24,7 +24,7 @@ test('opens from the top bar for listening and closes again', async ({ page }) =
     await expect(browser(page).getByRole('searchbox', { name: 'Search sounds' })).toBeFocused()
     await expect(page.getByTestId('sound-target')).toContainText('Click a pattern to choose its sound')
     await expect(browser(page).getByRole('button', { name: /^Use / })).toHaveCount(0)
-    await page.keyboard.press('Escape')
+    await button.click()
     await expect(browser(page)).toHaveCount(0)
     await button.click()
     await browser(page).getByRole('button', { name: 'Close sounds' }).click()

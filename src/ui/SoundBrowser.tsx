@@ -1,9 +1,11 @@
 import { createEffect, createMemo, createSignal, For, on, Show } from 'solid-js'
-import { addOwnSounds, closeSounds, colorAt, hearSound, removeOwnSound, soundCatalogue, useSound } from '../app/controller'
+import { addOwnSounds, closeSounds, colorAt, dragSounds, hearSound, removeOwnSound, soundCatalogue, usualWidth, useSound } from '../app/controller'
+import { SOUNDS_WIDTH } from '../library/layout'
 import { lengthText } from '../library/sounds'
 import { fits, inUse, takesKit } from '../sounds/apply'
-import { countSounds, findSounds, SOUND_GROUPS, type SoundGroup, type SoundItem } from '../sounds/catalog'
-import { engineState, ownSoundNote, ownSounds, selected, song, soundsOpen, stale } from '../stores/song'
+import { countSounds, findSounds, SOUND_DRAG, SOUND_GROUPS, type SoundGroup, type SoundItem } from '../sounds/catalog'
+import { engineState, ownSoundNote, ownSounds, selected, song, soundsOpen, soundsWidth, stale } from '../stores/song'
+import { Divider } from './Divider'
 
 export function SoundBrowser() {
     let search: HTMLInputElement | undefined
@@ -44,15 +46,8 @@ export function SoundBrowser() {
 
     return (
         <Show when={soundsOpen()}>
-            <aside
-                class="sb"
-                role="dialog"
-                aria-label="Sounds"
-                data-testid="sound-browser"
-                onKeyDown={(event) => {
-                    if (event.key === 'Escape') closeSounds()
-                }}
-            >
+            <aside class="sb" aria-label="Sounds" data-testid="sound-browser">
+                <Divider side="right" label="Width of the sounds" width={() => soundsWidth() ?? SOUNDS_WIDTH} onDrag={dragSounds} onUsual={() => usualWidth('sounds')} />
                 <div class="sb-h">
                     <h2>Sounds</h2>
                     <span class="grow" />
@@ -155,7 +150,17 @@ export function SoundBrowser() {
                 <div class="sb-l" ref={list}>
                     <For each={shown()}>
                         {(item) => (
-                            <div class="sb-i" classList={{ on: used(item), own: item.group === 'yours' }}>
+                            <div
+                                class="sb-i"
+                                classList={{ on: used(item), own: item.group === 'yours' }}
+                                draggable="true"
+                                title="Drag into the code to use it there"
+                                onDragStart={(event) => {
+                                    event.dataTransfer?.setData(SOUND_DRAG, item.name)
+                                    event.dataTransfer?.setData('text/plain', item.name)
+                                    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
+                                }}
+                            >
                                 <button class="sb-p" aria-label={`Hear ${item.label}`} onClick={() => hearSound(item)}>
                                     <svg viewBox="0 0 10 10" aria-hidden="true">
                                         <path d="M2.5 1.2v7.6L8.8 5z" />

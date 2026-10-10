@@ -2,10 +2,12 @@ import { batch, createEffect, createRoot } from 'solid-js'
 import { FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '../controls/catalog'
 import { drumChoices } from '../controls/drums'
 import { callFor } from '../controls/views'
+import { installViewMenu } from '../desktop/menu'
 import { saveFile, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
 import { DEMOS } from '../library/demos'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongRecord } from '../library/shelf'
+import { CODE_LEAST, DEFAULT_LAYOUT, fitWidth, isUsual, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type ViewMode } from '../library/layout'
 import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
 import { gradeOf, readAudio, RING_SECONDS, type AudioOptions, type Format } from '../library/audio'
 import { encodeMp3 } from '../library/mp3'
@@ -33,7 +35,7 @@ import {
 import { appendPattern, freeName, PATTERN_STARTERS, removePattern as removeEdit, starterCode, type StarterKind } from '../song/patterns'
 import { STARTER } from '../song/starter'
 import type { PatternBlock, PatternEvent } from '../song/types'
-import { fits, isRow, soundEdit } from '../sounds/apply'
+import { fits, isRow, soundEdit, soundTextAt } from '../sounds/apply'
 import { catalogue, type SoundItem } from '../sounds/catalog'
 import {
     cycle,
@@ -62,6 +64,12 @@ import {
     setWaveShown,
     songShown,
     waveShown,
+    codeWidth,
+    setCodeWidth,
+    setSoundsWidth,
+    setViewMode,
+    soundsWidth,
+    viewMode,
     setOpenDemoId,
     setOpenPanel,
     setOwnSoundNote,
@@ -94,8 +102,7 @@ const FIRST_SONG_KEY = 'weft.song'
 const DEMO = 'demo:'
 const STARTER_NAME = 'Night bus'
 const VOLUME_KEY = 'weft.volume'
-const WAVE_KEY = 'weft.show.wave'
-const SONG_PANEL_KEY = 'weft.show.song'
+const LAYOUT_KEY = 'weft.layout'
 const COLORS = ['var(--madder)', 'var(--saffron)', 'var(--woad)', 'var(--lichen)', 'var(--orchil)']
 
 const engine = createEngine()
@@ -241,6 +248,7 @@ export async function mount(root: HTMLElement): Promise<void> {
         }
     })
     engine.onCodeChange(onCode)
+    engine.onSoundDrop(dropSound)
     engine.onCursor((offset) => {
         if (stale()) return
         const hit = song().patterns.find((p) => offset >= p.from && offset <= p.to)
@@ -254,7 +262,22 @@ export async function mount(root: HTMLElement): Promise<void> {
     )
     onCode(initial)
     await engine.mount(root, initial)
+    const tickMenu = await installViewMenu([
+        { id: 'weft-view-both', text: 'Controls and Code', checked: () => viewMode() === 'both', action: () => setView('both') },
+        { id: 'weft-view-controls', text: 'Controls Only', checked: () => viewMode() === 'controls', action: () => setView('controls') },
+        { id: 'weft-view-code', text: 'Code Only', checked: () => viewMode() === 'code', action: () => setView('code') },
+        'line',
+        { id: 'weft-view-sounds', text: 'Sounds', checked: soundsOpen, action: toggleSounds },
+        { id: 'weft-view-wave', text: 'Waveform', checked: waveShown, action: toggleWaveform },
+        { id: 'weft-view-song', text: 'Song Panel', checked: songShown, action: toggleSongPanel },
+        'line',
+        { id: 'weft-view-reset', text: 'Reset Layout', action: resetLayout },
+    ])
     createRoot(() => {
+        createEffect(() => {
+            layoutNow()
+            tickMenu()
+        })
         createEffect(() => engine.setEnd(songEnd()))
         createEffect(() => {
             const current = selected()
@@ -443,19 +466,67 @@ export function setMasterVolume(value: number) {
 
 export const waveformOf = () => engine.waveform()
 
-setWaveShown(localStorage.getItem(WAVE_KEY) !== '0')
-setSongShown(localStorage.getItem(SONG_PANEL_KEY) !== '0')
+const layoutNow = (): Layout => ({ view: viewMode(), sounds: soundsOpen(), wave: waveShown(), song: songShown(), soundsWidth: soundsWidth(), codeWidth: codeWidth() })
+
+function applyLayout(layout: Layout) {
+    batch(() => {
+        setViewMode(layout.view)
+        setSoundsOpen(layout.sounds)
+        setWaveShown(layout.wave)
+        setSongShown(layout.song)
+        setSoundsWidth(layout.soundsWidth)
+        setCodeWidth(layout.codeWidth)
+    })
+}
+
+const keepLayout = () => localStorage.setItem(LAYOUT_KEY, JSON.stringify(layoutNow()))
+
+applyLayout(readLayout(localStorage.getItem(LAYOUT_KEY)))
+
+export const layoutIsUsual = (): boolean => isUsual(layoutNow())
+
+export function resetLayout() {
+    applyLayout(DEFAULT_LAYOUT)
+    keepLayout()
+}
+
+export function setView(view: ViewMode) {
+    setViewMode(view)
+    keepLayout()
+}
 
 export function toggleWaveform() {
-    const next = !waveShown()
-    setWaveShown(next)
-    localStorage.setItem(WAVE_KEY, next ? '1' : '0')
+    setWaveShown(!waveShown())
+    keepLayout()
 }
 
 export function toggleSongPanel() {
-    const next = !songShown()
-    setSongShown(next)
-    localStorage.setItem(SONG_PANEL_KEY, next ? '1' : '0')
+    setSongShown(!songShown())
+    keepLayout()
+}
+
+// The room the other columns need, so that a column cannot be dragged over them.
+const beside = (column: 'sounds' | 'code') => {
+    const middle = viewMode() === 'code' ? 0 : MIDDLE_LEAST
+    if (column === 'sounds') return middle + (viewMode() === 'controls' ? 0 : viewMode() === 'code' ? CODE_LEAST : (codeWidth() ?? usualCode(window.innerWidth)))
+    return middle + (soundsOpen() ? (soundsWidth() ?? SOUNDS_WIDTH) : 0)
+}
+
+// While a divider is dragged the width follows the pointer; it is kept when it is let go.
+export function dragSounds(wanted: number, done: boolean) {
+    setSoundsWidth(fitWidth(wanted, SOUNDS_LEAST, window.innerWidth, beside('sounds')))
+    if (done) keepLayout()
+}
+
+export function dragCode(wanted: number, done: boolean) {
+    setCodeWidth(fitWidth(wanted, CODE_LEAST, window.innerWidth, beside('code')))
+    if (done) keepLayout()
+}
+
+export function usualWidth(column: 'sounds' | 'code') {
+    if (column === 'sounds') setSoundsWidth(null)
+    else setCodeWidth(null)
+    keepLayout()
 }
 
 // The whole song is selected in the editor as well, so it is plain what was copied, and so the
@@ -669,10 +740,15 @@ export function addPattern(kind: StarterKind): string | null {
 export function openSounds(id?: string) {
     if (id) select(id)
     setSoundsOpen(true)
+    keepLayout()
 }
 
-export const closeSounds = () => setSoundsOpen(false)
-export const toggleSounds = () => setSoundsOpen(!soundsOpen())
+export function closeSounds() {
+    setSoundsOpen(false)
+    keepLayout()
+}
+
+export const toggleSounds = () => (soundsOpen() ? closeSounds() : openSounds())
 
 export const soundCatalogue = (): SoundItem[] => catalogue(engine.sounds(), engine.kitNames())
 
@@ -702,6 +778,21 @@ export function useSound(id: string, item: SoundItem) {
     if (!block || stale() || !fits(block, item.group)) return
     if (isRow(block, item)) return addRow(id, item.name)
     engine.applyEdit(soundEdit(engine.getCode(), block, item))
+    replay()
+}
+
+// A sound let go over the code. Between the quotes of s("...") or bank("...") it takes the
+// place of the name that is there. Anywhere else on a pattern it becomes that pattern's sound,
+// as Use does. Where neither can be, its name is put in as text.
+function dropSound(offset: number, name: string) {
+    if (stale()) return engine.applyEdit({ from: offset, to: offset, insert: name })
+    const item = soundCatalogue().find((entry) => entry.name === name)
+    if (!item) return
+    const text = soundTextAt(song().patterns, offset)
+    const block = song().patterns.find((pattern) => offset >= pattern.from && offset <= pattern.to)
+    if (text) engine.applyEdit(setString(text, item.name))
+    else if (block && fits(block, item.group)) return useSound(block.id, item)
+    else engine.applyEdit({ from: offset, to: offset, insert: item.name })
     replay()
 }
 

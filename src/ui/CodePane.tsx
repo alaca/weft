@@ -1,11 +1,13 @@
 import { createSignal, onCleanup, onMount } from 'solid-js'
-import { copyCode, mount, play } from '../app/controller'
+import { copyCode, dragCode, mount, play, usualWidth } from '../app/controller'
 import { engineState } from '../stores/song'
+import { Divider } from './Divider'
 import { MOD } from './keys'
 
 
 export function CodePane() {
     let root!: HTMLDivElement
+    let pane!: HTMLElement
     let timer = 0
     const [copied, setCopied] = createSignal(false)
     onMount(() => void mount(root))
@@ -30,7 +32,8 @@ export function CodePane() {
     }
 
     return (
-        <section class="code" data-testid="code">
+        <section class="code" data-testid="code" ref={pane}>
+            <Divider side="left" label="Width of the code" width={() => pane.getBoundingClientRect().width} onDrag={dragCode} onUsual={() => usualWidth('code')} />
             <div class="code-h">
                 <h2>Code</h2>
                 <div class="grow" />

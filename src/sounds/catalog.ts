@@ -15,6 +15,8 @@ export const SOUND_GROUPS: { id: SoundGroup; label: string }[] = [
 export const KIT_TAG = 'drum-machines'
 export const INSTRUMENT_TAG = 'instruments'
 export const YOURS_TAG = 'yours'
+// What a sound carries while it is dragged from the browser into the code: its name.
+export const SOUND_DRAG = 'application/x-weft-sound'
 
 const SYNTHS: Record<string, string> = {
     sine: 'Sine wave',

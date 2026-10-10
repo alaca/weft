@@ -23,3 +23,18 @@ export function soundEdit(code: string, block: PatternBlock, item: SoundItem): T
     if (arg?.kind === 'string') return setString(arg, item.name)
     return addCall(code, block, `.${names[0]}("${item.name}")`)
 }
+
+const NAMING = ['s', 'sound', 'bank']
+
+// The text between quotes that names a sound or a kit, when the place in the code is inside
+// one: s("...") or bank("..."), of a pattern or of one row of a drum grid.
+export function soundTextAt(blocks: PatternBlock[], offset: number): Extract<PatternBlock['calls'][number]['args'][number], { kind: 'string' }> | null {
+    const within = blocks.flatMap((block) => [block, ...(readKit(block)?.rows.map((row) => row.block) ?? [])])
+    for (const block of within) {
+        for (const call of block.calls) {
+            const arg = call.args[0]
+            if (NAMING.includes(call.name) && arg?.kind === 'string' && offset > arg.from && offset < arg.to) return arg
+        }
+    }
+    return null
+}

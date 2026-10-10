@@ -1,6 +1,7 @@
 import { onCleanup, onMount } from 'solid-js'
 import { saveSong, togglePlay } from './app/controller'
-import { viewMode } from './stores/song'
+import { SOUNDS_WIDTH } from './library/layout'
+import { codeWidth, soundsOpen, soundsWidth, viewMode } from './stores/song'
 import { CodePane } from './ui/CodePane'
 import { ExportDialog } from './ui/ExportDialog'
 import { SoundBrowser } from './ui/SoundBrowser'
@@ -25,12 +26,17 @@ export function App() {
     onCleanup(() => document.removeEventListener('keydown', onKey))
 
     return (
-        <div class="app" data-view={viewMode()}>
+        <div
+            class="app"
+            data-view={viewMode()}
+            data-sounds={soundsOpen() ? 'shown' : 'hidden'}
+            style={{ '--sounds-w': `${soundsWidth() ?? SOUNDS_WIDTH}px`, '--code-w': codeWidth() === null ? undefined : `${codeWidth()}px` }}
+        >
             <TopBar />
+            <SoundBrowser />
             <StripList />
             <CodePane />
             <StatusBar />
-            <SoundBrowser />
             <ExportDialog />
         </div>
     )

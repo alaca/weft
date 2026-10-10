@@ -1,10 +1,11 @@
 import { createSignal } from 'solid-js'
 import type { EngineState } from '../engine/engine'
 import type { SongInfo, SongRecord } from '../library/shelf'
+import type { ViewMode } from '../library/layout'
 import type { OwnSoundInfo } from '../library/sounds'
 import type { Song } from '../song/types'
 
-export type ViewMode = 'controls' | 'both' | 'code'
+export type { ViewMode } from '../library/layout'
 
 export const [song, setSong] = createSignal<Song>({ patterns: [], tempo: null, tempoLocked: false, insertAt: 0, error: null })
 export const [stale, setStale] = createSignal(false)
@@ -13,6 +14,8 @@ export const [selected, setSelected] = createSignal<string | null>(null)
 export const [viewMode, setViewMode] = createSignal<ViewMode>('both')
 export const [waveShown, setWaveShown] = createSignal(true)
 export const [songShown, setSongShown] = createSignal(true)
+export const [soundsWidth, setSoundsWidth] = createSignal<number | null>(null)
+export const [codeWidth, setCodeWidth] = createSignal<number | null>(null)
 export const [soloIds, setSoloIds] = createSignal<string[]>([])
 export const [cycle, setCycle] = createSignal(0)
 export const [beat, setBeat] = createSignal(0)

@@ -20,7 +20,7 @@ import type { PatternEvent, TextEdit } from '../song/types'
 import { toEvents } from './events'
 import { marksField, setMarks, type BlockMark } from './marks'
 import { maskSliders } from './mask'
-import type { RawSound } from '../sounds/catalog'
+import { SOUND_DRAG, type RawSound } from '../sounds/catalog'
 import { addOwnSound, kitNames, loadModules, loadSamples, removeOwnSound, soundTaken } from './prebake'
 import { registerTheme } from './theme'
 
@@ -76,6 +76,7 @@ export interface Engine {
     onCodeChange(fn: (code: string) => void): void
     onState(fn: (state: EngineState) => void): void
     onCursor(fn: (offset: number) => void): void
+    onSoundDrop(fn: (offset: number, name: string) => void): void
     onEvaluated(fn: () => void): void
 }
 
@@ -140,6 +141,7 @@ export function createEngine(): Engine {
     const stateFns = new Set<(state: EngineState) => void>()
     const codeFns = new Set<(code: string) => void>()
     const cursorFns = new Set<(offset: number) => void>()
+    const dropFns = new Set<(offset: number, name: string) => void>()
     const evaluatedFns = new Set<() => void>()
 
     const setState = (patch: Partial<EngineState>) => {
@@ -325,6 +327,26 @@ export function createEngine(): Engine {
                         ),
                         EditorView.updateListener.of((update) => {
                             if (update.selectionSet) cursorFns.forEach((fn) => fn(update.state.selection.main.head))
+                        }),
+                        // A sound dragged in from the browser is not put in as text by the
+                        // editor. Where it was let go is handed on, and what happens there is
+                        // decided by who knows the song.
+                        EditorView.domEventHandlers({
+                            dragover(event) {
+                                if (!event.dataTransfer?.types.includes(SOUND_DRAG)) return false
+                                event.preventDefault()
+                                event.dataTransfer.dropEffect = 'copy'
+                                return true
+                            },
+                            drop(event, view) {
+                                const name = event.dataTransfer?.getData(SOUND_DRAG)
+                                if (!name) return false
+                                event.preventDefault()
+                                const offset = view.posAtCoords({ x: event.clientX, y: event.clientY }, false)
+                                dropFns.forEach((fn) => fn(offset, name))
+                                view.focus()
+                                return true
+                            },
                         }),
                     ]),
                 })
@@ -566,6 +588,7 @@ export function createEngine(): Engine {
         onCodeChange: (fn) => void codeFns.add(fn),
         onState: (fn) => void stateFns.add(fn),
         onCursor: (fn) => void cursorFns.add(fn),
+        onSoundDrop: (fn) => void dropFns.add(fn),
         onEvaluated: (fn) => void evaluatedFns.add(fn),
     }
     return engine

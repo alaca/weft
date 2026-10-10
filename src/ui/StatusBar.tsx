@@ -1,3 +1,5 @@
+import { Show } from 'solid-js'
+import { layoutIsUsual, resetLayout } from '../app/controller'
 import { engineState } from '../stores/song'
 import { MOD } from './keys'
 
@@ -22,6 +24,11 @@ export function StatusBar() {
                 <kbd>{MOD} .</kbd>silence
             </span>
             <div class="grow" />
+            <Show when={!layoutIsUsual()}>
+                <button class="sbar-b" title="Every part shown, at its usual width" onClick={resetLayout}>
+                    Reset layout
+                </button>
+            </Show>
             <span>
                 Free and open source. Sound engine: <b>Strudel</b>
             </span>
