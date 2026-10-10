@@ -95,6 +95,24 @@ test('pressing a faint knob adds its line, and removing it takes the line away',
     await expect(bass.getByRole('button', { name: 'Add Delay' })).toBeVisible()
 })
 
+test('a synth has the three knobs that make a bell: metal, its ratio and its fade', async ({ page }) => {
+    await open(page)
+    const bass = page.getByTestId('strip-bass')
+    await bass.getByRole('button', { name: 'Sound controls for bass' }).click()
+    await expect(bass.getByRole('button', { name: 'Add Metal ratio', exact: true })).toHaveCount(0)
+    await bass.getByRole('button', { name: 'Add Metal', exact: true }).click()
+    await bass.getByRole('button', { name: 'Add Metal ratio', exact: true }).click()
+    await bass.getByRole('button', { name: 'Add Metal fade', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('  .fm(slider(2, 0, 8))\n  .fmh(slider(2, 0.5, 8))\n  .fmdecay(slider(0.3, 0, 2))\n')
+    await expect(bass.getByRole('slider', { name: 'Metal fade' })).toHaveAttribute('aria-valuenow', '0.3')
+    await expect(page.getByTestId('code-status')).not.toContainText('rror')
+
+    const drums = page.getByTestId('strip-drums')
+    await drums.getByRole('button', { name: 'Sound controls for drums' }).click()
+    await expect(drums.getByRole('button', { name: 'Add Speed' })).toBeVisible()
+    await expect(drums.getByRole('button', { name: 'Add Metal', exact: true })).toHaveCount(0)
+})
+
 test('every strip has a volume knob that writes gain into the code when it is first turned', async ({ page }) => {
     await open(page)
     const volume = page.getByTestId('strip-drums').getByRole('slider', { name: 'Volume of drums', exact: true })

@@ -1,12 +1,22 @@
-import { onMount } from 'solid-js'
-import { mount, play } from '../app/controller'
+import { createSignal, onCleanup, onMount } from 'solid-js'
+import { copyCode, mount, play } from '../app/controller'
 import { engineState } from '../stores/song'
 import { MOD } from './keys'
 
 
 export function CodePane() {
     let root!: HTMLDivElement
+    let timer = 0
+    const [copied, setCopied] = createSignal(false)
     onMount(() => void mount(root))
+    onCleanup(() => window.clearTimeout(timer))
+
+    const copy = async () => {
+        if (!(await copyCode())) return
+        setCopied(true)
+        window.clearTimeout(timer)
+        timer = window.setTimeout(() => setCopied(false), 1600)
+    }
 
     const status = () => {
         const state = engineState()
@@ -28,6 +38,9 @@ export function CodePane() {
                     <i />
                     <span data-testid="code-status">{status().text}</span>
                 </span>
+                <button class="btn" aria-label="Copy the code" title="Select the whole song and copy it" onClick={copy}>
+                    {copied() ? 'Copied' : 'Copy'}
+                </button>
                 <button class="btn" onClick={play}>
                     Update <kbd>{MOD} Enter</kbd>
                 </button>

@@ -38,6 +38,7 @@ export interface Engine {
     getCode(): string
     setCode(code: string): void
     applyEdit(edit: TextEdit | TextEdit[]): void
+    selectAll(): void
     moveSlider(from: number, text: string): boolean
     evaluate(): Promise<void>
     refresh(): Promise<void>
@@ -316,6 +317,10 @@ export function createEngine(): Engine {
         applyEdit(edit) {
             const changes = Array.isArray(edit) ? [...edit].sort((a, b) => a.from - b.from) : edit
             mirror.editor.dispatch({ changes })
+        },
+        selectAll() {
+            mirror.editor.dispatch({ selection: { anchor: 0, head: mirror.editor.state.doc.length } })
+            mirror.editor.focus()
         },
         moveSlider(from, text) {
             type Widget = HTMLInputElement & { from: number; originalFrom: number; originalValue: string }

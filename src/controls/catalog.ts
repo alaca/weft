@@ -18,9 +18,10 @@ export type ControlDef = {
     unit: string
     describe: string
     only?: SoundKind
+    needs?: string
 }
 
-type Extra = Partial<Pick<ControlDef, 'names' | 'scale' | 'unit' | 'only'>>
+type Extra = Partial<Pick<ControlDef, 'names' | 'scale' | 'unit' | 'only' | 'needs'>>
 
 const control = (fn: string, label: string, group: Group, min: number, max: number, initial: number, describe: string, extra: Extra = {}): ControlDef => ({
     fn,
@@ -41,7 +42,8 @@ export const CONTROLS: ControlDef[] = [
     control('vibmod', 'Vibrato depth', 'source', 0, 2, 0.5, 'How far the pitch wobbles, in semitones', { names: ['vibmod', 'vmod'], only: 'synth' }),
     control('noise', 'Noise', 'source', 0, 1, 0.2, 'Mixes hiss into the tone', { only: 'synth' }),
     control('fm', 'Metal', 'source', 0, 8, 2, 'Bell-like, metallic overtones', { names: ['fm', 'fmi'], only: 'synth' }),
-    control('fmh', 'Metal ratio', 'source', 0.5, 8, 2, 'Changes which overtones the metal has', { only: 'synth' }),
+    control('fmh', 'Metal ratio', 'source', 0.5, 8, 2, 'Changes which overtones the metal has', { only: 'synth', needs: 'fm' }),
+    control('fmdecay', 'Metal fade', 'source', 0, 2, 0.3, 'How quickly the metal dies away in each note, as in a struck bell', { names: ['fmdecay', 'fmdec'], unit: 's', only: 'synth', needs: 'fm' }),
     control('speed', 'Speed', 'source', 0.25, 2, 1, 'Plays the sample faster and higher, or slower and lower', { only: 'sample' }),
     control('begin', 'Start', 'source', 0, 1, 0, 'Where in the sample playback begins', { only: 'sample' }),
     control('penv', 'Pitch sweep', 'source', -24, 24, 12, 'Bends the pitch as each note starts'),

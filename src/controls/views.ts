@@ -94,6 +94,7 @@ export function browserItems(block: PatternBlock, filter: FilterType): ControlDe
             def.fn !== 'gain' &&
             !starters.includes(def.fn) &&
             !familyOf(def.fn) &&
+            !def.needs &&
             (!def.only || def.only === kind) &&
             !callFor(block, def.fn),
     )
@@ -101,11 +102,16 @@ export function browserItems(block: PatternBlock, filter: FilterType): ControlDe
 
 export function panelFor(block: PatternBlock, filter?: FilterType): { group: PanelGroup; items: ControlView[] }[] {
     const inCode = present(block).filter((view) => view.fn !== 'gain')
-    const starters = startersFor(soundKind(block), filterTypeOf(block) ?? filter ?? 'low')
+    const kind = soundKind(block)
+    const starters = startersFor(kind, filterTypeOf(block) ?? filter ?? 'low')
     return PANEL_GROUPS.map((group) => {
         const first = starters[group].map((fn) => inCode.find((view) => view.fn === fn) ?? faint(CONTROLS.find((def) => def.fn === fn) as ControlDef))
-        const rest = inCode.filter((view) => view.group === group && !starters[group].includes(view.fn))
-        return { group, items: [...first, ...rest] }
+        // A control that only does something together with another is offered beside it, from the
+        // moment the other is in the code.
+        const beside = CONTROLS.filter((def) => def.group === group && def.needs && (!def.only || def.only === kind) && callFor(block, def.needs))
+        const offered = beside.map((def) => inCode.find((view) => view.fn === def.fn) ?? faint(def))
+        const rest = inCode.filter((view) => view.group === group && !starters[group].includes(view.fn) && !beside.some((def) => def.fn === view.fn))
+        return { group, items: [...first, ...offered, ...rest] }
     })
 }
 

@@ -1,6 +1,6 @@
 import { createMemo, For, Show } from 'solid-js'
 import { restorePattern } from '../app/controller'
-import { removed, song, stale } from '../stores/song'
+import { removed, song, songShown, stale, waveShown } from '../stores/song'
 import { AddPattern } from './AddPattern'
 import { OutputStrip } from './OutputStrip'
 import { SongPanel } from './SongPanel'
@@ -24,8 +24,10 @@ export function StripList() {
     )
     return (
         <main class="ctl" data-testid="controls">
-            <OutputStrip />
-            <Show when={ids().length}>
+            <Show when={waveShown()}>
+                <OutputStrip />
+            </Show>
+            <Show when={ids().length && songShown()}>
                 <SongPanel />
             </Show>
             <Show when={!ids().length}>

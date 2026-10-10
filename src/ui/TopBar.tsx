@@ -1,7 +1,7 @@
 import { For } from 'solid-js'
-import { setMasterVolume, setTempo, stop, togglePlay, toggleSounds } from '../app/controller'
+import { setMasterVolume, setTempo, stop, togglePlay, toggleSongPanel, toggleSounds, toggleWaveform } from '../app/controller'
 import type { ControlView } from '../controls/views'
-import { beat, bpm, cycle, engineState, masterVolume, setViewMode, song, soundsOpen, stale, viewMode, type ViewMode } from '../stores/song'
+import { beat, bpm, cycle, engineState, masterVolume, setViewMode, song, songShown, soundsOpen, stale, viewMode, waveShown, type ViewMode } from '../stores/song'
 import { Knob } from './Knob'
 import { SongMenu } from './SongMenu'
 
@@ -76,6 +76,18 @@ export function TopBar() {
                 <Knob small name="Master volume" view={volume()} onChange={setMasterVolume} />
             </span>
             <div class="grow" />
+            <div class="shows">
+                <button class="ib" classList={{ on: waveShown() }} aria-pressed={waveShown()} aria-label="Waveform" title={waveShown() ? 'Hide the waveform' : 'Show the waveform'} onClick={toggleWaveform}>
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <path class="ln" d="M1.5 8c1.1-5 2.2-5 3.3 0s2.2 5 3.3 0 2.2-5 3.3 0 2.2 5 3.1 0" />
+                    </svg>
+                </button>
+                <button class="ib" classList={{ on: songShown() }} aria-pressed={songShown()} aria-label="Song panel" title={songShown() ? 'Hide the song panel' : 'Show the song panel'} onClick={toggleSongPanel}>
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M1.5 2.8h7v2.4h-7zM5.5 6.8h9v2.4h-9zM2.5 10.8h6v2.4h-6z" />
+                    </svg>
+                </button>
+            </div>
             <div class="seg">
                 <For each={VIEWS}>
                     {(view) => (

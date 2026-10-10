@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { callFor, favourites, panelFor, panOf, volumeOf } from '../../src/controls/views'
+import { browserItems, callFor, favourites, panelFor, panOf, volumeOf } from '../../src/controls/views'
 import { analyze } from '../../src/song/analyze'
 
 const first = (code: string) => analyze(code).patterns[0]
@@ -60,6 +60,19 @@ describe('panelFor', () => {
     it('puts a control that is in the code but not a starter after the starters', () => {
         const effects = panelFor(first('x: note("c").distort(1)')).find((g) => g.group === 'effects')!
         expect(effects.items.map((v) => v.fn)).toEqual(['delay', 'pan', 'room', 'distort'])
+    })
+
+    it('offers the ratio and the fade of the metal beside it, once the metal is in the code', () => {
+        const source = (code: string) => panelFor(first(code)).find((g) => g.group === 'source')!.items.map((v) => [v.fn, v.state])
+        expect(source('x: note("c").s("sine").fm(3)')).toEqual([['vib', 'faint'], ['noise', 'faint'], ['fm', 'number'], ['fmh', 'faint'], ['fmdecay', 'faint']])
+        expect(source('x: note("c").s("sine").fmdecay(slider(0.3, 0, 2)).fmi(3)')).toEqual([['vib', 'faint'], ['noise', 'faint'], ['fm', 'number'], ['fmh', 'faint'], ['fmdecay', 'live']])
+        expect(source('x: note("c").s("sine").fmh(2)')).toEqual([['vib', 'faint'], ['noise', 'faint'], ['fm', 'faint'], ['fmh', 'number']])
+    })
+
+    it('keeps a control that needs another out of the list of all controls', () => {
+        const names = (code: string) => browserItems(first(code), 'low').map((def) => def.fn)
+        expect(names('x: note("c").s("sine")')).not.toContain('fmh')
+        expect(names('x: note("c").s("sine").fm(3)')).not.toContain('fmdecay')
     })
 
     it('uses the sample starters for a sample', () => {

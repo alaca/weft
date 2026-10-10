@@ -48,6 +48,10 @@ import {
     setEngineState,
     setGridNotes,
     setMasterVolumeValue,
+    setSongShown,
+    setWaveShown,
+    songShown,
+    waveShown,
     setOpenDemoId,
     setOpenPanel,
     setPosition,
@@ -78,6 +82,8 @@ const FIRST_SONG_KEY = 'weft.song'
 const DEMO = 'demo:'
 const STARTER_NAME = 'Night bus'
 const VOLUME_KEY = 'weft.volume'
+const WAVE_KEY = 'weft.show.wave'
+const SONG_PANEL_KEY = 'weft.show.song'
 const COLORS = ['var(--madder)', 'var(--saffron)', 'var(--woad)', 'var(--lichen)', 'var(--orchil)']
 
 const engine = createEngine()
@@ -416,6 +422,33 @@ export function setMasterVolume(value: number) {
 }
 
 export const waveformOf = () => engine.waveform()
+
+setWaveShown(localStorage.getItem(WAVE_KEY) !== '0')
+setSongShown(localStorage.getItem(SONG_PANEL_KEY) !== '0')
+
+export function toggleWaveform() {
+    const next = !waveShown()
+    setWaveShown(next)
+    localStorage.setItem(WAVE_KEY, next ? '1' : '0')
+}
+
+export function toggleSongPanel() {
+    const next = !songShown()
+    setSongShown(next)
+    localStorage.setItem(SONG_PANEL_KEY, next ? '1' : '0')
+}
+
+// The whole song is selected in the editor as well, so it is plain what was copied, and so the
+// older way of copying has something to copy where the newer one is not allowed.
+export async function copyCode(): Promise<boolean> {
+    engine.selectAll()
+    try {
+        await navigator.clipboard.writeText(engine.getCode())
+        return true
+    } catch {
+        return document.execCommand('copy')
+    }
+}
 
 function editableGrid(block: PatternBlock): GridSource | null {
     const direct = readGrid(block)
