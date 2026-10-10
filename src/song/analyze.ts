@@ -17,6 +17,9 @@ function toArg(node: Node): Arg {
     const value = numberOf(node)
     if (value !== null) return { kind: 'number', value, from: node.start, to: node.end }
     if (node.type === 'Literal' && typeof node.value === 'string') return { kind: 'string', value: node.value, from: node.start, to: node.end }
+    if (node.type === 'TemplateLiteral' && node.expressions.length === 0) {
+        return { kind: 'string', value: node.quasis[0].value.cooked ?? '', from: node.start, to: node.end }
+    }
     if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 'slider' && node.arguments.length) {
         const first: Node = node.arguments[0]
         const start = numberOf(first)
