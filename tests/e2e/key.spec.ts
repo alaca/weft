@@ -27,11 +27,11 @@ async function point(strip: Locator, step: number, midi: number) {
 test('with a key chosen the roll only takes the notes of that key', async ({ page }) => {
     await open(page)
     const lead = page.getByTestId('strip-lead')
-    await expect(lead.locator('.nr-r.out')).toHaveCount(0)
+    await expect(lead.locator('.nr-r.offkey')).toHaveCount(0)
     await lead.getByLabel('Scale of the song').selectOption('minor')
     await lead.getByLabel('First note of the key').selectOption({ label: 'A' })
     const rows = await lead.locator('.nr-r').count()
-    const out = await lead.locator('.nr-r.out').count()
+    const out = await lead.locator('.nr-r.offkey').count()
     expect(out).toBeGreaterThan(2)
     expect(out).toBeLessThan(rows / 2 + 1)
 
@@ -72,11 +72,11 @@ test('the key belongs to the song: every roll has it, it is kept, and another so
     await page.getByTestId('song-name').click()
     await page.getByTestId('song-menu').getByRole('button', { name: 'Open a copy of Undertow', exact: true }).click()
     await expect(page.getByTestId('strip-guitar').getByLabel('Scale of the song')).toHaveValue('')
-    await expect(page.getByTestId('strip-guitar').locator('.nr-r.out')).toHaveCount(0)
+    await expect(page.getByTestId('strip-guitar').locator('.nr-r.offkey')).toHaveCount(0)
 
     await page.getByTestId('song-name').click()
     await page.getByTestId('song-menu').getByRole('button', { name: 'Open Untitled', exact: true }).click()
     await page.getByTestId('strip-lead').getByLabel('Scale of the song').selectOption('')
-    await expect(page.getByTestId('strip-lead').locator('.nr-r.out')).toHaveCount(0)
+    await expect(page.getByTestId('strip-lead').locator('.nr-r.offkey')).toHaveCount(0)
     await expect(page.getByTestId('strip-lead').getByLabel('First note of the key')).toHaveCount(0)
 })

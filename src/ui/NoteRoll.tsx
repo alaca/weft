@@ -208,7 +208,7 @@ export function NoteRoll(props: {
                     }}
                     onKeyDown={onKeyDown}
                 >
-                    <For each={rows()}>{(midi, i) => <i class="nr-r" classList={{ bk: BLACK_KEYS.includes(midi % OCTAVE), c: midi % OCTAVE === 0, out: !inKey(midi, songKey()) }} style={{ top: `${i() * ROW}px` }} />}</For>
+                    <For each={rows()}>{(midi, i) => <i class="nr-r" classList={{ bk: BLACK_KEYS.includes(midi % OCTAVE), c: midi % OCTAVE === 0, offkey: !inKey(midi, songKey()) }} style={{ top: `${i() * ROW}px` }} />}</For>
                     <For each={drawn()}>
                         {(note) => (
                             <button

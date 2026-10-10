@@ -76,7 +76,7 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
                     {(group) => (
                         <div>
                             <h4>{group.title}</h4>
-                            <div class="topw">
+                            <div class="topw" classList={{ none: group.id === 'pattern' }}>
                                 <Switch>
                                     <Match when={group.id === 'source' && soundKind(props.block) === 'synth'}>
                                         <div class="waves">
