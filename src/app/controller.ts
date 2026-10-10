@@ -10,6 +10,7 @@ import { DEMOS } from '../library/demos'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitWidth, isUsual, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type ViewMode } from '../library/layout'
 import { readSongFile, renameSound, SONG_FILE, soundsUsed, writeSongFile } from '../library/songfile'
+import { startTake, type Take } from '../library/recorder'
 import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
 import { readKey, writeKey, type Key } from '../song/scales'
 import { gradeOf, readAudio, RING_SECONDS, type AudioOptions, type Format } from '../library/audio'
@@ -114,6 +115,8 @@ import {
     setSongBars,
     setSongKey,
     setSongNote,
+    setTakeSince,
+    takeSince,
     setSongs,
     setSoundsOpen,
     setStartBar,
@@ -1075,6 +1078,32 @@ export async function addOwnSounds(files: File[]) {
     }
     setOwnSoundNote(refused.length ? `${refused.join(', ')} could not be read as sound, so ${refused.length === 1 ? 'it was' : 'they were'} not added.` : null)
 }
+
+// A take from the microphone becomes a sound of your own, called recording, recording_2 and so on.
+let take: Take | null = null
+
+export async function recordTake() {
+    if (take) return
+    setOwnSoundNote(null)
+    try {
+        take = await startTake()
+        setTakeSince(Date.now())
+    } catch (err) {
+        setOwnSoundNote(`The microphone could not be used: ${String((err as Error)?.message ?? err)}.`)
+    }
+}
+
+export async function keepTake() {
+    const made = take
+    take = null
+    setTakeSince(null)
+    if (!made) return
+    const file = await made.stop()
+    if (file) await addOwnSounds([file])
+    else setOwnSoundNote('Nothing was recorded.')
+}
+
+export const takingNow = (): boolean => takeSince() !== null
 
 // A song that still uses the sound keeps the name in its code and is silent there.
 export async function removeOwnSound(name: string) {

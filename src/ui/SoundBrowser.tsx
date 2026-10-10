@@ -1,10 +1,10 @@
-import { createEffect, createMemo, createSignal, For, on, Show } from 'solid-js'
-import { addOwnSounds, closeSounds, colorAt, dragSounds, hearSound, removeOwnSound, soundCatalogue, usualWidth, useSound } from '../app/controller'
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js'
+import { addOwnSounds, closeSounds, colorAt, dragSounds, hearSound, keepTake, recordTake, removeOwnSound, soundCatalogue, usualWidth, useSound } from '../app/controller'
 import { SOUNDS_WIDTH } from '../library/layout'
 import { lengthText } from '../library/sounds'
 import { fits, inUse, takesKit } from '../sounds/apply'
 import { countSounds, findSounds, SOUND_DRAG, SOUND_GROUPS, type SoundGroup, type SoundItem } from '../sounds/catalog'
-import { engineState, ownSoundNote, ownSounds, selected, setDraggedSound, song, soundsOpen, soundsWidth, stale } from '../stores/song'
+import { engineState, ownSoundNote, ownSounds, selected, setDraggedSound, song, soundsOpen, soundsWidth, stale, takeSince } from '../stores/song'
 import { Divider } from './Divider'
 
 export function SoundBrowser() {
@@ -18,6 +18,18 @@ export function SoundBrowser() {
     const loaded = createMemo(() => engineState().sounds)
     const items = createMemo(() => (soundsOpen() && loaded() !== 'loading' && ownSounds() ? soundCatalogue() : []))
     const lengthOf = (name: string) => ownSounds().find((sound) => sound.name === name)?.seconds
+
+    // How long the take has been going, counted while there is one.
+    const [clock, setClock] = createSignal(Date.now())
+    createEffect(() => {
+        if (takeSince() === null) return
+        const ticking = window.setInterval(() => setClock(Date.now()), 250)
+        onCleanup(() => window.clearInterval(ticking))
+    })
+    const elapsed = () => {
+        const seconds = Math.max(0, Math.floor((clock() - (takeSince() ?? clock())) / 1000))
+        return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+    }
     const shown = createMemo(() => findSounds(items(), group(), query()))
     const counts = createMemo(() => countSounds(items(), query()))
     const suited = (): SoundGroup => (target() && takesKit(target()) ? 'kits' : 'instruments')
@@ -139,7 +151,20 @@ export function SoundBrowser() {
                         <button class="btn" disabled={loaded() === 'loading'} onClick={() => files?.click()}>
                             + Add audio files
                         </button>
-                        <span>Recordings, vocals, hits. They are kept in the app.</span>
+                        <Show
+                            when={takeSince() !== null}
+                            fallback={
+                                <button class="btn" disabled={loaded() === 'loading'} title="Makes a sound of your own from the microphone" onClick={() => void recordTake()}>
+                                    <i class="rec" />
+                                    Record
+                                </button>
+                            }
+                        >
+                            <button class="btn on" aria-label="Stop recording" onClick={() => void keepTake()}>
+                                <i class="rec live" />
+                                Stop, {elapsed()}
+                            </button>
+                        </Show>
                     </div>
                     <Show when={ownSoundNote()}>
                         <p class="sb-n" role="status" data-testid="own-note">

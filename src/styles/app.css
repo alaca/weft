@@ -439,3 +439,7 @@ svg.mini rect { fill: var(--h); }
 .mv label .cap { width: 34px; }
 .mv input { width: 96px; height: 26px; border-radius: 7px; background: var(--vat); border: 1px solid var(--seam); color: var(--linen); font: 500 11.5px/1 var(--mono); font-stretch: 87%; padding: 0 7px; }
 .mv input:focus { outline: none; border-color: var(--linen-3); }
+
+/* The dot of the record button, lit while a take is being made. */
+.rec { width: 8px; height: 8px; border-radius: 50%; background: var(--madder); flex: none; }
+.rec.live { animation: sway 0.7s ease-in-out infinite alternate; }
