@@ -1,5 +1,5 @@
 import { createMemo, For, Show } from 'solid-js'
-import { colorAt, eventsOf, openSounds, select, setControl, setVolume, toggleMute, togglePanel, toggleSolo } from '../app/controller'
+import { colorAt, eventsOf, openSounds, removePattern, select, setControl, setVolume, toggleMute, togglePanel, toggleSolo } from '../app/controller'
 import { favourites, volumeOf } from '../controls/views'
 import { sourceText } from '../song/grid'
 import { noteText } from '../song/notes'
@@ -149,6 +149,20 @@ export function Strip(props: { id: string }) {
                                 />
                             )}
                         </Show>
+                        <button
+                            class="st-x"
+                            aria-label={`Remove the pattern ${props.id}`}
+                            title="Remove this pattern"
+                            disabled={stale()}
+                            onClick={(event) => {
+                                event.stopPropagation()
+                                removePattern(props.id)
+                            }}
+                        >
+                            <svg viewBox="0 0 8 8" aria-hidden="true">
+                                <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
+                            </svg>
+                        </button>
                     </div>
                     <Show when={!current().muted && !folded()}>
                         <div class="st-b" classList={{ two: showKnobs() }}>

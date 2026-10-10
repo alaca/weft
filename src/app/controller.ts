@@ -21,7 +21,7 @@ import {
     type NoteRef,
     type NoteSource,
 } from '../song/notes'
-import { appendPattern, freeName, PATTERN_STARTERS, starterCode, type StarterKind } from '../song/patterns'
+import { appendPattern, freeName, PATTERN_STARTERS, removePattern as removeEdit, starterCode, type StarterKind } from '../song/patterns'
 import { STARTER } from '../song/starter'
 import type { PatternBlock, PatternEvent } from '../song/types'
 import { fits, soundEdit } from '../sounds/apply'
@@ -31,6 +31,7 @@ import {
     gridNotes,
     openPanel,
     pinnedRows,
+    removed,
     selected,
     setBeat,
     setBpm,
@@ -41,6 +42,7 @@ import {
     setOpenPanel,
     setPinnedRows,
     setPosition,
+    setRemoved,
     setRevision,
     setSelected,
     setSoloIds,
@@ -66,16 +68,19 @@ export const colorAt = (index: number) => COLORS[index % COLORS.length]
 const find = (id: string) => song().patterns.find((p) => p.id === id)
 
 function onCode(code: string) {
+    if (removed() && code !== removed()?.after) setRemoved(null)
     const next = analyze(code)
     if (next.error) {
         setStale(true)
     } else {
         const ids = new Set(next.patterns.map((p) => p.id))
         const kept = soloIds().filter((id) => ids.has(id))
+        const open = openPanel()
         batch(() => {
             setSong(next)
             setStale(false)
             if (kept.length !== soloIds().length) setSoloIds(kept)
+            if (open !== null && !ids.has(open)) setOpenPanel(null)
         })
         if (kept.length !== soloIds().length) engine.setSolo(kept)
     }
@@ -488,4 +493,33 @@ export function useSound(id: string, item: SoundItem) {
     if (!block || stale() || !fits(block, item.group)) return
     engine.applyEdit(soundEdit(engine.getCode(), block, item))
     replay()
+}
+
+const without = <T>(record: Record<string, T>, id: string): Record<string, T> => {
+    const { [id]: _, ...rest } = record
+    return rest
+}
+
+export function removePattern(id: string) {
+    const block = find(id)
+    if (!block || stale()) return
+    const code = engine.getCode()
+    const edit = removeEdit(code, block)
+    const index = [...new Set(song().patterns.map((p) => p.id))].indexOf(id)
+    engine.applyEdit(edit)
+    lastLength.delete(id)
+    batch(() => {
+        setPinnedRows(without(pinnedRows(), id))
+        setGridNotes(without(gridNotes(), id))
+        setRemoved({ id, index, from: edit.from, text: code.slice(edit.from, edit.to), after: engine.getCode() })
+    })
+    replay()
+}
+
+export function restorePattern() {
+    const gone = removed()
+    if (!gone || stale() || engine.getCode() !== gone.after) return
+    engine.applyEdit({ from: gone.from, to: gone.from, insert: gone.text })
+    replay()
+    select(gone.id)
 }

@@ -231,11 +231,16 @@ svg.mini rect { fill: var(--h); }
 .nt.ro { cursor: pointer; }
 .nt-h { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; max-width: 40%; cursor: ew-resize; border-radius: 0 2.5px 2.5px 0; background: rgba(0, 0, 0, 0.28); }
 .btn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.add { min-height: 44px; flex: none; border: 1px dashed var(--seam); border-radius: 11px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; padding: 9px 14px 9px 17px; color: var(--linen-3); }
+.add, .gone { min-height: 44px; flex: none; border: 1px dashed var(--seam); border-radius: 11px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; padding: 9px 14px 9px 17px; color: var(--linen-3); }
 .add svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; fill: none; }
-.add .chip { background: transparent; cursor: pointer; }
-.add .chip:hover:not(:disabled) { border-color: var(--linen-3); color: var(--linen); }
-.add .chip:disabled { opacity: 0.45; cursor: default; }
+.add .chip, .gone .chip { background: transparent; cursor: pointer; }
+.add .chip:hover:not(:disabled), .gone .chip:hover:not(:disabled) { border-color: var(--linen-3); color: var(--linen); }
+.add .chip:disabled, .gone .chip:disabled { opacity: 0.45; cursor: default; }
+.gone b { color: var(--linen-2); font-weight: 600; }
+.st-x { width: 21px; height: 19px; border-radius: 5px; display: grid; place-items: center; flex: none; color: var(--linen-3); }
+.st-x:hover:not(:disabled) { background: var(--cloth-3); color: var(--linen); }
+.st-x:disabled { opacity: 0.4; cursor: default; }
+.st-x svg { width: 8px; height: 8px; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; fill: none; }
 .sb { position: fixed; top: 62px; right: 10px; bottom: 34px; width: 420px; max-width: calc(100vw - 20px); z-index: 30; display: flex; flex-direction: column; background: var(--cloth-2); border: 1px solid var(--seam); border-radius: 12px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55); }
 .sb-h { display: flex; align-items: center; gap: 10px; padding: 12px 10px 4px 16px; }
 .sb-h h2 { font: 600 19px/1 var(--voice); padding-bottom: 2px; }

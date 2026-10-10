@@ -1,7 +1,7 @@
 import { formatGrid, type GridRow } from './grid'
 import { formatNoteGrid, type Note } from './notes'
 import { noteNameToMidi } from './pitch'
-import type { TextEdit } from './types'
+import type { PatternBlock, TextEdit } from './types'
 
 export type StarterKind = 'drums' | 'bass' | 'chords' | 'melody' | 'emptyDrums' | 'emptyNotes'
 
@@ -66,4 +66,17 @@ export function freeName(base: string, taken: string[]): string {
 export function appendPattern(code: string, text: string): TextEdit {
     const end = code.trimEnd().length
     return { from: end, to: code.length, insert: `${end ? '\n\n' : ''}${text}\n` }
+}
+
+export function removePattern(code: string, block: PatternBlock): TextEdit {
+    const lineEnd = /^[ \t]*(?=\n|$)/.exec(code.slice(block.to))
+    if (!lineEnd) {
+        const spaces = /^[ \t]*/.exec(code.slice(block.to))?.[0].length ?? 0
+        return { from: block.from, to: block.to + spaces, insert: '' }
+    }
+    const to = block.to + lineEnd[0].length
+    const kept = code.slice(0, block.from).trimEnd().length
+    if (kept > 0) return { from: kept, to, insert: '' }
+    const after = /^\s*/.exec(code.slice(to))?.[0].length ?? 0
+    return { from: 0, to: to + after, insert: '' }
 }

@@ -20,3 +20,6 @@ export const [masterVolume, setMasterVolumeValue] = createSignal(1)
 export const [pinnedRows, setPinnedRows] = createSignal<Record<string, string[]>>({})
 export const [gridNotes, setGridNotes] = createSignal<Record<string, boolean>>({})
 export const [soundsOpen, setSoundsOpen] = createSignal(false)
+
+export type Removed = { id: string; index: number; from: number; text: string; after: string }
+export const [removed, setRemoved] = createSignal<Removed | null>(null)
