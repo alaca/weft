@@ -443,6 +443,34 @@ export function setFilterType(id: string, type: FilterType) {
     replay()
 }
 
+// Sounds that share a number here cut each other off: a new hit stops the one before it. Each
+// pattern or row that is switched to play one at a time gets a number no other has, so that it
+// only ever cuts itself.
+const CUT = 'cut'
+
+function cutsInUse(): number[] {
+    const blocks = song().patterns.flatMap((block) => [block, ...(readKit(block)?.rows.map((row) => row.block) ?? [])])
+    return blocks.flatMap((block) => block.calls.flatMap((call) => (call.name === CUT && call.args[0]?.kind === 'number' ? [call.args[0].value] : [])))
+}
+
+export const cutsItself = (block: PatternBlock): boolean => block.calls.some((call) => call.name === CUT)
+
+export function setCut(id: string, on: boolean) {
+    const block = on ? forEdit(id) : find(id)
+    if (!block || stale()) return
+    const call = block.calls.find((entry) => entry.name === CUT)
+    if (on === Boolean(call)) return
+    if (call) {
+        engine.applyEdit(removeCall(call))
+    } else {
+        const used = cutsInUse()
+        let group = 1
+        while (used.includes(group)) group++
+        engine.applyEdit(addCall(engine.getCode(), block, `.${CUT}(${group})`))
+    }
+    replay()
+}
+
 export function setEcho(id: string, value: number | null) {
     const block = value === null ? find(id) : forEdit(id)
     if (!block || stale()) return

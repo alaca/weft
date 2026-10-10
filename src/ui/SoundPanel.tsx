@@ -1,9 +1,10 @@
 import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js'
-import { addControl, removeControl, setControl, setEcho, setFilterType, setWave } from '../app/controller'
+import { addControl, cutsItself, removeControl, setControl, setCut, setEcho, setFilterType, setWave } from '../app/controller'
 import { filterTypeOf, soundKind, type FilterType, type PanelGroup } from '../controls/catalog'
 import { drumLabel } from '../controls/drums'
 import { envelopeOf, envelopePoints } from '../controls/envelope'
 import { callFor, panelFor } from '../controls/views'
+import { isDrums } from '../song/kit'
 import type { PatternBlock } from '../song/types'
 import { stale } from '../stores/song'
 import { ControlBrowser } from './ControlBrowser'
@@ -98,6 +99,18 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
                                     </Match>
                                     <Match when={group.id === 'source'}>
                                         <span class="topn">{props.block.soundName ?? 'Samples'}</span>
+                                        <Show when={props.only || !isDrums(props.block)}>
+                                            <button
+                                                class="chip tgl"
+                                                classList={{ on: cutsItself(props.block) }}
+                                                aria-pressed={cutsItself(props.block)}
+                                                disabled={stale()}
+                                                title="A new hit stops the one before it. For long recordings, so that they do not pile up."
+                                                onClick={() => setCut(props.id, !cutsItself(props.block))}
+                                            >
+                                                One at a time
+                                            </button>
+                                        </Show>
                                     </Match>
                                     <Match when={group.id === 'filter'}>
                                         <div class="seg s">
