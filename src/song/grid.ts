@@ -6,7 +6,8 @@ export type Grid = { rows: GridRow[]; steps: number; cycles: number; perCycle: n
 export type GridSource = { grid: Grid; from: number; to: number; slow: Call | null }
 
 export const DEFAULT_STEPS = 16
-export const MAX_STEPS = 64
+// Four cycles of 32 steps is the longest and finest grid the controls offer.
+export const MAX_STEPS = 128
 
 const CELL = /^(~|[A-Za-z_]\w*(?::\d+)?)$/
 const SOURCES = ['s', 'sound']

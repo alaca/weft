@@ -1,4 +1,4 @@
-import { Prec, StateEffect } from '@codemirror/state'
+import { EditorState, Prec, StateEffect } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { StrudelMirror, codemirrorSettings } from '@strudel/codemirror'
 import { Pattern, silence } from '@strudel/core'
@@ -35,6 +35,7 @@ export type EngineState = {
 export interface Engine {
     mount(root: HTMLElement, initialCode: string): Promise<void>
     getCode(): string
+    setCode(code: string): void
     applyEdit(edit: TextEdit | TextEdit[]): void
     moveSlider(from: number, text: string): boolean
     evaluate(): Promise<void>
@@ -83,6 +84,8 @@ export function createEngine(): Engine {
     let pendingUnmasked = new Map<string, any>()
     let startBar = 0
     let offset = 0
+    let baseExtensions: unknown = null
+    let dress: () => void = () => undefined
     let soloIds: string[] = []
     let evaluated = false
     let lastCode = ''
@@ -136,7 +139,20 @@ export function createEngine(): Engine {
     // Strudel drops a hit whose sample is still loading when it falls due. If that happened, the
     // sample is in memory by the time the call returns, so a second try is heard. Each try gets
     // its own value object because Strudel rewrites the one it is given.
+    // WebKit leaves the audio clock stopped until it is told to run from inside a click or a
+    // key press, and Strudel never tells it. A sound that starts usually wakes it, but a song
+    // whose first bars are silent has none, and then the song would stand still.
+    const wakeAudio = () => {
+        try {
+            const context = getAudioContext()
+            if (context.state !== 'running') void context.resume()
+        } catch {
+            return
+        }
+    }
+
     const audition = (make: () => Record<string, unknown>, seconds: number) => {
+        wakeAudio()
         const fire = async () => {
             const due = getAudioContext().currentTime + 0.05
             await superdough(make(), due, seconds)
@@ -145,6 +161,15 @@ export function createEngine(): Engine {
         fire()
             .then((missed) => (missed ? fire() : false))
             .catch(() => undefined)
+    }
+
+    // Strudel keeps time on the same thread as everything else and looks only a tenth of a second
+    // ahead, so a long stretch of work is heard as a gap. What the screen does after an
+    // evaluation is therefore left for a turn of its own, after the evaluation has returned.
+    let announced = 0
+    const announce = () => {
+        window.clearTimeout(announced)
+        announced = window.setTimeout(() => evaluatedFns.forEach((fn) => fn()), 0)
     }
 
     // Strudel throws when it is given no code at all, so an empty song is handled here:
@@ -156,7 +181,7 @@ export function createEngine(): Engine {
         unmasked = new Map()
         evaluated = false
         setState({ error: null, dirty: false })
-        evaluatedFns.forEach((fn) => fn())
+        announce()
     }
 
     const query = (pattern: any, cycle: number): PatternEvent[] => {
@@ -168,75 +193,94 @@ export function createEngine(): Engine {
         }
     }
 
+    const makeMirror = (root: HTMLElement, initialCode: string) =>
+        new StrudelMirror({
+            defaultOutput: webaudioOutput,
+            getTime: () => getAudioContext().currentTime,
+            transpiler,
+            root,
+            initialCode,
+            drawTime: [0, 0],
+            bgFill: false,
+            solo: false,
+            prebake: loadModules,
+            editPattern: (pattern: any) => pattern.analyze('weft'),
+            beforeEval: wrapRegistration,
+            afterEval: () => {
+                applyMaster()
+                registry = pending
+                unmasked = pendingUnmasked
+                evaluated = true
+                setState({ error: null, dirty: false })
+                announce()
+            },
+            onEvalError: (err: unknown) => setState({ error: toEvalError(err) }),
+            onUpdateState: (s: { started?: boolean; activeCode?: string }) => {
+                const code: string = mirror?.code ?? lastCode
+                if (code !== lastCode) {
+                    lastCode = code
+                    codeFns.forEach((fn) => fn(code))
+                }
+                const playing = Boolean(s.started)
+                const dirty = evaluated && maskSliders(code) !== maskSliders(s.activeCode ?? '')
+                if (playing !== state.playing || dirty !== state.dirty) setState({ playing, dirty })
+            },
+        })
+
     const engine: Engine = {
         async mount(root, initialCode) {
             registerTheme()
             initAudioOnFirstClick()
             lastCode = initialCode
-            mirror = new StrudelMirror({
-                defaultOutput: webaudioOutput,
-                getTime: () => getAudioContext().currentTime,
-                transpiler,
-                root,
-                initialCode,
-                drawTime: [0, 0],
-                bgFill: false,
-                solo: false,
-                prebake: loadModules,
-                editPattern: (pattern: any) => pattern.analyze('weft'),
-                beforeEval: wrapRegistration,
-                afterEval: () => {
-                    applyMaster()
-                    registry = pending
-                    unmasked = pendingUnmasked
-                    evaluated = true
-                    setState({ error: null, dirty: false })
-                    evaluatedFns.forEach((fn) => fn())
-                },
-                onEvalError: (err: unknown) => setState({ error: toEvalError(err) }),
-                onUpdateState: (s: { started?: boolean; activeCode?: string }) => {
-                    const code: string = mirror?.code ?? lastCode
-                    if (code !== lastCode) {
-                        lastCode = code
-                        codeFns.forEach((fn) => fn(code))
-                    }
-                    const playing = Boolean(s.started)
-                    const dirty = evaluated && maskSliders(code) !== maskSliders(s.activeCode ?? '')
-                    if (playing !== state.playing || dirty !== state.dirty) setState({ playing, dirty })
-                },
-            })
-            mirror.updateSettings({
-                ...codemirrorSettings.get(),
-                theme: 'weft',
-                fontFamily: "'Martian Mono Variable', ui-monospace, Menlo, monospace",
-                fontSize: 12.5,
-                keybindings: 'codemirror',
-                isLineNumbersDisplayed: true,
-                isActiveLineHighlighted: false,
-                isPatternHighlightingEnabled: true,
-                isFlashEnabled: true,
-                isLineWrappingEnabled: false,
-                isBracketMatchingEnabled: false,
-                isBracketClosingEnabled: true,
-                isAutoCompletionEnabled: false,
-                isTooltipEnabled: false,
-                isTabIndentationEnabled: false,
-                isMultiCursorEnabled: false,
-            })
-            mirror.editor.dispatch({
-                effects: StateEffect.appendConfig.of([
-                    marksField,
-                    Prec.highest(
-                        keymap.of([
-                            { key: 'Mod-Enter', run: () => (void engine.evaluate(), true) },
-                            { key: 'Mod-.', run: () => (engine.stop(), true) },
-                        ]),
-                    ),
-                    EditorView.updateListener.of((update) => {
-                        if (update.selectionSet) cursorFns.forEach((fn) => fn(update.state.selection.main.head))
-                    }),
-                ]),
-            })
+            // A song that is opened needs an editor with no undo steps from the song before it,
+            // and the only way to get one is a fresh state. Strudel does not hand out the list
+            // it builds its editor from, so it is taken as the editor is made.
+            const create = EditorState.create
+            ;(EditorState as any).create = (config: { extensions?: unknown }) => {
+                baseExtensions = config?.extensions
+                return create.call(EditorState, config as never)
+            }
+            try {
+                mirror = makeMirror(root, initialCode)
+            } finally {
+                ;(EditorState as any).create = create
+            }
+
+            dress = () => {
+                mirror.updateSettings({
+                    ...codemirrorSettings.get(),
+                    theme: 'weft',
+                    fontFamily: "'Martian Mono Variable', ui-monospace, Menlo, monospace",
+                    fontSize: 12.5,
+                    keybindings: 'codemirror',
+                    isLineNumbersDisplayed: true,
+                    isActiveLineHighlighted: false,
+                    isPatternHighlightingEnabled: true,
+                    isFlashEnabled: true,
+                    isLineWrappingEnabled: false,
+                    isBracketMatchingEnabled: false,
+                    isBracketClosingEnabled: true,
+                    isAutoCompletionEnabled: false,
+                    isTooltipEnabled: false,
+                    isTabIndentationEnabled: false,
+                    isMultiCursorEnabled: false,
+                })
+                mirror.editor.dispatch({
+                    effects: StateEffect.appendConfig.of([
+                        marksField,
+                        Prec.highest(
+                            keymap.of([
+                                { key: 'Mod-Enter', run: () => (void engine.evaluate(), true) },
+                                { key: 'Mod-.', run: () => (engine.stop(), true) },
+                            ]),
+                        ),
+                        EditorView.updateListener.of((update) => {
+                            if (update.selectionSet) cursorFns.forEach((fn) => fn(update.state.selection.main.head))
+                        }),
+                    ]),
+                })
+            }
+            dress()
             loadSamples().then(
                 () => setState({ sounds: 'ready' }),
                 () => setState({ sounds: 'failed' }),
@@ -246,6 +290,18 @@ export function createEngine(): Engine {
             if (!blank()) await mirror.repl.evaluate(mirror.code, false)
         },
         getCode: () => mirror?.code ?? lastCode,
+        setCode(code) {
+            if (baseExtensions) {
+                mirror.editor.setState(EditorState.create({ doc: code, extensions: baseExtensions as never }))
+                dress()
+            } else {
+                mirror.editor.dispatch({ changes: { from: 0, to: mirror.editor.state.doc.length, insert: code } })
+            }
+            mirror.code = code
+            mirror.repl.setCode?.(code)
+            lastCode = code
+            codeFns.forEach((fn) => fn(code))
+        },
         applyEdit(edit) {
             const changes = Array.isArray(edit) ? [...edit].sort((a, b) => a.from - b.from) : edit
             mirror.editor.dispatch({ changes })
@@ -264,6 +320,7 @@ export function createEngine(): Engine {
             return false
         },
         async evaluate() {
+            wakeAudio()
             if (blank()) return silence()
             if (!state.playing) offset = startBar
             await mirror.evaluate(true)

@@ -327,3 +327,5 @@ svg.mini rect { fill: var(--h); }
 .sg-ph { position: absolute; top: 0; bottom: 0; width: 1.5px; background: var(--linen); z-index: 3; pointer-events: none; }
 .sg-ph::before { content: ''; position: absolute; top: 0; left: -4px; border: 4.5px solid transparent; border-top: 6px solid var(--linen); }
 .sg-ph.idle { opacity: 0.55; }
+.st-h .rs { width: 27px; height: 23px; border-radius: 7px; flex: none; }
+.st-h .rs svg { width: 14px; height: 14px; }

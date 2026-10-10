@@ -63,6 +63,12 @@ describe('readKit', () => {
         expect(readKit(first(code))).toMatchObject({ steps: 8, cycles: 2, perCycle: 4 })
     })
 
+    it('reads the longest and finest grid the controls offer, four cycles of 32 steps', () => {
+        const steps = (count: number) => Array(count).fill('~').join(' ')
+        expect(readKit(first(`drums: stack(\n  s("bd").struct("${steps(128)}"),\n).slow(4)\n`))).toMatchObject({ steps: 128, cycles: 4, perCycle: 32 })
+        expect(readKit(first(`drums: stack(\n  s("bd").struct("${steps(132)}"),\n).slow(4)\n`))).toBeNull()
+    })
+
     it('reads a kit with no sounds as sixteen steps a cycle', () => {
         expect(readKit(first('drums: stack(\n)\n  .bank("RolandTR909")\n'))).toMatchObject({ rows: [], steps: 16, cycles: 1 })
         expect(readKit(first('drums: stack().slow(2)\n'))).toMatchObject({ rows: [], steps: 32, cycles: 2, perCycle: 16 })

@@ -169,9 +169,16 @@ export async function mount(root: HTMLElement): Promise<void> {
 
 export const play = () => void engine.evaluate()
 
+// The code is evaluated in a turn of its own, after the screen has followed the change. Both
+// are work on the thread that Strudel keeps time on, and two short stretches are not heard
+// where one long one is. Changes made in the same turn are evaluated once.
+let replayTimer = 0
 function replay() {
-    if (engineState().playing) play()
-    else void engine.refresh()
+    window.clearTimeout(replayTimer)
+    replayTimer = window.setTimeout(() => {
+        if (engineState().playing) play()
+        else void engine.refresh()
+    }, 0)
 }
 
 export const stop = () => engine.stop()
@@ -591,6 +598,24 @@ export function restorePattern() {
 }
 
 export const songLengthNow = (): number => songLength(song().patterns, songBars())
+
+// What a pattern plays depends on its own text and on the code that belongs to no pattern, and
+// not on the bars it is given. This is that text, so a picture of the pattern is only drawn
+// again when it could have changed.
+export function patternText(id: string): string {
+    const block = find(id)
+    if (!block) return ''
+    const code = engine.getCode()
+    const bars = readArrangement(block)
+    const own = bars ? code.slice(block.from, bars.call.from) + code.slice(bars.call.to, block.to) : code.slice(block.from, block.to)
+    let outside = ''
+    let at = 0
+    for (const other of song().patterns) {
+        outside += code.slice(at, other.from)
+        at = other.to
+    }
+    return `${own}\u0000${outside}${code.slice(at)}`
+}
 
 const lanes = (): PatternBlock[] => {
     const seen = new Set<string>()

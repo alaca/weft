@@ -19,6 +19,10 @@ const linesOf = (block: PatternBlock) => {
     return block.muted ? `${range}, muted` : range
 }
 
+// Every evaluation asks each pattern again what it plays. Most of the time the answer is the
+// same, and saying so here spares the grid or roll below from being worked out again.
+const sameView = (a: PatternView, b: PatternView) => JSON.stringify(a) === JSON.stringify(b)
+
 const forcesSolo = (block: PatternBlock) => block.label.length > 1 && block.label.startsWith('S')
 
 export function Strip(props: { id: string }) {
@@ -52,7 +56,7 @@ export function Strip(props: { id: string }) {
             kind: 'steps',
             rows: seenRows.map((name) => rows.find((row) => row.name === name) ?? { name, steps: Array<boolean>(STEPS).fill(false) }),
         }
-    })
+    }, undefined, { equals: sameView })
     const steps = createMemo(() => {
         const current = view()
         return current.kind === 'steps' ? current : null
@@ -106,16 +110,21 @@ export function Strip(props: { id: string }) {
                         <span class="grow" />
                         <span class="lines">{linesOf(current())}</span>
                         <button
-                            class="chip tgl"
+                            class="rs"
                             classList={{ on: open() }}
                             aria-label={`Sound controls for ${props.id}`}
                             aria-pressed={open()}
+                            title="Sound controls"
                             onClick={(event) => {
                                 event.stopPropagation()
                                 togglePanel(props.id)
                             }}
                         >
-                            Sound
+                            <svg viewBox="0 0 14 14" aria-hidden="true">
+                                <path d="M2 4.5h10M2 9.5h10" />
+                                <circle cx="5" cy="4.5" r="1.7" />
+                                <circle cx="9" cy="9.5" r="1.7" />
+                            </svg>
                         </button>
                         <span class="ms">
                             <button

@@ -99,6 +99,21 @@ test('32 steps a cycle doubles the grid and 16 brings it back', async ({ page })
     await expect.poll(() => code(page)).toContain(PERC)
 })
 
+test('a new kit stays a grid at its longest and finest, four cycles of 32 steps', async ({ page }) => {
+    await open(page)
+    await page.getByTestId('add-pattern').getByRole('button', { name: 'Drums', exact: true }).click()
+    const drums = page.getByTestId('strip-drums2')
+    await drums.getByRole('button', { name: 'Length 4 cycles' }).click()
+    await drums.getByRole('button', { name: '32 steps a cycle' }).click()
+    await expect(drums.locator('.rn')).toHaveText(['bd', 'sd', 'cp', 'hh'])
+    await expect(drums.locator('.pad')).toHaveCount(128)
+    await expect.poll(() => code(page)).toContain(').slow(4)\n  .bank("RolandTR909")')
+    await drums.getByRole('button', { name: 'Cycle 4', exact: true }).click()
+    await drums.getByRole('button', { name: 'bd step 32', exact: true }).click()
+    await expect(drums.locator('.pad.on')).toHaveCount(1)
+    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.events('drums2', 3).length)).toBe(1)
+})
+
 test('a kit with no sounds says so and takes a first one', async ({ page }) => {
     await open(page, 'drums: stack(\n)\n  .bank("RolandTR909")\n')
     const drums = page.getByTestId('strip-drums')

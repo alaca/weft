@@ -1,5 +1,5 @@
 import { batch, createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { colorAt, eventsOf, select, setBars, songLengthNow, startFrom, toggleBar } from '../app/controller'
+import { colorAt, eventsOf, patternText, select, setBars, songLengthNow, startFrom, toggleBar } from '../app/controller'
 import { barsOf, clips, paint, type Clip } from '../song/arrange'
 import { MAX_BARS } from '../song/bars'
 import type { PatternEvent } from '../song/types'
@@ -45,11 +45,34 @@ function Lane(props: { id: string; index: number; view: View }) {
     const [draft, setDraft] = createSignal<boolean[] | null>(null)
     const bars = () => draft() ?? written()
     const cells = () => Array.from({ length: Math.max(0, props.view.last - props.view.first) })
-    const inSight = () => clips(bars()).filter((clip) => clip.from < props.view.last && clip.from + clip.length > props.view.first)
 
-    const played = createMemo(() => {
+    // A clip that did not change keeps its object, and so its place in the page.
+    let keptClips = new Map<string, Clip>()
+    const inSight = createMemo(() => {
+        const next = new Map<string, Clip>()
+        const list = clips(bars())
+            .filter((clip) => clip.from < props.view.last && clip.from + clip.length > props.view.first)
+            .map((clip) => {
+                const key = `${clip.from}:${clip.length}`
+                const same = keptClips.get(key) ?? clip
+                next.set(key, same)
+                return same
+            })
+        keptClips = next
+        return list
+    })
+
+    // The pattern is only asked what it plays when its text has changed since the last time.
+    // Changing the bars of the song evaluates the code again but leaves every picture as it was.
+    let drawnFrom: string | null = null
+    type Played = { perBar: PatternEvent[][]; low: number; high: number; sounds: (string | null)[] }
+    const played = createMemo((before: Played | undefined): Played => {
         revision()
-        const perBar: PatternEvent[][] = Array.from({ length: Math.min(props.view.length, DRAWN_BARS) }, (_, bar) => eventsOf(props.id, bar))
+        const count = Math.min(props.view.length, DRAWN_BARS)
+        const text = untrack(() => patternText(props.id))
+        if (before && text === drawnFrom && before.perBar.length === count) return before
+        drawnFrom = text
+        const perBar: PatternEvent[][] = Array.from({ length: count }, (_, bar) => eventsOf(props.id, bar))
         const pitches = perBar.flat().flatMap((event) => (event.midi === null ? [] : [event.midi]))
         return {
             perBar,
@@ -57,28 +80,33 @@ function Lane(props: { id: string; index: number; view: View }) {
             high: Math.max(...pitches),
             sounds: [...new Set(perBar.flat().map((event) => event.sound))],
         }
-    })
+    }, undefined)
 
     const drawn = (clip: Clip) => {
         const from = Math.max(clip.from, props.view.first)
         const to = Math.min(clip.from + clip.length, props.view.last)
         const { perBar, low, high, sounds } = played()
         const rows = Math.max(1, high - low + 1)
-        const shapes: { x: number; y: number; width: number; height: number }[] = []
+        // One path for the whole picture: a clip of a long song would otherwise be thousands of
+        // small shapes for the page to make.
+        let path = ''
+        const box = (x: number, y: number, width: number, height: number) => {
+            path += `M${x.toFixed(1)} ${y.toFixed(1)}h${width.toFixed(1)}v${height.toFixed(1)}h${(-width).toFixed(1)}z`
+        }
         for (let bar = from; bar < to; bar++) {
             for (const event of perBar[bar % perBar.length] ?? []) {
                 const x = (bar - from + event.start) * UNIT + 1.5
                 if (event.midi !== null) {
                     const height = Math.max(7, 76 / rows)
-                    shapes.push({ x, y: 12 + ((high - event.midi) / Math.max(1, rows - 1)) * (76 - height), width: Math.max(3, event.length * UNIT - 3), height })
+                    box(x, 12 + ((high - event.midi) / Math.max(1, rows - 1)) * (76 - height), Math.max(3, event.length * UNIT - 3), height)
                 } else {
                     const slot = 76 / Math.max(1, sounds.length)
                     const height = Math.max(4, Math.min(16, slot - 5))
-                    shapes.push({ x, y: 12 + sounds.indexOf(event.sound) * slot + (slot - height) / 2, width: 3.4, height })
+                    box(x, 12 + sounds.indexOf(event.sound) * slot + (slot - height) / 2, 3.4, height)
                 }
             }
         }
-        return { from, bars: Math.max(0, to - from), shapes }
+        return { from, bars: Math.max(0, to - from), path }
     }
 
     const barAt = (x: number) => Math.min(props.view.shown - 1, Math.max(0, Math.floor((x - track.getBoundingClientRect().left) / props.view.barWidth)))
@@ -150,20 +178,23 @@ function Lane(props: { id: string; index: number; view: View }) {
                 </Index>
             </div>
             <For each={inSight()}>
-                {(clip) => (
-                    <div class="sg-c" style={{ left: `${clip.from * props.view.barWidth + 2}px`, width: `${Math.max(2, clip.length * props.view.barWidth - 3)}px` }}>
-                        <Show when={props.view.barWidth >= 12}>
-                            <svg
-                                viewBox={`0 0 ${Math.max(1, drawn(clip).bars) * UNIT} ${UNIT}`}
-                                preserveAspectRatio="none"
-                                aria-hidden="true"
-                                style={{ left: `${(drawn(clip).from - clip.from) * props.view.barWidth - 2}px`, width: `${drawn(clip).bars * props.view.barWidth}px` }}
-                            >
-                                <For each={drawn(clip).shapes}>{(shape) => <rect x={shape.x} y={shape.y} width={shape.width} height={shape.height} rx="1.2" fill={INK} />}</For>
-                            </svg>
-                        </Show>
-                    </div>
-                )}
+                {(clip) => {
+                    const picture = createMemo(() => drawn(clip))
+                    return (
+                        <div class="sg-c" style={{ left: `${clip.from * props.view.barWidth + 2}px`, width: `${Math.max(2, clip.length * props.view.barWidth - 3)}px` }}>
+                            <Show when={props.view.barWidth >= 12}>
+                                <svg
+                                    viewBox={`0 0 ${Math.max(1, picture().bars) * UNIT} ${UNIT}`}
+                                    preserveAspectRatio="none"
+                                    aria-hidden="true"
+                                    style={{ left: `${(picture().from - clip.from) * props.view.barWidth - 2}px`, width: `${picture().bars * props.view.barWidth}px` }}
+                                >
+                                    <path d={picture().path} fill={INK} />
+                                </svg>
+                            </Show>
+                        </div>
+                    )
+                }}
             </For>
         </div>
     )
@@ -203,12 +234,26 @@ export function SongPanel() {
         onCleanup(() => watch.disconnect())
     })
 
+    // The playlist turns the page when the playhead runs out of sight by itself. When it is out
+    // of sight because the lanes were scrolled away to work on another part of the song, they
+    // are left where they are until the playhead is in sight again.
+    let following = true
+    let lastLeft = 0
+    let wasPlaying = false
     createEffect(() => {
-        if (!playing()) return
-        const at = head() * barWidth()
-        const from = untrack(left)
         const seen = untrack(width)
-        if (seen && (at < from || at > from + seen - 12)) scroller.scrollLeft = Math.max(0, at - seen * 0.1)
+        if (!playing() || !seen) {
+            wasPlaying = false
+            return
+        }
+        const at = head() * barWidth()
+        const from = scroller.scrollLeft
+        const visible = at >= from && at <= from + seen - 12
+        if (visible || !wasPlaying) following = true
+        else if (from !== lastLeft) following = false
+        wasPlaying = true
+        if (!visible && following) scroller.scrollLeft = Math.max(0, at - seen * 0.1)
+        lastLeft = scroller.scrollLeft
     })
 
     return (

@@ -274,3 +274,51 @@ test('a run can be dragged past the edge of what is in sight', async ({ page }) 
     const run = Number(/\.mask\("<1!2 0!(\d+) 1!\d+>"\)/.exec(text)?.[1] ?? 0)
     expect(run).toBeGreaterThan(30)
 })
+
+test('the playlist stays where it was scrolled to while the song plays elsewhere', async ({ page }) => {
+    await open(page, long(400))
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect.poll(() => now(page)).toBeGreaterThan(0.2)
+    await scrollToBar(page, 300)
+    const scroll = page.getByTestId('song-scroll')
+    const where = await scroll.evaluate((el) => el.scrollLeft)
+    expect(where).toBeGreaterThan(1000)
+    await page.waitForTimeout(700)
+    expect(await scroll.evaluate((el) => el.scrollLeft)).toBe(where)
+    await bar(page, 'bass', 300).click()
+    await expect.poll(() => code(page)).toContain('.mask("<1!299 0 1!100>")')
+    expect(await scroll.evaluate((el) => el.scrollLeft)).toBe(where)
+})
+
+test('a change while the song plays is not heard as a gap', async ({ page }) => {
+    const parts = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight']
+    const kit = (name: string) =>
+        `${name}: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~   x ~ ~ ~   x ~ ~ ~"),\n  s("hh").struct("x ~ x ~   x ~ x ~   x ~ x ~   x ~ x ~").gain(slider(0.6, 0, 1.5)),\n)\n  .bank("RolandTR909")\n  .mask("<0!4 1!28>")\n`
+    await open(page, `setcpm(120/4)\n\n${parts.map(kit).join('\n')}`)
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect.poll(() => now(page)).toBeGreaterThan(0.5)
+    await page.evaluate(() => {
+        const w = window as any
+        w.__longest = 0
+        let last = performance.now()
+        setInterval(() => {
+            const at = performance.now()
+            w.__longest = Math.max(w.__longest, at - last - 5)
+            last = at
+        }, 5)
+    })
+    await bar(page, 'three', 2).click()
+    await expect.poll(() => code(page)).toContain('three: stack')
+    await bar(page, 'five', 6).click()
+    await page.getByTestId('strip-one').getByRole('button', { name: 'bd step 2', exact: true }).click()
+    await page.waitForTimeout(600)
+    // Strudel looks a tenth of a second ahead. A stretch of work longer than that drops sound.
+    expect(await page.evaluate(() => (window as any).__longest)).toBeLessThan(100)
+})
+
+test('a song whose first bars are silent still starts', async ({ page }) => {
+    await open(page, 'setcpm(240/4)\n\ndrums: s("bd*4")\n  .mask("<0!4 1!4>")\n')
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect.poll(() => now(page)).toBeGreaterThan(0.5)
+    await expect(page.getByTestId('cycle')).not.toHaveText('1', { timeout: 15_000 })
+})
