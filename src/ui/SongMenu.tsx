@@ -1,8 +1,8 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { deleteSong, duplicateSong, exportAudio, exportCode, listSongs, newSong, openDemo, openSong, renameSong, restoreSong, revertSong, saveSong } from '../app/controller'
+import { deleteSong, duplicateSong, listSongs, newSong, openDemo, openExport, openSong, renameSong, restoreSong, revertSong, saveSong } from '../app/controller'
 import { DEMOS } from '../library/demos'
 import { whenText } from '../library/shelf'
-import { currentSong, deletedSong, exporting, exportNote, openDemoId, songs } from '../stores/song'
+import { currentSong, deletedSong, openDemoId, songs } from '../stores/song'
 import { MOD } from './keys'
 
 export function SongMenu() {
@@ -98,21 +98,16 @@ export function SongMenu() {
                             >
                                 Duplicate this song
                             </button>
-                        </div>
-                        <div class="sm-row">
-                            <span class="cap">Export</span>
-                            <button class="addb" disabled={exporting()} onClick={() => void exportAudio()}>
-                                Audio (.wav)
+                            <button
+                                class="addb"
+                                onClick={() => {
+                                    openExport()
+                                    setOpen(false)
+                                }}
+                            >
+                                Export
                             </button>
-                            <button class="addb" onClick={() => void exportCode()}>
-                                Code (.js)
-                            </button>
                         </div>
-                        <Show when={exportNote()}>
-                            <p class="sm-note" role="status" data-testid="export-note">
-                                {exportNote()}
-                            </p>
-                        </Show>
                         <h4>Your songs</h4>
                         <div class="sm-list" data-testid="your-songs">
                             <For each={list()}>

@@ -27,7 +27,8 @@ import { registerTheme } from './theme'
 export type { BlockMark } from './marks'
 
 export type EvalError = { message: string; line: number | null }
-export type Rendered = { channels: Float32Array[]; sampleRate: number; missed: number }
+export type Rendered = { channels: Float32Array[]; sampleRate: number; secondsPerBar: number; missed: number }
+export type RenderRequest = { bars: number; ringSeconds: number; sampleRate: number }
 
 export type EngineState = {
     playing: boolean
@@ -55,7 +56,7 @@ export interface Engine {
     inStep(): boolean
     setStart(bar: number): void
     setEnd(bar: number | null): void
-    render(bars: number, tailSeconds: number, onProgress?: (done: number) => void): Promise<Rendered>
+    render(request: RenderRequest, onProgress?: (done: number) => void): Promise<Rendered>
     audible(cycle: number): PatternEvent[]
     waveform(): Float32Array | null
     setMasterVolume(value: number): void
@@ -77,6 +78,8 @@ export interface Engine {
 const bareId = (id: string) => id.replace(/^_+|_+$/g, '')
 const pause = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))
 const SETTLE = 300
+const STRETCH = 2
+const LEAD = 0.05
 const BEFORE_MASK = '__weftBeforeMask'
 
 function toEvalError(err: unknown): EvalError {
@@ -400,8 +403,8 @@ export function createEngine(): Engine {
         // The song as a recording, made faster than it plays: every sound of the song is
         // handed to an audio clock that is not the one you listen on, and that clock then runs
         // through the song as fast as the machine can. The song is evaluated from its first
-        // bar with nothing soloed for this, and put back as it was afterwards.
-        async render(bars, tailSeconds, onProgress) {
+        // bar for this, with nothing soloed, and put back as it was afterwards.
+        async render({ bars, ringSeconds, sampleRate }, onProgress) {
             if (blank()) throw new Error('There is nothing in this song to play.')
             engine.stop()
             const before = { soloIds, offset, endBar }
@@ -412,8 +415,12 @@ export function createEngine(): Engine {
             // use. So the clock you listen on is held still for as long as the other one is in
             // use, after a moment for what still rings, and the other one is given a moment to
             // finish tidying before the first is put back.
-            await pause(SETTLE)
-            await live.suspend().catch(() => undefined)
+            // WebKit never answers when a clock that has not run yet is asked to stand still.
+            const running = live.state === 'running'
+            if (running) {
+                await pause(SETTLE)
+                await live.suspend().catch(() => undefined)
+            }
             let missed = 0
             soloIds = []
             offset = 0
@@ -423,8 +430,8 @@ export function createEngine(): Engine {
                 if (state.error) throw new Error(state.error.message)
                 const pattern = mirror.repl.state.pattern
                 const cps: number = mirror.repl.scheduler.cps
-                const rate = live.sampleRate
-                const clock = new OfflineAudioContext(2, Math.ceil((bars / cps + tailSeconds) * rate), rate)
+                const seconds = bars / cps + ringSeconds
+                const clock = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate)
                 setAudioContext(clock)
                 setSuperdoughAudioController(null)
                 await initAudio()
@@ -432,20 +439,30 @@ export function createEngine(): Engine {
                     .queryArc(0, bars, { _cps: cps })
                     .filter((hap: any) => hap.hasOnset())
                     .sort((a: any, b: any) => a.whole.begin.valueOf() - b.whole.begin.valueOf())
-                for (let at = 0; at < haps.length; at++) {
-                    const hap = haps[at]
-                    const begin = hap.whole.begin.valueOf()
-                    hap.ensureObjectValue()
-                    await superdough({ ...hap.value }, begin / cps, hap.duration.valueOf() / cps, cps, begin).catch(() => void missed++)
-                    if (at % 200 === 199) {
-                        onProgress?.((at + 1) / haps.length)
-                        await pause(0)
+                const startOf = (hap: any) => hap.whole.begin.valueOf() / cps
+                // The sounds are handed over a stretch at a time, a little before they are
+                // due, with the clock standing still meanwhile, the way they arrive when the
+                // song plays. Handing over the whole song at once makes the clock carry every
+                // sound of it from the first moment, and it then runs slower than the song.
+                let next = 0
+                const handOver = async (until: number) => {
+                    for (; next < haps.length && startOf(haps[next]) < until; next++) {
+                        const hap = haps[next]
+                        hap.ensureObjectValue()
+                        await superdough({ ...hap.value }, startOf(hap), hap.duration.valueOf() / cps, cps, hap.whole.begin.valueOf()).catch(() => void missed++)
                     }
                 }
-                onProgress?.(1)
+                await handOver(STRETCH)
+                for (let at = STRETCH - LEAD; at < seconds; at += STRETCH) {
+                    void clock.suspend(at).then(async () => {
+                        await handOver(at + LEAD + STRETCH).catch(() => undefined)
+                        onProgress?.(at / seconds)
+                        void clock.resume()
+                    })
+                }
                 const buffer = await clock.startRendering()
                 await pause(SETTLE)
-                return { channels: [buffer.getChannelData(0), buffer.getChannelData(1)], sampleRate: rate, missed }
+                return { channels: [buffer.getChannelData(0), buffer.getChannelData(1)], sampleRate, secondsPerBar: 1 / cps, missed }
             } finally {
                 setAudioContext(live)
                 setSuperdoughAudioController(liveController)
@@ -454,7 +471,7 @@ export function createEngine(): Engine {
                 endBar = before.endBar
                 await mirror.repl.evaluate(mirror.code, false).catch(() => undefined)
                 applyMaster()
-                void live.resume().catch(() => undefined)
+                if (running) void live.resume().catch(() => undefined)
             }
         },
         stop() {

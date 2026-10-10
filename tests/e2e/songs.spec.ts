@@ -302,14 +302,21 @@ test('the pictures in the playlist are of the song that is open, not the one bef
 
 const ARRANGED = 'setcpm(240/4)\n\ndrums: s("bd*4, hh*8")\n  .bank("RolandTR909")\n  .lpf(4000)\n  .mask("<1!3 0>")\n\nbass: note("c2 e2 g2 e2")\n  .s("sawtooth")\n  .lpf(slider(800, 100, 8000))\n  .room(.3)\n'
 
+async function openExport(page: Page) {
+    await name(page).click()
+    await menu(page).getByRole('button', { name: 'Export', exact: true }).click()
+    await expect(page.getByTestId('export')).toBeVisible()
+}
+
 test('the code of a song can be exported as a file', async ({ page }) => {
     await open(page)
-    await name(page).click()
-    const [download] = await Promise.all([page.waitForEvent('download'), menu(page).getByRole('button', { name: 'Code (.js)', exact: true }).click()])
+    await openExport(page)
+    await expect(page.getByTestId('export')).toContainText('Export Untitled')
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export').getByRole('button', { name: 'Save the code (.js)', exact: true }).click()])
     expect(download.suggestedFilename()).toBe('Untitled.js')
     const { readFile } = await import('node:fs/promises')
     expect(await readFile(await download.path(), 'utf8')).toBe(SONG)
-    await expect(page.getByTestId('export-note')).toHaveText('Saved as Untitled.js.')
+    await expect(page.getByTestId('export-note')).toHaveText('Saved as Untitled.js, in your downloads folder.')
 })
 
 test('a song can be exported as audio, from its first bar to its last, and plays as before afterwards', async ({ page }) => {
@@ -321,13 +328,14 @@ test('a song can be exported as audio, from its first bar to its last, and plays
     await page.getByRole('button', { name: 'Play', exact: true }).click()
     await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.now() as number)).toBeGreaterThan(1.5)
     await page.getByRole('button', { name: 'Solo bass', exact: true }).click()
-    await name(page).click()
+    await openExport(page)
+    await expect(page.getByTestId('export-size')).toHaveText('16 bit, 44.1 kHz, as on a CD. The whole song, 4 s, about 1.1 MB.')
     const [download] = await Promise.all([
         page.waitForEvent('download', { timeout: 60000 }),
-        menu(page).getByRole('button', { name: 'Audio (.wav)', exact: true }).click(),
+        page.getByTestId('export').getByRole('button', { name: 'Export audio', exact: true }).click(),
     ])
     expect(download.suggestedFilename()).toBe('Untitled.wav')
-    await expect(page.getByTestId('export-note')).toHaveText('Saved as Untitled.wav.')
+    await expect(page.getByTestId('export-note')).toHaveText('Saved as Untitled.wav, in your downloads folder.')
     await expect(page.getByTestId('code-status')).toHaveText('Stopped')
 
     const { readFile } = await import('node:fs/promises')
@@ -359,6 +367,7 @@ test('a song can be exported as audio, from its first bar to its last, and plays
     expect(low(0, 0.1)).toBeGreaterThan(low(3, 3.1) * 1.3)
 
     await page.keyboard.press('Escape')
+    await expect(page.getByTestId('export')).toHaveCount(0)
     await page.getByRole('button', { name: 'Play', exact: true }).click()
     await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
     await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.now() as number)).toBeGreaterThan(0.5)
@@ -371,4 +380,63 @@ test('a song can be exported as audio, from its first bar to its last, and plays
         )
         .toBeGreaterThan(0.05)
     expect(errors).toEqual([])
+})
+
+test('the audio file is of the format and quality that were chosen, and the choice is kept', async ({ page }) => {
+    test.setTimeout(120000)
+    await open(page, ARRANGED)
+    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
+    await openExport(page)
+    const box = page.getByTestId('export')
+    const choose = (group: string, label: string) => box.getByRole('group', { name: group, exact: true }).getByRole('button', { name: label, exact: true }).click()
+    const chosen = (group: string, label: string) => box.getByRole('group', { name: group, exact: true }).getByRole('button', { name: label, exact: true })
+    const { readFile } = await import('node:fs/promises')
+    const made = async () => {
+        const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), box.getByRole('button', { name: 'Export audio', exact: true }).click()])
+        return { name: download.suggestedFilename(), bytes: await readFile(await download.path()) }
+    }
+
+    await choose('Quality', 'High')
+    await expect(page.getByTestId('export-size')).toHaveText('24 bit, 48 kHz. The whole song, 4 s, about 1.7 MB.')
+    const wav = await made()
+    expect(wav.name).toBe('Untitled.wav')
+    expect(wav.bytes.readUInt16LE(22)).toBe(2)
+    expect(wav.bytes.readUInt32LE(24)).toBe(48000)
+    expect(wav.bytes.readUInt16LE(34)).toBe(24)
+    expect((wav.bytes.length - 44) / 6 / 48000).toBeGreaterThan(3.9)
+
+    await choose('Format', 'MP3')
+    await choose('Quality', 'Highest')
+    await expect(page.getByTestId('export-size')).toContainText('320 kbps')
+    const mp3 = await made()
+    expect(mp3.name).toBe('Untitled.mp3')
+    await expect(page.getByTestId('export-note')).toHaveText('Saved as Untitled.mp3, in your downloads folder.')
+    expect(mp3.bytes[0]).toBe(0xff)
+    expect(mp3.bytes[1] & 0xe0).toBe(0xe0)
+    expect(mp3.bytes.length).toBeGreaterThan(4 * 40000 * 0.8)
+    expect(mp3.bytes.length).toBeLessThan(8.5 * 40000)
+
+    await box.getByRole('button', { name: 'Close', exact: true }).click()
+    await openExport(page)
+    await expect(chosen('Format', 'MP3')).toHaveAttribute('aria-pressed', 'true')
+    await expect(chosen('Quality', 'Highest')).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('a whole demo is made into audio in far less time than it plays', async ({ page }) => {
+    test.setTimeout(120000)
+    await open(page)
+    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
+    await name(page).click()
+    await menu(page).getByRole('button', { name: 'Open a copy of Glasshouse', exact: true }).click()
+    await openExport(page)
+    const started = Date.now()
+    const [download] = await Promise.all([
+        page.waitForEvent('download', { timeout: 90000 }),
+        page.getByTestId('export').getByRole('button', { name: 'Export audio', exact: true }).click(),
+    ])
+    expect(Date.now() - started).toBeLessThan(60000)
+    const { stat } = await import('node:fs/promises')
+    const seconds = ((await stat(await download.path())).size - 44) / 4 / 44100
+    expect(seconds).toBeGreaterThan(123)
+    expect(seconds).toBeLessThan(128.1)
 })

@@ -2,10 +2,12 @@ import { batch, createEffect, createRoot } from 'solid-js'
 import { FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '../controls/catalog'
 import { drumChoices } from '../controls/drums'
 import { callFor } from '../controls/views'
-import { saveFile, type FileKind } from '../desktop/save'
+import { saveFile, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
 import { DEMOS } from '../library/demos'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongRecord } from '../library/shelf'
+import { gradeOf, readAudio, RING_SECONDS, type AudioOptions, type Format } from '../library/audio'
+import { encodeMp3 } from '../library/mp3'
 import { encodeWav, fileName, levelFor, peakOf, soundingLength } from '../library/wav'
 import { analyze } from '../song/analyze'
 import { arrangeSong, barsOf, readArrangement, songLength } from '../song/arrange'
@@ -50,6 +52,7 @@ import {
     setDeletedSong,
     setEngineState,
     setExportNote,
+    setExportOpen,
     setExporting,
     setGridNotes,
     setMasterVolumeValue,
@@ -884,10 +887,22 @@ export function restoreSong() {
 export const listSongs = () => refreshSongs()
 
 const CODE_FILE: FileKind = { extension: 'js', label: 'Strudel code', type: 'text/javascript' }
-const AUDIO_FILE: FileKind = { extension: 'wav', label: 'WAV audio', type: 'audio/wav' }
-const TAIL_SECONDS = 4
+const AUDIO_FILES: Record<Format, FileKind> = {
+    wav: { extension: 'wav', label: 'WAV audio', type: 'audio/wav' },
+    mp3: { extension: 'mp3', label: 'MP3 audio', type: 'audio/mpeg' },
+}
+const EXPORT_KEY = 'weft.export'
 
-const told = (saved: 'saved' | 'cancelled', name: string) => (saved === 'saved' ? `Saved as ${name}.` : 'Not saved.')
+const told = (saved: Saved, name: string) => (!saved.saved ? 'Not saved.' : saved.where ? `Saved to ${saved.where}` : `Saved as ${name}, in your downloads folder.`)
+const percent = (done: number) => `${Math.round(done * 100)}%`
+
+export function openExport() {
+    setExportNote(null)
+    setExportOpen(true)
+}
+
+export const closeExport = () => setExportOpen(false)
+export const keptAudio = (): AudioOptions => readAudio(localStorage.getItem(EXPORT_KEY))
 
 export async function exportCode() {
     if (!current) return
@@ -899,23 +914,32 @@ export async function exportCode() {
     }
 }
 
-// The song from its first bar to its last, with what still rings after it, as a WAV file.
-export async function exportAudio() {
+// The song from its first bar to its last, with what still rings after it, as an audio file.
+export async function exportAudio(options: AudioOptions) {
     if (!current || exporting()) return
     if (engineState().sounds !== 'ready') return void setExportNote('The sounds are still loading. Try again in a moment.')
-    const name = fileName(current.name, AUDIO_FILE.extension)
+    localStorage.setItem(EXPORT_KEY, JSON.stringify(options))
+    const kind = AUDIO_FILES[options.format]
+    const grade = gradeOf(options)
+    const name = fileName(current.name, kind.extension)
     const bars = songLengthNow()
     setExporting(true)
-    setExportNote('Making the audio file.')
+    setExportNote('Making the audio, 0%.')
     try {
-        const made = await engine.render(bars, TAIL_SECONDS, (done) => setExportNote(`Making the audio file, ${Math.round(done * 100)}%.`))
-        const whole = Math.round((bars / (engine.bpm() / 240)) * made.sampleRate)
-        const length = soundingLength(made.channels, made.sampleRate, Math.min(whole, made.channels[0].length))
+        const made = await engine.render({ bars, ringSeconds: RING_SECONDS, sampleRate: grade.sampleRate }, (done) => setExportNote(`Making the audio, ${percent(done)}.`))
+        const whole = Math.min(made.channels[0].length, Math.round(bars * made.secondsPerBar * made.sampleRate))
+        const length = soundingLength(made.channels, made.sampleRate, whole)
         const peak = peakOf(made.channels, length)
         if (!peak) return void setExportNote('Nothing sounds in this song, so there is no audio to save.')
-        const saved = await saveFile(name, encodeWav(made.channels, made.sampleRate, length, levelFor(peak)), AUDIO_FILE)
+        const level = levelFor(peak)
+        const bytes = grade.kbps
+            ? await encodeMp3(made.channels, made.sampleRate, grade.kbps, { length, level }, (done) => setExportNote(`Writing the MP3, ${percent(done)}.`))
+            : encodeWav(made.channels, made.sampleRate, { length, level, depth: grade.depth })
+        setExportNote('Choose where to save it.')
+        const saved = await saveFile(name, bytes, kind).catch((err) => String((err as Error)?.message ?? err))
+        if (typeof saved === 'string') return void setExportNote(`The audio was made, but the file could not be saved: ${saved}`)
         const missing = made.missed ? ` ${made.missed} ${made.missed === 1 ? 'sound' : 'sounds'} could not be loaded and ${made.missed === 1 ? 'is' : 'are'} missing from it.` : ''
-        setExportNote(told(saved, name) + (saved === 'saved' ? missing : ''))
+        setExportNote(told(saved, name) + (saved.saved ? missing : ''))
     } catch (err) {
         setExportNote(`The audio file could not be made: ${String((err as Error)?.message ?? err)}`)
     } finally {

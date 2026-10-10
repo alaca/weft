@@ -2,6 +2,7 @@ import { onCleanup, onMount } from 'solid-js'
 import { saveSong, togglePlay } from './app/controller'
 import { viewMode } from './stores/song'
 import { CodePane } from './ui/CodePane'
+import { ExportDialog } from './ui/ExportDialog'
 import { SoundBrowser } from './ui/SoundBrowser'
 import { StatusBar } from './ui/StatusBar'
 import { StripList } from './ui/StripList'
@@ -16,7 +17,7 @@ export function App() {
         }
         if (event.code !== 'Space') return
         const target = event.target as HTMLElement | null
-        if (target?.closest('.cm-editor, input, textarea, button')) return
+        if (target?.closest('.cm-editor, input, textarea, button, [role="dialog"]')) return
         event.preventDefault()
         togglePlay()
     }
@@ -30,6 +31,7 @@ export function App() {
             <CodePane />
             <StatusBar />
             <SoundBrowser />
+            <ExportDialog />
         </div>
     )
 }

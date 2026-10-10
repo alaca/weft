@@ -35,9 +35,33 @@ describe('encodeWav', () => {
     })
 
     it('can write only the start, turned down', () => {
-        const short = encodeWav([left, right], 48000, 2, 0.5)
+        const short = encodeWav([left, right], 48000, { length: 2, level: 0.5 })
         expect(short.length).toBe(44 + 8)
         expect(new DataView(short.buffer).getInt16(44 + 4, true)).toBe(8192)
+    })
+})
+
+describe('other sample sizes', () => {
+    const tone = [Float32Array.from([0.5, -1])]
+
+    it('writes 24 bit whole numbers in three bytes', () => {
+        const bytes = encodeWav(tone, 96000, { depth: 24 })
+        const view = new DataView(bytes.buffer)
+        expect(view.getUint16(20, true)).toBe(1)
+        expect(view.getUint16(34, true)).toBe(24)
+        expect(view.getUint16(32, true)).toBe(3)
+        expect(bytes.length).toBe(44 + 6)
+        expect(Array.from(bytes.slice(44, 47))).toEqual([0x00, 0x00, 0x40])
+        expect(Array.from(bytes.slice(47, 50))).toEqual([0x01, 0x00, 0x80])
+    })
+
+    it('writes 32 bit floating point as it is', () => {
+        const bytes = encodeWav(tone, 48000, { depth: 32 })
+        const view = new DataView(bytes.buffer)
+        expect(view.getUint16(20, true)).toBe(3)
+        expect(view.getUint16(34, true)).toBe(32)
+        expect(view.getFloat32(44, true)).toBe(0.5)
+        expect(view.getFloat32(48, true)).toBe(-1)
     })
 })
 
