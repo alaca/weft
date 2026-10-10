@@ -121,15 +121,17 @@ export function gridFromEvents(cycles: { start: number; value: unknown }[][]): G
     return null
 }
 
-export function gridEdits(block: PatternBlock, source: GridSource, rows: GridRow[], cycles: number): TextEdit[] {
-    const edits: TextEdit[] = [{ from: source.from, to: source.to, insert: formatGrid(rows) }]
-    const arg = source.slow?.args[0]
-    if (source.slow && cycles === 1) edits.push(removeCall(source.slow))
-    else if (source.slow && arg && arg.kind === 'number') {
-        if (arg.value !== cycles) edits.push(setNumber(arg, String(cycles)))
-    } else if (cycles > 1) {
+export function lengthEdits(block: PatternBlock, slow: Call | null, cycles: number): TextEdit[] {
+    const arg = slow?.args[0]
+    if (slow && cycles === 1) return [removeCall(slow)]
+    if (slow && arg && arg.kind === 'number') return arg.value === cycles ? [] : [setNumber(arg, String(cycles))]
+    if (cycles > 1) {
         const end = block.calls[0].to
-        edits.push({ from: end, to: end, insert: `.slow(${cycles})` })
+        return [{ from: end, to: end, insert: `.slow(${cycles})` }]
     }
-    return edits
+    return []
+}
+
+export function gridEdits(block: PatternBlock, source: GridSource, rows: GridRow[], cycles: number): TextEdit[] {
+    return [{ from: source.from, to: source.to, insert: formatGrid(rows) }, ...lengthEdits(block, source.slow, cycles)]
 }
