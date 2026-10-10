@@ -6,11 +6,14 @@ import { barsText } from '../../src/song/bars'
 import { readKit } from '../../src/song/kit'
 import { readNotes } from '../../src/song/notes'
 
-const TR909 = ['bd', 'cp', 'cr', 'hh', 'ht', 'lt', 'mt', 'oh', 'rd', 'rim', 'sd']
+const KITS: Record<string, string[]> = {
+    RolandTR909: ['bd', 'cp', 'cr', 'hh', 'ht', 'lt', 'mt', 'oh', 'rd', 'rim', 'sd'],
+    LinnDrum: ['bd', 'cb', 'cp', 'cr', 'hh', 'ht', 'lt', 'mt', 'oh', 'perc', 'rd', 'rim', 'sd', 'sh', 'tb'],
+}
 
 describe('the demo songs', () => {
-    it('are four, each under its own name', () => {
-        expect(DEMOS.map((demo) => demo.name)).toEqual(['Glasshouse', 'Low sun', 'Grey area', 'Squelch', 'Spiral', 'Night shift'])
+    it('are seven, each under its own name', () => {
+        expect(DEMOS.map((demo) => demo.name)).toEqual(['Glasshouse', 'Low sun', 'Grey area', 'Squelch', 'Spiral', 'Night shift', 'Undertow'])
         expect(new Set(DEMOS.map((demo) => demo.id)).size).toBe(DEMOS.length)
     })
 
@@ -20,7 +23,7 @@ describe('the demo songs', () => {
 
             it('is code without an error, with a tempo and patterns under their own names', () => {
                 expect(song.error).toBeNull()
-                expect(song.tempo?.bpm).toBeGreaterThan(100)
+                expect(song.tempo?.bpm).toBeGreaterThan(60)
                 expect(song.patterns.length).toBeGreaterThanOrEqual(4)
                 expect(new Set(song.patterns.map((block) => block.id)).size).toBe(song.patterns.length)
             })
@@ -32,7 +35,7 @@ describe('the demo songs', () => {
                     expect(kit !== null || notes !== null, block.id).toBe(true)
                     if (kit) {
                         expect(kit.rows.length, block.id).toBeGreaterThan(0)
-                        for (const row of kit.rows) expect(TR909, `${block.id} ${row.sound}`).toContain(row.sound)
+                        for (const row of kit.rows) expect(KITS[block.soundName ?? ''], `${block.id} ${row.sound}`).toContain(row.sound)
                         expect(kit.steps % 16, block.id).toBe(0)
                     }
                     if (notes) expect(notes.grid.notes.length, block.id).toBeGreaterThan(0)

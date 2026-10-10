@@ -22,13 +22,13 @@ const plays = (runs: string) => `.mask("<${runs}>")`
 const LEVEL = 0.58
 const vol = (level: number) => `.gain(slider(${Number((level * LEVEL).toFixed(2))}, 0, 1.5))`
 
-function kit(name: string, rows: Row[], tail: string[]): string {
+function kit(name: string, rows: Row[], tail: string[], bank = KIT): string {
     const lines = kitText(rows.map(([sound, steps]) => ({ sound, steps: hits(steps) }))).split('\n')
     rows.forEach(([, , controls], at) => {
         if (controls) lines[at + 1] = lines[at + 1].replace(/,$/, `${controls},`)
     })
     const cycles = hits(rows[0][1]).length / BAR
-    return `${name}: ${lines.join('\n')}${cycles > 1 ? `.slow(${cycles})` : ''}\n${calls([`.bank("${KIT}")`, ...tail])}`
+    return `${name}: ${lines.join('\n')}${cycles > 1 ? `.slow(${cycles})` : ''}\n${calls([`.bank("${bank}")`, ...tail])}`
 }
 
 function line(name: string, played: Played[], steps: number, cycles: number, tail: string[]): string {
@@ -433,6 +433,160 @@ const greyArea = song('Grey area', 130, [
     line('bass', figure([2, 6, 10, 13, 14], 1, [['c2']]), 16, 1, ['.s("triangle")', '.lpf(slider(260, 100, 8000))', vol(0.8), plays('0!16 1!12 0!4 1!16 0!8 1!8')]),
 ])
 
+// A slow song led by a guitar: a verse over one set of four chords and a chorus over another,
+// each a pattern of its own. It has no build. The four quiet bars before the first chorus stand
+// where the builds of the dance demos are, and the kit is a softer one than theirs.
+const SOFT_KIT = 'LinnDrum'
+const VERSE = '1!32 0!8 1!8 0!8 1!8'
+const CHORUS = '0!32 1!8 0!8 1!8 0!8'
+const EIGHTHS = [0, 2, 4, 6, 8, 10, 12, 14]
+const GUITAR = ['.s("gm_electric_guitar_clean")', '.tremolosync(16).tremolodepth(.35)', '.room(slider(0.6, 0, 1)).roomsize(6)']
+const SINGING = ['.s("gm_electric_guitar_clean")', '.vib(slider(4, 0, 12)).vibmod(.15)', '.delay(slider(0.35, 0, 1)).delayfeedback(.4).delaysync(.1875)', '.room(.75).roomsize(6)']
+
+const strummed = (chords: string[][]): Played[] =>
+    chords.flatMap((chord, bar): Played[] => [
+        [chord, bar * BAR, 5],
+        [chord, bar * BAR + 6, 2],
+        [chord, bar * BAR + 8, 5],
+        [chord, bar * BAR + 14, 2],
+    ])
+
+// The root twice, the fifth, and a note that leads to the root of the next bar.
+const walked = (bars: [root: string, fifth: string, leading: string][]): Played[] =>
+    bars.flatMap(([root, fifth, leading], bar): Played[] => [
+        [root, bar * BAR, 6],
+        [root, bar * BAR + 6, 2],
+        [fifth, bar * BAR + 8, 6],
+        [leading, bar * BAR + 14, 2],
+    ])
+
+const undertow = song('Undertow', 80, [
+    kit(
+        'drums',
+        [
+            ['bd', 'x.......x.x.....', vol(0.6)],
+            ['rim', '....x.......x...', `.room(0.4)${vol(0.5)}`],
+        ],
+        [plays('0!8 1!20 0!4 1!24 0!8')],
+        SOFT_KIT,
+    ),
+    kit(
+        'shaker',
+        [
+            ['sh', 'x.x.x.x.x.x.x.x.', vol(0.2)],
+            ['tb', '............x...', vol(0.25)],
+        ],
+        [plays('0!32 1!24 0!8')],
+        SOFT_KIT,
+    ),
+    line(
+        'guitar',
+        figure(EIGHTHS, 2, [
+            ['a2', 'e3', 'a3', 'c4', 'e4', 'c4', 'a3', 'e3'],
+            ['f2', 'c3', 'f3', 'a3', 'c4', 'a3', 'f3', 'c3'],
+            ['d3', 'a3', 'd4', 'f4', 'a3', 'f4', 'd4', 'a3'],
+            ['e2', 'b2', 'e3', 'g#3', 'd4', 'g#3', 'e3', 'b2'],
+        ]),
+        64,
+        4,
+        [...GUITAR, '.release(.5)', vol(1.6), plays(VERSE)],
+    ),
+    line(
+        'bass',
+        walked([
+            ['a1', 'e2', 'g1'],
+            ['f1', 'c2', 'e2'],
+            ['d2', 'a1', 'f2'],
+            ['e1', 'b1', 'g#1'],
+        ]),
+        64,
+        4,
+        ['.s("gm_electric_bass_finger")', '.lpf(slider(900, 100, 8000))', vol(0.85), plays('0!8 1!20 0!12 1!8 0!16')],
+    ),
+    line(
+        'pad',
+        [
+            [['a3', 'c4', 'e4'], 0, 4],
+            [['a3', 'c4', 'f4'], 4, 4],
+            [['a3', 'd4', 'f4'], 8, 4],
+            [['g#3', 'b3', 'e4'], 12, 4],
+        ],
+        16,
+        4,
+        ['.s("gm_string_ensemble_1")', '.attack(.4).release(.8)', '.lpf(slider(1800, 100, 8000))', '.room(.6)', vol(0.3), plays('0!16 1!16 0!8 1!8 0!8 1!4 0!4')],
+    ),
+    line(
+        'lead',
+        [
+            ['e4', 2, 2],
+            ['a4', 4, 2],
+            ['b4', 6, 2],
+            ['c5', 8, 8],
+            ['a4', 22, 2],
+            ['g4', 24, 2],
+            ['f4', 26, 6],
+            ['d4', 34, 2],
+            ['f4', 36, 2],
+            ['a4', 38, 2],
+            ['d5', 40, 6],
+            ['c5', 46, 2],
+            ['b4', 48, 8],
+            ['g#4', 56, 8],
+        ],
+        64,
+        4,
+        [...SINGING, vol(1.35), plays('0!4 1!4 0!4 1!16 0!12 1!8 0!8 1!4 0!4')],
+    ),
+    line(
+        'guitar2',
+        strummed([
+            ['f3', 'a3', 'c4', 'f4'],
+            ['e3', 'g3', 'c4', 'e4'],
+            ['d3', 'g3', 'b3', 'd4'],
+            ['e3', 'g#3', 'b3', 'e4'],
+        ]),
+        64,
+        4,
+        [...GUITAR, vol(0.5), plays(CHORUS)],
+    ),
+    line(
+        'bass2',
+        walked([
+            ['f1', 'c2', 'b1'],
+            ['c2', 'g1', 'a1'],
+            ['g1', 'd2', 'f1'],
+            ['e1', 'b1', 'g#1'],
+        ]),
+        64,
+        4,
+        ['.s("gm_electric_bass_finger")', '.lpf(slider(900, 100, 8000))', vol(1.1), plays(CHORUS)],
+    ),
+    line(
+        'lead2',
+        [
+            ['c5', 0, 4],
+            ['a4', 4, 2],
+            ['c5', 6, 2],
+            ['f5', 8, 8],
+            ['e5', 16, 6],
+            ['d5', 22, 2],
+            ['c5', 24, 4],
+            ['g4', 28, 4],
+            ['b4', 32, 4],
+            ['d5', 36, 4],
+            ['b4', 40, 2],
+            ['a4', 42, 2],
+            ['g4', 44, 4],
+            ['g#4', 48, 6],
+            ['b4', 54, 2],
+            ['e5', 56, 8],
+        ],
+        64,
+        4,
+        [...SINGING, vol(1.35), plays(CHORUS)],
+    ),
+])
+
 export const DEMOS: Demo[] = [
     { id: 'glasshouse', name: 'Glasshouse', about: 'Melodic techno, 124 bpm', code: glasshouse },
     { id: 'low-sun', name: 'Low sun', about: 'Melodic techno, 122 bpm', code: lowSun },
@@ -440,4 +594,5 @@ export const DEMOS: Demo[] = [
     { id: 'squelch', name: 'Squelch', about: 'Acid techno, 132 bpm', code: squelch },
     { id: 'spiral', name: 'Spiral', about: 'Psytrance, 145 bpm', code: spiral },
     { id: 'night-shift', name: 'Night shift', about: 'Drum and bass, 174 bpm', code: nightShift },
+    { id: 'undertow', name: 'Undertow', about: 'Slow guitar ballad, 80 bpm', code: undertow },
 ]

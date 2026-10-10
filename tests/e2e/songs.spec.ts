@@ -208,6 +208,7 @@ test('the menu lists demo songs, and one becomes a song of your own when it is c
         /Squelch.*Acid techno, 132 bpm/,
         /Spiral.*Psytrance, 145 bpm/,
         /Night shift.*Drum and bass, 174 bpm/,
+        /Undertow.*Slow guitar ballad, 80 bpm/,
     ])
     await menu(page).getByRole('button', { name: 'Open a copy of Squelch', exact: true }).click()
     await expect(name(page)).toContainText('Squelch')
@@ -268,7 +269,7 @@ test('saving or naming a demo keeps it with your songs', async ({ page }) => {
     await expect(name(page)).toContainText('Late one')
 })
 
-for (const demo of ['Glasshouse', 'Low sun', 'Grey area', 'Squelch', 'Spiral', 'Night shift']) {
+for (const demo of ['Glasshouse', 'Low sun', 'Grey area', 'Squelch', 'Spiral', 'Night shift', 'Undertow']) {
     test(`the demo ${demo} plays, and every pattern in it can be clicked`, async ({ page }) => {
         const errors: string[] = []
         page.on('pageerror', (error) => errors.push(error.message))
