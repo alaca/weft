@@ -8,6 +8,7 @@ import { createEngine } from '../engine/engine'
 import { DEMOS } from '../library/demos'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitWidth, isUsual, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type ViewMode } from '../library/layout'
+import { readSongFile, renameSound, SONG_FILE, soundsUsed, writeSongFile } from '../library/songfile'
 import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
 import { readKey, writeKey, type Key } from '../song/scales'
 import { gradeOf, readAudio, RING_SECONDS, type AudioOptions, type Format } from '../library/audio'
@@ -86,6 +87,7 @@ import {
     loopBars,
     setSongBars,
     setSongKey,
+    setSongNote,
     setSongs,
     setSoundsOpen,
     setStartBar,
@@ -1177,6 +1179,53 @@ export async function exportCode() {
         setExportNote(told(await saveFile(name, engine.getCode(), CODE_FILE), name))
     } catch (err) {
         setExportNote(`The file could not be saved: ${String((err as Error)?.message ?? err)}`)
+    }
+}
+
+const SONG_KIND: FileKind = { extension: SONG_FILE, label: 'Weft song', type: 'application/json' }
+
+// The song as one file with the sounds of your own that it uses inside it.
+export async function saveSongFile() {
+    if (!current) return
+    const name = fileName(current.name, SONG_KIND.extension)
+    try {
+        const code = engine.getCode()
+        const used = soundsUsed(code, ownSounds().map((sound) => sound.name))
+        const kept = used.length ? (await ownSoundStore.all()).filter((sound) => used.includes(sound.name)) : []
+        const sounds = kept.map((sound) => ({ name: sound.name, file: sound.file, type: sound.type, seconds: sound.seconds, data: new Uint8Array(sound.data) }))
+        setExportNote(told(await saveFile(name, writeSongFile({ name: current.name, code, key: current.key ?? null, sounds }), SONG_KIND), name))
+    } catch (err) {
+        setExportNote(`The file could not be saved: ${String((err as Error)?.message ?? err)}`)
+    }
+}
+
+// A song file, or any file of code, becomes a new song. The sounds that come in a song file are
+// added to yours. One whose name is already yours is taken to be the same sound; one whose name
+// belongs to another sound gets a new name, in the song's code as well.
+export async function openSongFile(file: File) {
+    try {
+        const read = readSongFile(await file.text(), file.name)
+        if (!read) return void setSongNote(`${file.name} is not a song this app can read.`)
+        let code = read.code
+        let added = 0
+        for (const packed of read.sounds) {
+            if (ownSounds().some((sound) => sound.name === packed.name)) continue
+            const name = soundNameFor(packed.name, engine.soundTaken)
+            if (name !== packed.name) code = renameSound(code, packed.name, name)
+            const data = packed.data.buffer.slice(packed.data.byteOffset, packed.data.byteOffset + packed.data.byteLength) as ArrayBuffer
+            const sound: OwnSound = { name, file: packed.file, seconds: packed.seconds, addedAt: Date.now(), type: packed.type, data }
+            await ownSoundStore.put(sound)
+            await register(sound)
+            setOwnSounds([...ownSounds(), infoOfSound(sound)].sort(byName))
+            added++
+        }
+        flush()
+        const record: SongRecord = { id: newId(), name: freeTitle(cleanName(read.name) || UNTITLED, titles()), saved: code, draft: code, changedAt: Date.now(), ...(read.key ? { key: read.key } : {}) }
+        shelf.write(record)
+        show(record)
+        setSongNote(added ? `Opened ${record.name}, with ${added} ${added === 1 ? 'sound' : 'sounds'} of its own, now among yours.` : `Opened ${record.name}.`)
+    } catch (err) {
+        setSongNote(`${file.name} could not be opened: ${String((err as Error)?.message ?? err)}`)
     }
 }
 

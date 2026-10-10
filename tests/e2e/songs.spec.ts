@@ -312,7 +312,7 @@ test('the code of a song can be exported as a file', async ({ page }) => {
     await open(page)
     await openExport(page)
     await expect(page.getByTestId('export')).toContainText('Export Untitled')
-    const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export').getByRole('button', { name: 'Save the code (.js)', exact: true }).click()])
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export').getByRole('button', { name: 'Code (.js)', exact: true }).click()])
     expect(download.suggestedFilename()).toBe('Untitled.js')
     const { readFile } = await import('node:fs/promises')
     expect(await readFile(await download.path(), 'utf8')).toBe(SONG)

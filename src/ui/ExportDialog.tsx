@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js'
-import { closeExport, exportAudio, exportCode, keptAudio, songLengthNow } from '../app/controller'
+import { closeExport, exportAudio, exportCode, keptAudio, saveSongFile, songLengthNow } from '../app/controller'
 import { durationText, FORMATS, gradeOf, QUALITIES, RING_SECONDS, sizeOf, sizeText, type AudioOptions, type Format, type Quality } from '../library/audio'
 import { bpm, currentSong, engineState, exporting, exportNote, exportOpen } from '../stores/song'
 
@@ -82,8 +82,11 @@ export function ExportDialog() {
                         </Show>
                     </p>
                     <div class="xp-f">
-                        <button class="btn" disabled={exporting()} onClick={() => void exportCode()}>
-                            Save the code (.js)
+                        <button class="btn" disabled={exporting()} title="The song with your own sounds inside it, to open in this app again" onClick={() => void saveSongFile()}>
+                            Song file (.weft)
+                        </button>
+                        <button class="btn" disabled={exporting()} title="Only the code, as text" onClick={() => void exportCode()}>
+                            Code (.js)
                         </button>
                         <span class="grow" />
                         <button class="btn" disabled={exporting()} onClick={closeExport}>
