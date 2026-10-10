@@ -125,3 +125,12 @@ test('says the code has an error when a saved song does not parse', async ({ pag
     await expect(page.getByTestId('controls')).toContainText('The code has an error')
     await expect(page.getByTestId('controls')).not.toContainText('Give a pattern a name')
 })
+
+test('draws piano rolls in pixel-scale units, which WebKit needs to repaint them correctly', async ({ page }) => {
+    await open(page, SONG)
+    const svg = page.getByTestId('strip-bass').locator('.roll svg')
+    expect(await svg.getAttribute('viewBox')).toMatch(/^0 0 1000 \d+$/)
+    const first = svg.locator('rect.n').first()
+    expect(Number(await first.getAttribute('width'))).toBeGreaterThan(100)
+    expect(Number(await first.getAttribute('height'))).toBeGreaterThan(5)
+})

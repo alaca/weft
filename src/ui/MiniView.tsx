@@ -1,5 +1,6 @@
 import { For, Match, Switch } from 'solid-js'
 import type { PatternView } from '../song/types'
+import { ROLL_ROW, ROLL_WIDTH } from './PianoRoll'
 
 export function MiniView(props: { view: PatternView }) {
     return (
@@ -22,8 +23,17 @@ export function MiniView(props: { view: PatternView }) {
                     const data = () => roll() as Extract<PatternView, { kind: 'notes' }>
                     const rows = () => data().highest - data().lowest + 1
                     return (
-                        <svg class="mini" viewBox={`0 0 1 ${rows()}`} preserveAspectRatio="none">
-                            <For each={data().notes}>{(note) => <rect x={note.start} y={data().highest - note.midi} width={Math.max(0.02, note.length - 0.01)} height="1" />}</For>
+                        <svg class="mini" viewBox={`0 0 ${ROLL_WIDTH} ${rows() * ROLL_ROW}`} preserveAspectRatio="none">
+                            <For each={data().notes}>
+                                {(note) => (
+                                    <rect
+                                        x={note.start * ROLL_WIDTH}
+                                        y={(data().highest - note.midi) * ROLL_ROW}
+                                        width={Math.max(20, note.length * ROLL_WIDTH - 10)}
+                                        height={ROLL_ROW}
+                                    />
+                                )}
+                            </For>
                         </svg>
                     )
                 }}
