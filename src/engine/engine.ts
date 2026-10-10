@@ -3,7 +3,7 @@ import { EditorView, keymap } from '@codemirror/view'
 import { StrudelMirror, codemirrorSettings } from '@strudel/codemirror'
 import { Pattern, silence } from '@strudel/core'
 import { transpiler } from '@strudel/transpiler'
-import { getAudioContext, initAudioOnFirstClick, webaudioOutput } from '@strudel/webaudio'
+import { getAnalyzerData, getAudioContext, getSuperdoughAudioController, initAudioOnFirstClick, webaudioOutput } from '@strudel/webaudio'
 import type { PatternEvent, TextEdit } from '../song/types'
 import { toEvents } from './events'
 import { marksField, setMarks, type BlockMark } from './marks'
@@ -25,7 +25,7 @@ export type EngineState = {
 export interface Engine {
     mount(root: HTMLElement, initialCode: string): Promise<void>
     getCode(): string
-    applyEdit(edit: TextEdit): void
+    applyEdit(edit: TextEdit | TextEdit[]): void
     moveSlider(from: number, text: string): boolean
     evaluate(): Promise<void>
     stop(): void
@@ -34,6 +34,9 @@ export interface Engine {
     bpm(): number
     events(id: string, cycle: number): PatternEvent[]
     audible(cycle: number): PatternEvent[]
+    waveform(): Float32Array | null
+    setMasterVolume(value: number): void
+    masterVolume(): number
     markBlocks(marks: BlockMark[]): void
     reveal(offset: number): void
     onCodeChange(fn: (code: string) => void): void
@@ -60,6 +63,15 @@ export function createEngine(): Engine {
     let soloIds: string[] = []
     let evaluated = false
     let lastCode = ''
+    let master = 1
+    const applyMaster = () => {
+        try {
+            const gain = getSuperdoughAudioController().output.destinationGain
+            if (gain) gain.gain.value = master
+        } catch {
+            return
+        }
+    }
     const stateFns = new Set<(state: EngineState) => void>()
     const codeFns = new Set<(code: string) => void>()
     const cursorFns = new Set<(offset: number) => void>()
@@ -108,8 +120,10 @@ export function createEngine(): Engine {
                 bgFill: false,
                 solo: false,
                 prebake: loadModules,
+                editPattern: (pattern: any) => pattern.analyze('weft'),
                 beforeEval: wrapRegistration,
                 afterEval: () => {
+                    applyMaster()
                     registry = pending
                     evaluated = true
                     setState({ error: null, dirty: false })
@@ -197,6 +211,18 @@ export function createEngine(): Engine {
         bpm: () => (mirror ? mirror.repl.scheduler.cps * 240 : 120),
         events: (id, cycle) => query(registry.get(id), cycle),
         audible: (cycle) => query(mirror?.repl.state.pattern, cycle),
+        waveform() {
+            try {
+                return (getAnalyzerData('time', 'weft') as Float32Array | undefined) ?? null
+            } catch {
+                return null
+            }
+        },
+        setMasterVolume(value) {
+            master = Math.min(1.5, Math.max(0, value))
+            applyMaster()
+        },
+        masterVolume: () => master,
         markBlocks(marks) {
             mirror?.editor.dispatch({ effects: setMarks.of(marks) })
         },

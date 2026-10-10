@@ -76,3 +76,34 @@ test('reports an error with its line and keeps the last good patterns', async ({
     expect(result.error.message).toMatch(/Unexpected/)
     expect(result.bass).toBe(7)
 })
+
+test('applies several edits at once', async ({ page }) => {
+    await page.goto('/')
+    await ready(page)
+    const text = await page.evaluate(() => {
+        const { engine } = (window as any).__weft
+        const code: string = engine.getCode()
+        const a = code.indexOf('lpf')
+        const b = code.indexOf('lpq')
+        engine.applyEdit([
+            { from: a, to: a + 3, insert: 'hpf' },
+            { from: b, to: b + 3, insert: 'hpq' },
+        ])
+        return engine.getCode() as string
+    })
+    expect(text).toContain('.hpf(slider(1200, 200, 4000))')
+    expect(text).toContain('.hpq(slider(14, 0, 30))')
+})
+
+test('keeps a master volume and gives waveform data while playing', async ({ page }) => {
+    await page.goto('/')
+    await ready(page)
+    const volume = await page.evaluate(() => {
+        const { engine } = (window as any).__weft
+        engine.setMasterVolume(0.4)
+        return engine.masterVolume() as number
+    })
+    expect(volume).toBeCloseTo(0.4)
+    await page.getByRole('button', { name: 'Play' }).click()
+    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.waveform()?.length ?? 0), { timeout: 20_000 }).toBeGreaterThan(0)
+})

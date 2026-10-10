@@ -1,9 +1,9 @@
 import { batch, createEffect, createRoot } from 'solid-js'
-import { findDef, writeNumber } from '../controls/catalog'
+import { FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '../controls/catalog'
 import { callFor } from '../controls/views'
 import { createEngine } from '../engine/engine'
 import { analyze } from '../song/analyze'
-import { addCall, removeCall, setNumber, toggleMute as muteEdit } from '../song/edits'
+import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
 import { STARTER } from '../song/starter'
 import type { PatternEvent } from '../song/types'
 import {
@@ -14,6 +14,7 @@ import {
     setBpm,
     setCycle,
     setEngineState,
+    setMasterVolumeValue,
     setOpenPanel,
     setPosition,
     setRevision,
@@ -27,6 +28,7 @@ import {
 } from '../stores/song'
 
 const STORAGE_KEY = 'weft.song'
+const VOLUME_KEY = 'weft.volume'
 const COLORS = ['var(--madder)', 'var(--saffron)', 'var(--woad)', 'var(--lichen)', 'var(--orchil)']
 
 const engine = createEngine()
@@ -67,6 +69,10 @@ function tick() {
 }
 
 export async function mount(root: HTMLElement): Promise<void> {
+    const storedVolume = Number(localStorage.getItem(VOLUME_KEY) ?? '1')
+    const startVolume = Number.isFinite(storedVolume) ? storedVolume : 1
+    setMasterVolumeValue(startVolume)
+    engine.setMasterVolume(startVolume)
     const initial = localStorage.getItem(STORAGE_KEY) ?? STARTER
     engine.onState((next) => {
         const wasPlaying = engineState().playing
@@ -188,3 +194,64 @@ export function setVolume(id: string, value: number) {
 }
 
 export const togglePanel = (id: string) => setOpenPanel(openPanel() === id ? null : id)
+
+const replay = () => {
+    if (engineState().playing) play()
+}
+
+export function setWave(id: string, name: string) {
+    const block = find(id)
+    if (!block || stale()) return
+    const call = block.calls.find((c) => (c.name === 's' || c.name === 'sound') && c.args[0]?.kind === 'string')
+    const arg = call?.args[0]
+    if (arg && arg.kind === 'string') engine.applyEdit(setString(arg, name))
+    else engine.applyEdit(addCall(engine.getCode(), block, `.s("${name}")`))
+    replay()
+}
+
+export function setFilterType(id: string, type: FilterType) {
+    const block = find(id)
+    const current = block ? filterTypeOf(block) : null
+    if (!block || stale() || !current || current === type) return
+    const edits = renameCalls(block.calls, (name) => {
+        const def = findDef(name)
+        const at = def ? FILTERS[current].indexOf(def.fn) : -1
+        return at >= 0 ? FILTERS[type][at] : null
+    })
+    if (!edits.length) return
+    engine.applyEdit(edits)
+    replay()
+}
+
+export function setEcho(id: string, value: number | null) {
+    const block = find(id)
+    if (!block || stale()) return
+    const call = callFor(block, 'delaysync')
+    const arg = call?.args[0]
+    if (value === null) {
+        if (!call) return
+        engine.applyEdit(removeCall(call))
+    } else if (arg && (arg.kind === 'number' || arg.kind === 'slider')) {
+        engine.applyEdit(setNumber(arg, String(value)))
+    } else if (!call) {
+        engine.applyEdit(addCall(engine.getCode(), block, `.delaysync(${value})`))
+    } else {
+        return
+    }
+    replay()
+}
+
+export function setTempo(bpm: number) {
+    if (stale() || song().tempoLocked || !Number.isFinite(bpm)) return
+    engine.applyEdit(tempoEdit(song(), Math.round(Math.min(300, Math.max(20, bpm)))))
+    replay()
+}
+
+export function setMasterVolume(value: number) {
+    const next = Math.round(Math.min(1.5, Math.max(0, value)) * 100) / 100
+    setMasterVolumeValue(next)
+    engine.setMasterVolume(next)
+    localStorage.setItem(VOLUME_KEY, String(next))
+}
+
+export const waveformOf = () => engine.waveform()
