@@ -3,6 +3,7 @@ import { restorePattern } from '../app/controller'
 import { removed, song, stale } from '../stores/song'
 import { AddPattern } from './AddPattern'
 import { OutputStrip } from './OutputStrip'
+import { SongPanel } from './SongPanel'
 import { Strip } from './Strip'
 
 const GONE = '\u0000gone'
@@ -23,6 +24,9 @@ export function StripList() {
     )
     return (
         <main class="ctl" data-testid="controls">
+            <Show when={ids().length}>
+                <SongPanel />
+            </Show>
             <Show when={!ids().length}>
                 <Show when={!stale()} fallback={<p class="ctl-empty">The code has an error, so its controls cannot be drawn. Fix it in the code and they will appear.</p>}>
                     <p class="ctl-empty">

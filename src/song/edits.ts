@@ -1,3 +1,4 @@
+import { parseBars } from './bars'
 import type { Arg, Call, PatternBlock, Song, TextEdit } from './types'
 
 type Numeric = Extract<Arg, { kind: 'number' | 'slider' }>
@@ -12,6 +13,8 @@ export function setNumber(arg: Numeric, text: string): TextEdit {
     return arg.kind === 'slider' ? { from: arg.valueFrom, to: arg.valueTo, insert: text } : { from: arg.from, to: arg.to, insert: text }
 }
 
+// A new call goes at the end of a pattern, but before the line that says which bars it plays
+// in, and before the hush that mutes one sound of a kit. Both read best as the last word.
 export function addCall(code: string, block: PatternBlock, callText: string): TextEdit {
     if (block.inline) {
         const last = block.calls[block.calls.length - 1]
@@ -20,7 +23,10 @@ export function addCall(code: string, block: PatternBlock, callText: string): Te
     }
     const lines = code.slice(block.from, block.to).split('\n')
     const found = lines.length > 1 ? /^[ \t]*/.exec(lines[1])?.[0] : ''
-    return { from: block.to, to: block.to, insert: `\n${found || '  '}${callText}` }
+    const last = block.calls[block.calls.length - 1]
+    const bars = block.calls.length > 1 && last.name === 'mask' && last.args.length === 1 && last.args[0].kind === 'string' ? parseBars(last.args[0].value) : null
+    const at = bars ? last.from : block.to
+    return { from: at, to: at, insert: `\n${found || '  '}${callText}` }
 }
 
 export function removeCall(call: Call): TextEdit {

@@ -1,5 +1,5 @@
 import { createMemo, For, Show } from 'solid-js'
-import { colorAt, eventsOf, openSounds, removePattern, select, setControl, setMix, toggleMute, togglePanel, toggleSolo } from '../app/controller'
+import { colorAt, eventsOf, openSounds, removePattern, restsNow, select, setControl, setMix, toggleMute, togglePanel, toggleSolo } from '../app/controller'
 import { favourites, panOf, volumeOf, type ControlView } from '../controls/views'
 import { isDrums, readKit } from '../song/kit'
 import { noteText } from '../song/notes'
@@ -24,7 +24,8 @@ const forcesSolo = (block: PatternBlock) => block.label.length > 1 && block.labe
 export function Strip(props: { id: string }) {
     const index = createMemo(() => song().patterns.findIndex((p) => p.id === props.id))
     const block = createMemo(() => song().patterns[index()])
-    const playing = () => engineState().playing && !block()?.muted
+    const resting = () => restsNow(props.id)
+    const playing = () => engineState().playing && !block()?.muted && !resting()
     const panelOwner = () => openPanel()?.split('/')[0] ?? null
     const open = () => openPanel() === props.id
     const folded = () => panelOwner() !== null && panelOwner() !== props.id && !unfolded().includes(props.id)
@@ -80,7 +81,7 @@ export function Strip(props: { id: string }) {
             {(current) => (
                 <section
                     class="st"
-                    classList={{ sel: selected() === props.id, muted: current().muted }}
+                    classList={{ sel: selected() === props.id, muted: current().muted, rest: resting() }}
                     style={{ '--h': colorAt(index()) }}
                     data-testid={`strip-${props.id}`}
                     onClick={() => select(props.id)}

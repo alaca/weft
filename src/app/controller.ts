@@ -4,6 +4,7 @@ import { drumChoices } from '../controls/drums'
 import { callFor } from '../controls/views'
 import { createEngine } from '../engine/engine'
 import { analyze } from '../song/analyze'
+import { arrangeEdit, barsOf, readArrangement, resizeEdits, songLength } from '../song/arrange'
 import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
 import { gridFromEvents, lengthEdits, readGrid, removeRow, resample, resize, sourceText, toggleStep as toggleGridStep, type Grid, type GridRow, type GridSource } from '../song/grid'
 import { convertEdits, kitEdits, MUTE, readKit, rowTarget } from '../song/kit'
@@ -28,6 +29,7 @@ import type { PatternBlock, PatternEvent } from '../song/types'
 import { fits, soundEdit } from '../sounds/apply'
 import { catalogue, type SoundItem } from '../sounds/catalog'
 import {
+    cycle,
     engineState,
     gridNotes,
     openPanel,
@@ -48,13 +50,17 @@ import {
     setSelected,
     setSoloIds,
     setSong,
+    setSongBars,
     setSoundsOpen,
+    setStartBar,
     setUnfolded,
     setStale,
     soloIds,
     song,
+    songBars,
     soundsOpen,
     stale,
+    startBar,
     unfolded,
 } from '../stores/song'
 
@@ -128,7 +134,7 @@ export async function mount(root: HTMLElement): Promise<void> {
         if (!next.playing && wasPlaying) {
             cancelAnimationFrame(frame)
             batch(() => {
-                setCycle(0)
+                setCycle(startBar())
                 setPosition(0)
                 setBeat(0)
             })
@@ -207,7 +213,8 @@ export function toggleSolo(id: string) {
     engine.setSolo(next)
 }
 
-export const eventsOf = (id: string, whichCycle: number): PatternEvent[] => engine.events(id, whichCycle)
+// A strip draws its pattern in every bar, also in the bars where the song lets it rest.
+export const eventsOf = (id: string, whichCycle: number): PatternEvent[] => engine.events(id, whichCycle, true)
 
 let evaluateTimer: number | undefined
 
@@ -581,4 +588,49 @@ export function restorePattern() {
     engine.applyEdit({ from: gone.from, to: gone.from, insert: gone.text })
     replay()
     select(gone.id)
+}
+
+export const songLengthNow = (): number => songLength(song().patterns, songBars())
+
+export function setBars(id: string, bars: boolean[]) {
+    const block = find(id)
+    if (!block || stale()) return
+    const length = songLengthNow()
+    const edit = arrangeEdit(engine.getCode(), block, bars)
+    if (!edit) return
+    setSongBars(length)
+    engine.applyEdit(edit)
+    replay()
+}
+
+export function toggleBar(id: string, bar: number) {
+    const block = find(id)
+    if (!block) return
+    const bars = barsOf(block, songLengthNow())
+    setBars(
+        id,
+        bars.map((on, at) => (at === bar ? !on : on)),
+    )
+}
+
+export function setSongLength(length: number) {
+    if (stale()) return
+    setSongBars(length)
+    if (startBar() >= length) startFrom(0)
+    const edits = resizeEdits(engine.getCode(), song().patterns, length)
+    if (!edits.length) return
+    engine.applyEdit(edits)
+    replay()
+}
+
+export function startFrom(bar: number) {
+    setStartBar(bar)
+    engine.setStart(bar)
+    if (!engineState().playing) setCycle(bar)
+}
+
+export const restsNow = (id: string): boolean => {
+    const block = find(id)
+    const written = block ? readArrangement(block)?.bars : undefined
+    return Boolean(written && engineState().playing && !written[cycle() % written.length])
 }

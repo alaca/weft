@@ -43,7 +43,8 @@ export interface Engine {
     setSolo(ids: string[]): void
     now(): number
     bpm(): number
-    events(id: string, cycle: number): PatternEvent[]
+    events(id: string, cycle: number, everyBar?: boolean): PatternEvent[]
+    setStart(bar: number): void
     audible(cycle: number): PatternEvent[]
     waveform(): Float32Array | null
     setMasterVolume(value: number): void
@@ -63,6 +64,7 @@ export interface Engine {
 }
 
 const bareId = (id: string) => id.replace(/^_+|_+$/g, '')
+const BEFORE_MASK = '__weftBeforeMask'
 
 function toEvalError(err: unknown): EvalError {
     const e = err as { message?: string; loc?: { line?: number } }
@@ -77,6 +79,10 @@ export function createEngine(): Engine {
     let state: EngineState = { playing: false, dirty: false, error: null, sounds: 'loading' }
     let registry = new Map<string, any>()
     let pending = new Map<string, any>()
+    let unmasked = new Map<string, any>()
+    let pendingUnmasked = new Map<string, any>()
+    let startBar = 0
+    let offset = 0
     let soloIds: string[] = []
     let evaluated = false
     let lastCode = ''
@@ -103,13 +109,27 @@ export function createEngine(): Engine {
         const original = Pattern.prototype.p
         let anonymous = 0
         pending = new Map()
-        Pattern.prototype.p = function (this: unknown, id: unknown) {
+        pendingUnmasked = new Map()
+        Pattern.prototype.p = function (this: any, id: unknown) {
             if (typeof id !== 'string') return original.call(this, id)
             const bare = bareId(id)
             const key = bare.includes('$') ? `pattern ${++anonymous}` : bare
             pending.set(key, this)
+            pendingUnmasked.set(key, this[BEFORE_MASK] ?? this)
             if (soloIds.length && !soloIds.includes(key)) return silence
-            return original.call(this, id)
+            return original.call(offset ? this.early(offset) : this, id)
+        }
+    }
+
+    // The bars a pattern plays in are written as a mask at the end of it. A strip still has to
+    // draw the pattern in the bars where it rests, so the pattern as it was before its last mask
+    // is kept beside the one that plays. Strudel sets up mask once, so it is wrapped once.
+    const keepUnmasked = () => {
+        const original = Pattern.prototype.mask
+        Pattern.prototype.mask = function (this: any, ...args: unknown[]) {
+            const masked = original.apply(this, args)
+            masked[BEFORE_MASK] = this
+            return masked
         }
     }
 
@@ -133,6 +153,7 @@ export function createEngine(): Engine {
     const silence = () => {
         mirror.stop()
         registry = new Map()
+        unmasked = new Map()
         evaluated = false
         setState({ error: null, dirty: false })
         evaluatedFns.forEach((fn) => fn())
@@ -167,6 +188,7 @@ export function createEngine(): Engine {
                 afterEval: () => {
                     applyMaster()
                     registry = pending
+                    unmasked = pendingUnmasked
                     evaluated = true
                     setState({ error: null, dirty: false })
                     evaluatedFns.forEach((fn) => fn())
@@ -220,6 +242,7 @@ export function createEngine(): Engine {
                 () => setState({ sounds: 'failed' }),
             )
             await mirror.prebaked
+            keepUnmasked()
             if (!blank()) await mirror.repl.evaluate(mirror.code, false)
         },
         getCode: () => mirror?.code ?? lastCode,
@@ -242,11 +265,21 @@ export function createEngine(): Engine {
         },
         async evaluate() {
             if (blank()) return silence()
+            if (!state.playing) offset = startBar
             await mirror.evaluate(true)
         },
         async refresh() {
             if (blank()) return silence()
+            if (!state.playing) offset = startBar
             await mirror.repl.evaluate(mirror.code, false)
+        },
+        // Strudel always starts counting cycles at nought, so playing from another bar is done
+        // by moving every pattern earlier. While it plays, the same move makes the song jump.
+        setStart(bar) {
+            startBar = bar
+            if (!state.playing || blank()) return
+            offset = bar - Math.floor(mirror.repl.scheduler.now())
+            void mirror.evaluate(true)
         },
         stop() {
             mirror.stop()
@@ -255,10 +288,10 @@ export function createEngine(): Engine {
             soloIds = ids
             if (state.playing) void mirror.evaluate(true)
         },
-        now: () => (mirror?.repl.scheduler.started ? mirror.repl.scheduler.now() : 0),
+        now: () => (mirror?.repl.scheduler.started ? mirror.repl.scheduler.now() + offset : startBar),
         bpm: () => (mirror ? mirror.repl.scheduler.cps * 240 : 120),
-        events: (id, cycle) => query(registry.get(id), cycle),
-        audible: (cycle) => query(mirror?.repl.state.pattern, cycle),
+        events: (id, cycle, everyBar = false) => query((everyBar ? unmasked : registry).get(id), cycle),
+        audible: (cycle) => query(mirror?.repl.state.pattern, cycle - offset),
         waveform() {
             try {
                 return (getAnalyzerData('time', 'weft') as Float32Array | undefined) ?? null
