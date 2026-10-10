@@ -4,7 +4,7 @@ export type Arg =
     | { kind: 'number'; value: number; from: number; to: number }
     | { kind: 'slider'; value: number; min: number; max: number; from: number; to: number; valueFrom: number; valueTo: number }
     | { kind: 'string'; value: string; from: number; to: number }
-    | { kind: 'chain'; calls: Call[]; from: number; to: number }
+    | { kind: 'chain'; calls: Call[]; root?: string; from: number; to: number }
     | { kind: 'other'; from: number; to: number }
 
 export type Call = {

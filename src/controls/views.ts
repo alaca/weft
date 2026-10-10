@@ -1,4 +1,5 @@
 import type { Arg, Call, PatternBlock } from '../song/types'
+import { readMotion, type Motion } from './motion'
 import {
     CONTROLS,
     familyOf,
@@ -19,7 +20,8 @@ export type ControlView = {
     label: string
     group: Group
     describe: string
-    state: 'live' | 'number' | 'locked' | 'faint'
+    state: 'live' | 'number' | 'locked' | 'faint' | 'moving'
+    motion?: Motion
     value: number
     min: number
     max: number
@@ -83,6 +85,12 @@ function viewOfCall(call: Call): ControlView | null {
         const min = Math.min(def.min, arg.value)
         const max = Math.max(def.max, arg.value)
         return { ...base, state: 'number', value: arg.value, min, max, scale: def.scale, text: withUnit(writeNumber(arg.value, min, max), unit) }
+    }
+    const motion = readMotion(call)
+    if (motion) {
+        const min = Math.min(def.min, motion.from, motion.to)
+        const max = Math.max(def.max, motion.from, motion.to)
+        return { ...base, state: 'moving', motion, value: motion.to, min, max, scale: def.scale, text: `${writeNumber(motion.from, min, max)} to ${withUnit(writeNumber(motion.to, min, max), unit)}` }
     }
     return { ...base, state: 'locked', value: def.initial, min: def.min, max: def.max, scale: def.scale, text: 'in code' }
 }

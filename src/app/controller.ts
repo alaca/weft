@@ -1,6 +1,7 @@
 import { batch, createEffect, createRoot } from 'solid-js'
 import { FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '../controls/catalog'
 import { drumChoices } from '../controls/drums'
+import { firstMotion, motionText, readMotion, type Motion } from '../controls/motion'
 import { callFor, controlOf, valueArg, type ControlView } from '../controls/views'
 import { installViewMenu } from '../desktop/menu'
 import { saveFile, type FileKind, type Saved } from '../desktop/save'
@@ -425,6 +426,30 @@ export function addControl(id: string, fn: string, value?: number) {
     const [before, after] = def.wrap ?? ['', '']
     engine.applyEdit(addCall(engine.getCode(), block, `.${def.fn}(${before}slider(${start}, ${def.min}, ${def.max})${after})`))
     replay()
+}
+
+// A control that moves by itself, or stands still again. Starting, it moves up to where the knob
+// stood; stopping, the knob stands at the far end of the motion.
+export function setMotion(id: string, fn: string, motion: Motion | null) {
+    const block = find(id)
+    const call = block ? callFor(block, fn) : undefined
+    const def = findDef(fn)
+    const arg = call?.args[0]
+    if (!call || !def || !arg || stale()) return
+    const was = readMotion(call)
+    const still = valueArg(call)
+    if (!was && !still) return
+    const write = (value: number) => writeNumber(Math.min(def.max, Math.max(def.min, value)), def.min, def.max)
+    const text = motion ? motionText(motion, write) : `slider(${write(was?.to ?? still?.value ?? def.initial)}, ${def.min}, ${def.max})`
+    engine.applyEdit({ from: arg.from, to: arg.to, insert: text })
+    replay()
+}
+
+export function startMotion(id: string, fn: string) {
+    const block = find(id)
+    const def = findDef(fn)
+    const still = block ? valueArg(callFor(block, fn)) : null
+    if (def && still) setMotion(id, fn, firstMotion(still.value, def.min, def.max))
 }
 
 export function removeControl(id: string, fn: string) {

@@ -425,3 +425,17 @@ svg.mini rect { fill: var(--h); }
 .st-x .dots { width: 12px; height: 12px; stroke: none; fill: currentColor; }
 .menu.single { grid-template-columns: 1fr; width: 150px; left: auto; right: 0; top: 24px; }
 .menu.single button:disabled { opacity: 0.4; cursor: default; }
+
+/* A knob that moves by itself, the small button that sets one moving, and the box that says how. */
+.kn.moving .kn-d { cursor: pointer; padding: 0; }
+.kn.moving .kn-d:disabled { cursor: default; }
+.kn.moving .kv { stroke-dasharray: 3 4; animation: sway 2.4s ease-in-out infinite alternate; }
+@keyframes sway { from { opacity: 0.45; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .kn.moving .kv { animation: none; } }
+.kn-x.kn-go { right: auto; left: -7px; }
+.kn-x.kn-go svg { width: 10px; height: 8px; }
+.mv { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 8px; z-index: 30; width: 232px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px; background: var(--cloth-2); border: 1px solid #4c4c54; border-radius: 10px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6); }
+.mv label { display: flex; align-items: center; gap: 8px; }
+.mv label .cap { width: 34px; }
+.mv input { width: 96px; height: 26px; border-radius: 7px; background: var(--vat); border: 1px solid var(--seam); color: var(--linen); font: 500 11.5px/1 var(--mono); font-stretch: 87%; padding: 0 7px; }
+.mv input:focus { outline: none; border-color: var(--linen-3); }

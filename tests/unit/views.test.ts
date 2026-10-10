@@ -28,7 +28,7 @@ describe('favourites', () => {
     })
 
     it('says a locked knob is set in code', () => {
-        expect(favourites(first('x: note("c").lpf(sine.range(200, 2000))'))[0]).toMatchObject({ label: 'Cutoff', state: 'locked', text: 'in code' })
+        expect(favourites(first('x: note("c").lpf(perlin.range(200, 2000))'))[0]).toMatchObject({ label: 'Cutoff', state: 'locked', text: 'in code' })
     })
 
     it('gives any other slider a knob named after its function', () => {
@@ -57,7 +57,7 @@ describe('panelFor', () => {
         expect(loose.find((v) => v.fn === 'velocity')).toMatchObject({ state: 'live', value: 0.75, min: 0.3, max: 1 })
         const swung = feel('x: note("c").swingBy(slider(0.2, 0, 0.5), 8)')
         expect(swung.find((v) => v.fn === 'swingBy')).toMatchObject({ state: 'live', value: 0.2, max: 0.5 })
-        expect(feel('x: note("c").nudge(sine.range(0, 0.02))').find((v) => v.fn === 'nudge')).toMatchObject({ state: 'locked' })
+        expect(feel('x: note("c").nudge(perlin.range(0, 0.02))').find((v) => v.fn === 'nudge')).toMatchObject({ state: 'locked' })
         expect(feel('x: note("c").velocity(0.8)').find((v) => v.fn === 'velocity')).toMatchObject({ state: 'number', value: 0.8 })
     })
 

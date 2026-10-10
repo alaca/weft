@@ -1,5 +1,6 @@
-import { Match, Show, Switch } from 'solid-js'
+import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from 'solid-js'
 import { fromUnit, toUnit } from '../controls/catalog'
+import { MOTION_BARS, MOTION_SHAPES, type Motion } from '../controls/motion'
 import type { ControlView } from '../controls/views'
 
 const ARC = 94.25
@@ -25,6 +26,9 @@ export function Knob(props: {
     onChange: (value: number) => void
     onAdd?: () => void
     onRemove?: () => void
+    // Given, the knob can be set moving by itself, and a moving one can be changed or stopped.
+    onMotion?: (motion: Motion | null) => void
+    onStartMotion?: () => void
 }) {
     const unit = () => toUnit(props.view.value, props.view.min, props.view.max, props.view.scale)
     const move = (next: number) => props.onChange(fromUnit(Math.min(1, Math.max(0, next)), props.view.min, props.view.max, props.view.scale))
@@ -50,8 +54,82 @@ export function Knob(props: {
         event.preventDefault()
     }
 
+    let box: HTMLDivElement | undefined
+    const [editing, setEditing] = createSignal(false)
+    const away = (event: PointerEvent) => {
+        if (editing() && !box?.contains(event.target as Node)) setEditing(false)
+    }
+    onMount(() => document.addEventListener('pointerdown', away))
+    onCleanup(() => document.removeEventListener('pointerdown', away))
+    const change = (patch: Partial<Motion>) => props.view.motion && props.onMotion?.({ ...props.view.motion, ...patch })
+    const end = (event: Event, which: 'from' | 'to') => {
+        const input = event.currentTarget as HTMLInputElement
+        const value = Number(input.value)
+        if (input.value.trim() && Number.isFinite(value)) change({ [which]: Math.min(props.view.max, Math.max(props.view.min, value)) })
+        else input.value = String(props.view.motion?.[which] ?? '')
+    }
+
     return (
         <Switch>
+            <Match when={props.view.state === 'moving' && props.view.motion}>
+                {(motion) => (
+                    <div class="kn moving" classList={{ big: props.big, small: props.small }} ref={box}>
+                        <button
+                            class="kn-d"
+                            aria-label={`${props.name ?? props.view.label} moves by itself`}
+                            aria-haspopup="dialog"
+                            aria-expanded={editing()}
+                            title={props.onMotion ? 'Moves by itself. Press to change how.' : 'Moves by itself'}
+                            disabled={props.disabled || !props.onMotion}
+                            onClick={() => setEditing(!editing())}
+                        >
+                            <Dial unit={unit()} />
+                        </button>
+                        <b>{props.view.text}</b>
+                        <span class="cap">{props.view.label}</span>
+                        <Show when={editing()}>
+                            <div class="mv" role="dialog" aria-label={`How ${props.view.label} moves`}>
+                                <div class="seg s" role="group" aria-label="Way of moving">
+                                    <For each={MOTION_SHAPES}>
+                                        {(shape) => (
+                                            <button classList={{ on: motion().shape === shape.id }} aria-pressed={motion().shape === shape.id} onClick={() => change({ shape: shape.id })}>
+                                                {shape.label}
+                                            </button>
+                                        )}
+                                    </For>
+                                </div>
+                                <label>
+                                    <span class="cap">From</span>
+                                    <input type="number" aria-label="Moves from" value={motion().from} min={props.view.min} max={props.view.max} step="any" onChange={(event) => end(event, 'from')} />
+                                </label>
+                                <label>
+                                    <span class="cap">To</span>
+                                    <input type="number" aria-label="Moves to" value={motion().to} min={props.view.min} max={props.view.max} step="any" onChange={(event) => end(event, 'to')} />
+                                </label>
+                                <span class="cap">Over, in bars</span>
+                                <div class="seg s" role="group" aria-label="Bars it takes">
+                                    <For each={MOTION_BARS}>
+                                        {(bars) => (
+                                            <button classList={{ on: motion().bars === bars }} aria-pressed={motion().bars === bars} onClick={() => change({ bars })}>
+                                                {bars}
+                                            </button>
+                                        )}
+                                    </For>
+                                </div>
+                                <button
+                                    class="addb"
+                                    onClick={() => {
+                                        setEditing(false)
+                                        props.onMotion?.(null)
+                                    }}
+                                >
+                                    Stand still again
+                                </button>
+                            </div>
+                        </Show>
+                    </div>
+                )}
+            </Match>
             <Match when={props.view.state === 'faint' && !props.small}>
                 <button class="kn faint" aria-label={`Add ${props.view.label}`} title={props.view.describe} disabled={props.disabled} onClick={() => props.onAdd?.()}>
                     <span class="kn-d">
@@ -94,6 +172,13 @@ export function Knob(props: {
                     </div>
                     <b>{props.view.text}</b>
                     <span class="cap">{props.view.label}</span>
+                    <Show when={props.onStartMotion && props.view.state !== 'faint'}>
+                        <button class="kn-x kn-go" aria-label={`Let ${props.view.label} move by itself`} title="Let it move by itself" disabled={props.disabled} onClick={() => props.onStartMotion?.()}>
+                            <svg viewBox="0 0 10 8">
+                                <path d="M1 4c1-4 3-4 4 0s3 4 4 0" />
+                            </svg>
+                        </button>
+                    </Show>
                     <Show when={props.onRemove}>
                         <button class="kn-x" aria-label={`Remove ${props.view.label}`} disabled={props.disabled} onClick={() => props.onRemove?.()}>
                             <svg viewBox="0 0 8 8">

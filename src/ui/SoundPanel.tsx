@@ -1,5 +1,21 @@
 import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js'
-import { addControl, cutsItself, isPumped, pumpDepth, pumpFor, removeControl, setControl, setCut, setEcho, setFilterType, setPump, setPumpDepth, setWave } from '../app/controller'
+import {
+    addControl,
+    cutsItself,
+    isPumped,
+    pumpDepth,
+    pumpFor,
+    removeControl,
+    setControl,
+    setCut,
+    setEcho,
+    setFilterType,
+    setMotion,
+    setPump,
+    setPumpDepth,
+    setWave,
+    startMotion,
+} from '../app/controller'
 import { filterTypeOf, soundKind, type FilterType, type PanelGroup } from '../controls/catalog'
 import { drumLabel } from '../controls/drums'
 import { envelopeOf, envelopePoints } from '../controls/envelope'
@@ -173,6 +189,8 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
                                                     onChange={(value) => setControl(props.id, fn, value)}
                                                     onAdd={() => addControl(props.id, fn)}
                                                     onRemove={() => removeControl(props.id, fn)}
+                                                    onMotion={(motion) => setMotion(props.id, fn, motion)}
+                                                    onStartMotion={() => startMotion(props.id, fn)}
                                                 />
                                             )}
                                         </Show>

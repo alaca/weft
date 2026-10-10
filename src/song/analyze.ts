@@ -31,9 +31,16 @@ function toArg(node: Node): Arg {
     }
     if (node.type === 'CallExpression') {
         const calls = callChain(node)
-        if (calls.length) return { kind: 'chain', calls, from: node.start, to: node.end }
+        if (calls.length) return { kind: 'chain', calls, root: rootOf(node), from: node.start, to: node.end }
     }
     return { kind: 'other', from: node.start, to: node.end }
+}
+
+// What a chain of calls starts from, when that is a plain name: `sine` in sine.range(1, 2).slow(4).
+function rootOf(expression: Node): string | undefined {
+    let node: Node = expression
+    while (node.type === 'CallExpression' || node.type === 'MemberExpression') node = node.type === 'CallExpression' ? node.callee : node.object
+    return node.type === 'Identifier' ? node.name : undefined
 }
 
 function callChain(expression: Node): Call[] {
