@@ -1,21 +1,27 @@
 import { batch, createEffect, createRoot } from 'solid-js'
 import { FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '../controls/catalog'
+import { drumChoices } from '../controls/drums'
 import { callFor } from '../controls/views'
 import { createEngine } from '../engine/engine'
 import { analyze } from '../song/analyze'
 import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
+import { gridEdits, gridFromEvents, readGrid, removeRow, resample, resize, sourceText, toggleStep as toggleGridStep, type GridRow, type GridSource } from '../song/grid'
 import { STARTER } from '../song/starter'
-import type { PatternEvent } from '../song/types'
+import type { PatternBlock, PatternEvent } from '../song/types'
 import {
     engineState,
+    gridNotes,
     openPanel,
+    pinnedRows,
     selected,
     setBeat,
     setBpm,
     setCycle,
     setEngineState,
+    setGridNotes,
     setMasterVolumeValue,
     setOpenPanel,
+    setPinnedRows,
     setPosition,
     setRevision,
     setSelected,
@@ -255,3 +261,72 @@ export function setMasterVolume(value: number) {
 }
 
 export const waveformOf = () => engine.waveform()
+
+function editableGrid(block: PatternBlock): GridSource | null {
+    const direct = readGrid(block)
+    if (direct) return direct
+    const text = sourceText(block)
+    if (!text || block.calls[1]?.name === 'slow') return null
+    const cycles = engine.miniEvents(text.text, 4)
+    const rows = cycles ? gridFromEvents(cycles) : null
+    if (!rows) return null
+    const steps = rows[0]?.steps.length ?? 16
+    return { grid: { rows, steps, cycles: 1, perCycle: steps }, from: text.from, to: text.to, slow: null }
+}
+
+function changeGrid(id: string, change: (source: GridSource) => { rows: GridRow[]; cycles: number } | null) {
+    const block = find(id)
+    if (!block || stale()) return
+    const source = editableGrid(block)
+    const next = source ? change(source) : null
+    setGridNotes({ ...gridNotes(), [id]: !source })
+    if (!source || !next) return
+    engine.applyEdit(gridEdits(block, source, next.rows, next.cycles))
+    replay()
+}
+
+const pin = (id: string, sound: string) => {
+    const current = pinnedRows()[id] ?? []
+    if (!current.includes(sound)) setPinnedRows({ ...pinnedRows(), [id]: [...current, sound] })
+}
+
+export function toggleStep(id: string, sound: string, step: number) {
+    pin(id, sound)
+    changeGrid(id, (source) => ({ rows: toggleGridStep(source.grid.rows, sound, step, source.grid.steps), cycles: source.grid.cycles }))
+}
+
+export function addRow(id: string, sound: string) {
+    pin(id, sound)
+}
+
+export function removeGridRow(id: string, sound: string) {
+    setPinnedRows({ ...pinnedRows(), [id]: (pinnedRows()[id] ?? []).filter((other) => other !== sound) })
+    const block = find(id)
+    const source = block ? editableGrid(block) : null
+    if (!source || !source.grid.rows.some((row) => row.sound === sound)) return
+    changeGrid(id, (current) => ({ rows: removeRow(current.grid.rows, sound), cycles: current.grid.cycles }))
+}
+
+export function setLength(id: string, cycles: number) {
+    changeGrid(id, (source) => (source.grid.cycles === cycles ? null : { rows: resize(source.grid, cycles), cycles }))
+}
+
+export function setStepsPerCycle(id: string, perCycle: number) {
+    changeGrid(id, (source) => {
+        const rows = resample(source.grid, perCycle)
+        return rows && perCycle !== source.grid.perCycle ? { rows, cycles: source.grid.cycles } : null
+    })
+}
+
+const bankOf = (id: string): string | null => {
+    const block = find(id)
+    return block?.calls.some((call) => call.name === 'bank') ? (block.soundName ?? null) : null
+}
+
+export function previewSound(id: string, sound: string) {
+    engine.preview(sound, bankOf(id))
+}
+
+export function soundChoices(id: string, used: string[]) {
+    return drumChoices(engine.soundNames(bankOf(id)), used)
+}

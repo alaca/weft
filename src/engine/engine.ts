@@ -2,8 +2,17 @@ import { Prec, StateEffect } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { StrudelMirror, codemirrorSettings } from '@strudel/codemirror'
 import { Pattern, silence } from '@strudel/core'
+import { mini } from '@strudel/mini'
 import { transpiler } from '@strudel/transpiler'
-import { getAnalyzerData, getAudioContext, getSuperdoughAudioController, initAudioOnFirstClick, webaudioOutput } from '@strudel/webaudio'
+import {
+    getAnalyzerData,
+    getAudioContext,
+    getSuperdoughAudioController,
+    initAudioOnFirstClick,
+    soundMap,
+    superdough,
+    webaudioOutput,
+} from '@strudel/webaudio'
 import type { PatternEvent, TextEdit } from '../song/types'
 import { toEvents } from './events'
 import { marksField, setMarks, type BlockMark } from './marks'
@@ -37,6 +46,9 @@ export interface Engine {
     waveform(): Float32Array | null
     setMasterVolume(value: number): void
     masterVolume(): number
+    miniEvents(text: string, cycles: number): { start: number; value: unknown }[][] | null
+    soundNames(bank: string | null): string[]
+    preview(sound: string, bank: string | null): void
     markBlocks(marks: BlockMark[]): void
     reveal(offset: number): void
     onCodeChange(fn: (code: string) => void): void
@@ -182,7 +194,8 @@ export function createEngine(): Engine {
         },
         getCode: () => mirror?.code ?? lastCode,
         applyEdit(edit) {
-            mirror.editor.dispatch({ changes: edit })
+            const changes = Array.isArray(edit) ? [...edit].sort((a, b) => a.from - b.from) : edit
+            mirror.editor.dispatch({ changes })
         },
         moveSlider(from, text) {
             type Widget = HTMLInputElement & { from: number; originalFrom: number; originalValue: string }
@@ -223,6 +236,35 @@ export function createEngine(): Engine {
             applyMaster()
         },
         masterVolume: () => master,
+        miniEvents(text, cycles) {
+            try {
+                const pattern = mini(text)
+                return Array.from({ length: cycles }, (_, cycle) =>
+                    pattern
+                        .queryArc(cycle, cycle + 1)
+                        .filter((hap: any) => hap.whole && hap.hasOnset())
+                        .map((hap: any) => ({ start: hap.whole.begin.valueOf() - cycle, value: hap.value }))
+                        .sort((a: { start: number }, b: { start: number }) => a.start - b.start),
+                )
+            } catch {
+                return null
+            }
+        },
+        soundNames(bank) {
+            if (!bank) return []
+            const prefix = `${bank}_`.toLowerCase()
+            return Object.keys(soundMap.get())
+                .filter((key) => key.toLowerCase().startsWith(prefix))
+                .map((key) => key.slice(prefix.length))
+        },
+        preview(sound, bank) {
+            try {
+                const value = bank ? { s: sound, bank } : { s: sound }
+                Promise.resolve(superdough(value, getAudioContext().currentTime + 0.02, 0.4)).catch(() => undefined)
+            } catch {
+                return
+            }
+        },
         markBlocks(marks) {
             mirror?.editor.dispatch({ effects: setMarks.of(marks) })
         },

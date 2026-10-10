@@ -107,3 +107,14 @@ test('keeps a master volume and gives waveform data while playing', async ({ pag
     await page.getByRole('button', { name: 'Play' }).click()
     await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.waveform()?.length ?? 0), { timeout: 20_000 }).toBeGreaterThan(0)
 })
+
+test('gives the events of a piece of mini-notation, cycle by cycle', async ({ page }) => {
+    await page.goto('/')
+    await ready(page)
+    const cycles = await page.evaluate(() => (window as any).__weft.engine.miniEvents('bd*4, [~ cp]*2', 2))
+    expect(cycles).toHaveLength(2)
+    expect(cycles[0].filter((e: any) => e.value === 'bd').map((e: any) => e.start)).toEqual([0, 0.25, 0.5, 0.75])
+    expect(cycles[0].filter((e: any) => e.value === 'cp').map((e: any) => e.start)).toEqual([0.25, 0.75])
+    expect(cycles[1]).toEqual(cycles[0])
+    expect(await page.evaluate(() => (window as any).__weft.engine.miniEvents('bd [', 1))).toBeNull()
+})
