@@ -1,7 +1,8 @@
 // The songs a person has made are kept inside the app, one record for each song. A record holds
 // the song as it was last saved and the song as it is now; the second is written as you work,
 // so nothing is lost when a song is not saved, and saving marks the version to go back to.
-export type SongRecord = { id: string; name: string; saved: string; draft: string; changedAt: number }
+// `key` is the key the piano roll keeps to, written as "9:minor", when the song has one.
+export type SongRecord = { id: string; name: string; saved: string; draft: string; changedAt: number; key?: string | null }
 export type SongInfo = { id: string; name: string; changed: boolean; changedAt: number }
 
 type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'>
@@ -36,7 +37,7 @@ function parse(id: string, text: string | null): SongRecord | null {
     try {
         const value = JSON.parse(text) as Partial<SongRecord>
         if (typeof value.name !== 'string' || typeof value.saved !== 'string' || typeof value.draft !== 'string') return null
-        return { id, name: value.name, saved: value.saved, draft: value.draft, changedAt: typeof value.changedAt === 'number' ? value.changedAt : 0 }
+        return { id, name: value.name, saved: value.saved, draft: value.draft, changedAt: typeof value.changedAt === 'number' ? value.changedAt : 0, ...(typeof value.key === 'string' ? { key: value.key } : {}) }
     } catch {
         return null
     }

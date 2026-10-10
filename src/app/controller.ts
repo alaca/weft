@@ -9,6 +9,7 @@ import { DEMOS } from '../library/demos'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitWidth, isUsual, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type ViewMode } from '../library/layout'
 import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
+import { readKey, writeKey, type Key } from '../song/scales'
 import { gradeOf, readAudio, RING_SECONDS, type AudioOptions, type Format } from '../library/audio'
 import { encodeMp3 } from '../library/mp3'
 import { encodeWav, fileName, levelFor, peakOf, soundingLength } from '../library/wav'
@@ -82,6 +83,7 @@ import {
     setSoloIds,
     setSong,
     setSongBars,
+    setSongKey,
     setSongs,
     setSoundsOpen,
     setStartBar,
@@ -226,6 +228,7 @@ export async function mount(root: HTMLElement): Promise<void> {
     setMasterVolumeValue(startVolume)
     engine.setMasterVolume(startVolume)
     current = firstSong()
+    setSongKey(readKey(current.key))
     refreshSongs()
     const initial = current.draft
     window.addEventListener('pagehide', flush)
@@ -999,6 +1002,7 @@ export const restsNow = (id: string): boolean => {
 function show(record: SongRecord, demo: string | null = null) {
     engine.stop()
     current = record
+    setSongKey(readKey(record.key))
     setOpenDemoId(demo)
     shelf.setCurrent(demo === null ? record.id : DEMO + demo)
     lastLength.clear()
@@ -1100,6 +1104,15 @@ export function restoreSong() {
 }
 
 export const listSongs = () => refreshSongs()
+
+// The key is kept with the song, beside its code. It is a setting of the piano roll and not a
+// change to the song, so it is not something to save or to go back from.
+export function chooseKey(key: Key | null) {
+    if (!current) return
+    current = { ...current, key: writeKey(key) }
+    setSongKey(key)
+    flush()
+}
 
 const CODE_FILE: FileKind = { extension: 'js', label: 'Strudel code', type: 'text/javascript' }
 const AUDIO_FILES: Record<Format, FileKind> = {

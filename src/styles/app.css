@@ -242,6 +242,10 @@ svg.mini rect { fill: var(--h); }
 .nr-r { position: absolute; left: 0; right: 0; height: 10px; pointer-events: none; }
 .nr-r.bk { background: rgba(0, 0, 0, 0.24); }
 .nr-r.c { box-shadow: inset 0 -1px 0 var(--seam); }
+/* A row that is not in the song's key: hatched, and not a place a note can be put. */
+.nr-r.out { background: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.42) 0 3px, rgba(0, 0, 0, 0.3) 3px 6px); }
+.pick { height: 24px; border-radius: 7px; background: var(--vat); border: 1px solid var(--seam); color: var(--linen); font: 500 11.5px/1 var(--ui); padding: 0 6px; }
+.pick:focus-visible { outline: 2px solid var(--linen); outline-offset: 1px; }
 .nt { position: absolute; height: 10px; padding: 0; border-radius: 2.5px; background: var(--h); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); cursor: grab; }
 .nt:focus-visible { outline: 2px solid var(--linen); outline-offset: 1px; z-index: 2; }
 .nt.ro { cursor: pointer; }

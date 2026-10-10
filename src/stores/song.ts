@@ -3,6 +3,7 @@ import type { EngineState } from '../engine/engine'
 import type { SongInfo, SongRecord } from '../library/shelf'
 import type { ViewMode } from '../library/layout'
 import type { OwnSoundInfo } from '../library/sounds'
+import type { Key } from '../song/scales'
 import type { Song } from '../song/types'
 import type { SoundItem } from '../sounds/catalog'
 
@@ -38,6 +39,7 @@ export const [songs, setSongs] = createSignal<SongInfo[]>([])
 export const [currentSong, setCurrentSong] = createSignal<SongInfo | null>(null)
 export const [deletedSong, setDeletedSong] = createSignal<SongRecord | null>(null)
 export const [openDemoId, setOpenDemoId] = createSignal<string | null>(null)
+export const [songKey, setSongKey] = createSignal<Key | null>(null)
 export const [exporting, setExporting] = createSignal(false)
 export const [exportOpen, setExportOpen] = createSignal(false)
 export const [ownSounds, setOwnSounds] = createSignal<OwnSoundInfo[]>([])

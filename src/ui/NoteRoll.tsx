@@ -1,9 +1,10 @@
 import { createMemo, createSignal, For, Show } from 'solid-js'
-import { addNoteAt, convertNotes, moveNoteTo, removeNoteAt, resizeNoteTo, setNotesLength, setNotesSteps } from '../app/controller'
+import { addNoteAt, chooseKey, convertNotes, moveNoteTo, removeNoteAt, resizeNoteTo, setNotesLength, setNotesSteps } from '../app/controller'
 import { NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, type NoteRef } from '../song/notes'
+import { inKey, nearestInKey, ROOTS, SCALE_KINDS, SCALES, stepInKey, type ScaleKind } from '../song/scales'
 import type { PatternBlock } from '../song/types'
 import { noteName } from '../song/view'
-import { gridNotes, rollRanges, stale } from '../stores/song'
+import { gridNotes, rollRanges, songKey, stale } from '../stores/song'
 import { GridFooter } from './GridFooter'
 
 const ROW = 10
@@ -91,6 +92,10 @@ export function NoteRoll(props: {
         return { time, step: Math.floor(time * perCycle()), midi: range().high - row }
     }
 
+    // With a key chosen, a note can only be put on a note of the key: a click or a drag on any
+    // other row lands on the closest one. A note that is already off the key stays where it is.
+    const toKey = (midi: number) => Math.min(127, Math.max(0, nearestInKey(midi, songKey())))
+
     const hit = (event: MouseEvent) => {
         const box = gridEl.getBoundingClientRect()
         const cell = cellOf(event)
@@ -106,11 +111,11 @@ export function NoteRoll(props: {
         const { cell, note, resize } = hit(event)
         if (!source()) {
             if (note) convertNotes(props.id)
-            else addNoteAt(props.id, { page: shown(), time: cell.time, midi: cell.midi })
+            else addNoteAt(props.id, { page: shown(), time: cell.time, midi: toKey(cell.midi) })
             return
         }
         if (!note) {
-            const added = addNoteAt(props.id, { page: shown(), time: cell.time, midi: cell.midi })
+            const added = addNoteAt(props.id, { page: shown(), time: cell.time, midi: toKey(cell.midi) })
             if (added) focusNote(added)
             return
         }
@@ -128,9 +133,10 @@ export function NoteRoll(props: {
             resizeNoteTo(props.id, drag.ref, Math.max(1, at - drag.ref.start + 1))
             return
         }
-        const to = { start: drag.ref.start + (at - drag.fromStep), midi: drag.ref.midi + (cell.midi - drag.fromMidi) }
+        const up = cell.midi - drag.fromMidi
+        const to = { start: drag.ref.start + (at - drag.fromStep), midi: up ? toKey(drag.ref.midi + up) : drag.ref.midi }
         if (to.start === drag.ref.start && to.midi === drag.ref.midi) return
-        if (moveNoteTo(props.id, drag.ref, to)) drag = { ...drag, ref: to, fromStep: at, fromMidi: cell.midi }
+        if (moveNoteTo(props.id, drag.ref, to)) drag = { ...drag, ref: to, fromStep: at, fromMidi: to.midi === drag.ref.midi ? drag.fromMidi : cell.midi }
     }
 
     const onPointerUp = () => {
@@ -164,8 +170,8 @@ export function NoteRoll(props: {
         else if (event.shiftKey && event.key === 'ArrowLeft') resized(length - 1)
         else if (event.key === 'ArrowRight') moved({ start: ref.start + 1, midi: ref.midi })
         else if (event.key === 'ArrowLeft') moved({ start: ref.start - 1, midi: ref.midi })
-        else if (event.key === 'ArrowUp') moved({ start: ref.start, midi: ref.midi + 1 })
-        else if (event.key === 'ArrowDown') moved({ start: ref.start, midi: ref.midi - 1 })
+        else if (event.key === 'ArrowUp') moved({ start: ref.start, midi: stepInKey(ref.midi, 1, songKey()) })
+        else if (event.key === 'ArrowDown') moved({ start: ref.start, midi: stepInKey(ref.midi, -1, songKey()) })
         else return
         event.preventDefault()
     }
@@ -202,7 +208,7 @@ export function NoteRoll(props: {
                     }}
                     onKeyDown={onKeyDown}
                 >
-                    <For each={rows()}>{(midi, i) => <i class="nr-r" classList={{ bk: BLACK_KEYS.includes(midi % OCTAVE), c: midi % OCTAVE === 0 }} style={{ top: `${i() * ROW}px` }} />}</For>
+                    <For each={rows()}>{(midi, i) => <i class="nr-r" classList={{ bk: BLACK_KEYS.includes(midi % OCTAVE), c: midi % OCTAVE === 0, out: !inKey(midi, songKey()) }} style={{ top: `${i() * ROW}px` }} />}</For>
                     <For each={drawn()}>
                         {(note) => (
                             <button
@@ -249,6 +255,40 @@ export function NoteRoll(props: {
                 <button class="addb" aria-label="Show lower notes" onClick={() => setBelow(below() + OCTAVE)}>
                     Lower
                 </button>
+                <span class="cap">Key</span>
+                <select
+                    class="pick"
+                    aria-label="Scale of the song"
+                    title="With a key chosen, the roll only takes the notes of that key"
+                    onChange={(event) => {
+                        const kind = event.currentTarget.value
+                        chooseKey(kind ? { root: songKey()?.root ?? 0, kind: kind as ScaleKind } : null)
+                    }}
+                >
+                    <option value="" selected={songKey() === null}>
+                        Any note
+                    </option>
+                    <For each={SCALE_KINDS}>
+                        {(kind) => (
+                            <option value={kind} selected={songKey()?.kind === kind}>
+                                {SCALES[kind].label}
+                            </option>
+                        )}
+                    </For>
+                </select>
+                <Show when={songKey()}>
+                    {(key) => (
+                        <select class="pick" aria-label="First note of the key" onChange={(event) => chooseKey({ root: Number(event.currentTarget.value), kind: key().kind })}>
+                            <For each={ROOTS}>
+                                {(name, at) => (
+                                    <option value={at()} selected={key().root === at()}>
+                                        {name}
+                                    </option>
+                                )}
+                            </For>
+                        </select>
+                    )}
+                </Show>
             </GridFooter>
             <Show when={gridNotes()[props.id]}>
                 <p class="rk-n">This pattern changes in a way a grid cannot show, so it cannot be edited here. Edit it in the code.</p>
