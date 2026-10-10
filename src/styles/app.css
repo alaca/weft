@@ -102,3 +102,46 @@ kbd { font: 500 9.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); b
 .sbar { grid-area: sbar; background: var(--cloth); border-top: 1px solid var(--seam); display: flex; align-items: center; gap: 18px; padding: 0 16px 0 18px; font-size: 10.5px; color: var(--linen-3); white-space: nowrap; overflow: hidden; }
 .sbar b { font: 400 10px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); }
 .sbar kbd { margin-right: 5px; }
+
+.chip.tgl { cursor: pointer; }
+.chip.tgl.on { background: var(--linen); border-color: var(--linen); color: var(--vat); }
+.vol { -webkit-appearance: none; appearance: none; width: 86px; height: 3px; border-radius: 2px; background: var(--cloth-3); flex: none; cursor: pointer; }
+.vol::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: var(--linen); box-shadow: 0 0 0 2px var(--cloth); }
+.vol::-moz-range-thumb { width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--linen); }
+.vol.faint { opacity: 0.55; }
+.vol:disabled { opacity: 0.3; cursor: default; }
+.st-b.two { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; }
+.st-r { display: flex; align-items: flex-start; gap: 14px; }
+
+.kn { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; flex: none; }
+.kn b { font: 500 10.5px/1 var(--mono); font-stretch: 87%; color: var(--linen); white-space: nowrap; margin-top: 1px; }
+.kn-d { display: block; width: 48px; height: 48px; border-radius: 50%; cursor: ns-resize; touch-action: none; }
+.kn-d:focus-visible { outline: 2px solid var(--linen); outline-offset: 2px; }
+.kn-d[aria-disabled='true'] { opacity: 0.45; cursor: default; }
+.kn.big .kn-d { width: 66px; height: 66px; }
+.kn svg { width: 100%; height: 100%; }
+.kt { fill: none; stroke: var(--cloth-3); stroke-width: 3.5; stroke-linecap: round; }
+.kv { fill: none; stroke: var(--h); stroke-width: 3.5; stroke-linecap: round; }
+.kc { fill: var(--cloth-3); }
+.kp { stroke: var(--linen); stroke-width: 2.6; stroke-linecap: round; }
+.kn.big .kc { fill: var(--h); }
+.kn.big .kp { stroke: #1c1c1e; stroke-width: 3; }
+.kn.faint, .kn.faint .kn-d { cursor: pointer; }
+.kn.faint:disabled, .kn.faint:disabled .kn-d { cursor: default; opacity: 0.5; }
+.kg { fill: none; stroke: var(--linen-3); stroke-width: 1.6; stroke-dasharray: 3 4; opacity: 0.75; }
+.kgp { stroke: var(--linen-3); stroke-width: 1.8; stroke-linecap: round; opacity: 0.75; }
+.kn.faint b, .kn.faint .cap { color: var(--linen-3); opacity: 0.75; }
+.kn.faint:not(:disabled):hover .kg, .kn.faint:not(:disabled):hover .kgp { stroke: var(--linen); opacity: 1; }
+.kn.locked .kn-d { cursor: default; opacity: 0.5; }
+.kn.locked b { color: var(--linen-3); }
+.kn-x { position: absolute; top: -5px; right: -7px; width: 16px; height: 16px; border-radius: 50%; background: var(--cloth-3); color: var(--linen); display: none; place-items: center; }
+.kn-x svg { width: 8px; height: 8px; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; fill: none; }
+.kn:hover .kn-x, .kn:focus-within .kn-x { display: grid; }
+
+.sp { margin: 0 16px 0 17px; padding-top: 13px; border-top: 1px solid var(--seam); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 22px; }
+.sp h4 { font: 600 16px/1 var(--voice); margin-bottom: 12px; }
+.sp .cap { letter-spacing: 0.05em; font-size: 8.5px; white-space: nowrap; }
+.sp .kn b { font-size: 10px; }
+.sp .kn-d { width: 44px; height: 44px; }
+.krow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 4px; }
+.sp-f { margin: 14px 16px 14px 17px; color: var(--linen-3); font-size: 11.5px; }

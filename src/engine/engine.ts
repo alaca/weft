@@ -7,6 +7,7 @@ import { getAudioContext, initAudioOnFirstClick, webaudioOutput } from '@strudel
 import type { PatternEvent, TextEdit } from '../song/types'
 import { toEvents } from './events'
 import { marksField, setMarks, type BlockMark } from './marks'
+import { maskSliders } from './mask'
 import { loadModules, loadSamples } from './prebake'
 import { registerTheme } from './theme'
 
@@ -25,6 +26,7 @@ export interface Engine {
     mount(root: HTMLElement, initialCode: string): Promise<void>
     getCode(): string
     applyEdit(edit: TextEdit): void
+    moveSlider(from: number, text: string): boolean
     evaluate(): Promise<void>
     stop(): void
     setSolo(ids: string[]): void
@@ -121,7 +123,7 @@ export function createEngine(): Engine {
                         codeFns.forEach((fn) => fn(code))
                     }
                     const playing = Boolean(s.started)
-                    const dirty = evaluated && code !== s.activeCode
+                    const dirty = evaluated && maskSliders(code) !== maskSliders(s.activeCode ?? '')
                     if (playing !== state.playing || dirty !== state.dirty) setState({ playing, dirty })
                 },
             })
@@ -167,6 +169,19 @@ export function createEngine(): Engine {
         getCode: () => mirror?.code ?? lastCode,
         applyEdit(edit) {
             mirror.editor.dispatch({ changes: edit })
+        },
+        moveSlider(from, text) {
+            type Widget = HTMLInputElement & { from: number; originalFrom: number; originalValue: string }
+            const inputs = mirror.root.querySelectorAll('.cm-slider input') as NodeListOf<Widget>
+            for (const input of inputs) {
+                if (input.from !== from) continue
+                mirror.editor.dispatch({ changes: { from, to: from + input.originalValue.length, insert: text } })
+                input.originalValue = text
+                input.value = text
+                window.postMessage({ type: 'cm-slider', value: Number(text), id: `slider_${input.originalFrom}` })
+                return true
+            }
+            return false
         },
         async evaluate() {
             await mirror.evaluate(true)

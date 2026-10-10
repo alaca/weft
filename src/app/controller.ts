@@ -1,16 +1,20 @@
 import { batch, createEffect, createRoot } from 'solid-js'
+import { findDef, writeNumber } from '../controls/catalog'
+import { callFor } from '../controls/views'
 import { createEngine } from '../engine/engine'
 import { analyze } from '../song/analyze'
-import { toggleMute as muteEdit } from '../song/edits'
+import { addCall, removeCall, setNumber, toggleMute as muteEdit } from '../song/edits'
 import { STARTER } from '../song/starter'
 import type { PatternEvent } from '../song/types'
 import {
     engineState,
+    openPanel,
     selected,
     setBeat,
     setBpm,
     setCycle,
     setEngineState,
+    setOpenPanel,
     setPosition,
     setRevision,
     setSelected,
@@ -134,3 +138,53 @@ export function toggleSolo(id: string) {
 }
 
 export const eventsOf = (id: string, whichCycle: number): PatternEvent[] => engine.events(id, whichCycle)
+
+let evaluateTimer: number | undefined
+
+function scheduleEvaluate() {
+    if (!engineState().playing || evaluateTimer !== undefined) return
+    evaluateTimer = window.setTimeout(() => {
+        evaluateTimer = undefined
+        play()
+    }, 120)
+}
+
+export function setControl(id: string, fn: string, value: number) {
+    const block = find(id)
+    if (!block || stale()) return
+    const arg = callFor(block, fn)?.args[0]
+    if (!arg || (arg.kind !== 'number' && arg.kind !== 'slider')) return
+    const def = findDef(fn)
+    const min = arg.kind === 'slider' ? arg.min : Math.min(def?.min ?? 0, value)
+    const max = arg.kind === 'slider' ? arg.max : Math.max(def?.max ?? 1, value)
+    const text = writeNumber(Math.min(max, Math.max(min, value)), min, max)
+    if (arg.kind === 'slider' && engine.moveSlider(arg.valueFrom, text)) return
+    engine.applyEdit(setNumber(arg, text))
+    scheduleEvaluate()
+}
+
+export function addControl(id: string, fn: string, value?: number) {
+    const block = find(id)
+    const def = findDef(fn)
+    if (!block || !def || stale() || callFor(block, fn)) return
+    const start = writeNumber(value ?? def.initial, def.min, def.max)
+    engine.applyEdit(addCall(engine.getCode(), block, `.${def.fn}(slider(${start}, ${def.min}, ${def.max}))`))
+    if (engineState().playing) play()
+}
+
+export function removeControl(id: string, fn: string) {
+    const block = find(id)
+    const call = block ? callFor(block, fn) : undefined
+    if (!call || stale()) return
+    engine.applyEdit(removeCall(call))
+    if (engineState().playing) play()
+}
+
+export function setVolume(id: string, value: number) {
+    const block = find(id)
+    if (!block) return
+    if (callFor(block, 'gain')) setControl(id, 'gain', value)
+    else addControl(id, 'gain', value)
+}
+
+export const togglePanel = (id: string) => setOpenPanel(openPanel() === id ? null : id)
