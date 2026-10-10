@@ -1,5 +1,6 @@
 import { createMemo, For, Show } from 'solid-js'
 import { song, stale } from '../stores/song'
+import { AddPattern } from './AddPattern'
 import { OutputStrip } from './OutputStrip'
 import { Strip } from './Strip'
 
@@ -17,13 +18,14 @@ export function StripList() {
                         fallback={<p class="ctl-empty">The code has an error, so its controls cannot be drawn. Fix it in the code and they will appear.</p>}
                     >
                         <p class="ctl-empty">
-                            Give a pattern a name to get controls for it, for example <code>drums: s("bd*4")</code>
+                            Give a pattern a name to get controls for it, for example <code>drums: s("bd*4")</code>. You can also add one below.
                         </p>
                     </Show>
                 }
             >
                 <For each={ids()}>{(id) => <Strip id={id} />}</For>
             </Show>
+            <AddPattern />
             <OutputStrip />
         </main>
     )

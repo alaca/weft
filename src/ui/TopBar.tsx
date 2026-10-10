@@ -1,6 +1,6 @@
 import { For } from 'solid-js'
-import { play, setTempo, stop } from '../app/controller'
-import { beat, bpm, cycle, engineState, setViewMode, song, stale, viewMode, type ViewMode } from '../stores/song'
+import { play, setTempo, stop, toggleSounds } from '../app/controller'
+import { beat, bpm, cycle, engineState, setViewMode, song, soundsOpen, stale, viewMode, type ViewMode } from '../stores/song'
 
 const VIEWS: { id: ViewMode; label: string }[] = [
     { id: 'controls', label: 'Controls' },
@@ -68,6 +68,12 @@ export function TopBar() {
                     )}
                 </For>
             </div>
+            <button class="btn" classList={{ on: soundsOpen() }} aria-pressed={soundsOpen()} onClick={toggleSounds}>
+                <svg viewBox="0 0 14 14" aria-hidden="true">
+                    <path d="M2 7h1.5M5 4v6M7.5 2v10M10 5v4M12.2 7h.3" />
+                </svg>
+                Sounds
+            </button>
         </header>
     )
 }

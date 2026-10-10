@@ -1,10 +1,11 @@
 import { createMemo, For, Show } from 'solid-js'
-import { colorAt, eventsOf, select, setControl, setVolume, toggleMute, togglePanel, toggleSolo } from '../app/controller'
+import { colorAt, eventsOf, openSounds, select, setControl, setVolume, toggleMute, togglePanel, toggleSolo } from '../app/controller'
 import { favourites, volumeOf } from '../controls/views'
 import { sourceText } from '../song/grid'
 import { noteText } from '../song/notes'
 import type { PatternBlock, PatternView } from '../song/types'
 import { describe, STEPS } from '../song/view'
+import { takesKit } from '../sounds/apply'
 import { cycle, engineState, openPanel, position, revision, selected, soloIds, song, stale } from '../stores/song'
 import { Knob } from './Knob'
 import { MiniView } from './MiniView'
@@ -74,9 +75,17 @@ export function Strip(props: { id: string }) {
                     <div class="st-h">
                         <i class="bead-h" />
                         <b class="st-n">{props.id}</b>
-                        <Show when={current().soundName}>
-                            <span class="chip">{current().soundName}</span>
-                        </Show>
+                        <button
+                            class="chip tgl"
+                            aria-label={`Change the sound of ${props.id}`}
+                            title="Change the sound"
+                            onClick={(event) => {
+                                event.stopPropagation()
+                                openSounds(props.id)
+                            }}
+                        >
+                            {current().soundName ?? (takesKit(current()) ? 'Pick a kit' : 'Pick a sound')}
+                        </button>
                         <Show when={folded() && !current().muted}>
                             <MiniView view={view()} />
                         </Show>

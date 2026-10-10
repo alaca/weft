@@ -2,6 +2,7 @@ import { onCleanup, onMount } from 'solid-js'
 import { togglePlay } from './app/controller'
 import { viewMode } from './stores/song'
 import { CodePane } from './ui/CodePane'
+import { SoundBrowser } from './ui/SoundBrowser'
 import { StatusBar } from './ui/StatusBar'
 import { StripList } from './ui/StripList'
 import { TopBar } from './ui/TopBar'
@@ -23,6 +24,7 @@ export function App() {
             <StripList />
             <CodePane />
             <StatusBar />
+            <SoundBrowser />
         </div>
     )
 }

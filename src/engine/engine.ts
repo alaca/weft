@@ -17,7 +17,8 @@ import type { PatternEvent, TextEdit } from '../song/types'
 import { toEvents } from './events'
 import { marksField, setMarks, type BlockMark } from './marks'
 import { maskSliders } from './mask'
-import { loadModules, loadSamples } from './prebake'
+import type { RawSound } from '../sounds/catalog'
+import { kitNames, loadModules, loadSamples } from './prebake'
 import { registerTheme } from './theme'
 
 export type { BlockMark } from './marks'
@@ -50,7 +51,9 @@ export interface Engine {
     miniEvents(text: string, cycles: number): { start: number; length: number; value: unknown }[][] | null
     soundNames(bank: string | null): string[]
     preview(sound: string, bank: string | null): void
-    previewNote(midi: number, sound: string | null): void
+    previewNote(midi: number, sound: string | null, seconds?: number): void
+    sounds(): RawSound[]
+    kitNames(): string[]
     markBlocks(marks: BlockMark[]): void
     reveal(offset: number): void
     onCodeChange(fn: (code: string) => void): void
@@ -122,6 +125,17 @@ export function createEngine(): Engine {
         fire()
             .then((missed) => (missed ? fire() : false))
             .catch(() => undefined)
+    }
+
+    // Strudel throws when it is given no code at all, so an empty song is handled here:
+    // nothing plays, nothing is registered and there is no error to show.
+    const blank = () => !String(mirror?.code ?? lastCode).trim()
+    const silence = () => {
+        mirror.stop()
+        registry = new Map()
+        evaluated = false
+        setState({ error: null, dirty: false })
+        evaluatedFns.forEach((fn) => fn())
     }
 
     const query = (pattern: any, cycle: number): PatternEvent[] => {
@@ -206,7 +220,7 @@ export function createEngine(): Engine {
                 () => setState({ sounds: 'failed' }),
             )
             await mirror.prebaked
-            await mirror.repl.evaluate(mirror.code, false)
+            if (!blank()) await mirror.repl.evaluate(mirror.code, false)
         },
         getCode: () => mirror?.code ?? lastCode,
         applyEdit(edit) {
@@ -227,9 +241,11 @@ export function createEngine(): Engine {
             return false
         },
         async evaluate() {
+            if (blank()) return silence()
             await mirror.evaluate(true)
         },
         async refresh() {
+            if (blank()) return silence()
             await mirror.repl.evaluate(mirror.code, false)
         },
         stop() {
@@ -278,9 +294,20 @@ export function createEngine(): Engine {
         preview(sound, bank) {
             audition(() => (bank ? { s: sound, bank, analyze: 'weft' } : { s: sound, analyze: 'weft' }), 0.4)
         },
-        previewNote(midi, sound) {
-            audition(() => ({ note: midi, s: sound ?? 'triangle', analyze: 'weft' }), 0.3)
+        previewNote(midi, sound, seconds = 0.3) {
+            audition(() => ({ note: midi, s: sound ?? 'triangle', analyze: 'weft' }), seconds)
         },
+        sounds() {
+            const seen = new Set<unknown>()
+            const list: RawSound[] = []
+            for (const [name, entry] of Object.entries<any>(soundMap.get())) {
+                if (seen.has(entry)) continue
+                seen.add(entry)
+                list.push({ name, type: String(entry?.data?.type ?? ''), tag: entry?.data?.tag ?? null })
+            }
+            return list
+        },
+        kitNames,
         markBlocks(marks) {
             mirror?.editor.dispatch({ effects: setMarks.of(marks) })
         },

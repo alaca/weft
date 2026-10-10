@@ -21,8 +21,11 @@ import {
     type NoteRef,
     type NoteSource,
 } from '../song/notes'
+import { appendPattern, freeName, PATTERN_STARTERS, starterCode, type StarterKind } from '../song/patterns'
 import { STARTER } from '../song/starter'
 import type { PatternBlock, PatternEvent } from '../song/types'
+import { fits, soundEdit } from '../sounds/apply'
+import { catalogue, type SoundItem } from '../sounds/catalog'
 import {
     engineState,
     gridNotes,
@@ -42,9 +45,11 @@ import {
     setSelected,
     setSoloIds,
     setSong,
+    setSoundsOpen,
     setStale,
     soloIds,
     song,
+    soundsOpen,
     stale,
 } from '../stores/song'
 
@@ -436,4 +441,51 @@ export function setNotesSteps(id: string, perCycle: number) {
         const notes = resampleNotes(source.grid, perCycle)
         return notes && perCycle !== source.grid.perCycle ? { notes, perCycle, cycles: source.grid.cycles } : null
     })
+}
+
+export function addPattern(kind: StarterKind): string | null {
+    const starter = PATTERN_STARTERS.find((entry) => entry.kind === kind)
+    if (!starter || stale()) return null
+    const name = freeName(
+        starter.name,
+        song().patterns.map((p) => p.id),
+    )
+    engine.applyEdit(appendPattern(engine.getCode(), starterCode(kind, name)))
+    replay()
+    select(name)
+    return name
+}
+
+export function openSounds(id?: string) {
+    if (id) select(id)
+    setSoundsOpen(true)
+}
+
+export const closeSounds = () => setSoundsOpen(false)
+export const toggleSounds = () => setSoundsOpen(!soundsOpen())
+
+export const soundCatalogue = (): SoundItem[] => catalogue(engine.sounds(), engine.kitNames())
+
+const PREVIEW_PITCH = 60
+
+export function hearSound(item: SoundItem, part?: string) {
+    if (item.group === 'kits') {
+        const sound = part ?? item.parts[0]?.sound
+        if (sound) engine.preview(sound, item.name)
+        return
+    }
+    if (item.group === 'samples') {
+        engine.preview(item.name, null)
+        return
+    }
+    const id = selected()
+    const pitch = id ? eventsOf(id, 0).find((event) => event.midi !== null)?.midi : null
+    engine.previewNote(pitch ?? PREVIEW_PITCH, item.name, 0.6)
+}
+
+export function useSound(id: string, item: SoundItem) {
+    const block = find(id)
+    if (!block || stale() || !fits(block, item.group)) return
+    engine.applyEdit(soundEdit(engine.getCode(), block, item))
+    replay()
 }
