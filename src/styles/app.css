@@ -43,6 +43,7 @@ kbd { font: 500 9.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); b
 .st.sel { border-color: var(--linen); box-shadow: 0 0 0 1px var(--linen); }
 .st.muted { background: transparent; border-style: dashed; }
 .st.muted .st-n, .st.muted .chip { opacity: 0.5; }
+.st.muted .st-b { opacity: 0.55; }
 .st-h { height: 48px; display: flex; align-items: center; gap: 11px; padding: 4px 14px 0 17px; }
 .bead-h { width: 9px; height: 9px; border-radius: 50%; background: var(--h); flex: none; }
 .st-n { font: 600 19px/1 var(--voice); padding-bottom: 2px; }

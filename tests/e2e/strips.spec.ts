@@ -47,7 +47,33 @@ test('shows the sound, the lines and the right kind of picture', async ({ page }
     const lead = page.getByTestId('strip-lead')
     await expect(lead).toHaveClass(/muted/)
     await expect(lead).toContainText('line 9, muted')
-    await expect(lead.locator('.roll')).toHaveCount(0)
+})
+
+test('muting a strip leaves it open, so the pattern can still be seen and changed', async ({ page }) => {
+    await open(page, SONG)
+    const drums = page.getByTestId('strip-drums')
+    await page.getByRole('button', { name: 'Mute drums', exact: true }).click()
+    await expect(drums).toHaveClass(/muted/)
+    await expect(drums.locator('.st-b')).toHaveCount(1)
+    await expect(drums.locator('.prow').nth(0).locator('.pad.on')).toHaveCount(4)
+    await expect(drums.getByRole('button', { name: 'Sound controls for drums' })).toBeVisible()
+    await drums.getByRole('button', { name: 'bd step 2', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('_drums: s(`\n  bd bd ~  ~')
+    await page.getByRole('button', { name: 'Mute drums', exact: true }).click()
+    await expect(drums).not.toHaveClass(/muted/)
+    await expect(drums.locator('.st-b')).toHaveCount(1)
+    await expect.poll(() => code(page)).toContain('\ndrums: s(`\n  bd bd ~  ~')
+})
+
+test('a pattern that is muted in the code is drawn in full, without a moving line', async ({ page }) => {
+    await open(page, SONG)
+    const lead = page.getByTestId('strip-lead')
+    await expect(lead.locator('.st-b')).toHaveCount(1)
+    await expect(lead.locator('.roll rect.n')).toHaveCount(4)
+    await page.getByRole('button', { name: 'Play' }).click()
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('strip-bass').locator('.ph')).toHaveCount(1)
+    await expect(lead.locator('.ph')).toHaveCount(0)
 })
 
 test('mute writes the underscore into the code and takes the pattern out of what plays', async ({ page }) => {

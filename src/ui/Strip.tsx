@@ -24,7 +24,7 @@ const forcesSolo = (block: PatternBlock) => block.label.length > 1 && block.labe
 export function Strip(props: { id: string }) {
     const index = createMemo(() => song().patterns.findIndex((p) => p.id === props.id))
     const block = createMemo(() => song().patterns[index()])
-    const playing = () => engineState().playing
+    const playing = () => engineState().playing && !block()?.muted
     const open = () => openPanel() === props.id
     const folded = () => openPanel() !== null && !open() && !unfolded().includes(props.id)
 
@@ -93,25 +93,23 @@ export function Strip(props: { id: string }) {
                         >
                             {current().soundName ?? (takesKit(current()) ? 'Pick a kit' : 'Pick a sound')}
                         </button>
-                        <Show when={folded() && !current().muted}>
+                        <Show when={folded()}>
                             <MiniView view={view()} />
                         </Show>
                         <span class="grow" />
                         <span class="lines">{linesOf(current())}</span>
-                        <Show when={!current().muted}>
-                            <button
-                                class="chip tgl"
-                                classList={{ on: open() }}
-                                aria-label={`Sound controls for ${props.id}`}
-                                aria-pressed={open()}
-                                onClick={(event) => {
-                                    event.stopPropagation()
-                                    togglePanel(props.id)
-                                }}
-                            >
-                                Sound
-                            </button>
-                        </Show>
+                        <button
+                            class="chip tgl"
+                            classList={{ on: open() }}
+                            aria-label={`Sound controls for ${props.id}`}
+                            aria-pressed={open()}
+                            onClick={(event) => {
+                                event.stopPropagation()
+                                togglePanel(props.id)
+                            }}
+                        >
+                            Sound
+                        </button>
                         <span class="ms">
                             <button
                                 classList={{ on: current().muted }}
@@ -162,7 +160,7 @@ export function Strip(props: { id: string }) {
                             </svg>
                         </button>
                     </div>
-                    <Show when={!current().muted && !folded()}>
+                    <Show when={!folded()}>
                         <div class="st-b" classList={{ two: showKnobs() }}>
                             <div>
                                 <Show when={isRack()}>
