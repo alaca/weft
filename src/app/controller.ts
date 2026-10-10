@@ -4,7 +4,7 @@ import { drumChoices } from '../controls/drums'
 import { callFor } from '../controls/views'
 import { createEngine } from '../engine/engine'
 import { analyze } from '../song/analyze'
-import { arrangeEdit, barsOf, readArrangement, resizeEdits, songLength } from '../song/arrange'
+import { arrangeSong, barsOf, readArrangement, songLength } from '../song/arrange'
 import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
 import { gridFromEvents, lengthEdits, readGrid, removeRow, resample, resize, sourceText, toggleStep as toggleGridStep, type Grid, type GridRow, type GridSource } from '../song/grid'
 import { convertEdits, kitEdits, MUTE, readKit, rowTarget } from '../song/kit'
@@ -592,35 +592,29 @@ export function restorePattern() {
 
 export const songLengthNow = (): number => songLength(song().patterns, songBars())
 
+const lanes = (): PatternBlock[] => {
+    const seen = new Set<string>()
+    return song().patterns.filter((block) => !seen.has(block.id) && Boolean(seen.add(block.id)))
+}
+
 export function setBars(id: string, bars: boolean[]) {
-    const block = find(id)
-    if (!block || stale()) return
-    const length = songLengthNow()
-    const edit = arrangeEdit(engine.getCode(), block, bars)
-    if (!edit) return
+    if (!find(id) || stale()) return
+    const { edits, length } = arrangeSong(engine.getCode(), lanes(), id, bars, songLengthNow())
     setSongBars(length)
-    engine.applyEdit(edit)
+    if (startBar() >= length) startFrom(0)
+    if (!edits.length) return
+    engine.applyEdit(edits)
     replay()
 }
 
 export function toggleBar(id: string, bar: number) {
     const block = find(id)
     if (!block) return
-    const bars = barsOf(block, songLengthNow())
+    const bars = barsOf(block, Math.max(songLengthNow(), bar + 1)).map((on, at) => (at < songLengthNow() ? on : false))
     setBars(
         id,
         bars.map((on, at) => (at === bar ? !on : on)),
     )
-}
-
-export function setSongLength(length: number) {
-    if (stale()) return
-    setSongBars(length)
-    if (startBar() >= length) startFrom(0)
-    const edits = resizeEdits(engine.getCode(), song().patterns, length)
-    if (!edits.length) return
-    engine.applyEdit(edits)
-    replay()
 }
 
 export function startFrom(bar: number) {

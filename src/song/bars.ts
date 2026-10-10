@@ -1,6 +1,7 @@
-// The bars a pattern plays in are written as one digit for each bar of the song, in the
-// brackets that make Strudel take one of them per cycle: .mask("<1 1 1 1  0 0 0 0>")
-export const MAX_BARS = 64
+// The bars a pattern plays in are written as runs of bars that play (1) or rest (0), in the
+// brackets that make Strudel take one bar per cycle: .mask("<0!4 1!12>") rests for four bars and
+// plays for twelve. A song can be thousands of bars long, so a run is a count and not a row of digits.
+export const MAX_BARS = 4096
 
 const TOKEN = /^([01])(?:!(\d+))?$/
 
@@ -18,14 +19,12 @@ export function parseBars(text: string): boolean[] | null {
 }
 
 export function barsText(bars: boolean[]): string {
-    const groups: string[] = []
-    for (let i = 0; i < bars.length; i += 4) {
-        groups.push(
-            bars
-                .slice(i, i + 4)
-                .map((on) => (on ? '1' : '0'))
-                .join(' '),
-        )
+    const runs: string[] = []
+    for (let from = 0; from < bars.length; ) {
+        let to = from
+        while (to < bars.length && bars[to] === bars[from]) to++
+        runs.push(`${bars[from] ? 1 : 0}${to - from > 1 ? `!${to - from}` : ''}`)
+        from = to
     }
-    return `<${groups.join('  ')}>`
+    return `<${runs.join(' ')}>`
 }

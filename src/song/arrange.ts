@@ -1,8 +1,7 @@
-import { barsText, parseBars } from './bars'
+import { barsText, MAX_BARS, parseBars } from './bars'
 import { addCall, removeCall, setString } from './edits'
 import type { Arg, Call, PatternBlock, TextEdit } from './types'
 
-export const SONG_LENGTHS = [8, 16, 32, 64]
 export const DEFAULT_SONG = 16
 export const ARRANGE = 'mask'
 
@@ -41,12 +40,22 @@ export function arrangeEdit(code: string, block: PatternBlock, bars: boolean[]):
     return addCall(code, block, `.${ARRANGE}("${text}")`)
 }
 
-export function resizeEdits(code: string, blocks: PatternBlock[], length: number): TextEdit[] {
-    return blocks.flatMap((block) => {
-        if (!readArrangement(block)) return []
-        const edit = arrangeEdit(code, block, barsOf(block, length))
+// The song has no length of its own. It ends with the last bar in which anything plays, so
+// filling a bar past the end makes it longer, for every pattern, and emptying the last bars
+// makes it shorter. Past the old end the other patterns rest until they are filled in too.
+export function arrangeSong(code: string, blocks: PatternBlock[], id: string, bars: boolean[], length: number): { edits: TextEdit[]; length: number } {
+    const span = Math.min(MAX_BARS, Math.max(length, bars.length))
+    const lanes = blocks.map((block) => {
+        const now = block.id === id ? bars : barsOf(block, length)
+        return Array.from({ length: span }, (_, bar) => now[bar] ?? false)
+    })
+    const last = Math.max(...lanes.map((lane) => lane.lastIndexOf(true)))
+    const next = last < 0 ? length : last + 1
+    const edits = blocks.flatMap((block, at) => {
+        const edit = arrangeEdit(code, block, lanes[at].slice(0, next))
         return edit ? [edit] : []
     })
+    return { edits, length: next }
 }
 
 export type Clip = { from: number; length: number }

@@ -295,28 +295,35 @@ svg.mini rect { fill: var(--h); }
 .sp-o b { color: var(--linen); font-weight: 600; }
 .sp-o code { font: 500 10.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); }
 .sp.sub { border-top: 0; padding-top: 11px; }
-.sg { background: var(--cloth); border: 1px solid var(--seam); border-radius: 11px; flex: none; padding-bottom: 14px; }
+.sg { background: var(--cloth); border: 1px solid var(--seam); border-radius: 11px; flex: none; padding-bottom: 10px; }
 .sg-h { height: 46px; display: flex; align-items: center; gap: 11px; padding: 2px 14px 0 17px; }
 .sg-h h3 { font: 600 19px/1 var(--voice); padding-bottom: 2px; }
-.sg-g { position: relative; display: grid; grid-template-columns: 104px minmax(0, 1fr); row-gap: 5px; padding: 0 16px 0 17px; }
-.sg-r { grid-column: 2; display: grid; grid-template-columns: repeat(var(--bars), minmax(0, 1fr)); height: 18px; }
-.sg-r button { font: 500 9.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-3); padding-left: 5px; text-align: left; min-width: 0; overflow: hidden; white-space: nowrap; }
-.sg-r button:nth-child(4n + 1) { color: var(--linen-2); }
+.sg-h .seg.s button { min-width: 22px; font: 600 12px/1 var(--mono); }
+.sg-h .seg.s button:disabled { opacity: 0.35; cursor: default; }
+.sg-g { display: grid; grid-template-columns: 104px minmax(0, 1fr); padding: 0 16px 0 17px; }
+.sg-names { display: grid; grid-auto-rows: 30px; row-gap: 5px; align-content: start; padding-top: 23px; }
+.sg-s { overflow-x: auto; overflow-y: hidden; padding-bottom: 4px; scrollbar-width: thin; scrollbar-color: var(--cloth-3) transparent; }
+.sg-t { position: relative; display: grid; grid-auto-rows: 30px; grid-template-rows: 18px; row-gap: 5px; min-width: 100%; }
+.sg-r { position: relative; display: grid; height: 18px; width: max-content; }
+.sg-r button { font: 500 9.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-3); padding-left: 5px; text-align: left; min-width: 0; overflow: visible; white-space: nowrap; }
 .sg-r button:hover, .sg-r button.now, .sg-r button.start { color: var(--linen); }
 .sg-r button.start { font-weight: 700; }
+.sg-r button.after { opacity: 0.45; cursor: default; }
+.sg-end { position: absolute; top: 23px; bottom: 0; right: 0; border-left: 1px solid var(--linen-3); background: rgba(24, 24, 26, 0.5); pointer-events: none; z-index: 1; }
 .sg-n { display: flex; align-items: center; gap: 9px; height: 30px; min-width: 0; font-weight: 600; font-size: 12.5px; color: var(--linen); text-align: left; }
 .sg-n i { width: 8px; height: 8px; border-radius: 50%; background: var(--h); flex: none; }
 .sg-n span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sg-n.muted, .sg-l.muted { opacity: 0.45; }
-.sg-l { position: relative; display: grid; grid-template-columns: repeat(var(--bars), minmax(0, 1fr)); height: 30px; border-radius: 7px; overflow: hidden; touch-action: none; background-color: var(--vat); box-shadow: inset 0 0 0 1px var(--seam-soft); background-image: repeating-linear-gradient(to right, var(--seam) 0 1px, transparent 1px calc(400% / var(--bars))), repeating-linear-gradient(to right, var(--seam-soft) 0 1px, transparent 1px calc(100% / var(--bars))); }
+.sg-l { position: relative; height: 30px; border-radius: 7px; overflow: hidden; touch-action: none; background-color: var(--vat); box-shadow: inset 0 0 0 1px var(--seam-soft); background-image: repeating-linear-gradient(to right, var(--seam) 0 1px, transparent 1px calc(var(--bar) * 4)), repeating-linear-gradient(to right, var(--seam-soft) 0 1px, transparent 1px var(--bar)); }
+.sg-t.dense .sg-l { background-image: repeating-linear-gradient(to right, var(--seam) 0 1px, transparent 1px calc(var(--bar) * 16)), repeating-linear-gradient(to right, var(--seam-soft) 0 1px, transparent 1px calc(var(--bar) * 4)); }
+.sg-cells { position: absolute; top: 0; bottom: 0; display: grid; }
 .sg-b { min-width: 0; height: 100%; }
 .sg-b:hover:not(:disabled) { background: color-mix(in srgb, var(--h) 24%, transparent); }
 .sg-b:focus-visible { outline: 2px solid var(--linen); outline-offset: -2px; z-index: 2; }
 .sg-b:disabled { cursor: default; }
-.sg-c { position: absolute; top: 3px; bottom: 3px; border-radius: 5px; overflow: hidden; pointer-events: none; background: color-mix(in srgb, var(--h) 90%, var(--vat)); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); }
-.sg-c svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.sg-c u { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(0, 0, 0, 0.28); }
-.sg-w { position: absolute; left: 121px; right: 16px; top: 0; bottom: 0; pointer-events: none; }
-.sg-ph { position: absolute; top: 0; bottom: 0; width: 1.5px; background: var(--linen); z-index: 3; }
+.sg-c { z-index: 2; position: absolute; top: 3px; bottom: 3px; border-radius: 5px; overflow: hidden; pointer-events: none; background-color: color-mix(in srgb, var(--h) 90%, var(--vat)); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); background-image: repeating-linear-gradient(to right, transparent 0 calc(var(--bar) - 1px), rgba(0, 0, 0, 0.28) calc(var(--bar) - 1px) var(--bar)); background-position: -2px 0; }
+.sg-t.dense .sg-c { background-image: none; }
+.sg-c svg { position: absolute; top: 0; height: 100%; }
+.sg-ph { position: absolute; top: 0; bottom: 0; width: 1.5px; background: var(--linen); z-index: 3; pointer-events: none; }
 .sg-ph::before { content: ''; position: absolute; top: 0; left: -4px; border: 4.5px solid transparent; border-top: 6px solid var(--linen); }
 .sg-ph.idle { opacity: 0.55; }
