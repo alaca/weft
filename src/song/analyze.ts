@@ -1,22 +1,52 @@
 import { parse } from 'acorn'
-import type { PatternBlock, Song } from './types'
+import type { Arg, Call, PatternBlock, Song } from './types'
 
 type Node = { type: string; start: number; end: number; loc: { start: { line: number }; end: { line: number } }; [key: string]: any }
 
-type Call = { name: string; args: Node[] }
-
 const ONE_WORD = /^[\w-]+$/
+
+function numberOf(node: Node): number | null {
+    if (node.type === 'Literal' && typeof node.value === 'number') return node.value
+    if (node.type === 'UnaryExpression' && node.operator === '-' && node.argument.type === 'Literal' && typeof node.argument.value === 'number') {
+        return -node.argument.value
+    }
+    return null
+}
+
+function toArg(node: Node): Arg {
+    const value = numberOf(node)
+    if (value !== null) return { kind: 'number', value, from: node.start, to: node.end }
+    if (node.type === 'Literal' && typeof node.value === 'string') return { kind: 'string', value: node.value, from: node.start, to: node.end }
+    if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 'slider' && node.arguments.length) {
+        const first: Node = node.arguments[0]
+        const start = numberOf(first)
+        const min = node.arguments[1] ? numberOf(node.arguments[1]) : 0
+        const max = node.arguments[2] ? numberOf(node.arguments[2]) : 1
+        if (start !== null && min !== null && max !== null) {
+            return { kind: 'slider', value: start, min, max, from: node.start, to: node.end, valueFrom: first.start, valueTo: first.end }
+        }
+    }
+    return { kind: 'other', from: node.start, to: node.end }
+}
 
 function callChain(expression: Node): Call[] {
     const calls: Call[] = []
     let node: Node | undefined = expression
     while (node && node.type === 'CallExpression') {
         const callee: Node = node.callee
+        const args = (node.arguments as Node[]).map(toArg)
         if (callee.type === 'MemberExpression' && callee.property.type === 'Identifier') {
-            calls.unshift({ name: callee.property.name, args: node.arguments })
+            calls.unshift({
+                name: callee.property.name,
+                from: callee.object.end,
+                to: node.end,
+                nameFrom: callee.property.start,
+                nameTo: callee.property.end,
+                args,
+            })
             node = callee.object
         } else if (callee.type === 'Identifier') {
-            calls.unshift({ name: callee.name, args: node.arguments })
+            calls.unshift({ name: callee.name, from: node.start, to: node.end, nameFrom: callee.start, nameTo: callee.end, args })
             node = undefined
         } else {
             node = undefined
@@ -27,11 +57,10 @@ function callChain(expression: Node): Call[] {
 
 function stringArg(call: Call): string | null {
     const first = call.args[0]
-    return first && first.type === 'Literal' && typeof first.value === 'string' ? first.value : null
+    return first && first.kind === 'string' ? first.value : null
 }
 
-function soundName(expression: Node): string | null {
-    const calls = callChain(expression)
+function soundName(calls: Call[]): string | null {
     const bank = calls.find((call) => call.name === 'bank')
     const banked = bank ? stringArg(bank) : null
     if (banked) return banked
@@ -61,6 +90,7 @@ export function analyze(code: string): Song {
         if (node.type !== 'LabeledStatement' || node.body.type !== 'ExpressionStatement') continue
         const label: string = node.label.name
         const bare = label.replace(/^_+|_+$/g, '')
+        const calls = callChain(node.body.expression)
         patterns.push({
             id: bare.includes('$') ? `pattern ${++anonymous}` : bare,
             label,
@@ -71,7 +101,8 @@ export function analyze(code: string): Song {
             to: node.end,
             lineFrom: node.loc.start.line,
             lineTo: node.loc.end.line,
-            soundName: soundName(node.body.expression),
+            soundName: soundName(calls),
+            calls,
         })
     }
     return { patterns, error: null }
