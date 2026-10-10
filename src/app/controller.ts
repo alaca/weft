@@ -34,7 +34,19 @@ import {
     type NoteRef,
     type NoteSource,
 } from '../song/notes'
-import { appendPattern, freeName, PATTERN_STARTERS, removePattern as removeEdit, soundStarter, starterCode, type StarterKind } from '../song/patterns'
+import {
+    appendPattern,
+    duplicateEdit,
+    freeName,
+    PATTERN_STARTERS,
+    patternNameFrom,
+    removePattern as removeEdit,
+    renameEdit,
+    soundStarter,
+    starterCode,
+    swapEdits,
+    type StarterKind,
+} from '../song/patterns'
 import { STARTER } from '../song/starter'
 import type { PatternBlock, PatternEvent } from '../song/types'
 import { fits, isRow, soundEdit, soundTextAt } from '../sounds/apply'
@@ -801,6 +813,61 @@ export function dropOnPattern(id: string, item: SoundItem): boolean {
     select(id)
     useSound(id, item)
     return true
+}
+
+// What the app remembers about a pattern by its name goes with the pattern to its new name.
+function carry<T>(record: Record<string, T>, from: string, to: string): Record<string, T> {
+    if (!(from in record)) return record
+    const { [from]: value, ...rest } = record
+    return { ...rest, [to]: value }
+}
+
+// False when the name cannot be one, or another pattern has it.
+export function renamePattern(id: string, text: string): boolean {
+    const block = find(id)
+    const name = patternNameFrom(text)
+    if (!block || stale() || !name) return false
+    if (name === id) return true
+    if (song().patterns.some((other) => other.id === name)) return false
+    const panel = openPanel()
+    batch(() => {
+        setRollRanges(carry(rollRanges(), id, name))
+        setGridNotes(carry(gridNotes(), id, name))
+        if (selected() === id) setSelected(name)
+        if (soloIds().includes(id)) setSoloIds(soloIds().map((solo) => (solo === id ? name : solo)))
+        if (panel === id || panel?.startsWith(`${id}/`)) setOpenPanel(name + panel.slice(id.length))
+    })
+    if (lastLength.has(id)) lastLength.set(name, lastLength.get(id) as number)
+    lastLength.delete(id)
+    engine.applyEdit(renameEdit(block, name))
+    engine.setSolo(soloIds())
+    replay()
+    return true
+}
+
+export function duplicatePattern(id: string): string | null {
+    const block = find(id)
+    if (!block || stale()) return null
+    const name = freeName(
+        id.replace(/\d+$/, '') || id,
+        song().patterns.map((p) => p.id),
+    )
+    if (rollRanges()[id]) setRollRanges({ ...rollRanges(), [name]: rollRanges()[id] })
+    engine.applyEdit(duplicateEdit(engine.getCode(), block, name))
+    replay()
+    select(name)
+    return name
+}
+
+// One place up, towards the top, or one place down.
+export function movePattern(id: string, by: -1 | 1) {
+    const patterns = song().patterns
+    const at = patterns.findIndex((p) => p.id === id)
+    const other = patterns[at + by]
+    if (at < 0 || !other || stale()) return
+    const [first, second] = by < 0 ? [other, patterns[at]] : [patterns[at], other]
+    engine.applyEdit(swapEdits(engine.getCode(), first, second))
+    replay()
 }
 
 export function openSounds(id?: string) {

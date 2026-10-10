@@ -1,5 +1,5 @@
-import { createMemo, createSignal, For, Show } from 'solid-js'
-import { colorAt, dropOnPattern, eventsOf, openSounds, removePattern, restsNow, select, setControl, setMix, toggleMute, togglePanel, toggleSolo } from '../app/controller'
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
+import { colorAt, dropOnPattern, duplicatePattern, eventsOf, movePattern, openSounds, removePattern, renamePattern, restsNow, select, setControl, setMix, toggleMute, togglePanel, toggleSolo } from '../app/controller'
 import { favourites, panOf, volumeOf, type ControlView } from '../controls/views'
 import { isDrums, readKit } from '../song/kit'
 import { noteText } from '../song/notes'
@@ -80,6 +80,22 @@ export function Strip(props: { id: string }) {
     )
     const showKnobs = () => !open() && knobs().length > 0
 
+    // The name can be typed over, and a small menu duplicates the pattern or moves it up or down.
+    let more: HTMLSpanElement | undefined
+    const [menu, setMenu] = createSignal(false)
+    const [naming, setNaming] = createSignal(false)
+    const [refused, setRefused] = createSignal(false)
+    const place = () => song().patterns.findIndex((p) => p.id === props.id)
+    const away = (event: PointerEvent) => {
+        if (menu() && !more?.contains(event.target as Node)) setMenu(false)
+    }
+    onMount(() => document.addEventListener('pointerdown', away))
+    onCleanup(() => document.removeEventListener('pointerdown', away))
+    const rename = (input: HTMLInputElement) => {
+        if (renamePattern(props.id, input.value)) setNaming(false)
+        else setRefused(true)
+    }
+
     // A sound dragged from the browser can be let go on a pattern that can take it.
     const [over, setOver] = createSignal(false)
     const takes = () => {
@@ -117,7 +133,31 @@ export function Strip(props: { id: string }) {
                 >
                     <div class="st-h">
                         <i class="bead-h" />
-                        <b class="st-n">{props.id}</b>
+                        <Show
+                            when={naming()}
+                            fallback={
+                                <b class="st-n" title="Double click to rename" onDblClick={() => !stale() && setNaming(true)}>
+                                    {props.id}
+                                </b>
+                            }
+                        >
+                            <input
+                                class="st-in"
+                                aria-label={`New name for ${props.id}`}
+                                aria-invalid={refused()}
+                                title={refused() ? 'Another pattern has this name, or it is not a name a pattern can have' : undefined}
+                                value={props.id}
+                                maxLength={24}
+                                ref={(input) => queueMicrotask(() => input.select())}
+                                onClick={(event) => event.stopPropagation()}
+                                onInput={() => setRefused(false)}
+                                onBlur={(event) => naming() && rename(event.currentTarget)}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter') rename(event.currentTarget)
+                                    else if (event.key === 'Escape') setNaming(false)
+                                }}
+                            />
+                        </Show>
                         <button
                             class="chip tgl"
                             aria-label={`Change the sound of ${props.id}`}
@@ -185,6 +225,58 @@ export function Strip(props: { id: string }) {
                                     </Show>
                                 )}
                             </For>
+                        </span>
+                        <span class="st-more" ref={more} onClick={(event) => event.stopPropagation()}>
+                            <button class="st-x" aria-label={`More for ${props.id}`} aria-haspopup="menu" aria-expanded={menu()} title="Rename, duplicate, move" disabled={stale()} onClick={() => setMenu(!menu())}>
+                                <svg viewBox="0 0 12 12" class="dots">
+                                    <circle cx="2" cy="6" r="1.1" />
+                                    <circle cx="6" cy="6" r="1.1" />
+                                    <circle cx="10" cy="6" r="1.1" />
+                                </svg>
+                            </button>
+                            <Show when={menu()}>
+                                <div class="menu single" role="menu">
+                                    <button
+                                        role="menuitem"
+                                        onClick={() => {
+                                            setMenu(false)
+                                            setRefused(false)
+                                            setNaming(true)
+                                        }}
+                                    >
+                                        Rename
+                                    </button>
+                                    <button
+                                        role="menuitem"
+                                        onClick={() => {
+                                            setMenu(false)
+                                            duplicatePattern(props.id)
+                                        }}
+                                    >
+                                        Duplicate
+                                    </button>
+                                    <button
+                                        role="menuitem"
+                                        disabled={place() <= 0}
+                                        onClick={() => {
+                                            setMenu(false)
+                                            movePattern(props.id, -1)
+                                        }}
+                                    >
+                                        Move up
+                                    </button>
+                                    <button
+                                        role="menuitem"
+                                        disabled={place() >= song().patterns.length - 1}
+                                        onClick={() => {
+                                            setMenu(false)
+                                            movePattern(props.id, 1)
+                                        }}
+                                    >
+                                        Move down
+                                    </button>
+                                </div>
+                            </Show>
                         </span>
                         <button
                             class="st-x"

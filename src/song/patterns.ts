@@ -46,6 +46,40 @@ export function soundStarter(sound: string, kind: 'kit' | 'notes' | 'sample'): S
     return kind === 'sample' ? { name: 'sample', code, range: { low: 30, high: 42 } } : { name: 'melody', code, range: { low: 60, high: 79 } }
 }
 
+// A name a pattern can have in the code: letters, digits and underscores, starting with a
+// letter. Strudel takes a name that starts with an underscore as muted and one that starts with
+// a capital S as solo, so neither is let through as it was typed.
+export function patternNameFrom(text: string): string | null {
+    const clean = text
+        .trim()
+        .replace(/\s+/g, '_')
+        .replace(/[^A-Za-z0-9_]/g, '')
+        .replace(/^[_0-9]+/, '')
+        .replace(/_+$/, '')
+    if (!clean) return null
+    return clean.startsWith('S') ? `s${clean.slice(1)}` : clean
+}
+
+// The name as it stands in the code keeps the underscore that mutes it.
+export function renameEdit(block: PatternBlock, name: string): TextEdit {
+    const label = block.label.startsWith('_') ? `_${name}` : block.label.endsWith('_') ? `${name}_` : name
+    return { from: block.labelFrom, to: block.labelTo, insert: label }
+}
+
+// The same pattern once more, under another name, straight after the first. The copy is not muted.
+export function duplicateEdit(code: string, block: PatternBlock, name: string): TextEdit {
+    const after = code.slice(block.labelTo, block.to)
+    return { from: block.to, to: block.to, insert: `\n\n${code.slice(block.from, block.labelFrom)}${name}${after}` }
+}
+
+// Two patterns change places in the code. What is written between them stays between them.
+export function swapEdits(code: string, first: PatternBlock, second: PatternBlock): TextEdit[] {
+    return [
+        { from: first.from, to: first.to, insert: code.slice(second.from, second.to) },
+        { from: second.from, to: second.to, insert: code.slice(first.from, first.to) },
+    ]
+}
+
 export function freeName(base: string, taken: string[]): string {
     const used = new Set(taken.map((name) => name.toLowerCase()))
     if (!used.has(base)) return base

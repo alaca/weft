@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { analyze } from '../../src/song/analyze'
-import { applyEdit } from '../../src/song/edits'
+import { applyEdit, applyEdits } from '../../src/song/edits'
 import { readKit } from '../../src/song/kit'
 import { noteText, readNotes } from '../../src/song/notes'
-import { appendPattern, freeName, PATTERN_STARTERS, removePattern, starterCode } from '../../src/song/patterns'
+import { appendPattern, duplicateEdit, freeName, PATTERN_STARTERS, patternNameFrom, removePattern, renameEdit, starterCode, swapEdits } from '../../src/song/patterns'
 
 const blockOf = (code: string) => {
     const song = analyze(code)
@@ -114,5 +114,37 @@ describe('removePattern', () => {
             const after = applyEdit(SONG, edit)
             expect(applyEdit(after, { from: edit.from, to: edit.from, insert: SONG.slice(edit.from, edit.to) })).toBe(SONG)
         }
+    })
+})
+
+describe('renaming, duplicating and moving a pattern', () => {
+    const CODE = 'setcpm(120/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n\n// the low end\n_bass: note("c2 e2")\n  .s("sawtooth")\n\nlead_: note("c4")\n'
+    const blocks = () => analyze(CODE).patterns
+
+    it('makes a name the code can hold from what was typed', () => {
+        expect(patternNameFrom('  big drums ')).toBe('big_drums')
+        expect(patternNameFrom('2nd-verse!')).toBe('ndverse')
+        expect(patternNameFrom('_hidden_')).toBe('hidden')
+        expect(patternNameFrom('Snare')).toBe('snare')
+        expect(patternNameFrom('Kick')).toBe('Kick')
+        expect(patternNameFrom(' !! ')).toBeNull()
+    })
+
+    it('renames a pattern and keeps the underscore that mutes it', () => {
+        expect(applyEdit(CODE, renameEdit(blocks()[0], 'beat'))).toContain('\n\nbeat: s("bd*4")\n')
+        expect(applyEdit(CODE, renameEdit(blocks()[1], 'low'))).toContain('\n_low: note("c2 e2")\n')
+        expect(applyEdit(CODE, renameEdit(blocks()[2], 'top'))).toContain('\ntop_: note("c4")\n')
+    })
+
+    it('puts a copy straight after the pattern, under its new name and not muted', () => {
+        const next = applyEdit(CODE, duplicateEdit(CODE, blocks()[1], 'bass2'))
+        expect(next).toContain('_bass: note("c2 e2")\n  .s("sawtooth")\n\nbass2: note("c2 e2")\n  .s("sawtooth")\n\nlead_: note("c4")\n')
+        expect(analyze(next).patterns.map((block) => block.id)).toEqual(['drums', 'bass', 'bass2', 'lead'])
+    })
+
+    it('lets two patterns change places and leaves what is between them where it was', () => {
+        const next = applyEdits(CODE, swapEdits(CODE, blocks()[0], blocks()[1]))
+        expect(next).toBe('setcpm(120/4)\n\n_bass: note("c2 e2")\n  .s("sawtooth")\n\n// the low end\ndrums: s("bd*4")\n  .bank("RolandTR909")\n\nlead_: note("c4")\n')
+        expect(analyze(next).patterns.map((block) => block.id)).toEqual(['bass', 'drums', 'lead'])
     })
 })
