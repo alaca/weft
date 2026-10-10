@@ -1,9 +1,9 @@
 import { batch, createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { colorAt, eventsOf, inStep, patternText, select, setBars, songLengthNow, startFrom, toggleBar } from '../app/controller'
+import { clearLoop, colorAt, eventsOf, inStep, loopBetween, patternText, repeatLoop, select, setBars, songLengthNow, startFrom, toggleBar } from '../app/controller'
 import { barsOf, clips, paint, type Clip } from '../song/arrange'
 import { MAX_BARS } from '../song/bars'
 import type { PatternEvent } from '../song/types'
-import { bpm, cycle, engineState, position, revision, song, stale, startBar } from '../stores/song'
+import { bpm, cycle, engineState, loopBars, position, revision, song, stale, startBar } from '../stores/song'
 
 // A clip shows what its pattern plays, bar by bar. The pattern is asked for no more bars than
 // this: beyond them the drawing repeats, which is true of every pattern that is not random.
@@ -226,7 +226,18 @@ export function SongPanel() {
     )
     const playing = () => engineState().playing
     const paused = () => engineState().paused
-    const head = () => (playing() || paused() ? (cycle() % length()) + position() : startBar())
+    const head = () => (playing() || paused() ? (cycle() % length()) + position() : (loopBars()?.from ?? startBar()))
+
+    // A click on a bar number starts the song from that bar. Dragging across numbers, or a
+    // click with Shift held, chooses bars that go round. `picking` is the stretch being dragged.
+    let pickedFrom: number | null = null
+    let dragged = false
+    const [picking, setPicking] = createSignal<{ from: number; to: number } | null>(null)
+    const barAt = (event: PointerEvent) => {
+        const box = scroller.getBoundingClientRect()
+        return Math.max(0, Math.min(length() - 1, Math.floor((event.clientX - box.left + scroller.scrollLeft) / barWidth())))
+    }
+    const band = () => picking() ?? loopBars()
     const every = () => (barWidth() >= 22 ? 1 : barWidth() >= 9 ? 4 : 16)
     const wider = () => ZOOMS.find((px) => px > barWidth())
     const narrower = () => [...ZOOMS].reverse().find((px) => px < barWidth())
@@ -267,6 +278,21 @@ export function SongPanel() {
                 <span class="lines" data-testid="song-length">
                     {length()} bars, {duration(length(), song().tempo?.bpm ?? bpm())}
                 </span>
+                <Show when={loopBars()}>
+                    {(round) => (
+                        <span class="sg-lp" data-testid="loop">
+                            <span>{round().to - round().from === 1 ? `Bar ${round().from + 1} goes round` : `Bars ${round().from + 1} to ${round().to} go round`}</span>
+                            <button class="chip tgl" disabled={stale()} title="Puts these bars in once more, straight after themselves" onClick={repeatLoop}>
+                                Repeat them
+                            </button>
+                            <button class="rx" aria-label="Stop going round" onClick={clearLoop}>
+                                <svg viewBox="0 0 8 8">
+                                    <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
+                                </svg>
+                            </button>
+                        </span>
+                    )}
+                </Show>
                 <span class="grow" />
                 <span class="cap">Zoom</span>
                 <div class="seg s">
@@ -300,7 +326,39 @@ export function SongPanel() {
                 </div>
                 <div class="sg-s" ref={scroller} data-testid="song-scroll" onScroll={() => setLeft(scroller.scrollLeft)}>
                     <div class="sg-t" classList={{ dense: barWidth() < 12 }} style={{ width: `${shown() * barWidth()}px`, '--bar': `${barWidth()}px` }}>
-                        <div class="sg-r" style={{ left: `${view().first * barWidth()}px`, 'grid-template-columns': `repeat(${Math.max(0, view().last - view().first)}, ${barWidth()}px)` }}>
+                        <Show when={band()}>
+                            {(round) => <div class="sg-loop" data-testid="loop-band" style={{ left: `${round().from * barWidth()}px`, width: `${(round().to - round().from) * barWidth()}px` }} />}
+                        </Show>
+                        <div
+                            class="sg-r"
+                            style={{ left: `${view().first * barWidth()}px`, 'grid-template-columns': `repeat(${Math.max(0, view().last - view().first)}, ${barWidth()}px)` }}
+                            onPointerDown={(event) => {
+                                if (event.button !== 0) return
+                                pickedFrom = barAt(event)
+                                dragged = false
+                                event.currentTarget.setPointerCapture(event.pointerId)
+                            }}
+                            onPointerMove={(event) => {
+                                if (pickedFrom === null) return
+                                const at = barAt(event)
+                                if (at === pickedFrom && !dragged) return
+                                dragged = true
+                                setPicking({ from: Math.min(pickedFrom, at), to: Math.max(pickedFrom, at) + 1 })
+                            }}
+                            onPointerUp={(event) => {
+                                const from = pickedFrom
+                                pickedFrom = null
+                                setPicking(null)
+                                if (from === null) return
+                                if (dragged) loopBetween(from, barAt(event))
+                                else if (event.shiftKey) loopBetween(startBar(), from)
+                                else startFrom(from)
+                            }}
+                            onPointerCancel={() => {
+                                pickedFrom = null
+                                setPicking(null)
+                            }}
+                        >
                             <Index each={Array.from({ length: Math.max(0, view().last - view().first) })}>
                                 {(_, at) => {
                                     const bar = () => view().first + at
@@ -310,7 +368,12 @@ export function SongPanel() {
                                             aria-label={`Start from bar ${bar() + 1}`}
                                             aria-pressed={startBar() === bar()}
                                             disabled={bar() >= length()}
-                                            onClick={() => startFrom(bar())}
+                                            onKeyDown={(event) => {
+                                                if (event.key !== 'Enter' && event.key !== ' ') return
+                                                event.preventDefault()
+                                                if (event.shiftKey) loopBetween(startBar(), bar())
+                                                else startFrom(bar())
+                                            }}
                                         >
                                             {bar() % every() === 0 ? bar() + 1 : ''}
                                         </button>
@@ -320,7 +383,7 @@ export function SongPanel() {
                         </div>
                         <For each={ids()}>{(id, index) => <Lane id={id} index={index()} view={view()} />}</For>
                         <div class="sg-end" data-testid="song-end" style={{ left: `${length() * barWidth()}px` }} />
-                        <Show when={playing() || paused() || startBar() > 0}>
+                        <Show when={playing() || paused() || startBar() > 0 || loopBars()}>
                             <div class="sg-ph" classList={{ idle: !playing() }} style={{ left: `${head() * barWidth()}px` }} />
                         </Show>
                     </div>

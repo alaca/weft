@@ -14,7 +14,7 @@ import { gradeOf, readAudio, RING_SECONDS, type AudioOptions, type Format } from
 import { encodeMp3 } from '../library/mp3'
 import { encodeWav, fileName, levelFor, peakOf, soundingLength } from '../library/wav'
 import { analyze } from '../song/analyze'
-import { arrangeSong, barsOf, readArrangement, songLength } from '../song/arrange'
+import { arrangeSong, barsOf, readArrangement, repeatEdits, songLength } from '../song/arrange'
 import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
 import { gridFromEvents, lengthEdits, readGrid, removeRow, resample, resize, sourceText, toggleStep as toggleGridStep, type Grid, type GridRow, type GridSource } from '../song/grid'
 import { convertEdits, kitEdits, MUTE, readKit, rowTarget } from '../song/kit'
@@ -82,6 +82,8 @@ import {
     setSelected,
     setSoloIds,
     setSong,
+    setLoopBars,
+    loopBars,
     setSongBars,
     setSongKey,
     setSongs,
@@ -988,9 +990,43 @@ export function toggleBar(id: string, bar: number) {
 }
 
 export function startFrom(bar: number) {
+    if (loopBars()) clearLoop()
     setStartBar(bar)
     engine.setStart(bar)
     if (!engineState().playing) setCycle(bar)
+}
+
+// Bars that go round, to work on one part of the song while hearing it. Both ends are part of
+// what goes round.
+export function loopBetween(first: number, last: number) {
+    const length = songLengthNow()
+    const from = Math.max(0, Math.min(first, last, length - 1))
+    const to = Math.min(length, Math.max(first, last) + 1)
+    if (to <= from) return
+    setLoopBars({ from, to })
+    engine.setLoop({ from, to })
+    if (!engineState().playing) setCycle(from)
+}
+
+export function clearLoop() {
+    if (!loopBars()) return
+    setLoopBars(null)
+    engine.setLoop(null)
+    if (!engineState().playing) setCycle(startBar())
+}
+
+// The bars that go round once more, straight after themselves, in every pattern.
+export function repeatLoop() {
+    const range = loopBars()
+    if (!range || stale()) return
+    const { edits, length } = repeatEdits(engine.getCode(), lanes(), range.from, range.to, songLengthNow())
+    setSongBars(length)
+    if (edits.length) engine.applyEdit(edits)
+    const moved = { from: range.to, to: Math.min(length, range.to + (range.to - range.from)) }
+    setLoopBars(moved)
+    engine.setLoop(moved)
+    if (!engineState().playing) setCycle(moved.from)
+    replay()
 }
 
 export const restsNow = (id: string): boolean => {
@@ -1006,6 +1042,8 @@ function show(record: SongRecord, demo: string | null = null) {
     setOpenDemoId(demo)
     shelf.setCurrent(demo === null ? record.id : DEMO + demo)
     lastLength.clear()
+    setLoopBars(null)
+    engine.setLoop(null)
     batch(() => {
         setExportNote(null)
         setSelected(null)

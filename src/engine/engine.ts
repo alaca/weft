@@ -59,6 +59,7 @@ export interface Engine {
     inStep(): boolean
     setStart(bar: number): void
     setEnd(bar: number | null): void
+    setLoop(range: { from: number; to: number } | null): void
     render(request: RenderRequest, onProgress?: (done: number) => void): Promise<Rendered>
     audible(cycle: number): PatternEvent[]
     waveform(): Float32Array | null
@@ -123,6 +124,11 @@ export function createEngine(): Engine {
     let pendingUnmasked = new Map<string, any>()
     let startBar = 0
     let endBar: number | null = null
+    // Bars that go round: from `from` up to, not including, `to`. While they do, `offset` is how
+    // far into them the song was started.
+    let loop: { from: number; to: number } | null = null
+    const span = () => (loop ? loop.to - loop.from : 1)
+    const around = (cycles: number) => ((cycles % span()) + span()) % span()
     let offset = 0
     // Strudel's own pause plays everything it missed at once when it goes on. Pausing here is
     // stopping while remembering where the song was, and going on is starting from there.
@@ -160,6 +166,13 @@ export function createEngine(): Engine {
         stateFns.forEach((fn) => fn(state))
     }
 
+    // Where a song that is not playing starts: in the bars that go round when there are some.
+    const startingAt = () => {
+        if (!loop) return resumeAt ?? startBar
+        const at = resumeAt ?? loop.from
+        return at >= loop.from && at < loop.to ? at - loop.from : 0
+    }
+
     const wrapRegistration = () => {
         const original = Pattern.prototype.p
         let anonymous = 0
@@ -177,6 +190,7 @@ export function createEngine(): Engine {
             // at or after the end is let through. The end is read as it is now, not as it was
             // when the code was evaluated, because the song grows and shrinks as it is arranged.
             const shift = offset
+            if (loop) return original.call(this.ribbon(loop.from, loop.to - loop.from).early(shift), id)
             const within = (hap: any) => endBar === null || (hap.whole ?? hap.part).begin.valueOf() + shift < endBar
             return original.call((shift ? this.early(shift) : this).filterHaps(within), id)
         }
@@ -418,14 +432,14 @@ export function createEngine(): Engine {
         async evaluate() {
             wakeAudio()
             if (blank()) return silence()
-            if (!state.playing) offset = resumeAt ?? startBar
+            if (!state.playing) offset = startingAt()
             resumeAt = null
             if (state.paused) setState({ paused: false })
             await mirror.evaluate(true)
         },
         async refresh() {
             if (blank()) return silence()
-            if (!state.playing) offset = resumeAt ?? startBar
+            if (!state.playing) offset = startingAt()
             await mirror.repl.evaluate(mirror.code, false)
         },
         pause() {
@@ -447,6 +461,18 @@ export function createEngine(): Engine {
         setEnd(bar) {
             endBar = bar
         },
+        // Setting bars to go round while the song plays jumps to the first of them; taking them
+        // away lets the song go on from where it is.
+        setLoop(range) {
+            const at = engine.now()
+            loop = range
+            resumeAt = null
+            if (state.paused) setState({ paused: false })
+            if (!state.playing || blank()) return
+            const counted = mirror.repl.scheduler.now()
+            offset = range ? -Math.floor(counted) : Math.floor(at) - Math.floor(counted)
+            void mirror.evaluate(true)
+        },
         // The song as a recording, made faster than it plays: every sound of the song is
         // handed to an audio clock that is not the one you listen on, and that clock then runs
         // through the song as fast as the machine can. The song is evaluated from its first
@@ -454,7 +480,7 @@ export function createEngine(): Engine {
         async render({ bars, ringSeconds, sampleRate }, onProgress) {
             if (blank()) throw new Error('There is nothing in this song to play.')
             engine.stop()
-            const before = { soloIds, offset, endBar }
+            const before = { soloIds, offset, endBar, loop }
             const live = getAudioContext()
             const liveController = getSuperdoughAudioController()
             // Strudel tidies up after each sound with a timer that takes for granted there is
@@ -472,6 +498,7 @@ export function createEngine(): Engine {
             soloIds = []
             offset = 0
             endBar = bars
+            loop = null
             try {
                 await mirror.repl.evaluate(mirror.code, false)
                 if (state.error) throw new Error(state.error.message)
@@ -516,6 +543,7 @@ export function createEngine(): Engine {
                 soloIds = before.soloIds
                 offset = before.offset
                 endBar = before.endBar
+                loop = before.loop
                 await mirror.repl.evaluate(mirror.code, false).catch(() => undefined)
                 applyMaster()
                 if (running) void live.resume().catch(() => undefined)
@@ -530,7 +558,11 @@ export function createEngine(): Engine {
             soloIds = ids
             if (state.playing) void mirror.evaluate(true)
         },
-        now: () => (mirror?.repl.scheduler.started ? mirror.repl.scheduler.now() + offset : (resumeAt ?? startBar)),
+        now: () => {
+            if (!mirror?.repl.scheduler.started) return resumeAt ?? (loop ? loop.from : startBar)
+            const counted = mirror.repl.scheduler.now() + offset
+            return loop ? loop.from + around(counted) : counted
+        },
         bpm: () => (mirror ? mirror.repl.scheduler.cps * 240 : 120),
         events: (id, cycle, everyBar = false) => query((everyBar ? unmasked : registry).get(id), cycle),
         // Whether what the patterns answer is what the code now says, give or take a slider.

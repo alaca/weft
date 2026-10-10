@@ -58,6 +58,19 @@ export function arrangeSong(code: string, blocks: PatternBlock[], id: string, ba
     return { edits, length: next }
 }
 
+// The bars from `from` up to, not including, `to` once more, straight after themselves, in every
+// lane. Everything after them moves along, and the song is that much longer.
+export function repeatEdits(code: string, blocks: PatternBlock[], from: number, to: number, length: number): { edits: TextEdit[]; length: number } {
+    const span = Math.min(MAX_BARS, length + (to - from))
+    const edits = blocks.flatMap((block) => {
+        const bars = barsOf(block, length)
+        const next = [...bars.slice(0, to), ...bars.slice(from, to), ...bars.slice(to)].slice(0, span)
+        const edit = arrangeEdit(code, block, next)
+        return edit ? [edit] : []
+    })
+    return { edits, length: span }
+}
+
 export type Clip = { from: number; length: number }
 
 export function clips(bars: boolean[]): Clip[] {

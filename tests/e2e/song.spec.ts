@@ -354,3 +354,59 @@ test('a song with nothing arranged goes round until it is stopped', async ({ pag
     await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
     expect(await sounding(page, 18)).toBeGreaterThan(0)
 })
+
+const number = (page: Page, at: number) => page.getByRole('button', { name: `Start from bar ${at}`, exact: true })
+
+async function dragNumbers(page: Page, from: number, to: number) {
+    const a = (await number(page, from).boundingBox())!
+    const b = (await number(page, to).boundingBox())!
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2)
+    await page.mouse.down()
+    await page.mouse.move((a.x + b.x) / 2 + 5, a.y + a.height / 2, { steps: 4 })
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 4 })
+    await page.mouse.up()
+}
+
+test('dragging across bar numbers makes those bars go round', async ({ page }) => {
+    await open(page, 'setcpm(960/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n  .mask("<1!8>")\n\nbass: note("c2 e2")\n  .s("sawtooth")\n')
+    await dragNumbers(page, 3, 4)
+    await expect(page.getByTestId('loop')).toContainText('Bars 3 to 4 go round')
+    await expect(page.getByTestId('loop-band')).toBeVisible()
+    await expect(page.getByTestId('cycle')).toHaveText('3')
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    const seen = new Set<number>()
+    for (let look = 0; look < 30; look++) {
+        seen.add(Math.floor(await now(page)))
+        await page.waitForTimeout(100)
+    }
+    expect([...seen].sort()).toEqual([2, 3])
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+
+    await page.getByRole('button', { name: 'Stop going round', exact: true }).click()
+    await expect(page.getByTestId('loop')).toHaveCount(0)
+    await expect.poll(() => now(page)).toBeGreaterThan(5)
+    await expect(page.getByTestId('code-status')).toHaveText('Stopped', { timeout: 8000 })
+})
+
+test('a click on a bar number still starts from there, and with Shift it makes the bars up to it go round', async ({ page }) => {
+    await open(page, 'setcpm(120/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n  .mask("<1!8>")\n')
+    await number(page, 3).click()
+    await expect(page.getByTestId('cycle')).toHaveText('3')
+    await expect(page.getByTestId('loop')).toHaveCount(0)
+    await number(page, 6).click({ modifiers: ['Shift'] })
+    await expect(page.getByTestId('loop')).toContainText('Bars 3 to 6 go round')
+    await number(page, 2).click()
+    await expect(page.getByTestId('loop')).toHaveCount(0)
+    await expect(page.getByTestId('cycle')).toHaveText('2')
+})
+
+test('the bars that go round can be put in once more, in every pattern', async ({ page }) => {
+    await open(page, 'setcpm(120/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n  .mask("<1!2 0!2 1!4>")\n\nbass: note("c2 e2")\n  .s("sawtooth")\n  .mask("<0!3 1!5>")\n\nlead: note("c4")\n')
+    await dragNumbers(page, 3, 4)
+    await page.getByTestId('loop').getByRole('button', { name: 'Repeat them', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('.mask("<1!2 0!4 1!4>")')
+    expect(await code(page)).toContain('.mask("<0!3 1 0 1!5>")')
+    expect(await code(page)).toContain('lead: note("c4")\n')
+    await expect(page.getByTestId('song-length')).toContainText('10 bars')
+    await expect(page.getByTestId('loop')).toContainText('Bars 5 to 6 go round')
+})

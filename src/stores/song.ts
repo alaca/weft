@@ -40,6 +40,8 @@ export const [currentSong, setCurrentSong] = createSignal<SongInfo | null>(null)
 export const [deletedSong, setDeletedSong] = createSignal<SongRecord | null>(null)
 export const [openDemoId, setOpenDemoId] = createSignal<string | null>(null)
 export const [songKey, setSongKey] = createSignal<Key | null>(null)
+// Bars that go round while the song plays: from `from` up to, not including, `to`.
+export const [loopBars, setLoopBars] = createSignal<{ from: number; to: number } | null>(null)
 export const [exporting, setExporting] = createSignal(false)
 export const [exportOpen, setExportOpen] = createSignal(false)
 export const [ownSounds, setOwnSounds] = createSignal<OwnSoundInfo[]>([])

@@ -407,3 +407,8 @@ svg.mini rect { fill: var(--h); }
 /* Where a sound that is being dragged can be let go. */
 .st[data-drop] { border-color: var(--h); box-shadow: 0 0 0 1px var(--h); }
 .ctl[data-drop] .add { border-color: var(--linen-2); color: var(--linen); }
+
+/* Bars that go round: a band over their numbers, and what can be done with them in the head. */
+.sg-loop { position: absolute; top: 0; height: 18px; border-radius: 4px; background: color-mix(in srgb, var(--linen) 16%, transparent); box-shadow: inset 0 0 0 1px var(--linen-3); pointer-events: none; }
+.sg-lp { display: flex; align-items: center; gap: 8px; color: var(--linen-2); font-size: 11.5px; white-space: nowrap; }
+.sg-lp .rx { opacity: 1; }
