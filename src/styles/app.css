@@ -145,3 +145,52 @@ kbd { font: 500 9.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); b
 .sp .kn-d { width: 44px; height: 44px; }
 .krow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 4px; }
 .sp-f { margin: 14px 16px 14px 17px; color: var(--linen-3); font-size: 11.5px; }
+
+.tempo { width: 46px; background: none; border: 0; color: var(--linen); font: 500 14px/1.15 var(--mono); font-stretch: 87%; padding: 0; -moz-appearance: textfield; appearance: textfield; }
+.tempo::-webkit-outer-spin-button, .tempo::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.tempo:focus { outline: none; box-shadow: 0 1px 0 var(--linen); }
+.tempo:disabled { color: var(--linen-3); }
+
+.topw { height: 44px; display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+.topn { font: 500 11px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); }
+.waves { display: flex; gap: 5px; }
+.wv { width: 38px; height: 30px; border-radius: 7px; border: 1px solid var(--seam); background: var(--vat); display: grid; place-items: center; }
+.wv svg { width: 24px; height: 14px; fill: none; stroke: var(--linen-3); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.wv.on { border-color: var(--h); background: color-mix(in srgb, var(--h) 14%, var(--vat)); }
+.wv.on svg { stroke: var(--h); }
+.wv:disabled, .seg button:disabled { opacity: 0.5; cursor: default; }
+.seg.s button { height: 21px; padding: 0 7px; font-size: 10.5px; white-space: nowrap; }
+.adsr { width: 100%; height: 44px; }
+.adsr polygon { fill: color-mix(in srgb, var(--h) 16%, transparent); }
+.adsr polyline { fill: none; stroke: var(--h); stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.sp-f { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.btn.on { background: var(--linen); border-color: var(--linen); color: var(--vat); }
+
+.br { margin: 0 16px 14px 17px; padding: 12px; border: 1px solid var(--seam); border-radius: 10px; background: var(--cloth-2); }
+.br-h { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.br-s { flex: 1; min-width: 0; height: 28px; border-radius: 8px; background: var(--vat); border: 1px solid var(--seam); color: var(--linen); font: inherit; padding: 0 10px; }
+.br-s::placeholder { color: var(--linen-3); }
+.br-s:focus { outline: none; border-color: var(--linen-3); }
+.br-c { display: flex; gap: 5px; }
+.br-c .chip { height: 22px; padding: 0 8px; font-size: 11px; background: transparent; cursor: pointer; }
+.br-c .chip.on { background: var(--cloth-3); color: var(--linen); }
+.br-l { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 10px; max-height: 190px; overflow-y: auto; }
+.br-i { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; text-align: left; }
+.br-i:hover, .br-i:focus-visible { background: var(--cloth-3); }
+.br-i b { display: block; font-weight: 600; font-size: 12.5px; }
+.br-i span span { display: block; color: var(--linen-3); font-size: 11.5px; margin-top: 1px; }
+.br-i code { font: 400 10px/1 var(--mono); font-stretch: 87%; color: var(--linen-3); }
+.br-e { color: var(--linen-3); font-size: 11.5px; padding: 4px 8px; }
+
+.mini { display: inline-grid; gap: 1.5px; margin-left: 2px; flex: none; }
+span.mini > span { display: flex; gap: 1.5px; }
+.mini i { width: 5px; height: 4px; border-radius: 1px; background: rgba(236, 230, 214, 0.09); }
+.mini i:nth-child(4n):not(:last-child) { margin-right: 2px; }
+.mini i.on { background: var(--h); }
+svg.mini { width: 108px; height: 17px; border-radius: 3px; background: var(--vat); }
+svg.mini rect { fill: var(--h); }
+
+.out { flex: none; margin-top: auto; background: var(--cloth); border: 1px solid var(--seam); border-radius: 11px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 18px; padding: 12px 20px 12px 17px; }
+.out h3 { font: 600 19px/1 var(--voice); }
+.out p { color: var(--linen-3); font-size: 11px; margin-top: 4px; }
+.scope { width: 100%; height: 54px; display: block; }

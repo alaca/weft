@@ -1,6 +1,6 @@
 import { For } from 'solid-js'
-import { play, stop } from '../app/controller'
-import { beat, bpm, cycle, engineState, setViewMode, viewMode, type ViewMode } from '../stores/song'
+import { play, setTempo, stop } from '../app/controller'
+import { beat, bpm, cycle, engineState, setViewMode, song, stale, viewMode, type ViewMode } from '../stores/song'
 
 const VIEWS: { id: ViewMode; label: string }[] = [
     { id: 'controls', label: 'Controls' },
@@ -30,7 +30,22 @@ export function TopBar() {
             </div>
             <div class="ros">
                 <div class="ro">
-                    <b data-testid="tempo">{Math.round(bpm())}</b>
+                    <input
+                        class="tempo"
+                        data-testid="tempo"
+                        type="number"
+                        min="20"
+                        max="300"
+                        step="1"
+                        aria-label="Tempo in beats per minute"
+                        title={song().tempoLocked ? 'The tempo is worked out by code. Change it there.' : 'Tempo in beats per minute'}
+                        value={Math.round(song().tempo?.bpm ?? bpm())}
+                        disabled={stale() || song().tempoLocked}
+                        onChange={(event) => setTempo(Number(event.currentTarget.value))}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter') event.currentTarget.blur()
+                        }}
+                    />
                     <span class="cap">Tempo, bpm</span>
                 </div>
                 <div class="ro">

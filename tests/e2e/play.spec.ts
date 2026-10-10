@@ -9,7 +9,7 @@ test('plays, counts cycles and stops', async ({ page }) => {
     await page.goto('/')
     await ready(page)
 
-    await expect(page.getByTestId('tempo')).toHaveText('124')
+    await expect(page.getByTestId('tempo')).toHaveValue('124')
     await expect(page.getByTestId('code-status')).toHaveText('Stopped')
 
     await page.getByRole('button', { name: 'Play' }).click()

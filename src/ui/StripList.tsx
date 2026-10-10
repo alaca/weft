@@ -1,5 +1,6 @@
 import { createMemo, For, Show } from 'solid-js'
 import { song } from '../stores/song'
+import { OutputStrip } from './OutputStrip'
 import { Strip } from './Strip'
 
 const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((id, i) => id === b[i])
@@ -18,6 +19,7 @@ export function StripList() {
             >
                 <For each={ids()}>{(id) => <Strip id={id} />}</For>
             </Show>
+            <OutputStrip />
         </main>
     )
 }

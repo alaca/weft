@@ -5,6 +5,7 @@ import type { PatternBlock, PatternView } from '../song/types'
 import { describe, STEPS } from '../song/view'
 import { cycle, engineState, openPanel, position, revision, selected, soloIds, song, stale } from '../stores/song'
 import { Knob } from './Knob'
+import { MiniView } from './MiniView'
 import { PianoRoll } from './PianoRoll'
 import { SoundPanel } from './SoundPanel'
 import { StepGrid } from './StepGrid'
@@ -21,6 +22,7 @@ export function Strip(props: { id: string }) {
     const block = createMemo(() => song().patterns[index()])
     const playing = () => engineState().playing
     const open = () => openPanel() === props.id
+    const folded = () => openPanel() !== null && !open()
 
     let seenRows: string[] = []
     let seenAt = -1
@@ -68,6 +70,9 @@ export function Strip(props: { id: string }) {
                         <b class="st-n">{props.id}</b>
                         <Show when={current().soundName}>
                             <span class="chip">{current().soundName}</span>
+                        </Show>
+                        <Show when={folded() && !current().muted}>
+                            <MiniView view={view()} />
                         </Show>
                         <span class="grow" />
                         <span class="lines">{linesOf(current())}</span>
@@ -130,7 +135,7 @@ export function Strip(props: { id: string }) {
                             )}
                         </Show>
                     </div>
-                    <Show when={!current().muted}>
+                    <Show when={!current().muted && !folded()}>
                         <div class="st-b" classList={{ two: showKnobs() }}>
                             <div>
                                 <Show when={steps()}>{(grid) => <StepGrid rows={grid().rows} playing={playing()} position={position()} />}</Show>
