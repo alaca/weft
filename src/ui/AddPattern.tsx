@@ -1,7 +1,7 @@
 import { For } from 'solid-js'
 import { addPattern } from '../app/controller'
 import { PATTERN_STARTERS, type StarterKind } from '../song/patterns'
-import { stale } from '../stores/song'
+import { draggedSound, stale } from '../stores/song'
 
 export function AddPattern() {
     let row!: HTMLDivElement
@@ -13,7 +13,7 @@ export function AddPattern() {
             <svg viewBox="0 0 12 12" aria-hidden="true">
                 <path d="M6 1.5v9M1.5 6h9" />
             </svg>
-            <span>Add a pattern</span>
+            <span>{draggedSound() ? `Let go here, or anywhere between the patterns, to start a new one with ${draggedSound()?.label}` : 'Add a pattern'}</span>
             <span class="grow" />
             <For each={PATTERN_STARTERS}>
                 {(starter) => (

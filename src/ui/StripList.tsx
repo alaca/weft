@@ -1,6 +1,6 @@
-import { createMemo, For, Show } from 'solid-js'
-import { restorePattern } from '../app/controller'
-import { removed, song, songShown, stale, waveShown } from '../stores/song'
+import { createMemo, createSignal, For, Show } from 'solid-js'
+import { addPatternWith, restorePattern } from '../app/controller'
+import { draggedSound, removed, song, songShown, stale, waveShown } from '../stores/song'
 import { AddPattern } from './AddPattern'
 import { OutputStrip } from './OutputStrip'
 import { SongPanel } from './SongPanel'
@@ -22,8 +22,31 @@ export function StripList() {
         [] as string[],
         { equals: sameList },
     )
+    // A sound let go where there is no pattern starts a new one with it.
+    const [over, setOver] = createSignal(false)
+    const free = (event: DragEvent) => draggedSound() !== null && !stale() && !(event.target as Element | null)?.closest('.st')
     return (
-        <main class="ctl" data-testid="controls">
+        <main
+            class="ctl"
+            data-testid="controls"
+            data-drop={over() && draggedSound() ? '' : undefined}
+            onDragOver={(event) => {
+                setOver(free(event))
+                if (!free(event)) return
+                event.preventDefault()
+                if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+            }}
+            onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOver(false)
+            }}
+            onDrop={(event) => {
+                setOver(false)
+                const item = draggedSound()
+                if (!item || !free(event)) return
+                event.preventDefault()
+                addPatternWith(item)
+            }}
+        >
             <Show when={waveShown()}>
                 <OutputStrip />
             </Show>

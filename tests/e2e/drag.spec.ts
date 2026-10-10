@@ -84,3 +84,48 @@ test('where a sound cannot be used its name is put in as text, also with only th
     await dragInto(page, 'Synths', 'triangle', await placeOf(page, 'setcpm(120/4)'))
     await expect.poll(() => code(page)).toBe(before.replace('setcpm(120/4)', 'setcpm(120/4)triangle'))
 })
+
+async function dragOnto(page: Page, kind: string, sound: string, target: import('@playwright/test').Locator) {
+    await browser(page).getByRole('radio', { name: new RegExp(`^${kind}`) }).click()
+    await browser(page).getByRole('searchbox', { name: 'Search sounds' }).fill(sound)
+    const row = browser(page).locator('.sb-i').filter({ has: page.locator('code', { hasText: new RegExp(`^${sound}$`) }) })
+    await expect(row).toHaveCount(1)
+    const carried = await page.evaluateHandle(() => new DataTransfer())
+    await row.dispatchEvent('dragstart', { dataTransfer: carried })
+    await target.dispatchEvent('dragover', { dataTransfer: carried })
+    const lit = await target.evaluate((el) => el.closest('[data-drop]') !== null)
+    await target.dispatchEvent('drop', { dataTransfer: carried })
+    await row.dispatchEvent('dragend', { dataTransfer: carried })
+    return lit
+}
+
+test('a sound dragged onto a pattern in the controls becomes its sound', async ({ page }) => {
+    await open(page)
+    expect(await dragOnto(page, 'Instruments', 'gm_piano', page.getByTestId('strip-bass').locator('.st-h'))).toBe(true)
+    await expect.poll(() => code(page)).toContain('bass: note("c2 e2")\n  .s("gm_piano")\n  .lpf(800)\n')
+    expect(await dragOnto(page, 'Drum kits', 'RolandTR808', page.getByTestId('strip-drums').locator('.st-h'))).toBe(true)
+    await expect.poll(() => code(page)).toContain('  .bank("RolandTR808")\n')
+})
+
+test('a sound a pattern cannot take is not taken by it', async ({ page }) => {
+    await open(page)
+    const before = await code(page)
+    expect(await dragOnto(page, 'Instruments', 'gm_piano', page.getByTestId('strip-drums').locator('.st-h'))).toBe(false)
+    expect(await dragOnto(page, 'Drum kits', 'RolandTR808', page.getByTestId('strip-bass').locator('.st-h'))).toBe(false)
+    expect(await code(page)).toBe(before)
+    await expect(page.locator('.st')).toHaveCount(2)
+})
+
+test('a sound let go under the patterns starts a new pattern with it', async ({ page }) => {
+    await open(page)
+    expect(await dragOnto(page, 'Instruments', 'gm_piano', page.getByTestId('add-pattern'))).toBe(true)
+    await expect.poll(() => code(page)).toContain('\n\nmelody: note("~")\n  .s("gm_piano")\n')
+    await expect(page.getByTestId('strip-melody').locator('.nr-g')).toHaveCount(1)
+    await dragOnto(page, 'Drum kits', 'RolandTR808', page.getByTestId('add-pattern'))
+    await expect.poll(() => code(page)).toContain('drums2: stack(\n  s("bd").struct("~ ~ ~ ~')
+    expect(await code(page)).toContain(')\n  .bank("RolandTR808")\n')
+    await dragOnto(page, 'Samples', 'casio', page.getByTestId('controls'))
+    await expect.poll(() => code(page)).toContain('sample: note("~")\n  .s("casio")\n')
+    await expect(page.getByTestId('strip-sample').locator('.nr-g')).toHaveAttribute('data-low', '30')
+    await expect(page.locator('.st')).toHaveCount(5)
+})

@@ -399,3 +399,7 @@ svg.mini rect { fill: var(--h); }
     .st-r { flex-wrap: wrap; }
     .sp { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 18px; }
 }
+
+/* Where a sound that is being dragged can be let go. */
+.st[data-drop] { border-color: var(--h); box-shadow: 0 0 0 1px var(--h); }
+.ctl[data-drop] .add { border-color: var(--linen-2); color: var(--linen); }

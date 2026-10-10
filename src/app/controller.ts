@@ -32,7 +32,7 @@ import {
     type NoteRef,
     type NoteSource,
 } from '../song/notes'
-import { appendPattern, freeName, PATTERN_STARTERS, removePattern as removeEdit, starterCode, type StarterKind } from '../song/patterns'
+import { appendPattern, freeName, PATTERN_STARTERS, removePattern as removeEdit, soundStarter, starterCode, type StarterKind } from '../song/patterns'
 import { STARTER } from '../song/starter'
 import type { PatternBlock, PatternEvent } from '../song/types'
 import { fits, isRow, soundEdit, soundTextAt } from '../sounds/apply'
@@ -717,24 +717,44 @@ export function setNotesSteps(id: string, perCycle: number) {
     })
 }
 
-export function addPattern(kind: StarterKind): string | null {
-    const starter = PATTERN_STARTERS.find((entry) => entry.kind === kind)
-    if (!starter || stale()) return null
+function addStarter(base: string, code: (name: string) => string, range?: { low: number; high: number }): string | null {
+    if (stale()) return null
     const name = freeName(
-        starter.name,
+        base,
         song().patterns.map((p) => p.id),
     )
     // What the empty strip shows first is set before the code changes, because the strip is
     // drawn the moment its code exists.
     batch(() => {
-        setRollRanges({ ...without(rollRanges(), name), ...(starter.range ? { [name]: starter.range } : {}) })
+        setRollRanges({ ...without(rollRanges(), name), ...(range ? { [name]: range } : {}) })
         setGridNotes(without(gridNotes(), name))
     })
     lastLength.delete(name)
-    engine.applyEdit(appendPattern(engine.getCode(), starterCode(kind, name)))
+    engine.applyEdit(appendPattern(engine.getCode(), code(name)))
     replay()
     select(name)
     return name
+}
+
+export function addPattern(kind: StarterKind): string | null {
+    const starter = PATTERN_STARTERS.find((entry) => entry.kind === kind)
+    return starter ? addStarter(starter.name, (name) => starterCode(kind, name), starter.range) : null
+}
+
+// A sound dragged from the browser and let go where there is no pattern starts one with it.
+export function addPatternWith(item: SoundItem): string | null {
+    const starter = soundStarter(item.name, item.group === 'kits' ? 'kit' : item.group === 'samples' || item.group === 'yours' ? 'sample' : 'notes')
+    return addStarter(starter.name, starter.code, starter.range)
+}
+
+// Let go on a pattern it becomes that pattern's sound, as Use does, when it is a sound the
+// pattern can take.
+export function dropOnPattern(id: string, item: SoundItem): boolean {
+    const block = find(id)
+    if (!block || stale() || !fits(block, item.group)) return false
+    select(id)
+    useSound(id, item)
+    return true
 }
 
 export function openSounds(id?: string) {

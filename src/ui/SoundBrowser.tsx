@@ -4,7 +4,7 @@ import { SOUNDS_WIDTH } from '../library/layout'
 import { lengthText } from '../library/sounds'
 import { fits, inUse, takesKit } from '../sounds/apply'
 import { countSounds, findSounds, SOUND_DRAG, SOUND_GROUPS, type SoundGroup, type SoundItem } from '../sounds/catalog'
-import { engineState, ownSoundNote, ownSounds, selected, song, soundsOpen, soundsWidth, stale } from '../stores/song'
+import { engineState, ownSoundNote, ownSounds, selected, setDraggedSound, song, soundsOpen, soundsWidth, stale } from '../stores/song'
 import { Divider } from './Divider'
 
 export function SoundBrowser() {
@@ -154,12 +154,14 @@ export function SoundBrowser() {
                                 class="sb-i"
                                 classList={{ on: used(item), own: item.group === 'yours' }}
                                 draggable="true"
-                                title="Drag into the code to use it there"
+                                title="Drag onto a pattern, into the code, or under the patterns to start a new one"
                                 onDragStart={(event) => {
                                     event.dataTransfer?.setData(SOUND_DRAG, item.name)
                                     event.dataTransfer?.setData('text/plain', item.name)
                                     if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
+                                    setDraggedSound(item)
                                 }}
+                                onDragEnd={() => setDraggedSound(null)}
                             >
                                 <button class="sb-p" aria-label={`Hear ${item.label}`} onClick={() => hearSound(item)}>
                                     <svg viewBox="0 0 10 10" aria-hidden="true">

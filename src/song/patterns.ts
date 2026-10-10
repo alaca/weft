@@ -36,6 +36,16 @@ export function starterCode(kind: StarterKind, name: string): string {
     }
 }
 
+// A new pattern for a sound that was dragged in: an empty drum grid on a kit, or an empty roll
+// with any other sound. A sample is the file as it was recorded on c2, so its roll opens there.
+export type SoundStarter = { name: string; code: (name: string) => string; range?: { low: number; high: number } }
+
+export function soundStarter(sound: string, kind: 'kit' | 'notes' | 'sample'): SoundStarter {
+    if (kind === 'kit') return { name: 'drums', code: (name) => `${name}: ${kitText(DRUM_SOUNDS.map((row) => ({ sound: row, steps: Array<boolean>(DEFAULT_STEPS).fill(false) })))}\n  .bank("${sound}")` }
+    const code = (name: string) => `${name}: note("~")\n  .s("${sound}")`
+    return kind === 'sample' ? { name: 'sample', code, range: { low: 30, high: 42 } } : { name: 'melody', code, range: { low: 60, high: 79 } }
+}
+
 export function freeName(base: string, taken: string[]): string {
     const used = new Set(taken.map((name) => name.toLowerCase()))
     if (!used.has(base)) return base

@@ -1,12 +1,12 @@
-import { createMemo, For, Show } from 'solid-js'
-import { colorAt, eventsOf, openSounds, removePattern, restsNow, select, setControl, setMix, toggleMute, togglePanel, toggleSolo } from '../app/controller'
+import { createMemo, createSignal, For, Show } from 'solid-js'
+import { colorAt, dropOnPattern, eventsOf, openSounds, removePattern, restsNow, select, setControl, setMix, toggleMute, togglePanel, toggleSolo } from '../app/controller'
 import { favourites, panOf, volumeOf, type ControlView } from '../controls/views'
 import { isDrums, readKit } from '../song/kit'
 import { noteText } from '../song/notes'
 import type { PatternBlock, PatternView } from '../song/types'
 import { describe, STEPS } from '../song/view'
-import { takesKit } from '../sounds/apply'
-import { cycle, engineState, openPanel, position, revision, selected, soloIds, song, stale, unfolded } from '../stores/song'
+import { fits, takesKit } from '../sounds/apply'
+import { cycle, draggedSound, engineState, openPanel, position, revision, selected, soloIds, song, stale, unfolded } from '../stores/song'
 import { Knob } from './Knob'
 import { MiniView } from './MiniView'
 import { NoteRoll } from './NoteRoll'
@@ -80,6 +80,14 @@ export function Strip(props: { id: string }) {
     )
     const showKnobs = () => !open() && knobs().length > 0
 
+    // A sound dragged from the browser can be let go on a pattern that can take it.
+    const [over, setOver] = createSignal(false)
+    const takes = () => {
+        const item = draggedSound()
+        const here = block()
+        return item !== null && here !== undefined && !stale() && fits(here, item.group)
+    }
+
     return (
         <Show when={block()}>
             {(current) => (
@@ -88,7 +96,24 @@ export function Strip(props: { id: string }) {
                     classList={{ sel: selected() === props.id, muted: current().muted, rest: resting() }}
                     style={{ '--h': colorAt(index()) }}
                     data-testid={`strip-${props.id}`}
+                    data-drop={over() && takes() ? '' : undefined}
                     onClick={() => select(props.id)}
+                    onDragOver={(event) => {
+                        if (!takes()) return
+                        event.preventDefault()
+                        if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+                        setOver(true)
+                    }}
+                    onDragLeave={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOver(false)
+                    }}
+                    onDrop={(event) => {
+                        setOver(false)
+                        const item = draggedSound()
+                        if (!item || !takes()) return
+                        event.preventDefault()
+                        dropOnPattern(props.id, item)
+                    }}
                 >
                     <div class="st-h">
                         <i class="bead-h" />

@@ -4,6 +4,7 @@ import type { SongInfo, SongRecord } from '../library/shelf'
 import type { ViewMode } from '../library/layout'
 import type { OwnSoundInfo } from '../library/sounds'
 import type { Song } from '../song/types'
+import type { SoundItem } from '../sounds/catalog'
 
 export type { ViewMode } from '../library/layout'
 
@@ -41,4 +42,5 @@ export const [exporting, setExporting] = createSignal(false)
 export const [exportOpen, setExportOpen] = createSignal(false)
 export const [ownSounds, setOwnSounds] = createSignal<OwnSoundInfo[]>([])
 export const [ownSoundNote, setOwnSoundNote] = createSignal<string | null>(null)
+export const [draggedSound, setDraggedSound] = createSignal<SoundItem | null>(null)
 export const [exportNote, setExportNote] = createSignal<string | null>(null)
