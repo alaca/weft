@@ -1,7 +1,7 @@
 import type { PatternBlock } from '../song/types'
 
 export type Group = 'source' | 'filter' | 'shape' | 'effects' | 'pattern'
-export type PanelGroup = Exclude<Group, 'pattern'>
+export type PanelGroup = Group
 export type Scale = 'linear' | 'log'
 export type SoundKind = 'synth' | 'sample'
 export type FilterType = 'low' | 'high' | 'band'
@@ -19,9 +19,11 @@ export type ControlDef = {
     describe: string
     only?: SoundKind
     needs?: string
+    // What is written around the slider when the control is added: before it and after it.
+    wrap?: [string, string]
 }
 
-type Extra = Partial<Pick<ControlDef, 'names' | 'scale' | 'unit' | 'only' | 'needs'>>
+type Extra = Partial<Pick<ControlDef, 'names' | 'scale' | 'unit' | 'only' | 'needs' | 'wrap'>>
 
 const control = (fn: string, label: string, group: Group, min: number, max: number, initial: number, describe: string, extra: Extra = {}): ControlDef => ({
     fn,
@@ -73,8 +75,13 @@ export const CONTROLS: ControlDef[] = [
     control('phaser', 'Phaser', 'effects', 0, 8, 1, 'A slow, sweeping swirl', { names: ['phaser', 'ph'] }),
     control('chorus', 'Chorus', 'effects', 0, 1, 0.5, 'Thickens the sound with detuned copies'),
     control('gain', 'Volume', 'effects', 0, 1.5, 0.8, 'How loud this pattern is'),
+    control('swingBy', 'Swing', 'pattern', 0, 0.5, 0.2, 'Plays every second sixteenth late, so the pattern leans back', { wrap: ['', ', 8'] }),
+    control('nudge', 'Loose timing', 'pattern', 0, 0.05, 0.012, 'Lets each hit come a little late, by a different amount every time', { unit: 's', wrap: ['rand.range(0, ', ')'] }),
+    control('velocity', 'Loose volume', 'pattern', 0.3, 1, 0.75, 'Lets each hit be quieter by a different amount every time, down to this level', { wrap: ['rand.range(', ', 1)'] }),
     control('degradeBy', 'Skip hits', 'pattern', 0, 1, 0.15, 'Leaves out this share of the hits at random'),
 ]
+
+const FEEL = ['swingBy', 'nudge', 'velocity', 'degradeBy']
 
 export const STARTERS: Record<SoundKind, Record<PanelGroup, string[]>> = {
     synth: {
@@ -82,12 +89,14 @@ export const STARTERS: Record<SoundKind, Record<PanelGroup, string[]>> = {
         filter: ['lpf', 'lpq', 'lpenv'],
         shape: ['attack', 'decay', 'sustain', 'release'],
         effects: ['delay', 'pan', 'room'],
+        pattern: FEEL,
     },
     sample: {
         source: ['speed', 'begin', 'end'],
         filter: ['lpf', 'lpq', 'lpenv'],
         shape: ['attack', 'decay', 'sustain', 'release'],
         effects: ['delay', 'pan', 'room'],
+        pattern: FEEL,
     },
 }
 
@@ -138,6 +147,6 @@ export function fromUnit(unit: number, min: number, max: number, scale: Scale): 
 
 export function writeNumber(value: number, min: number, max: number): string {
     const span = max - min
-    const digits = span >= 100 ? 0 : span >= 10 ? 1 : 2
+    const digits = span >= 100 ? 0 : span >= 10 ? 1 : span >= 0.2 ? 2 : 3
     return String(Number(value.toFixed(digits)))
 }

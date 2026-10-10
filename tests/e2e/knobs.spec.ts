@@ -70,7 +70,7 @@ test('the sound panel has four groups with faint knobs for what is not in the co
     await open(page)
     const bass = page.getByTestId('strip-bass')
     await bass.getByRole('button', { name: 'Sound controls for bass' }).click()
-    await expect(bass.locator('.sp h4')).toHaveText(['Source', 'Filter', 'Shape', 'Effects'])
+    await expect(bass.locator('.sp h4')).toHaveText(['Source', 'Filter', 'Shape', 'Effects', 'Feel'])
     await expect(bass.getByRole('slider', { name: 'Cutoff' })).toHaveCount(1)
     await expect(bass.getByRole('button', { name: 'Add Sweep' })).toBeVisible()
     await expect(bass.getByRole('button', { name: 'Add Delay' })).toBeVisible()

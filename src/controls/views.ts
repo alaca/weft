@@ -1,4 +1,4 @@
-import type { Call, PatternBlock } from '../song/types'
+import type { Arg, Call, PatternBlock } from '../song/types'
 import {
     CONTROLS,
     familyOf,
@@ -27,7 +27,7 @@ export type ControlView = {
     text: string
 }
 
-const PANEL_GROUPS: PanelGroup[] = ['source', 'filter', 'shape', 'effects']
+const PANEL_GROUPS: PanelGroup[] = ['source', 'filter', 'shape', 'effects', 'pattern']
 const MAX_FAVOURITES = 4
 
 const withUnit = (text: string, unit: string) => (unit ? `${text} ${unit}` : text)
@@ -41,9 +41,31 @@ function faint(def: ControlDef): ControlView {
     return { fn: def.fn, label: def.label, group: def.group, describe: def.describe, state: 'faint', value: def.initial, min: def.min, max: def.max, scale: def.scale, text: 'off' }
 }
 
+type Value = Extract<Arg, { kind: 'number' | 'slider' }>
+
+const sliderIn = (arg: Arg): Value | null => {
+    if (arg.kind === 'slider') return arg
+    if (arg.kind !== 'chain') return null
+    for (const call of arg.calls) {
+        for (const inner of call.args) {
+            const found = sliderIn(inner)
+            if (found) return found
+        }
+    }
+    return null
+}
+
+// The number a knob turns: the first thing in the brackets when that is a number or a slider,
+// or else the slider written somewhere inside it, as in nudge(rand.range(0, slider(...))).
+export function valueArg(call: Call | undefined): Value | null {
+    const arg = call?.args[0]
+    if (!arg) return null
+    return arg.kind === 'number' ? arg : sliderIn(arg)
+}
+
 function viewOfCall(call: Call): ControlView | null {
     const def = findDef(call.name)
-    const arg = call.args[0]
+    const arg = valueArg(call) ?? call.args[0]
     if (!arg) return null
     if (!def && arg.kind !== 'slider') return null
     const base = {

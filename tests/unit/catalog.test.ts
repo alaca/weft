@@ -34,6 +34,8 @@ describe('catalog', () => {
         expect(writeNumber(8.3, 0, 30)).toBe('8.3')
         expect(writeNumber(0.2501, 0, 1)).toBe('0.25')
         expect(writeNumber(0.3, 0, 1)).toBe('0.3')
+        expect(writeNumber(0.0123, 0, 0.05)).toBe('0.012')
+        expect(writeNumber(0.2345, 0, 0.5)).toBe('0.23')
         expect(writeNumber(1, 0, 1.5)).toBe('1')
     })
 

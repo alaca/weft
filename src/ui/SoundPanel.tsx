@@ -15,6 +15,7 @@ const GROUPS: { id: PanelGroup; title: string }[] = [
     { id: 'filter', title: 'Filter' },
     { id: 'shape', title: 'Shape' },
     { id: 'effects', title: 'Effects' },
+    { id: 'pattern', title: 'Feel' },
 ]
 
 const WAVES = [

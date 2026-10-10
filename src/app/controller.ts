@@ -1,7 +1,7 @@
 import { batch, createEffect, createRoot } from 'solid-js'
 import { FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '../controls/catalog'
 import { drumChoices } from '../controls/drums'
-import { callFor } from '../controls/views'
+import { callFor, valueArg } from '../controls/views'
 import { installViewMenu } from '../desktop/menu'
 import { saveFile, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
@@ -374,8 +374,8 @@ function scheduleEvaluate() {
 export function setControl(id: string, fn: string, value: number) {
     const block = find(id)
     if (!block || stale()) return
-    const arg = callFor(block, fn)?.args[0]
-    if (!arg || (arg.kind !== 'number' && arg.kind !== 'slider')) return
+    const arg = valueArg(callFor(block, fn))
+    if (!arg) return
     const def = findDef(fn)
     const min = arg.kind === 'slider' ? arg.min : Math.min(def?.min ?? 0, value)
     const max = arg.kind === 'slider' ? arg.max : Math.max(def?.max ?? 1, value)
@@ -390,7 +390,8 @@ export function addControl(id: string, fn: string, value?: number) {
     const def = findDef(fn)
     if (!block || !def || stale() || callFor(block, fn)) return
     const start = writeNumber(value ?? def.initial, def.min, def.max)
-    engine.applyEdit(addCall(engine.getCode(), block, `.${def.fn}(slider(${start}, ${def.min}, ${def.max}))`))
+    const [before, after] = def.wrap ?? ['', '']
+    engine.applyEdit(addCall(engine.getCode(), block, `.${def.fn}(${before}slider(${start}, ${def.min}, ${def.max})${after})`))
     replay()
 }
 

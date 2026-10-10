@@ -44,8 +44,21 @@ describe('favourites', () => {
 })
 
 describe('panelFor', () => {
-    it('has four groups', () => {
-        expect(panelFor(first(BASS)).map((g) => g.group)).toEqual(['source', 'filter', 'shape', 'effects'])
+    it('has five groups, the last for how the pattern is played', () => {
+        expect(panelFor(first(BASS)).map((g) => g.group)).toEqual(['source', 'filter', 'shape', 'effects', 'pattern'])
+        const feel = panelFor(first(BASS)).find((g) => g.group === 'pattern')!
+        expect(feel.items.map((v) => [v.fn, v.state])).toEqual([['swingBy', 'faint'], ['nudge', 'faint'], ['velocity', 'faint'], ['degradeBy', 'faint']])
+    })
+
+    it('finds the slider a knob turns when it is written inside the call', () => {
+        const feel = (code: string) => panelFor(first(code)).find((g) => g.group === 'pattern')!.items
+        const loose = feel('x: note("c").nudge(rand.range(0, slider(0.012, 0, 0.05))).velocity(rand.range(slider(0.75, 0.3, 1), 1))')
+        expect(loose.find((v) => v.fn === 'nudge')).toMatchObject({ state: 'live', value: 0.012, min: 0, max: 0.05, text: '0.012 s' })
+        expect(loose.find((v) => v.fn === 'velocity')).toMatchObject({ state: 'live', value: 0.75, min: 0.3, max: 1 })
+        const swung = feel('x: note("c").swingBy(slider(0.2, 0, 0.5), 8)')
+        expect(swung.find((v) => v.fn === 'swingBy')).toMatchObject({ state: 'live', value: 0.2, max: 0.5 })
+        expect(feel('x: note("c").nudge(sine.range(0, 0.02))').find((v) => v.fn === 'nudge')).toMatchObject({ state: 'locked' })
+        expect(feel('x: note("c").velocity(0.8)').find((v) => v.fn === 'velocity')).toMatchObject({ state: 'number', value: 0.8 })
     })
 
     it('fills each group with its starters, faint when they are not in the code', () => {
