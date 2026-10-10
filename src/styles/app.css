@@ -204,7 +204,7 @@ span.mini > span { display: flex; gap: 1.5px; }
 svg.mini { width: 108px; height: 17px; border-radius: 3px; background: var(--vat); }
 svg.mini rect { fill: var(--h); }
 
-.out { flex: none; margin-top: auto; background: var(--cloth); border: 1px solid var(--seam); border-radius: 11px; padding: 12px 20px 12px 17px; }
+.out { flex: none; background: var(--cloth); border: 1px solid var(--seam); border-radius: 11px; padding: 12px 20px 12px 17px; }
 .scope { width: 100%; height: 54px; display: block; }
 
 .rk-f { display: flex; align-items: center; gap: 9px; margin-top: 11px; flex-wrap: wrap; }
@@ -339,7 +339,8 @@ svg.mini rect { fill: var(--h); }
 .sm .btn:disabled { opacity: 0.45; cursor: default; }
 .sm-note { color: var(--linen-3); font-size: 11.5px; line-height: 1.45; }
 .sm h4 { font: 600 16px/1 var(--voice); margin-top: 4px; }
-.sm-list { display: flex; flex-direction: column; gap: 1px; max-height: 250px; overflow-y: auto; margin: 0 -4px; }
+.sm { max-height: calc(100vh - 110px); overflow-y: auto; }
+.sm-list { display: flex; flex-direction: column; gap: 1px; max-height: 190px; overflow-y: auto; margin: 0 -4px; flex: none; }
 .sm-i { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding-right: 9px; border-radius: 8px; }
 .sm-i:hover { background: var(--cloth-3); }
 .sm-i.on { background: var(--vat); }

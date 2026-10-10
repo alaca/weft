@@ -7,7 +7,7 @@ const code = (page: Page) => page.evaluate(() => (window as any).__weft.engine.g
 const type = (page: Page, text: string) => page.evaluate((insert) => (window as any).__weft.engine.applyEdit({ from: 0, to: 0, insert }), text)
 const name = (page: Page) => page.getByTestId('song-name')
 const menu = (page: Page) => page.getByTestId('song-menu')
-const rows = (page: Page) => menu(page).locator('.sm-o b')
+const rows = (page: Page) => page.getByTestId('your-songs').locator('.sm-o b')
 
 async function open(page: Page, text: string | null = SONG) {
     if (text !== null) {
@@ -196,4 +196,105 @@ test('the menu closes on Escape and on a click outside it', async ({ page }) => 
     await name(page).click()
     await page.getByTestId('code').locator('h2').click()
     await expect(menu(page)).toHaveCount(0)
+})
+
+test('the menu lists demo songs, and one becomes a song of your own when it is changed', async ({ page }) => {
+    await open(page)
+    await name(page).click()
+    await expect(menu(page).getByRole('button', { name: /^Open a copy of / })).toHaveText([
+        /Glasshouse.*Melodic techno, 124 bpm/,
+        /Low sun.*Melodic techno, 122 bpm/,
+        /Grey area.*Minimal techno, 130 bpm/,
+        /Squelch.*Acid techno, 132 bpm/,
+        /Spiral.*Psytrance, 145 bpm/,
+        /Night shift.*Drum and bass, 174 bpm/,
+    ])
+    await menu(page).getByRole('button', { name: 'Open a copy of Squelch', exact: true }).click()
+    await expect(name(page)).toContainText('Squelch')
+    await expect(page.getByTestId('code-status')).toHaveText('Stopped')
+    await expect(page.locator('.st .st-n')).toHaveText(['drums', 'hats', 'acid', 'answer', 'stabs', 'roll', 'riser', 'crash'])
+    await expect(page.getByTestId('song-length')).toContainText('64 bars')
+    await expect(page.getByTestId('tempo')).toHaveValue('132')
+
+    await name(page).click()
+    await expect(rows(page)).toHaveText(['Untitled'])
+    await expect(page.getByTestId('song-state')).toContainText('This is a demo')
+    await expect(menu(page).getByRole('button', { name: 'Open a copy of Squelch', exact: true })).toContainText('open now')
+    await page.keyboard.press('Escape')
+
+    await page.getByTestId('strip-drums').getByRole('button', { name: 'bd step 2', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('s("bd").struct("x x ~ ~')
+    await name(page).click()
+    await expect(rows(page)).toHaveText(['Squelch', 'Untitled'])
+    await expect(page.getByTestId('song-state')).not.toContainText('This is a demo')
+    await menu(page).getByRole('button', { name: 'Open a copy of Squelch', exact: true }).click()
+    await expect(name(page)).toContainText('Squelch 2')
+    await expect.poll(() => code(page)).toContain('s("bd").struct("x ~ ~ ~')
+    await name(page).click()
+    await expect(rows(page)).toHaveText(['Squelch', 'Untitled'])
+})
+
+test('a demo that was only opened is not kept with your songs, and is still open after a restart', async ({ page }) => {
+    await open(page)
+    await name(page).click()
+    await menu(page).getByRole('button', { name: 'Open a copy of Glasshouse', exact: true }).click()
+    await again(page)
+    await expect(name(page)).toContainText('Glasshouse')
+    await expect(page.getByTestId('tempo')).toHaveValue('124')
+    await name(page).click()
+    await expect(rows(page)).toHaveText(['Untitled'])
+    await menu(page).getByRole('button', { name: 'Open a copy of Low sun', exact: true }).click()
+    await name(page).click()
+    await menu(page).getByRole('button', { name: 'Open Untitled', exact: true }).click()
+    await again(page)
+    await expect(name(page)).toContainText('Untitled')
+    await name(page).click()
+    await expect(rows(page)).toHaveText(['Untitled'])
+})
+
+test('saving or naming a demo keeps it with your songs', async ({ page }) => {
+    await open(page)
+    await name(page).click()
+    await menu(page).getByRole('button', { name: 'Open a copy of Spiral', exact: true }).click()
+    await name(page).click()
+    await menu(page).getByRole('button', { name: /^Save/ }).click()
+    await expect(rows(page)).toHaveText(['Spiral', 'Untitled'])
+    await menu(page).getByRole('button', { name: 'Open a copy of Night shift', exact: true }).click()
+    await name(page).click()
+    await menu(page).getByLabel('Name of this song').fill('Late one')
+    await menu(page).getByLabel('Name of this song').press('Enter')
+    await expect(rows(page)).toHaveText(['Late one', 'Spiral', 'Untitled'])
+    await again(page)
+    await expect(name(page)).toContainText('Late one')
+})
+
+for (const demo of ['Glasshouse', 'Low sun', 'Grey area', 'Squelch', 'Spiral', 'Night shift']) {
+    test(`the demo ${demo} plays, and every pattern in it can be clicked`, async ({ page }) => {
+        const errors: string[] = []
+        page.on('pageerror', (error) => errors.push(error.message))
+        await open(page)
+        await name(page).click()
+        await menu(page).getByRole('button', { name: `Open a copy of ${demo}`, exact: true }).click()
+        await expect(page.getByTestId('code-status')).toHaveText('Stopped')
+        const strips = page.locator('.st')
+        const count = await strips.count()
+        expect(count).toBeGreaterThanOrEqual(4)
+        for (let at = 0; at < count; at++) await expect(strips.nth(at).locator('.dg, .nr-g')).toHaveCount(1)
+        await page.getByRole('button', { name: 'Play', exact: true }).click()
+        await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+        await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.now() as number)).toBeGreaterThan(0.3)
+        expect(errors).toEqual([])
+    })
+}
+
+test('the pictures in the playlist are of the song that is open, not the one before it', async ({ page }) => {
+    await open(page)
+    const picture = (id: string) => page.getByTestId(`lane-${id}`).locator('.sg-c path').first()
+    await expect(picture('bass')).toHaveAttribute('d', /M/)
+    await name(page).click()
+    await menu(page).getByRole('button', { name: 'Open a copy of Glasshouse', exact: true }).click()
+    await expect(picture('pluck')).toHaveAttribute('d', /M/)
+    await expect(picture('drums')).toHaveAttribute('d', /M/)
+    const bass = await picture('bass').getAttribute('d')
+    expect((bass?.match(/M/g) ?? []).length).toBeGreaterThan(40)
 })

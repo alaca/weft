@@ -3,6 +3,7 @@ import { FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '..
 import { drumChoices } from '../controls/drums'
 import { callFor } from '../controls/views'
 import { createEngine } from '../engine/engine'
+import { DEMOS } from '../library/demos'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongRecord } from '../library/shelf'
 import { analyze } from '../song/analyze'
 import { arrangeSong, barsOf, readArrangement, songLength } from '../song/arrange'
@@ -34,6 +35,7 @@ import {
     deletedSong,
     engineState,
     gridNotes,
+    openDemoId,
     openPanel,
     removed,
     rollRanges,
@@ -46,6 +48,7 @@ import {
     setEngineState,
     setGridNotes,
     setMasterVolumeValue,
+    setOpenDemoId,
     setOpenPanel,
     setPosition,
     setRemoved,
@@ -72,6 +75,7 @@ import {
 // Where the one song was kept before there could be several. It is read once, to become the
 // first song of the shelf.
 const FIRST_SONG_KEY = 'weft.song'
+const DEMO = 'demo:'
 const STARTER_NAME = 'Night bus'
 const VOLUME_KEY = 'weft.volume'
 const COLORS = ['var(--madder)', 'var(--saffron)', 'var(--woad)', 'var(--lichen)', 'var(--orchil)']
@@ -106,21 +110,44 @@ function refreshSongs() {
     })
 }
 
+// A demo that is open and as it came is not one of your songs: it is kept in the app only, and
+// becomes a song of your own with the first change, a new name or a save.
 function flush() {
     window.clearTimeout(saveTimer)
-    if (current) shelf.write(current)
+    if (current && openDemoId() === null) shelf.write(current)
+}
+
+function keepAsOwn() {
+    if (!current || openDemoId() === null) return
+    setOpenDemoId(null)
+    shelf.write(current)
+    shelf.setCurrent(current.id)
+    refreshSongs()
 }
 
 function keepDraft(code: string) {
     if (!current || code === current.draft) return
     current = { ...current, draft: code, changedAt: Date.now() }
+    keepAsOwn()
     setCurrentSong(infoOf(current))
     window.clearTimeout(saveTimer)
     saveTimer = window.setTimeout(flush, 500)
 }
 
+const titles = () => shelf.list().map((entry) => entry.name)
+
+function demoSong(id: string): SongRecord | null {
+    const demo = DEMOS.find((entry) => entry.id === id)
+    return demo ? { id: newId(), name: freeTitle(demo.name, titles()), saved: demo.code, draft: demo.code, changedAt: Date.now() } : null
+}
+
 function firstSong(): SongRecord {
     const open = shelf.current()
+    const demo = open?.startsWith(DEMO) ? demoSong(open.slice(DEMO.length)) : null
+    if (demo) {
+        setOpenDemoId(open!.slice(DEMO.length))
+        return demo
+    }
     const found = (open ? shelf.read(open) : null) ?? shelf.list().flatMap((entry) => shelf.read(entry.id) ?? [])[0]
     if (found) return found
     const before = localStorage.getItem(FIRST_SONG_KEY)
@@ -172,14 +199,15 @@ export async function mount(root: HTMLElement): Promise<void> {
     const initial = current.draft
     window.addEventListener('pagehide', flush)
     engine.onState((next) => {
-        const wasPlaying = engineState().playing
+        const before = engineState()
         setEngineState(next)
-        if (next.playing && !wasPlaying) {
+        if (next.playing && !before.playing) {
             cancelAnimationFrame(frame)
             frame = requestAnimationFrame(tick)
         }
-        if (!next.playing && wasPlaying) {
-            cancelAnimationFrame(frame)
+        if (!next.playing && before.playing) cancelAnimationFrame(frame)
+        // A paused song keeps showing where it is. A stopped one goes back to where it starts.
+        if (!next.playing && !next.paused && (before.playing || before.paused)) {
             batch(() => {
                 setCycle(startBar())
                 setPosition(0)
@@ -230,7 +258,9 @@ function replay() {
 
 export const stop = () => engine.stop()
 
-export const togglePlay = () => (engineState().playing ? stop() : play())
+export const pause = () => engine.pause()
+
+export const togglePlay = () => (engineState().playing ? pause() : play())
 
 // While a sound panel is open the other strips are folded. One that is chosen opens and stays
 // open until the panel changes, so choosing or adding another never folds it again.
@@ -266,6 +296,8 @@ export function toggleSolo(id: string) {
     setSoloIds(next)
     engine.setSolo(next)
 }
+
+export const inStep = (): boolean => engine.inStep()
 
 // A strip draws its pattern in every bar, also in the bars where the song lets it rest.
 export const eventsOf = (id: string, whichCycle: number): PatternEvent[] => engine.events(id, whichCycle, true)
@@ -701,10 +733,11 @@ export const restsNow = (id: string): boolean => {
     return Boolean(written && engineState().playing && !written[cycle() % written.length])
 }
 
-function show(record: SongRecord) {
+function show(record: SongRecord, demo: string | null = null) {
     engine.stop()
     current = record
-    shelf.setCurrent(record.id)
+    setOpenDemoId(demo)
+    shelf.setCurrent(demo === null ? record.id : DEMO + demo)
     lastLength.clear()
     batch(() => {
         setSelected(null)
@@ -724,13 +757,18 @@ function show(record: SongRecord) {
     replay()
 }
 
-const titles = () => shelf.list().map((entry) => entry.name)
-
 export function newSong() {
     flush()
     const record: SongRecord = { id: newId(), name: freeTitle(UNTITLED, titles()), saved: NEW_SONG, draft: NEW_SONG, changedAt: Date.now() }
     shelf.write(record)
     show(record)
+}
+
+export function openDemo(id: string) {
+    const record = demoSong(id)
+    if (!record) return
+    flush()
+    show(record, id)
 }
 
 export function openSong(id: string) {
@@ -743,6 +781,7 @@ export function openSong(id: string) {
 export function saveSong() {
     if (!current) return
     current = { ...current, saved: current.draft }
+    keepAsOwn()
     flush()
     refreshSongs()
 }
@@ -758,7 +797,10 @@ export function renameSong(id: string, name: string): boolean {
     const record = id === current?.id ? current : shelf.read(id)
     if (!clean || !record) return false
     const renamed = { ...record, name: clean }
-    if (id === current?.id) current = renamed
+    if (id === current?.id) {
+        current = renamed
+        keepAsOwn()
+    }
     shelf.write(renamed)
     refreshSongs()
     return true

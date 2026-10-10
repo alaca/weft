@@ -13,6 +13,7 @@ async function open(page: Page, song = SONG) {
 
 async function point(strip: Locator, time: number, midi: number) {
     const grid = strip.locator('.nr-g')
+    await grid.scrollIntoViewIfNeeded()
     const box = (await grid.boundingBox())!
     const high = Number(await grid.getAttribute('data-high'))
     const low = Number(await grid.getAttribute('data-low'))

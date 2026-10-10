@@ -13,7 +13,7 @@ export function StatusBar() {
         <footer class="sbar" data-testid="status">
             <span data-testid="sounds">{SOUNDS[engineState().sounds]}</span>
             <span>
-                <kbd>Space</kbd>play or stop
+                <kbd>Space</kbd>play or pause
             </span>
             <span>
                 <kbd>{MOD} Enter</kbd>update the sound from the code

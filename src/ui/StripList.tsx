@@ -24,6 +24,7 @@ export function StripList() {
     )
     return (
         <main class="ctl" data-testid="controls">
+            <OutputStrip />
             <Show when={ids().length}>
                 <SongPanel />
             </Show>
@@ -42,7 +43,6 @@ export function StripList() {
                 )}
             </For>
             <AddPattern />
-            <OutputStrip />
         </main>
     )
 }

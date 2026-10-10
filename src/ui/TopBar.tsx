@@ -1,5 +1,5 @@
 import { For } from 'solid-js'
-import { play, setMasterVolume, setTempo, stop, toggleSounds } from '../app/controller'
+import { setMasterVolume, setTempo, stop, togglePlay, toggleSounds } from '../app/controller'
 import type { ControlView } from '../controls/views'
 import { beat, bpm, cycle, engineState, masterVolume, setViewMode, song, soundsOpen, stale, viewMode, type ViewMode } from '../stores/song'
 import { Knob } from './Knob'
@@ -31,9 +31,9 @@ export function TopBar() {
             <SongMenu />
             <div class="grow" />
             <div class="tp">
-                <button class="play" aria-label="Play" aria-pressed={engineState().playing} onClick={play}>
+                <button class="play" aria-label={engineState().playing ? 'Pause' : 'Play'} onClick={togglePlay}>
                     <svg viewBox="0 0 16 16">
-                        <path d="M4.8 2.6v10.8L13.4 8z" />
+                        <path d={engineState().playing ? 'M4 2.8h3v10.4H4zM9 2.8h3v10.4H9z' : 'M4.8 2.6v10.8L13.4 8z'} />
                     </svg>
                 </button>
                 <button class="ib" aria-label="Stop" onClick={stop}>

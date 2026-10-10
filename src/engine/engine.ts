@@ -27,6 +27,7 @@ export type EvalError = { message: string; line: number | null }
 
 export type EngineState = {
     playing: boolean
+    paused: boolean
     dirty: boolean
     error: EvalError | null
     sounds: 'loading' | 'ready' | 'failed'
@@ -40,11 +41,13 @@ export interface Engine {
     moveSlider(from: number, text: string): boolean
     evaluate(): Promise<void>
     refresh(): Promise<void>
+    pause(): void
     stop(): void
     setSolo(ids: string[]): void
     now(): number
     bpm(): number
     events(id: string, cycle: number, everyBar?: boolean): PatternEvent[]
+    inStep(): boolean
     setStart(bar: number): void
     audible(cycle: number): PatternEvent[]
     waveform(): Float32Array | null
@@ -77,14 +80,18 @@ function toEvalError(err: unknown): EvalError {
 
 export function createEngine(): Engine {
     let mirror: any = null
-    let state: EngineState = { playing: false, dirty: false, error: null, sounds: 'loading' }
+    let state: EngineState = { playing: false, paused: false, dirty: false, error: null, sounds: 'loading' }
     let registry = new Map<string, any>()
     let pending = new Map<string, any>()
     let unmasked = new Map<string, any>()
     let pendingUnmasked = new Map<string, any>()
     let startBar = 0
     let offset = 0
+    // Strudel's own pause plays everything it missed at once when it goes on. Pausing here is
+    // stopping while remembering where the song was, and going on is starting from there.
+    let resumeAt: number | null = null
     let baseExtensions: unknown = null
+    let evaluatedCode: string | null = null
     let dress: () => void = () => undefined
     let soloIds: string[] = []
     let evaluated = false
@@ -180,6 +187,9 @@ export function createEngine(): Engine {
         registry = new Map()
         unmasked = new Map()
         evaluated = false
+        evaluatedCode = null
+        resumeAt = null
+        if (state.paused) setState({ paused: false })
         setState({ error: null, dirty: false })
         announce()
     }
@@ -206,11 +216,12 @@ export function createEngine(): Engine {
             prebake: loadModules,
             editPattern: (pattern: any) => pattern.analyze('weft'),
             beforeEval: wrapRegistration,
-            afterEval: () => {
+            afterEval: (done: { code?: string }) => {
                 applyMaster()
                 registry = pending
                 unmasked = pendingUnmasked
                 evaluated = true
+                evaluatedCode = done?.code ?? mirror.code
                 setState({ error: null, dirty: false })
                 announce()
             },
@@ -322,32 +333,46 @@ export function createEngine(): Engine {
         async evaluate() {
             wakeAudio()
             if (blank()) return silence()
-            if (!state.playing) offset = startBar
+            if (!state.playing) offset = resumeAt ?? startBar
+            resumeAt = null
+            if (state.paused) setState({ paused: false })
             await mirror.evaluate(true)
         },
         async refresh() {
             if (blank()) return silence()
-            if (!state.playing) offset = startBar
+            if (!state.playing) offset = resumeAt ?? startBar
             await mirror.repl.evaluate(mirror.code, false)
+        },
+        pause() {
+            if (!state.playing) return
+            resumeAt = engine.now()
+            setState({ paused: true })
+            mirror.stop()
         },
         // Strudel always starts counting cycles at nought, so playing from another bar is done
         // by moving every pattern earlier. While it plays, the same move makes the song jump.
         setStart(bar) {
             startBar = bar
+            resumeAt = null
+            if (state.paused) setState({ paused: false })
             if (!state.playing || blank()) return
             offset = bar - Math.floor(mirror.repl.scheduler.now())
             void mirror.evaluate(true)
         },
         stop() {
+            resumeAt = null
+            if (state.paused) setState({ paused: false })
             mirror.stop()
         },
         setSolo(ids) {
             soloIds = ids
             if (state.playing) void mirror.evaluate(true)
         },
-        now: () => (mirror?.repl.scheduler.started ? mirror.repl.scheduler.now() + offset : startBar),
+        now: () => (mirror?.repl.scheduler.started ? mirror.repl.scheduler.now() + offset : (resumeAt ?? startBar)),
         bpm: () => (mirror ? mirror.repl.scheduler.cps * 240 : 120),
         events: (id, cycle, everyBar = false) => query((everyBar ? unmasked : registry).get(id), cycle),
+        // Whether what the patterns answer is what the code now says, give or take a slider.
+        inStep: () => evaluatedCode !== null && maskSliders(evaluatedCode) === maskSliders(mirror?.code ?? lastCode),
         audible: (cycle) => query(mirror?.repl.state.pattern, cycle - offset),
         waveform() {
             try {

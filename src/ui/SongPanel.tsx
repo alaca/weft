@@ -1,5 +1,5 @@
 import { batch, createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { colorAt, eventsOf, patternText, select, setBars, songLengthNow, startFrom, toggleBar } from '../app/controller'
+import { colorAt, eventsOf, inStep, patternText, select, setBars, songLengthNow, startFrom, toggleBar } from '../app/controller'
 import { barsOf, clips, paint, type Clip } from '../song/arrange'
 import { MAX_BARS } from '../song/bars'
 import type { PatternEvent } from '../song/types'
@@ -71,6 +71,9 @@ function Lane(props: { id: string; index: number; view: View }) {
         const count = Math.min(props.view.length, DRAWN_BARS)
         const text = untrack(() => patternText(props.id))
         if (before && text === drawnFrom && before.perBar.length === count) return before
+        // Until the code has been evaluated the patterns still answer for the code before it,
+        // which after opening another song is another song. Nothing is drawn from that.
+        if (!untrack(inStep)) return before ?? { perBar: [], low: 0, high: 0, sounds: [] }
         drawnFrom = text
         const perBar: PatternEvent[][] = Array.from({ length: count }, (_, bar) => eventsOf(props.id, bar))
         const pitches = perBar.flat().flatMap((event) => (event.midi === null ? [] : [event.midi]))
@@ -222,7 +225,8 @@ export function SongPanel() {
         }),
     )
     const playing = () => engineState().playing
-    const head = () => (playing() ? (cycle() % length()) + position() : startBar())
+    const paused = () => engineState().paused
+    const head = () => (playing() || paused() ? (cycle() % length()) + position() : startBar())
     const every = () => (barWidth() >= 22 ? 1 : barWidth() >= 9 ? 4 : 16)
     const wider = () => ZOOMS.find((px) => px > barWidth())
     const narrower = () => [...ZOOMS].reverse().find((px) => px < barWidth())
@@ -316,7 +320,7 @@ export function SongPanel() {
                         </div>
                         <For each={ids()}>{(id, index) => <Lane id={id} index={index()} view={view()} />}</For>
                         <div class="sg-end" data-testid="song-end" style={{ left: `${length() * barWidth()}px` }} />
-                        <Show when={playing() || startBar() > 0}>
+                        <Show when={playing() || paused() || startBar() > 0}>
                             <div class="sg-ph" classList={{ idle: !playing() }} style={{ left: `${head() * barWidth()}px` }} />
                         </Show>
                     </div>

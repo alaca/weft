@@ -1,7 +1,8 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { deleteSong, duplicateSong, listSongs, newSong, openSong, renameSong, restoreSong, revertSong, saveSong } from '../app/controller'
+import { deleteSong, duplicateSong, listSongs, newSong, openDemo, openSong, renameSong, restoreSong, revertSong, saveSong } from '../app/controller'
+import { DEMOS } from '../library/demos'
 import { whenText } from '../library/shelf'
-import { currentSong, deletedSong, songs } from '../stores/song'
+import { currentSong, deletedSong, openDemoId, songs } from '../stores/song'
 import { MOD } from './keys'
 
 export function SongMenu() {
@@ -61,7 +62,7 @@ export function SongMenu() {
                             }}
                         />
                         <div class="sm-row">
-                            <button class="btn" disabled={!song().changed} onClick={saveSong}>
+                            <button class="btn" disabled={!song().changed && openDemoId() === null} onClick={saveSong}>
                                 Save <kbd>{MOD} S</kbd>
                             </button>
                             <Show when={song().changed}>
@@ -71,7 +72,12 @@ export function SongMenu() {
                             </Show>
                         </div>
                         <p class="sm-note" data-testid="song-state">
-                            {song().changed ? 'Changed since it was saved.' : 'Saved.'} Your work is kept as you go, also when you do not save. Saving marks the version you can go back to.
+                            <Show
+                                when={openDemoId() === null}
+                                fallback="This is a demo. Change it, name it or save it, and it becomes a song of your own. Until then it is not kept with your songs."
+                            >
+                                {song().changed ? 'Changed since it was saved.' : 'Saved.'} Your work is kept as you go, also when you do not save. Saving marks the version you can go back to.
+                            </Show>
                         </p>
                         <div class="sm-row">
                             <button
@@ -94,7 +100,7 @@ export function SongMenu() {
                             </button>
                         </div>
                         <h4>Your songs</h4>
-                        <div class="sm-list">
+                        <div class="sm-list" data-testid="your-songs">
                             <For each={list()}>
                                 {(entry) => (
                                     <div class="sm-i" classList={{ on: entry.id === song().id }}>
@@ -134,6 +140,27 @@ export function SongMenu() {
                                 </p>
                             )}
                         </Show>
+                        <h4>Demo songs</h4>
+                        <div class="sm-list">
+                            <For each={DEMOS}>
+                                {(demo) => (
+                                    <div class="sm-i" classList={{ on: demo.id === openDemoId() }}>
+                                        <button
+                                            class="sm-o"
+                                            aria-label={`Open a copy of ${demo.name}`}
+                                            aria-current={demo.id === openDemoId()}
+                                            onClick={() => {
+                                                openDemo(demo.id)
+                                                setOpen(false)
+                                            }}
+                                        >
+                                            <b>{demo.name}</b>
+                                            <span>{demo.id === openDemoId() ? `${demo.about}, open now` : demo.about}</span>
+                                        </button>
+                                    </div>
+                                )}
+                            </For>
+                        </div>
                     </div>
                 )}
             </Show>

@@ -7,7 +7,7 @@ export type ViewMode = 'controls' | 'both' | 'code'
 
 export const [song, setSong] = createSignal<Song>({ patterns: [], tempo: null, tempoLocked: false, insertAt: 0, error: null })
 export const [stale, setStale] = createSignal(false)
-export const [engineState, setEngineState] = createSignal<EngineState>({ playing: false, dirty: false, error: null, sounds: 'loading' })
+export const [engineState, setEngineState] = createSignal<EngineState>({ playing: false, paused: false, dirty: false, error: null, sounds: 'loading' })
 export const [selected, setSelected] = createSignal<string | null>(null)
 export const [viewMode, setViewMode] = createSignal<ViewMode>('both')
 export const [soloIds, setSoloIds] = createSignal<string[]>([])
@@ -30,3 +30,4 @@ export const [removed, setRemoved] = createSignal<Removed | null>(null)
 export const [songs, setSongs] = createSignal<SongInfo[]>([])
 export const [currentSong, setCurrentSong] = createSignal<SongInfo | null>(null)
 export const [deletedSong, setDeletedSong] = createSignal<SongRecord | null>(null)
+export const [openDemoId, setOpenDemoId] = createSignal<string | null>(null)

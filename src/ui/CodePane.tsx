@@ -15,6 +15,7 @@ export function CodePane() {
         }
         if (state.dirty) return { kind: 'dirty', text: `Changed. Press ${MOD} Enter to hear it.` }
         if (state.playing) return { kind: 'live', text: 'Playing this code' }
+        if (state.paused) return { kind: 'idle', text: 'Paused' }
         return { kind: 'idle', text: 'Stopped' }
     }
 
