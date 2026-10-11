@@ -26,7 +26,7 @@ export function CodePane() {
         if (state.error) {
             return { kind: 'err', text: state.error.line ? `Line ${state.error.line}: ${state.error.message}` : state.error.message }
         }
-        if (state.dirty) return { kind: 'dirty', text: `Changed. Press ${MOD} Enter to hear it.` }
+        if (state.dirty) return { kind: 'dirty', text: 'Changed', about: `The sound is still the code as it was. Press Update, or ${MOD} Enter, to hear the change.` }
         if (state.playing) return { kind: 'live', text: 'Playing this code' }
         if (state.paused) return { kind: 'idle', text: 'Paused' }
         return { kind: 'idle', text: 'Stopped' }
@@ -38,7 +38,7 @@ export function CodePane() {
             <div class="code-h">
                 <h2>Code</h2>
                 <div class="grow" />
-                <span class="sync" data-kind={status().kind}>
+                <span class="sync" data-kind={status().kind} title={status().about}>
                     <i />
                     <span data-testid="code-status">{status().text}</span>
                 </span>

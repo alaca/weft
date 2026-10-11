@@ -29,7 +29,7 @@ test('says when the code has changed since it was last played', async ({ page })
     await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
 
     await page.evaluate(() => (window as any).__weft.engine.applyEdit({ from: 0, to: 0, insert: '// edited\n' }))
-    await expect(page.getByTestId('code-status')).toContainText('Changed. Press')
+    await expect(page.getByTestId('code-status')).toHaveText('Changed')
 
     await page.getByRole('button', { name: /^Update/ }).click()
     await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
@@ -149,4 +149,29 @@ test('choosing a bar while paused starts from that bar', async ({ page }) => {
     await page.getByRole('button', { name: 'Play', exact: true }).click()
     await expect.poll(() => now(page)).toBeGreaterThan(8.1)
     expect(await now(page)).toBeLessThan(10)
+})
+
+test('the keys that update and silence the song work from anywhere in the window, also when the code has an error', async ({ page }) => {
+    await page.goto('/')
+    await ready(page)
+    const status = page.getByTestId('code-status')
+    const before = await code(page)
+    await page.evaluate(() => {
+        const { engine } = (window as any).__weft
+        engine.applyEdit({ from: engine.getCode().length, to: engine.getCode().length, insert: '\nbroken: note("c3"' })
+    })
+    await page.getByTestId('code').locator('h2').click()
+    expect(await page.evaluate(() => Boolean(document.activeElement?.closest('.cm-editor')))).toBe(false)
+    await page.keyboard.press('ControlOrMeta+Enter')
+    await expect(status).toContainText(/^Line \d+: /)
+
+    await page.evaluate((length) => {
+        const { engine } = (window as any).__weft
+        engine.applyEdit({ from: length, to: engine.getCode().length, insert: '' })
+    }, before.length)
+    await expect(status).toContainText(/^Line \d+: /)
+    await page.keyboard.press('ControlOrMeta+Enter')
+    await expect(status).toHaveText('Playing this code')
+    await page.keyboard.press('ControlOrMeta+.')
+    await expect(status).toHaveText('Stopped')
 })

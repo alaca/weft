@@ -1,4 +1,5 @@
 import { createSignal } from 'solid-js'
+import type { LeftPanel } from '../library/layout'
 import { DEFAULT_MIX, type Mix } from '../library/mix'
 import type { EngineState } from '../engine/engine'
 import type { SongInfo, SongRecord } from '../library/shelf'
@@ -33,6 +34,8 @@ export const [openPanel, setOpenPanel] = createSignal<string | null>(null)
 export const [unfolded, setUnfolded] = createSignal<string[]>([])
 export const [mixNow, setMixNow] = createSignal<Mix>(DEFAULT_MIX)
 export const [mixerOpen, setMixerOpen] = createSignal(false)
+// The panels of the left column that are folded to their heading.
+export const [folded, setFolded] = createSignal<LeftPanel[]>([])
 export const [gridNotes, setGridNotes] = createSignal<Record<string, boolean>>({})
 export const [rollRanges, setRollRanges] = createSignal<Record<string, { low: number; high: number }>>({})
 export const [soundsOpen, setSoundsOpen] = createSignal(false)

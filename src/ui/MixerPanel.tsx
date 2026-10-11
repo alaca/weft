@@ -4,6 +4,7 @@ import type { ControlView } from '../controls/views'
 import { isUsualMix, METER_MARKS, meterShare, panText, settle, shareOf, toneText, TONE_MOST, VOLUME_MOST, volumeText, type Mix } from '../library/mix'
 import { mixerOpen, mixNow } from '../stores/song'
 import { Fader } from './Fader'
+import { Fold, isFolded } from './Fold'
 import { Knob } from './Knob'
 
 const HOLD = 1200
@@ -73,8 +74,9 @@ export function MixerPanel() {
     const mix = (): Mix => mixNow()
     return (
         <Show when={mixerOpen()}>
-            <aside class="mx" aria-label="Mixer" data-testid="mixer">
+            <aside class="mx" classList={{ folded: isFolded('mixer') }} aria-label="Mixer" data-testid="mixer">
                 <div class="jm-h">
+                    <Fold panel="mixer" name="the mixer" />
                     <h2>Mixer</h2>
                     <span class="grow" />
                     <button class="chip tgl" disabled={isUsualMix(mix())} title="Put everything back where it usually is" onClick={resetMix}>

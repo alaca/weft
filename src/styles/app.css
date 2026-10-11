@@ -6,7 +6,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 button:focus-visible { outline: 2px solid var(--linen); outline-offset: 2px; }
 svg { display: block; }
 
-.app { --sounds: 0px; --middle: minmax(0, 1fr); --code: var(--code-w, minmax(420px, 42%)); height: 100%; display: grid; grid-template-columns: var(--sounds) var(--middle) var(--code); grid-template-rows: 54px minmax(0, 1fr) 26px; grid-template-areas: 'top top top' 'snd ctl code' 'sbar sbar sbar'; }
+.app { --sounds: 0px; --middle: minmax(0, 1fr); --code: var(--code-w, minmax(380px, 30%)); height: 100%; display: grid; grid-template-columns: var(--sounds) var(--middle) var(--code); grid-template-rows: 54px minmax(0, 1fr) 26px; grid-template-areas: 'top top top' 'snd ctl code' 'sbar sbar sbar'; }
 .app[data-left='shown'] { --sounds: var(--sounds-w); }
 .app[data-view='controls'] { --code: 0px; }
 .app[data-view='code'] { --middle: 0px; --code: minmax(0, 1fr); }
@@ -140,19 +140,21 @@ button.rn:hover { border-color: var(--linen-3); }
 .ph { position: absolute; top: 0; bottom: 0; width: 1.5px; background: var(--linen); pointer-events: none; }
 
 .code { grid-area: code; position: relative; background: var(--cloth); border-left: 1px solid var(--seam); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.code-h { height: 46px; flex: none; display: flex; align-items: center; gap: 11px; padding: 0 14px 0 18px; border-bottom: 1px solid var(--seam); }
+.code-h { min-height: 46px; flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0 11px; padding: 7px 14px 7px 18px; border-bottom: 1px solid var(--seam); }
 .code-h h2 { font: 600 19px/1 var(--voice); padding-bottom: 2px; }
 .sync { display: flex; align-items: center; gap: 6px; color: var(--linen-2); font-size: 11.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sync i { width: 7px; height: 7px; border-radius: 50%; background: var(--linen-3); flex: none; }
 .sync[data-kind='live'] i { background: var(--lichen); }
 .sync[data-kind='dirty'] i { background: var(--saffron); }
-.sync[data-kind='err'] { color: var(--madder); }
+/* What is wrong with the code has a line of its own under the header, at any width. */
+.sync[data-kind='err'] { order: 9; flex: 0 0 100%; align-items: flex-start; padding: 7px 0 3px; color: var(--madder); line-height: 1.45; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.sync[data-kind='err'] i { margin-top: 5px; }
 .sync[data-kind='err'] i { background: var(--madder); }
 .ed { flex: 1; min-height: 0; overflow: hidden; }
 .ed .cm-editor { height: 100%; background: transparent; }
 .ed .cm-editor.cm-focused { outline: none; }
 .ed .cm-scroller { font-stretch: 87%; line-height: 24px; padding: 12px 0; }
-.ed .cm-gutters { border: 0; background: transparent; }
+.ed .cm-gutters { border: 0; background: var(--cloth); }
 .ed .cm-lineNumbers .cm-gutterElement { padding: 0 12px 0 14px; font-size: 10.5px; }
 .ed .cm-line { padding: 0 14px; }
 .ed .cm-line.weft-block { box-shadow: inset 3px 0 0 var(--h); --foreground: var(--h); }
@@ -300,6 +302,14 @@ svg.mini rect { fill: var(--h); }
 .lc { background: var(--cloth); box-shadow: inset -1px 0 0 var(--seam); }
 .lc > .sb, .lc > .jm { flex: 1 1 0; }
 .lc > .mx { flex: none; }
+.lc > .folded { flex: none; }
+.lc > .folded > :not(.jm-h, .sb-h) { display: none; }
+.lc > .folded > .jm-h, .lc > .folded > .sb-h { padding-bottom: 10px; }
+.lc > .folded .chip { display: none; }
+.fold { width: 20px; height: 20px; margin: 0 -4px 0 -6px; flex: none; display: grid; place-items: center; border-radius: 6px; color: var(--linen-3); }
+.fold:hover { background: var(--cloth-3); color: var(--linen); }
+.fold svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.fold[aria-expanded='false'] svg { transform: rotate(-90deg); }
 .lc > .mx ~ .sb, .lc > .mx ~ .jm { border-top: 1px solid var(--seam); }
 .mx { position: relative; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--seam); }
 .mx .jm-h { gap: 8px; }

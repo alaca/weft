@@ -15,7 +15,7 @@ const colors = {
     selection: 'rgba(236, 230, 214, 0.18)',
     selectionMatch: 'rgba(236, 230, 214, 0.1)',
     lineHighlight: '#00000030',
-    gutterBackground: 'transparent',
+    gutterBackground: 'var(--cloth)',
     gutterForeground: '#8d8b8699',
 }
 

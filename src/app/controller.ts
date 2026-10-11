@@ -9,7 +9,7 @@ import { chooseFile } from '../desktop/open'
 import { saveFile, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
-import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type ViewMode } from '../library/layout'
+import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, LEFT_PANELS, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type LeftPanel, type ViewMode } from '../library/layout'
 import { readSongFile, renameSound, SONG_FILE, soundsUsed, writeSongFile, type PackedSound } from '../library/songfile'
 import { DEFAULT_MIX, fitMix, readMix, type Mix } from '../library/mix'
 import { prepareForPublishing, type Prepared } from '../library/publish'
@@ -131,6 +131,8 @@ import {
     mixNow,
     setMixerOpen,
     setMixNow,
+    folded,
+    setFolded,
     type PlayMode,
     setTakeSince,
     takeSince,
@@ -703,6 +705,7 @@ const layoutNow = (): Layout => ({
     soundsWidth: soundsWidth(),
     codeWidth: codeWidth(),
     soundsShare: soundsShare(),
+    folded: folded(),
 })
 
 function applyLayout(layout: Layout) {
@@ -716,6 +719,7 @@ function applyLayout(layout: Layout) {
         setSongShown(layout.song)
         setSoundsWidth(layout.soundsWidth)
         setCodeWidth(layout.codeWidth)
+        setFolded(layout.folded)
     })
 }
 
@@ -737,6 +741,15 @@ export function setView(view: ViewMode) {
 
 export function toggleMixer() {
     setMixerOpen(!mixerOpen())
+    keepLayout()
+}
+
+// A panel of the left column is folded to its heading and unfolded again. One that is asked
+// for, by its icon or by something that needs it, is unfolded.
+const unfold = (panel: LeftPanel) => setFolded(folded().filter((one) => one !== panel))
+
+export function toggleFold(panel: LeftPanel) {
+    setFolded(folded().includes(panel) ? folded().filter((one) => one !== panel) : LEFT_PANELS.filter((one) => one === panel || folded().includes(one)))
     keepLayout()
 }
 
@@ -777,8 +790,9 @@ export function toggleJams() {
 }
 
 export function openJams() {
-    if (jamsOpen()) return
+    if (jamsOpen() && !folded().includes('jams')) return
     setJamsOpen(true)
+    unfold('jams')
     setJamUnread(0)
     keepLayout()
 }
@@ -1111,6 +1125,7 @@ export function movePattern(id: string, by: -1 | 1) {
 export function openSounds(id?: string) {
     if (id) select(id)
     setSoundsOpen(true)
+    unfold('sounds')
     keepLayout()
 }
 

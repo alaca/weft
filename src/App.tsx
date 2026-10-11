@@ -1,5 +1,5 @@
 import { onCleanup, onMount } from 'solid-js'
-import { redoChange, saveSong, togglePlay, undoChange } from './app/controller'
+import { play, redoChange, saveSong, stop, togglePlay, undoChange } from './app/controller'
 import { SOUNDS_WIDTH } from './library/layout'
 import { jamsOpen } from './stores/jam'
 import { codeWidth, mixerOpen, soundsOpen, soundsWidth, startOpen, viewMode } from './stores/song'
@@ -25,6 +25,15 @@ export function App() {
             return
         }
         const target = event.target as HTMLElement | null
+        // Updating the sound from the code and silencing it are keys of the editor. They do
+        // the same from anywhere else in the window, so that a song whose code has an error
+        // can be updated without first clicking into the code.
+        if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && (event.key === 'Enter' || event.key === '.') && !target?.closest('.cm-editor, [role="dialog"]')) {
+            event.preventDefault()
+            if (event.key === 'Enter') play()
+            else stop()
+            return
+        }
         // The editor and text boxes undo by themselves. Anywhere else the same keys undo the
         // last change to the song, so a wrong click in a grid is one key away.
         const letter = event.key.toLowerCase()

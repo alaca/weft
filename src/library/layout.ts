@@ -1,11 +1,14 @@
 // How the window is laid out: which parts are shown and how wide the two side columns are.
 // The mixer is on the left with the sounds and the jam under it, the controls in the middle, the
-// code on the right. The mixer and the sounds are shown from the first start; the jam is not. A width of null means the usual one; a width that was dragged is kept in pixels. How
+// code on the right. The mixer and the sounds are shown from the first start; the jam is not.
+// Each of the three can be folded to its heading. A width of null means the usual one; a width that was dragged is kept in pixels. How
 // the left column is shared between the sounds and the jam is kept as the part the sounds take.
 export type ViewMode = 'controls' | 'both' | 'code'
-export type Layout = { view: ViewMode; sounds: boolean; jams: boolean; mixer: boolean; wave: boolean; song: boolean; soundsWidth: number | null; codeWidth: number | null; soundsShare: number | null }
+export type LeftPanel = 'mixer' | 'sounds' | 'jams'
+export const LEFT_PANELS: LeftPanel[] = ['mixer', 'sounds', 'jams']
+export type Layout = { view: ViewMode; sounds: boolean; jams: boolean; mixer: boolean; wave: boolean; song: boolean; soundsWidth: number | null; codeWidth: number | null; soundsShare: number | null; folded: LeftPanel[] }
 
-export const DEFAULT_LAYOUT: Layout = { view: 'both', sounds: true, jams: false, mixer: true, wave: true, song: true, soundsWidth: null, codeWidth: null, soundsShare: null }
+export const DEFAULT_LAYOUT: Layout = { view: 'both', sounds: true, jams: false, mixer: true, wave: true, song: true, soundsWidth: null, codeWidth: null, soundsShare: null, folded: [] }
 export const SOUNDS_SHARE = 0.4
 export const SHARE_LEAST = 0.2
 export const SHARE_MOST = 0.75
@@ -36,16 +39,17 @@ export function readLayout(text: string | null): Layout {
             soundsWidth: width(kept.soundsWidth),
             codeWidth: width(kept.codeWidth),
             soundsShare: share(kept.soundsShare),
+            folded: LEFT_PANELS.filter((panel) => Array.isArray(kept.folded) && kept.folded.includes(panel)),
         }
     } catch {
         return DEFAULT_LAYOUT
     }
 }
 
-export const isUsual = (layout: Layout): boolean => (Object.keys(DEFAULT_LAYOUT) as (keyof Layout)[]).every((key) => layout[key] === DEFAULT_LAYOUT[key])
+export const isUsual = (layout: Layout): boolean => (Object.keys(DEFAULT_LAYOUT) as (keyof Layout)[]).every((key) => (key === 'folded' ? !layout.folded.length : layout[key] === DEFAULT_LAYOUT[key]))
 
 // The width the code column has when it was never dragged.
-export const usualCode = (windowWidth: number): number => Math.max(420, Math.round(windowWidth * 0.42))
+export const usualCode = (windowWidth: number): number => Math.max(380, Math.round(windowWidth * 0.3))
 
 // A side column may be dragged as far as leaves the least room for what is beside it. `others`
 // is the room the other shown columns need.

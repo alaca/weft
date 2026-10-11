@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js'
+import { Fold, isFolded } from './Fold'
 import { addOwnSounds, closeSounds, colorAt, hearSound, keepTake, recordTake, removeOwnSound, soundCatalogue, useSound } from '../app/controller'
 import { lengthText } from '../library/sounds'
 import { fits, inUse, takesKit } from '../sounds/apply'
@@ -56,8 +57,9 @@ export function SoundBrowser() {
 
     return (
         <Show when={soundsOpen()}>
-            <aside class="sb" aria-label="Sounds" data-testid="sound-browser">
+            <aside class="sb" classList={{ folded: isFolded('sounds') }} aria-label="Sounds" data-testid="sound-browser">
                 <div class="sb-h">
+                    <Fold panel="sounds" name="the sounds" />
                     <h2>Sounds</h2>
                     <span class="grow" />
                     <button class="ib" aria-label="Close sounds" onClick={closeSounds}>

@@ -22,6 +22,7 @@ import {
     openJams,
 } from '../stores/jam'
 import { currentSong } from '../stores/song'
+import { Fold, isFolded } from './Fold'
 
 const HEARD = 0.02
 const BARS = [0.5, 1, 0.7]
@@ -87,8 +88,9 @@ export function JamPanel() {
 
     return (
         <Show when={jamsOpen()}>
-            <aside class="jm" aria-label={jamming() ? `Jam with ${jamPeer()}` : 'Jams'} data-testid="jams">
+            <aside class="jm" classList={{ folded: isFolded('jams') }} aria-label={jamming() ? `Jam with ${jamPeer()}` : 'Jams'} data-testid="jams">
                 <div class="jm-h">
+                    <Fold panel="jams" name="the jam" />
                     <h2>{jamming() ? `Jam with ${jamPeer()}` : 'Jams'}</h2>
                     <span class="grow" />
                     <Show
