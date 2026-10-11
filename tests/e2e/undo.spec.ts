@@ -47,8 +47,7 @@ test('a sound, a muted pattern and a removed pattern are undone the same way', a
 test('nothing of another song comes back when a song has just been opened', async ({ page }) => {
     await open(page)
     await page.getByTestId('strip-drums').getByRole('button', { name: 'bd step 5', exact: true }).click()
-    await page.getByTestId('song-name').click()
-    await page.getByTestId('song-menu').getByRole('button', { name: '+ New song', exact: true }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'New song', exact: true }).click()
     await expect.poll(() => code(page)).toBe('setcpm(120/4)\n')
     await page.getByTestId('status').click()
     await page.keyboard.press(`${MOD}+z`)

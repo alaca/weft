@@ -132,7 +132,7 @@ export function AccountDialog() {
                                                 <b>All {who().most} are used.</b> Delete a song to make room for a new one.
                                             </p>
                                         </Show>
-                                        <Show when={mySongs().length} fallback={<p class="ac-none">Nothing published yet. A song is published from the song menu, with Publish.</p>}>
+                                        <Show when={mySongs().length} fallback={<p class="ac-none">Nothing published yet. A song is published with Publish, in the top bar of an open song.</p>}>
                                             <div class="ac-list" data-testid="account-songs">
                                                 <For each={mySongs()}>
                                                     {(song) => (

@@ -71,8 +71,7 @@ const kept = (page: Page, name: string) =>
 test('a song file that is exported holds its sounds as they are, however large', async ({ page }) => {
     await open(page)
     await addLongTake(page)
-    await page.getByTestId('song-name').click()
-    await page.getByTestId('song-menu').getByRole('button', { name: 'Export', exact: true }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'Export', exact: true }).click()
     const dialog = page.getByTestId('export')
     await expect(dialog.getByRole('button', { name: /small/i })).toHaveCount(0)
     const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Song file (.weft)', exact: true }).click()])
@@ -98,7 +97,6 @@ test('for publishing the sounds are made into MP3 so the file fits, and they sta
     await other.goto('/')
     await other.waitForFunction(() => Boolean((window as any).__weft))
     await expect(other.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
-    await other.getByTestId('song-name').click()
     await other.getByTestId('song-file').setInputFiles({ name: 'Untitled.weft', mimeType: 'application/json', buffer: Buffer.from(made.text) })
     await expect(other.getByTestId('song-note')).toContainText('with 1 sound of its own')
     const after = await kept(other, 'long_take')
@@ -118,8 +116,7 @@ const account = (page: Page) => page.getByTestId('account')
 const someone = () => `ante+${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}@example.com`
 
 async function openPublish(page: Page) {
-    await page.getByTestId('song-name').click()
-    await page.getByTestId('song-menu').getByRole('button', { name: 'Publish', exact: true }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'Publish', exact: true }).click()
     await expect(dialog(page)).toBeVisible()
 }
 
@@ -247,8 +244,7 @@ test('an account needs a name, an address and a password of some length, and an 
 })
 
 async function openAccount(page: Page) {
-    await page.getByTestId('song-name').click()
-    await page.getByTestId('song-menu').getByRole('button', { name: 'Your account', exact: true }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'Your account', exact: true }).click()
     await expect(account(page)).toBeVisible()
 }
 

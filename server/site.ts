@@ -218,6 +218,7 @@ function fixedFiles(): Map<string, Kind> {
     own('/site.css', 'text/css; charset=utf-8')
     own('/site.js', 'text/javascript; charset=utf-8')
     own('/app.png', 'image/png')
+    own('/icon.svg', 'image/svg+xml')
     for (const [family, names] of Object.entries(FONTS)) {
         const dir = packageDir(`@fontsource-variable/${family}`)
         for (const name of names) {

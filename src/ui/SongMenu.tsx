@@ -1,15 +1,13 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { closeSong, deleteSong, duplicateSong, listSongs, newSong, openExport, openSong, openSongFile, renameSong, restoreSong, revertSong, saveSong } from '../app/controller'
-import { openAccount } from '../app/account'
-import { openPublish } from '../app/publish'
+import { deleteSong, listSongs, openSong, renameSong, restoreSong, revertSong } from '../app/controller'
 import { whenText } from '../library/shelf'
 import { jamming, jamPeer } from '../stores/jam'
-import { currentSong, deletedSong, songNote, songs } from '../stores/song'
-import { MOD } from './keys'
+import { currentSong, deletedSong, songs } from '../stores/song'
 
+// The song that is open, by name, and the songs you have. Everything that is done with a song
+// is in the top bar beside it.
 export function SongMenu() {
     let root!: HTMLDivElement
-    let picker: HTMLInputElement | undefined
     const [open, setOpen] = createSignal(false)
     const [now, setNow] = createSignal(Date.now())
     const list = createMemo(() => songs().map((entry) => (entry.id === currentSong()?.id ? (currentSong() ?? entry) : entry)))
@@ -64,105 +62,19 @@ export function SongMenu() {
                                 if (event.key === 'Enter') event.currentTarget.blur()
                             }}
                         />
-                        <div class="sm-row">
-                            <button class="btn" disabled={!song().changed} onClick={saveSong}>
-                                Save <kbd>{MOD} S</kbd>
-                            </button>
-                            <Show when={song().changed}>
-                                <button class="chip tgl" onClick={revertSong}>
-                                    Go back to the saved version
-                                </button>
-                            </Show>
-                            <span class="grow" />
-                            <button
-                                class="btn"
-                                title="Back to the start screen, with your songs and the songs on the site"
-                                disabled={jamming()}
-                                onClick={() => {
-                                    closeSong()
-                                    setOpen(false)
-                                }}
-                            >
-                                Close song
-                            </button>
-                        </div>
                         <p class="sm-note" data-testid="song-state">
                             {song().changed ? 'Changed since it was saved.' : 'Saved.'} Your work is kept as you go, also when you do not save. Saving marks the version you can go back to.
                         </p>
+                        <Show when={song().changed}>
+                            <div class="sm-row">
+                                <button class="chip tgl" onClick={revertSong}>
+                                    Go back to the saved version
+                                </button>
+                            </div>
+                        </Show>
                         <Show when={jamming()}>
                             <p class="sm-note" role="status" data-testid="song-jam">
                                 You are in a jam with {jamPeer()} on this song. To open another song, press Leave in the Jams panel first.
-                            </p>
-                        </Show>
-                        <div class="sm-row">
-                            <button
-                                class="addb"
-                                disabled={jamming()}
-                                onClick={() => {
-                                    newSong()
-                                    setOpen(false)
-                                }}
-                            >
-                                + New song
-                            </button>
-                            <button
-                                class="addb"
-                                disabled={jamming()}
-                                onClick={() => {
-                                    duplicateSong()
-                                    setOpen(false)
-                                }}
-                            >
-                                Duplicate this song
-                            </button>
-                            <button
-                                class="addb"
-                                onClick={() => {
-                                    openExport()
-                                    setOpen(false)
-                                }}
-                            >
-                                Export
-                            </button>
-                            <button
-                                class="addb"
-                                title="Put this song on the Weft site, for others to hear and download"
-                                onClick={() => {
-                                    openPublish()
-                                    setOpen(false)
-                                }}
-                            >
-                                Publish
-                            </button>
-                            <button
-                                class="addb"
-                                title="Your account on the Weft site: the songs you published, your name, your password"
-                                onClick={() => {
-                                    openAccount()
-                                    setOpen(false)
-                                }}
-                            >
-                                Your account
-                            </button>
-                            <button class="addb" disabled={jamming()} onClick={() => picker?.click()}>
-                                Open a file
-                            </button>
-                            <input
-                                ref={picker}
-                                type="file"
-                                accept=".weft,.js,.strudel,.txt"
-                                hidden
-                                data-testid="song-file"
-                                onChange={(event) => {
-                                    const file = event.currentTarget.files?.[0]
-                                    event.currentTarget.value = ''
-                                    if (file) void openSongFile(file)
-                                }}
-                            />
-                        </div>
-                        <Show when={songNote()}>
-                            <p class="sm-note" role="status" data-testid="song-note">
-                                {songNote()}
                             </p>
                         </Show>
                         <h4>Your songs</h4>

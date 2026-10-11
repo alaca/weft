@@ -194,7 +194,6 @@ test('closing the song takes you off the list, and a name is asked for before yo
     await expect(listed(host)).toHaveAttribute('aria-checked', 'true')
     const reader = await person(browser, called('Mara'), OTHER)
     await expect(row(reader, ante)).toBeVisible(LOOK)
-    await host.getByTestId('song-name').click()
     await host.getByRole('button', { name: 'Close song', exact: true }).click()
     await expect.poll(() => onList(reader, ante)).toBe(false)
     await expect(row(reader, ante)).toHaveCount(0, LOOK)

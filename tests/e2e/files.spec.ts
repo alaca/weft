@@ -47,7 +47,6 @@ async function open(page: Page) {
 }
 
 async function openFile(page: Page, file: { name: string; buffer: Buffer }) {
-    await name(page).click()
     await page.getByTestId('song-file').setInputFiles({ mimeType: 'application/octet-stream', ...file })
 }
 
@@ -63,8 +62,7 @@ test('a song is saved as one file with the sounds of your own that it uses', asy
     await page.getByTestId('sound-browser').getByRole('button', { name: 'Use Hook for lead', exact: true }).click()
     await expect.poll(() => code(page)).toContain('  .s("hook")\n')
 
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'Export', exact: true }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'Export', exact: true }).click()
     const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export').getByRole('button', { name: 'Song file (.weft)', exact: true }).click()])
     expect(download.suggestedFilename()).toBe('Untitled.weft')
     const { readFile } = await import('node:fs/promises')
@@ -113,4 +111,6 @@ test('a file of code is opened as a song named after the file, and a broken song
     await page.getByTestId('song-file').setInputFiles({ name: 'Broken.weft', mimeType: 'application/octet-stream', buffer: Buffer.from('nothing here') })
     await expect(page.getByTestId('song-note')).toHaveText('Broken.weft is not a song this app can read.')
     await expect(name(page)).toContainText('Night walk')
+    await page.getByTestId('code').locator('h2').click()
+    await expect(page.getByTestId('song-note')).toHaveCount(0)
 })

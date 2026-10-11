@@ -5,6 +5,8 @@ const songName = (page: Page) => page.getByTestId('song-name')
 const menu = (page: Page) => page.getByTestId('song-menu')
 const recent = (page: Page) => page.getByTestId('start-recent')
 const card = (page: Page) => page.getByTestId('start-account')
+// The account on the start screen is folded away until it is asked for.
+const unfold = (page: Page) => card(page).locator('h2 button').click()
 const closing = (page: Page) => page.getByTestId('close-song')
 const someone = () => `ante+${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}@example.com`
 const PASSWORD = 'a test password 42'
@@ -22,8 +24,7 @@ async function firstStart(page: Page) {
 }
 
 async function closeSong(page: Page) {
-    await songName(page).click()
-    await menu(page).getByRole('button', { name: 'Close song', exact: true }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'Close song', exact: true }).click()
 }
 
 const change = (page: Page) => page.evaluate(() => (window as any).__weft.engine.applyEdit({ from: 0, to: 0, insert: '// changed\n' }))
@@ -36,6 +37,10 @@ test('the first start has no songs, offers a new one and the songs on the site, 
     await expect(page.getByTestId('start-go-on')).toHaveCount(0)
     await expect(start(page).getByRole('heading', { name: 'Songs on the site' })).toBeVisible()
     await expect(page.getByTestId('start-site-count')).toHaveText(/^\d+ songs?\./)
+    await expect(page.getByTestId('start-account-who')).toHaveText('Not signed in')
+    await expect(card(page).locator('h2 button')).toHaveAttribute('aria-expanded', 'false')
+    await expect(card(page).getByLabel('Your email', { exact: true })).toHaveCount(0)
+    await unfold(page)
     await expect(card(page)).toContainText('An account is only for publishing songs. Making music needs none.')
     await expect(card(page).getByRole('button', { name: 'Make an account', exact: true })).toHaveAttribute('aria-pressed', 'true')
     await expect(card(page).getByLabel('Your email', { exact: true })).toBeVisible()
@@ -113,19 +118,24 @@ test('an account is made on the start screen, and the songs on the site are hear
     const title = `Start ${Date.now().toString(36)}`
     await firstStart(page)
     const email = someone()
+    await unfold(page)
     await card(page).getByLabel('Your name', { exact: true }).fill('Ante')
     await card(page).getByLabel('Your email', { exact: true }).fill(email)
     await card(page).getByLabel('Your password', { exact: true }).fill(PASSWORD)
     await card(page).getByRole('button', { name: 'Make my account', exact: true }).click()
     await expect(page.getByTestId('start-count')).toHaveText('You have used 0 of your 10 songs.')
     await expect(card(page)).toContainText(email)
+    await unfold(page)
+    await expect(page.getByTestId('start-account-who')).toHaveText('Ante, signed in')
+    await expect(card(page)).not.toContainText(email)
+    await unfold(page)
 
     await start(page).getByRole('button', { name: 'New song', exact: true }).click()
     await page.evaluate(() => (window as any).__weft.engine.applyEdit({ from: 14, to: 14, insert: '\nbass: note("c2 c3 c2 e2").s("sawtooth").lpf(600)\n' }))
     await songName(page).click()
     await menu(page).getByLabel('Name of this song').fill(title)
     await menu(page).getByLabel('Name of this song').press('Enter')
-    await menu(page).getByRole('button', { name: 'Publish', exact: true }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'Publish', exact: true }).click()
     const publish = page.getByTestId('publish')
     await expect(page.getByTestId('publish-count')).toHaveText('You have used 0 of your 10 songs.')
     await publish.getByPlaceholder('One tag, in your own words').fill('start test')

@@ -95,6 +95,8 @@ const OUT = safe('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 2.5h
 const FLAG = safe('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 14V2.5M3.5 3h8.5l-1.8 2.75L12 8.5H3.5" /></svg>')
 const TURN = safe('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v6a3 3 0 0 0 3 3h5.5M10 9l2.5 2.5L10 14" /></svg>')
 const FIND = safe('<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" /></svg>')
+// The mark of the app, as its icon has it, without the tile under it.
+const MARK = safe('<svg class="mark" viewBox="222 300 580 424" aria-hidden="true"><g fill="none" stroke-linecap="round" stroke-width="56"><path d="M250 372h524" stroke="#e5583f" /><path d="M250 512h524" stroke="#ecb739" /><path d="M250 652h524" stroke="#79b4f2" /></g><g fill="#ece6d6"><rect x="352" y="300" width="56" height="424" rx="28" /><rect x="484" y="300" width="56" height="424" rx="28" /><rect x="616" y="300" width="56" height="424" rx="28" /></g></svg>')
 const SOUND = safe('<svg viewBox="0 0 20 14"><path d="M1 6v2M4.6 3.5v7M8.2 1v12M11.8 4v6M15.4 2.5v9M19 6v2" /></svg>')
 
 const disc = (who: Maker, small = false) => html`<i class="av${small ? ' xs' : ''}${who.tint ? ` w${who.tint}` : ''}">${initial(who.name)}</i>`
@@ -107,6 +109,7 @@ function layout(around: Around, page: string, title: string, main: Markup, defs:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
 <link rel="stylesheet" href="/site.css">
 <script src="/site.js" defer></script>
 </head>
@@ -114,7 +117,7 @@ function layout(around: Around, page: string, title: string, main: Markup, defs:
 ${defs}
 <header class="hd">
     <div class="wrap hd-in">
-        <a class="word" href="/" aria-label="Weft, home">Weft</a>
+        <a class="word" href="/" aria-label="Weft, home">${MARK}Weft</a>
         <nav class="nav" aria-label="Site">
             <a href="/songs" data-nav="songs">Songs</a>
             <a href="/download" data-nav="download">Download</a>
@@ -125,7 +128,7 @@ ${defs}
 ${main}
 <footer class="ft">
     <div class="wrap ft-in">
-        <a class="word" href="/" aria-label="Weft, home">Weft</a>
+        <a class="word" href="/" aria-label="Weft, home">${MARK}Weft</a>
         <p>Free and open source. Sound engine: Strudel.</p>
         <span class="grow"></span>
         <nav aria-label="Footer">

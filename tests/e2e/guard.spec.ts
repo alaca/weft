@@ -26,10 +26,8 @@ async function type(page: Page, text: string) {
 }
 
 async function openFile(page: Page, name: string, text: string) {
-    await page.getByTestId('song-name').click()
     await page.getByTestId('song-file').setInputFiles({ name, mimeType: 'text/plain', buffer: Buffer.from(text) })
     await expect(page.getByTestId('song-note')).toContainText('Opened')
-    await page.keyboard.press('Escape')
 }
 
 test('a song of your own may hold any code, as before', async ({ page }) => {

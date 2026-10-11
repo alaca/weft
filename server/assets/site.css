@@ -59,7 +59,9 @@ p { text-wrap: pretty; }
 
 .hd { background: var(--cloth); border-bottom: 1px solid var(--seam); }
 .hd-in { height: 60px; display: flex; align-items: center; gap: 26px; }
-.word { font: italic 600 25px/1 var(--voice); letter-spacing: -0.01em; padding-bottom: 3px; }
+.word { display: inline-flex; align-items: center; gap: 10px; font: italic 600 25px/1 var(--voice); letter-spacing: -0.01em; padding-bottom: 3px; }
+.word .mark { height: 20px; width: auto; flex: none; margin-top: 3px; }
+.ft .word .mark { height: 16px; }
 .nav { display: flex; align-items: center; gap: 2px; }
 .nav a { height: 32px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center; font-size: 14px; font-weight: 500; color: var(--linen-2); white-space: nowrap; }
 .nav a:hover { background: var(--cloth-3); color: var(--linen); }

@@ -4,7 +4,8 @@ import { drumChoices } from '../controls/drums'
 import { firstMotion, motionText, readMotion, type Motion } from '../controls/motion'
 import { callFor, controlOf, valueArg, type ControlView } from '../controls/views'
 import { onSongLink } from '../desktop/links'
-import { installViewMenu } from '../desktop/menu'
+import { installMenus } from '../desktop/menu'
+import { chooseFile } from '../desktop/open'
 import { saveFile, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
@@ -70,7 +71,8 @@ import { catalogue, type SoundItem } from '../sounds/catalog'
 import type { Bars } from '../jam/protocol'
 import { jamsOpen, jamStage, setJamsOpen, setJamUnread, setSoundsShare, soundsShare } from '../stores/jam'
 import { attachJam, leaveJam, tellJam } from './jam'
-import { attachPublish } from './publish'
+import { openAccount } from './account'
+import { attachPublish, openPublish } from './publish'
 import { SITE } from '../site/api'
 import {
     cycle,
@@ -123,6 +125,8 @@ import {
     setSongNote,
     playMode,
     setPlayModeValue,
+    currentSong,
+    startOpen,
     type PlayMode,
     setTakeSince,
     takeSince,
@@ -322,18 +326,36 @@ export async function mount(root: HTMLElement): Promise<void> {
     )
     onCode(initial)
     await engine.mount(root, initial)
-    const tickMenu = await installViewMenu([
-        { id: 'weft-view-both', text: 'Controls and Code', checked: () => viewMode() === 'both', action: () => setView('both') },
-        { id: 'weft-view-controls', text: 'Controls Only', checked: () => viewMode() === 'controls', action: () => setView('controls') },
-        { id: 'weft-view-code', text: 'Code Only', checked: () => viewMode() === 'code', action: () => setView('code') },
-        'line',
-        { id: 'weft-view-sounds', text: 'Sounds', checked: soundsOpen, action: toggleSounds },
-        { id: 'weft-view-jams', text: 'Jams', checked: jamsOpen, action: toggleJams },
-        { id: 'weft-view-wave', text: 'Waveform', checked: waveShown, action: toggleWaveform },
-        { id: 'weft-view-song', text: 'Song Panel', checked: songShown, action: toggleSongPanel },
-        'line',
-        { id: 'weft-view-reset', text: 'Reset Layout', action: resetLayout },
-    ])
+    const inSong = () => !startOpen() && Boolean(currentSong())
+    const alone = () => jamStage() !== 'jamming'
+    const tickMenu = await installMenus({
+        File: [
+            { id: 'weft-file-new', text: 'New Song', keys: 'CmdOrCtrl+N', enabled: alone, action: newSong },
+            { id: 'weft-file-open', text: 'Open a File…', keys: 'CmdOrCtrl+O', enabled: alone, action: () => void openAFile() },
+            'line',
+            { id: 'weft-file-save', text: 'Save', keys: 'CmdOrCtrl+S', enabled: () => inSong() && Boolean(currentSong()?.changed), action: saveSong },
+            { id: 'weft-file-revert', text: 'Go Back to the Saved Version', enabled: () => inSong() && Boolean(currentSong()?.changed), action: revertSong },
+            { id: 'weft-file-duplicate', text: 'Duplicate', enabled: () => inSong() && alone(), action: duplicateSong },
+            'line',
+            { id: 'weft-file-export', text: 'Export…', enabled: inSong, action: openExport },
+            { id: 'weft-file-publish', text: 'Publish…', enabled: inSong, action: openPublish },
+            { id: 'weft-file-account', text: 'Your Account…', action: openAccount },
+            'line',
+            { id: 'weft-file-close', text: 'Close Song', enabled: () => inSong() && alone(), action: closeSong },
+        ],
+        View: [
+            { id: 'weft-view-both', text: 'Controls and Code', checked: () => viewMode() === 'both', action: () => setView('both') },
+            { id: 'weft-view-controls', text: 'Controls Only', checked: () => viewMode() === 'controls', action: () => setView('controls') },
+            { id: 'weft-view-code', text: 'Code Only', checked: () => viewMode() === 'code', action: () => setView('code') },
+            'line',
+            { id: 'weft-view-sounds', text: 'Sounds', checked: soundsOpen, action: toggleSounds },
+            { id: 'weft-view-jams', text: 'Jams', checked: jamsOpen, action: toggleJams },
+            { id: 'weft-view-wave', text: 'Waveform', checked: waveShown, action: toggleWaveform },
+            { id: 'weft-view-song', text: 'Song Panel', checked: songShown, action: toggleSongPanel },
+            'line',
+            { id: 'weft-view-reset', text: 'Reset Layout', action: resetLayout },
+        ],
+    })
     createRoot(() => {
         createEffect(() => {
             layoutNow()
@@ -1722,6 +1744,23 @@ async function restored(packed: PackedSound): Promise<Pick<PackedSound, 'file' |
     const cut = heard ? withoutLead(heard, packed.onset) : null
     if (!cut) return packed
     return { file: packed.file.replace(/\.mp3$/i, '.wav'), type: 'audio/wav', data: encodeWav(cut.channels, cut.sampleRate) }
+}
+
+export const dismissSongNote = () => setSongNote(null)
+
+// The kinds of file a song is opened from.
+export const SONG_KINDS = [SONG_FILE, 'js', 'strudel', 'txt']
+
+// Open a File in the desktop app's menu. In the window the same is a button, which opens the
+// window's own file chooser.
+export async function openAFile() {
+    if (jamStage() === 'jamming') return
+    try {
+        const file = await chooseFile('Songs', SONG_KINDS)
+        if (file) await openSongFile(file)
+    } catch (err) {
+        setSongNote(`The file could not be opened: ${String((err as Error)?.message ?? err)}`)
+    }
 }
 
 // A song file, or any file of code, becomes a new song. The sounds that come in a song file are

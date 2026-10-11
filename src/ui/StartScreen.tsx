@@ -6,6 +6,7 @@ import { site, type SiteSong } from '../site/api'
 import { me } from '../stores/account'
 import { currentSong, songNote, songs, startOpen } from '../stores/song'
 import { AccountForm } from './AccountForm'
+import { Mark } from './Mark'
 
 type Order = 'new' | 'most'
 const ORDERS: { id: Order; label: string }[] = [
@@ -30,6 +31,7 @@ export function StartScreen() {
     const [heard, setHeard] = createSignal({ at: 0, of: 30 })
     const [opening, setOpening] = createSignal<string | null>(null)
     const [now, setNow] = createSignal(Date.now())
+    const [accountShown, setAccountShown] = createSignal(false)
 
     const recent = createMemo(() => (startOpen() && songs() ? recentSongs() : []))
     const listed = createMemo(() => {
@@ -82,7 +84,10 @@ export function StartScreen() {
         <Show when={startOpen()}>
             <div class="sx" data-testid="start">
                 <header class="sx-top">
-                    <div class="word">Weft</div>
+                    <div class="brand">
+                        <Mark />
+                        <div class="word">Weft</div>
+                    </div>
                     <span class="sx-what">Drum grids, piano rolls and knobs beside the code. Both show the same song.</span>
                 </header>
 
@@ -182,39 +187,47 @@ export function StartScreen() {
                         </div>
                     </Show>
 
-                    <div class="sx-acc" data-testid="start-account">
-                        <div class="sx-acc-h">
-                            <h2>Your account</h2>
-                        </div>
-                        <Show
-                            when={me()}
-                            fallback={
-                                <>
-                                    <p class="sx-acc-t">An account is only for publishing songs. Making music needs none.</p>
-                                    <AccountForm />
-                                </>
-                            }
-                        >
-                            {(who) => (
-                                <>
-                                    <div class="sx-who">
-                                        <i class="sx-who-a">{letter(who().name)}</i>
-                                        <div>
-                                            <b>{who().name}</b>
-                                            <span>{who().email}</span>
+                    <div class="sx-acc" classList={{ shut: !accountShown() }} data-testid="start-account">
+                        <h2 class="sx-acc-h">
+                            <button aria-expanded={accountShown()} onClick={() => setAccountShown(!accountShown())}>
+                                Your account
+                                <span data-testid="start-account-who">{me() ? `${me()!.name}, signed in` : 'Not signed in'}</span>
+                                <svg viewBox="0 0 10 10" aria-hidden="true">
+                                    <path d="M2 3.6 5 6.6 8 3.6" />
+                                </svg>
+                            </button>
+                        </h2>
+                        <Show when={accountShown()}>
+                            <Show
+                                when={me()}
+                                fallback={
+                                    <>
+                                        <p class="sx-acc-t">An account is only for publishing songs. Making music needs none.</p>
+                                        <AccountForm />
+                                    </>
+                                }
+                            >
+                                {(who) => (
+                                    <>
+                                        <div class="sx-who">
+                                            <i class="sx-who-a">{letter(who().name)}</i>
+                                            <div>
+                                                <b>{who().name}</b>
+                                                <span>{who().email}</span>
+                                            </div>
+                                            <button class="btn" onClick={openAccount}>
+                                                Your account
+                                            </button>
+                                            <button class="pb-forgot" onClick={() => void signOutOfSite()}>
+                                                Sign out
+                                            </button>
                                         </div>
-                                        <button class="btn" onClick={openAccount}>
-                                            Your account
-                                        </button>
-                                        <button class="pb-forgot" onClick={() => void signOutOfSite()}>
-                                            Sign out
-                                        </button>
-                                    </div>
-                                    <p class="sx-acc-t" data-testid="start-count">
-                                        You have used {who().used} of your {who().most} songs.
-                                    </p>
-                                </>
-                            )}
+                                        <p class="sx-acc-t" data-testid="start-count">
+                                            You have used {who().used} of your {who().most} songs.
+                                        </p>
+                                    </>
+                                )}
+                            </Show>
                         </Show>
                     </div>
                 </section>
@@ -257,7 +270,7 @@ export function StartScreen() {
                             <Show when={reached() === 'yes' && !found().length}>
                                 <div class="sx-pub-n">
                                     <b>Nothing is published yet.</b>
-                                    <span>A song is published from the song menu, with Publish.</span>
+                                    <span>A song is published with Publish, in the top bar of an open song.</span>
                                 </div>
                             </Show>
                             <For each={listed()}>

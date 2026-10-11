@@ -137,8 +137,7 @@ test('a song with a sound of your own in it is exported with that sound', async 
     await browser(page).getByRole('button', { name: 'Use Hook for lead', exact: true }).click()
     await expect.poll(() => code(page)).toContain('  .s("hook")\n')
     await browser(page).getByRole('button', { name: 'Close sounds', exact: true }).click()
-    await page.getByTestId('song-name').click()
-    await page.getByTestId('song-menu').getByRole('button', { name: 'Export', exact: true }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'Export', exact: true }).click()
     const [download] = await Promise.all([
         page.waitForEvent('download', { timeout: 60000 }),
         page.getByTestId('export').getByRole('button', { name: 'Export audio', exact: true }).click(),

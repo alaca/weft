@@ -26,10 +26,8 @@ async function open(page: Page, text: string | null = SONG) {
 // One of the songs that used to come with the app, opened from its file the way its owner will
 // open it to publish it.
 async function openStored(page: Page, song: string) {
-    await name(page).click()
     await page.getByTestId('song-file').setInputFiles({ name: `${song}.weft`, mimeType: 'application/json', buffer: readFileSync(`demos/${song}.weft`) })
     await expect(page.getByTestId('song-note')).toContainText(`Opened ${song}`)
-    await page.keyboard.press('Escape')
     await expect(name(page)).toContainText(song)
 }
 
@@ -42,8 +40,7 @@ async function again(page: Page) {
 test('a new song starts with nothing but the tempo, and the old one is kept', async ({ page }) => {
     await open(page)
     await expect(name(page)).toContainText('Untitled')
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'New song' }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'New song', exact: true }).click()
     await expect(menu(page)).toHaveCount(0)
     await expect(name(page)).toContainText('Untitled 2')
     await expect.poll(() => code(page)).toBe(NEW)
@@ -61,8 +58,7 @@ test('a new song starts with nothing but the tempo, and the old one is kept', as
 test('each song keeps its own work, also when the app is closed without saving', async ({ page }) => {
     await open(page)
     await type(page, '// first\n')
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'New song' }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'New song', exact: true }).click()
     await page.getByTestId('add-pattern').getByRole('button', { name: 'Melody', exact: true }).click()
     await expect.poll(() => code(page)).toContain('melody: note("~")')
     await again(page)
@@ -75,17 +71,24 @@ test('each song keeps its own work, also when the app is closed without saving',
 
 test('saving marks the version to go back to', async ({ page }) => {
     await open(page)
-    await name(page).click()
-    await expect(menu(page).getByRole('button', { name: /^Save/ })).toBeDisabled()
+    const save = page.getByTestId('top').getByRole('button', { name: 'Save', exact: true })
+    await expect(save).toBeDisabled()
     await type(page, '// one\n')
     await expect(name(page).locator('.proj-d')).toHaveCount(1)
+    await name(page).click()
     await expect(page.getByTestId('song-state')).toContainText('Changed since it was saved.')
-    await menu(page).getByRole('button', { name: /^Save/ }).click()
+    await save.click()
+    await expect(menu(page)).toHaveCount(0)
     await expect(name(page).locator('.proj-d')).toHaveCount(0)
+    await expect(save).toBeDisabled()
+    await name(page).click()
     await expect(page.getByTestId('song-state')).toContainText('Saved.')
+    await expect(menu(page).getByRole('button', { name: 'Go back to the saved version' })).toHaveCount(0)
+    await page.keyboard.press('Escape')
 
     await type(page, '// two\n')
     await expect(name(page).locator('.proj-d')).toHaveCount(1)
+    await name(page).click()
     await menu(page).getByRole('button', { name: 'Go back to the saved version' }).click()
     await expect.poll(() => code(page)).toBe(`// one\n${SONG}`)
     await expect(name(page).locator('.proj-d')).toHaveCount(0)
@@ -121,8 +124,7 @@ test('a song can be renamed', async ({ page }) => {
 
 test('a song can be duplicated, and the copy is its own song', async ({ page }) => {
     await open(page)
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'Duplicate this song' }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'Duplicate this song', exact: true }).click()
     await expect(name(page)).toContainText('Untitled copy')
     expect(await code(page)).toBe(SONG)
     await type(page, '// in the copy\n')
@@ -133,8 +135,7 @@ test('a song can be duplicated, and the copy is its own song', async ({ page }) 
 
 test('a song can be deleted and put back', async ({ page }) => {
     await open(page)
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'New song' }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'New song', exact: true }).click()
     await name(page).click()
     await menu(page).getByRole('button', { name: 'Open Untitled', exact: true }).hover()
     await menu(page).getByRole('button', { name: 'Delete Untitled', exact: true }).click()
@@ -149,8 +150,7 @@ test('a song can be deleted and put back', async ({ page }) => {
 
 test('deleting the song that is open opens another, and deleting the last one leaves a new song', async ({ page }) => {
     await open(page)
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'New song' }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'New song', exact: true }).click()
     await name(page).click()
     await menu(page).getByRole('button', { name: 'Delete Untitled 2', exact: true }).click()
     await expect(name(page)).toContainText('Untitled')
@@ -164,8 +164,7 @@ test('undo in one song cannot bring back the code of another', async ({ page }) 
     await open(page)
     await page.locator('.cm-content').click()
     await page.keyboard.type('// typed here ')
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'New song' }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'New song', exact: true }).click()
     await expect.poll(() => code(page)).toBe(NEW)
     await page.locator('.cm-content').click()
     await page.keyboard.press('ControlOrMeta+z')
@@ -181,13 +180,26 @@ test('opening another song stops the one that plays and starts from its first ba
     await page.getByRole('button', { name: 'Start from bar 3', exact: true }).click()
     await page.getByRole('button', { name: 'Play', exact: true }).click()
     await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'New song' }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'New song', exact: true }).click()
     await expect(page.getByTestId('code-status')).toHaveText('Stopped')
     await expect(page.getByTestId('cycle')).toHaveText('1')
     await page.getByTestId('add-pattern').getByRole('button', { name: 'Drums', exact: true }).click()
     await expect(page.getByTestId('strip-drums')).toBeVisible()
     await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.events('bass', 0).length)).toBe(0)
+})
+
+test('what is done with a song is in the top bar, and the menu holds the song and your songs', async ({ page }) => {
+    await open(page)
+    const top = page.getByTestId('top')
+    for (const what of ['Save', 'Close song', 'New song', 'Open a file', 'Duplicate this song', 'Export', 'Publish', 'Your account']) await expect(top.getByRole('button', { name: what, exact: true })).toBeVisible()
+    await name(page).click()
+    await expect(menu(page).getByRole('textbox', { name: 'Name of this song' })).toHaveValue('Untitled')
+    await expect(rows(page)).toHaveText(['Untitled'])
+    for (const what of ['Save', 'Close song', 'New song', 'Open a file', 'Duplicate', 'Export', 'Publish', 'Your account']) await expect(menu(page).getByRole('button', { name: what })).toHaveCount(0)
+    await top.getByRole('button', { name: 'Your account', exact: true }).click()
+    await expect(menu(page)).toHaveCount(0)
+    await expect(page.getByTestId('account')).toBeVisible()
+    await page.getByTestId('account').getByRole('button', { name: 'Close your account', exact: true }).click()
 })
 
 test('the menu closes on Escape and on a click outside it', async ({ page }) => {
@@ -234,8 +246,7 @@ test('the pictures in the playlist are of the song that is open, not the one bef
 const ARRANGED = 'setcpm(240/4)\n\ndrums: s("bd*4, hh*8")\n  .bank("RolandTR909")\n  .lpf(4000)\n  .mask("<1!3 0>")\n\nbass: note("c2 e2 g2 e2")\n  .s("sawtooth")\n  .lpf(slider(800, 100, 8000))\n  .room(.3)\n'
 
 async function openExport(page: Page) {
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'Export', exact: true }).click()
+    await page.getByTestId('top').getByRole('button', { name: 'Export', exact: true }).click()
     await expect(page.getByTestId('export')).toBeVisible()
 }
 

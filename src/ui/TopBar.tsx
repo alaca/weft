@@ -1,9 +1,34 @@
-import { For, Show } from 'solid-js'
-import { openJams, setMasterVolume, setPlayMode, setTempo, setView, stop, toggleJams, togglePlay, toggleSongPanel, toggleSounds, toggleWaveform } from '../app/controller'
+import { For, onCleanup, onMount, Show } from 'solid-js'
+import { openAccount } from '../app/account'
+import {
+    closeSong,
+    dismissSongNote,
+    duplicateSong,
+    newSong,
+    openExport,
+    openJams,
+    openSongFile,
+    saveSong,
+    setMasterVolume,
+    setPlayMode,
+    setTempo,
+    setView,
+    SONG_KINDS,
+    stop,
+    toggleJams,
+    togglePlay,
+    toggleSongPanel,
+    toggleSounds,
+    toggleWaveform,
+} from '../app/controller'
+import { openPublish } from '../app/publish'
 import type { ControlView } from '../controls/views'
-import { beat, bpm, cycle, engineState, masterVolume, playMode, song, songShown, soundsOpen, stale, viewMode, waveShown, type PlayMode, type ViewMode } from '../stores/song'
-import { jamming, jamPeer, jamsOpen, jamUnread } from '../stores/jam'
+import { me } from '../stores/account'
+import { beat, bpm, currentSong, cycle, engineState, masterVolume, playMode, song, songNote, songShown, soundsOpen, stale, startOpen, viewMode, waveShown, type PlayMode, type ViewMode } from '../stores/song'
+import { jamListed, jamming, jamPeer, jamsOpen, jamUnread } from '../stores/jam'
+import { MOD } from './keys'
 import { Knob } from './Knob'
+import { Mark } from './Mark'
 import { SongMenu } from './SongMenu'
 
 const MODES: { id: PlayMode; label: string; about: string }[] = [
@@ -18,6 +43,16 @@ const VIEWS: { id: ViewMode; label: string }[] = [
 ]
 
 export function TopBar() {
+    let picker: HTMLInputElement | undefined
+    let said: HTMLParagraphElement | undefined
+    // What was said about a song is put away by the next press anywhere else.
+    const away = (event: PointerEvent) => {
+        if (songNote() && !startOpen() && !said?.contains(event.target as Node)) dismissSongNote()
+    }
+    onMount(() => document.addEventListener('pointerdown', away))
+    onCleanup(() => document.removeEventListener('pointerdown', away))
+    const inJam = 'You are in a jam on this song. Press Leave in the Jams panel first.'
+
     const volume = (): ControlView => ({
         fn: 'master',
         label: 'Volume',
@@ -33,8 +68,65 @@ export function TopBar() {
 
     return (
         <header class="top" data-testid="top">
-            <div class="word">Weft</div>
-            <SongMenu />
+            <div class="brand">
+                <Mark />
+                <div class="word">Weft</div>
+            </div>
+            <div class="top-l">
+                <SongMenu />
+                <div class="acts" role="group" aria-label="This song">
+                    <button class="ib" aria-label="Save" title={currentSong()?.changed ? `Save (${MOD} S). Marks the version you can go back to.` : 'Saved. Nothing has changed since.'} disabled={!currentSong()?.changed} onClick={saveSong}>
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <path class="ln" stroke-linejoin="round" d="M2.8 2.8h8.1l2.3 2.3v8.1H2.8zM5.2 2.8v3.4h5V2.8M5.2 13.2V9.4h5.6v3.8" />
+                        </svg>
+                    </button>
+                    <button class="ib" aria-label="Close song" title={jamming() ? inJam : 'Close this song and go back to the start screen'} disabled={jamming()} onClick={closeSong}>
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <path class="ln" d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6" />
+                        </svg>
+                    </button>
+                </div>
+                <i class="top-sep" />
+                <div class="acts" role="group" aria-label="Songs and files">
+                    <button class="ib" aria-label="New song" title={jamming() ? inJam : 'New song'} disabled={jamming()} onClick={newSong}>
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <path class="ln" stroke-linejoin="round" d="M3.8 2.3h5.4l3 3v8.4H3.8zM8 7.4v4M6 9.4h4" />
+                        </svg>
+                    </button>
+                    <button class="ib" aria-label="Open a file" title={jamming() ? inJam : 'Open a song file, or a file of code'} disabled={jamming()} onClick={() => picker?.click()}>
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <path class="ln" stroke-linejoin="round" d="M2 4h4l1.5 1.6H14v7.2H2z" />
+                        </svg>
+                    </button>
+                    <input
+                        ref={picker}
+                        type="file"
+                        accept={SONG_KINDS.map((kind) => `.${kind}`).join(',')}
+                        hidden
+                        data-testid="song-file"
+                        onChange={(event) => {
+                            const file = event.currentTarget.files?.[0]
+                            event.currentTarget.value = ''
+                            if (file) void openSongFile(file)
+                        }}
+                    />
+                    <button class="ib rare" aria-label="Duplicate this song" title={jamming() ? inJam : 'Duplicate this song'} disabled={jamming()} onClick={duplicateSong}>
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <path class="ln" stroke-linejoin="round" d="M5.6 5.6h7.6v7.6H5.6zM10.4 5.6V2.8H2.8v7.6h2.8" />
+                        </svg>
+                    </button>
+                    <button class="ib rare" aria-label="Export" title="Export: a song file, the sound, or the code" onClick={openExport}>
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <path class="ln" stroke-linejoin="round" d="M8 2.4v7.8M4.9 7.2 8 10.3l3.1-3.1M2.8 13.2h10.4" />
+                        </svg>
+                    </button>
+                    <button class="ib rare" aria-label="Publish" title="Publish: put this song on the Weft site, for others to hear and download" onClick={openPublish}>
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                            <path class="ln" stroke-linejoin="round" d="M8 10.4V2.6M4.9 5.6 8 2.5l3.1 3.1M2.8 13.2h10.4" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
             <Show when={jamming()}>
                 <button class="jm-with" title="Show the jam" data-testid="jam-with" onClick={openJams}>
                     <u />
@@ -101,7 +193,14 @@ export function TopBar() {
             </span>
             <div class="grow" />
             <div class="shows">
-                <button class="ib" classList={{ on: jamsOpen() }} aria-pressed={jamsOpen()} aria-label="Jams" title={jamsOpen() ? 'Hide the jam' : 'Play with someone else on one song'} onClick={toggleJams}>
+                <button
+                    class="ib"
+                    classList={{ on: jamsOpen(), open: jamListed() }}
+                    aria-pressed={jamsOpen()}
+                    aria-label="Jams"
+                    title={jamListed() ? 'You are open to jam: people in the list can see you and ask to join' : jamsOpen() ? 'Hide the jam' : 'Play with someone else on one song'}
+                    onClick={toggleJams}
+                >
                     <svg viewBox="0 0 16 16" aria-hidden="true">
                         <circle cx="5.6" cy="6" r="2.5" />
                         <circle cx="11" cy="6.6" r="2" />
@@ -133,6 +232,24 @@ export function TopBar() {
                     )}
                 </For>
             </div>
+            <button class="ib who" classList={{ in: Boolean(me()) }} aria-label="Your account" title={me() ? `Your account on the Weft site: ${me()!.name}` : 'Your account on the Weft site: sign in, or make one'} onClick={openAccount}>
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <circle class="ln" cx="8" cy="5.5" r="2.7" />
+                    <path class="ln" d="M2.7 13.6c.6-3 2.7-4.3 5.3-4.3s4.7 1.3 5.3 4.3" />
+                </svg>
+            </button>
+            <Show when={startOpen() ? null : songNote()}>
+                {(note) => (
+                    <p class="top-note" role="status" data-testid="song-note" ref={said}>
+                        <span>{note()}</span>
+                        <button class="rx" aria-label="Put this away" onClick={dismissSongNote}>
+                            <svg viewBox="0 0 8 8">
+                                <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
+                            </svg>
+                        </button>
+                    </p>
+                )}
+            </Show>
         </header>
     )
 }
