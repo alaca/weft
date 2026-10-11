@@ -65,7 +65,7 @@ p { text-wrap: pretty; }
 .nav { display: flex; align-items: center; gap: 2px; }
 .nav a { height: 32px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center; font-size: 14px; font-weight: 500; color: var(--linen-2); white-space: nowrap; }
 .nav a:hover { background: var(--cloth-3); color: var(--linen); }
-[data-page='songs'] .nav [data-nav='songs'], [data-page='song'] .nav [data-nav='songs'], [data-page='download'] .nav [data-nav='download'] { background: var(--cloth-2); color: var(--linen); box-shadow: inset 0 0 0 1px var(--seam); }
+[data-page='songs'] .nav [data-nav='songs'], [data-page='song'] .nav [data-nav='songs'], [data-page='maker'] .nav [data-nav='songs'], [data-page='download'] .nav [data-nav='download'] { background: var(--cloth-2); color: var(--linen); box-shadow: inset 0 0 0 1px var(--seam); }
 
 .ft { margin-top: 120px; border-top: 1px solid var(--seam-soft); }
 .ft-in { padding-top: 26px; padding-bottom: 30px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 22px; color: var(--linen-3); font-size: 13px; }
@@ -132,7 +132,7 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
 .row:hover { background: color-mix(in srgb, var(--cloth-2) 50%, var(--cloth)); }
 .row-t { min-width: 0; display: grid; gap: 3px; }
 .row h3 { font: 600 19px/1.15 var(--voice); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row h3 a:hover, .pick h3 a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.row h3 a:hover, .pick h3 a:hover, .by a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .row-m { display: contents; }
 .row-m > * { min-width: 0; }
 .num { font: 500 12px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); white-space: nowrap; }

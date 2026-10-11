@@ -7,7 +7,7 @@ import { checkSongFile, looksLikeAudio } from '../src/guard/file'
 import { SONG_LIMIT, soundsUsed } from '../src/library/songfile'
 import { analyze } from '../src/song/analyze'
 import { DEFAULT_SONG, songLength } from '../src/song/arrange'
-import { downloadPage, homePage, licencePage, notePage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
+import { downloadPage, homePage, licencePage, makerPage, notePage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
 import { songPicture } from './picture'
 import { senderOf } from './sender'
 
@@ -347,7 +347,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
 
     const mine = (person: Person) => kept.songs.filter((song) => song.by === person.id)
     const nameOf = (id: string) => kept.people.find((person) => person.id === id)?.name ?? 'Someone'
-    const makerOf = (id: string): Maker => ({ name: nameOf(id), tint: tintOf(id) })
+    const makerOf = (id: string): Maker => ({ id, name: nameOf(id), tint: tintOf(id) })
     const shown = (song: Song) => ({ ...song, by: nameOf(song.by), url: `${origin}/songs/${song.id}`, file: `${origin}/songs/${song.id}.weft`, preview: `${origin}/songs/${song.id}.mp3` })
     const meOf = (person: Person): Answer => ({ status: 200, body: { name: person.name, email: person.email, used: mine(person).length, most: MOST_SONGS } })
     const refuse = (status: number, why: string, what: string, more: object = {}): Answer => ({ status, body: { why, what, ...more } })
@@ -660,6 +660,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
     const note = (status: number, heading: string, lines: string[], go?: { href: string; label: string }): Answer => ({ status, html: notePage(around, `${heading}, Weft`, heading, lines, go) })
     const nothing = () => note(404, 'There is nothing at this address', ['The page may have moved, or the address may be mistyped.'], { href: '/', label: 'Go to the first page' })
     const noSong = () => note(404, 'No such song', ['It may have been hidden or deleted by whoever made it.'], { href: '/songs', label: 'See all songs' })
+    const noMaker = () => note(404, 'No songs here', ['Whoever made them may have hidden or deleted them, or the address may be mistyped.'], { href: '/songs', label: 'See all songs' })
 
     // Anyone may say that something is wrong with a song. What they say is kept with the song
     // and the time, and handed on to whoever runs the site where the site was told how.
@@ -733,6 +734,14 @@ export function createSite(options: SiteOptions): Promise<Site> {
             keep()
             if (asset[2] === 'mp3') return { status: 200, file: { bytes: readFileSync(stored), type: 'audio/mpeg' } }
             return { status: 200, file: { bytes: Buffer.from(handedOut(song, readFileSync(stored, 'utf8'))), type: 'application/json', name: `${fileNameOf(song.name)}.weft` } }
+        }
+
+        // The page of one person's songs is only there while a song of theirs is shown, and
+        // answers the same for an account with nothing to show as for no account at all.
+        const maker = /^\/by\/([a-z0-9]+)$/.exec(path)
+        if (maker && get) {
+            const songs = kept.songs.filter((song) => song.by === maker[1] && !song.hidden).sort(newestFirst)
+            return songs.length ? { status: 200, html: makerPage(around, makerOf(maker[1]), songs.map(listed)) } : noMaker()
         }
         return nothing()
     }

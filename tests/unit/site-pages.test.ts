@@ -285,6 +285,39 @@ describe('the page of a song', () => {
     })
 })
 
+describe('the page of a maker', () => {
+    it('has their name, how many of their songs are shown and those songs, newest first, and is where their name leads from every song', async () => {
+        const ante = await signIn()
+        const first = await publish(ante, { file: plain('Undertow', 80) })
+        await publish(await signIn('mara@example.com', 'Mara'), { file: plain('Low sun', 122) })
+        const hidden = await publish(ante, { file: plain('Glasshouse', 124) })
+        await publish(ante, { file: plain('Stillness', 60) })
+        await ask(`/api/songs/${hidden.id}/hide`, { token: ante, method: 'POST' })
+        const at = /<a href="(\/by\/[a-z0-9]+)">Ante<\/a>/.exec(await page(`/songs/${first.id}`))?.[1] ?? ''
+        const html = await page(at)
+        expect(html).toContain('<title>Songs by Ante, Weft</title>')
+        expect(html).toContain('<h1>Ante</h1>')
+        expect(html).toContain('<p>2 songs made in Weft.</p>')
+        expect(names(html)).toEqual(['Stillness', 'Undertow'])
+        expect(html).not.toContain('ante@example.com')
+        for (const path of ['/', '/songs']) expect(await page(path)).toContain(`<a href="${at}">Ante</a>`)
+    })
+
+    it('is not there for someone whose songs are all hidden, for someone who published nothing, or for nobody, and says the same to each', async () => {
+        const ante = await signIn()
+        await signIn('mara@example.com', 'Mara')
+        const made = await publish(ante)
+        const [first, second] = kept().people.map((one: { id: string }) => one.id)
+        expect((await fetch(`${site.origin}/by/${first}`)).status).toBe(200)
+        await ask(`/api/songs/${made.id}/hide`, { token: ante, method: 'POST' })
+        const answers = await Promise.all([first, second, 'nobody'].map((id) => fetch(`${site.origin}/by/${id}`)))
+        expect(answers.map((answer) => answer.status)).toEqual([404, 404, 404])
+        const said = await Promise.all(answers.map((answer) => answer.text()))
+        expect(said[0]).toContain('No songs here')
+        expect([said[0] === said[2], said[1] === said[2]]).toEqual([true, true])
+    })
+})
+
 describe('reporting a song', () => {
     it('keeps what was said with the song and the time, from anyone', async () => {
         const made = await publish(await signIn())
@@ -431,7 +464,7 @@ describe('every page', () => {
         const token = await signIn('ante@example.com', '<b>')
         const first = await publish(token, { file: plain('Low <i>sun</i>') })
         const made = await publish(token, { file: song({ name: '<img src=x onerror=alert(1)>' }), description: '<script>alert(2)</script>', style: '"><i>', from: first.id })
-        const paths = ['/', '/songs', '/songs?q="><i>', `/songs/${made.id}`, `/songs/${first.id}`]
+        const paths = ['/', '/songs', '/songs?q="><i>', `/songs/${made.id}`, `/songs/${first.id}`, `/by/${kept().people[0].id}`]
         const bold: number[] = []
         for (const path of paths) {
             const html = await page(path)

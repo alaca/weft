@@ -24,7 +24,7 @@ export type Build = { platform: Platform; version: string; bytes: number }
 // site at, for the few places where a page has to give an address in full.
 export type Around = { source?: string; origin?: string }
 // `tint` picks the colour of the disc that stands for a person, 0 to 5.
-export type Maker = { name: string; tint: number }
+export type Maker = { id: string; name: string; tint: number }
 export type Part = { name: string; sound: string; own: boolean }
 export type OwnSound = { name: string; kind: string; seconds: number; bytes: number; usedBy: number[] }
 export type Preview = { seconds: number | null; peaks: number[] }
@@ -112,6 +112,8 @@ const MARK = safe('<svg class="mark" viewBox="222 300 580 424" aria-hidden="true
 const SOUND = safe('<svg viewBox="0 0 20 14"><path d="M1 6v2M4.6 3.5v7M8.2 1v12M11.8 4v6M15.4 2.5v9M19 6v2" /></svg>')
 
 const disc = (who: Maker, small = false) => html`<i class="av${small ? ' xs' : ''}${who.tint ? ` w${who.tint}` : ''}">${initial(who.name)}</i>`
+// A maker's name, which leads to the page of their songs.
+const nameLink = (who: Maker) => html`<a href="/by/${who.id}">${who.name}</a>`
 const sourceLink = (around: Around, more = '') => (around.source ? html`<a${safe(more)} href="${around.source}" rel="noopener">Source code</a>` : '')
 
 // What a page says of itself for wherever its address is pasted, so that it is shown there with
@@ -199,7 +201,7 @@ function row(song: Listed, whole = false): Markup {
                 ${playLink(song)}
                 <div class="row-t">
                     <h3><a href="/songs/${song.id}">${song.name}</a></h3>
-                    <span class="by">${disc(song.by, true)}${song.by.name}<span class="num at"><span data-now>0:00</span>${seconds ? ` of ${clock(seconds)}` : ''}</span></span>
+                    <span class="by">${disc(song.by, true)}${nameLink(song.by)}<span class="num at"><span data-now>0:00</span>${seconds ? ` of ${clock(seconds)}` : ''}</span></span>
                 </div>
                 <div class="row-m">
                     <span>${song.style ? html`<a class="chip" href="/songs?q=${encodeURIComponent(song.style)}" title="Songs tagged ${song.style}">${song.style}</a>` : ''}</span>
@@ -218,7 +220,7 @@ function pick(song: Listed): Markup {
                     ${playLink(song)}
                     <div>
                         <h3><a href="/songs/${song.id}">${song.name}</a></h3>
-                        <span class="by">${disc(song.by, true)}${song.by.name}</span>
+                        <span class="by">${disc(song.by, true)}${nameLink(song.by)}</span>
                     </div>
                 </div>
                 <div class="wave" aria-hidden="true">
@@ -419,6 +421,18 @@ export function privacyPage(around: Around): string {
     return layout(around, 'privacy', 'Privacy, Weft', main)
 }
 
+// What stands over a list of songs: the names of its columns.
+const COLUMNS = safe(`<div class="list-h" aria-hidden="true">
+            <span></span>
+            <span class="cap">Song</span>
+            <span class="cap">Style</span>
+            <span class="cap">Tempo</span>
+            <span class="cap">Patterns</span>
+            <span class="cap">Length</span>
+            <span class="cap">Downloads</span>
+            <span></span>
+        </div>`)
+
 function songsAddress(search: Search): string {
     const query = new URLSearchParams()
     if (search.q) query.set('q', search.q)
@@ -469,16 +483,7 @@ export function songsPage(around: Around, search: Search, found: Found): string 
     </form>
 
     <div class="card list">
-        <div class="list-h" aria-hidden="true">
-            <span></span>
-            <span class="cap">Song</span>
-            <span class="cap">Style</span>
-            <span class="cap">Tempo</span>
-            <span class="cap">Patterns</span>
-            <span class="cap">Length</span>
-            <span class="cap">Downloads</span>
-            <span></span>
-        </div>
+        ${COLUMNS}
         ${found.songs.length ? html`<ul>
             ${found.songs.map((song) => row(song))}
         </ul>` : html`<p class="none">${found.total ? 'There is no such page.' : search.q || search.from !== null || search.to !== null ? 'No song matches that.' : 'Nothing is published yet.'}</p>`}
@@ -487,6 +492,32 @@ export function songsPage(around: Around, search: Search, found: Found): string 
     <p class="tail">A style is whatever its maker typed. Press one to see the songs that share it.</p>
 </main>`
     return layout(around, 'songs', 'Songs, Weft', main, '', pasted(around, 'Songs made in Weft', about))
+}
+
+// The songs of one person that are shown, newest first. There is always at least one: the site
+// has no such page for someone with nothing to show.
+export function makerPage(around: Around, who: Maker, songs: Listed[]): string {
+    const about = `${many(songs.length, 'song')} made in Weft.`
+    const main = html`<main class="wrap page">
+    <div class="ph">
+        <div>
+            <nav class="crumb" aria-label="You are here">
+                <a href="/songs">Songs</a>
+                <span aria-hidden="true">/</span>
+                <span>${who.name}</span>
+            </nav>
+            <h1>${who.name}</h1>
+            <p>${about}</p>
+        </div>
+    </div>
+    <div class="card list">
+        ${COLUMNS}
+        <ul>
+            ${songs.map((song) => row(song))}
+        </ul>
+    </div>
+</main>`
+    return layout(around, 'maker', `Songs by ${who.name}, Weft`, main, '', pasted(around, `Songs by ${who.name}`, about))
 }
 
 function player(song: Shown): Markup {
@@ -576,7 +607,7 @@ ${pasted(around, song.name, about, `/songs/${song.id}.png`)}${address ? html`<me
             </nav>
             <h1>${song.name}</h1>
             <div class="meta">
-                <span class="by">${disc(song.by)}${by}</span>
+                <span class="by">${disc(song.by)}${nameLink(song.by)}</span>
                 ${song.style ? html`<a class="chip" href="/songs?q=${encodeURIComponent(song.style)}" title="Songs tagged ${song.style}">${song.style}</a>` : ''}
                 <span>Published ${day(song.published)}</span>
             </div>
