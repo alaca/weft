@@ -1,12 +1,11 @@
 import { history, isolateHistory, redo, undo } from '@codemirror/commands'
 import { Annotation, EditorState, Prec, StateEffect } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
-import { StrudelMirror, codemirrorSettings } from '@strudel/codemirror'
+import { BlockWidget, StrudelMirror, codemirrorSettings } from '@strudel/codemirror'
 import { Pattern, silence } from '@strudel/core'
 import { mini } from '@strudel/mini'
 import { transpiler } from '@strudel/transpiler'
 import {
-    getAnalyzerData,
     getAudioContext,
     getSuperdoughAudioController,
     initAudio,
@@ -128,8 +127,20 @@ function keepPartsToTheirClock() {
     } as typeof WeakRef
 }
 
+// Strudel says of any two of the pictures it draws in the code, a scope or a piano roll, that
+// they are one and the same. The editor then keeps one of them and loses the others, and the
+// lines between them with them. Two are the same when they are the same kind and the same one
+// in the count.
+function tellPicturesApart() {
+    type Picture = { widgetConfig?: { type?: string; index?: number } }
+    BlockWidget.prototype.eq = function (this: Picture, other: Picture) {
+        return other?.widgetConfig?.type === this.widgetConfig?.type && other?.widgetConfig?.index === this.widgetConfig?.index
+    }
+}
+
 export function createEngine(): Engine {
     keepPartsToTheirClock()
+    tellPicturesApart()
     let mirror: any = null
     let state: EngineState = { playing: false, paused: false, dirty: false, error: null, sounds: 'loading' }
     let registry = new Map<string, any>()
@@ -169,6 +180,22 @@ export function createEngine(): Engine {
         } catch {
             return
         }
+    }
+    // The sound of the whole song, for the waveform, is measured where everything Strudel plays
+    // comes together. Marking every sound for a meter of the app's own would take away the mark
+    // a scope in the code puts on its pattern, and that scope would then draw a flat line.
+    let meter: { node: AnalyserNode; of: AudioNode; heard: Float32Array<ArrayBuffer> } | null = null
+    const wholeSound = (): Float32Array | null => {
+        const output: AudioNode | null = getSuperdoughAudioController().output.destinationGain
+        if (!output || output.context instanceof OfflineAudioContext) return null
+        if (!meter || meter.of !== output) {
+            const node = output.context.createAnalyser()
+            node.fftSize = 2048
+            output.connect(node)
+            meter = { node, of: output, heard: new Float32Array(node.fftSize) }
+        }
+        meter.node.getFloatTimeDomainData(meter.heard)
+        return meter.heard
     }
     const stateFns = new Set<(state: EngineState) => void>()
     const codeFns = new Set<(code: string, remote: boolean) => void>()
@@ -391,7 +418,6 @@ export function createEngine(): Engine {
             bgFill: false,
             solo: false,
             prebake: loadModules,
-            editPattern: (pattern: any) => pattern.analyze('weft'),
             beforeEval: wrapRegistration,
             afterEval: (done: { code?: string }) => {
                 applyMaster()
@@ -735,7 +761,7 @@ export function createEngine(): Engine {
         audible: (cycle) => query(mirror?.repl.state.pattern, cycle - offset),
         waveform() {
             try {
-                return (getAnalyzerData('time', 'weft') as Float32Array | undefined) ?? null
+                return wholeSound()
             } catch {
                 return null
             }
@@ -769,7 +795,7 @@ export function createEngine(): Engine {
         // be minutes long, so listening to one is cut after a few seconds.
         preview(sound, bank, cutAfter) {
             const cut = cutAfter ? { clip: 1 } : {}
-            audition(() => (bank ? { s: sound, bank, analyze: 'weft', ...cut } : { s: sound, analyze: 'weft', ...cut }), cutAfter ?? 0.4)
+            audition(() => (bank ? { s: sound, bank, ...cut } : { s: sound, ...cut }), cutAfter ?? 0.4)
         },
         addSound: addOwnSound,
         removeSound: removeOwnSound,
@@ -807,7 +833,7 @@ export function createEngine(): Engine {
             void mirror.evaluate(true)
         },
         previewNote(midi, sound, seconds = 0.3) {
-            audition(() => ({ note: midi, s: sound ?? 'triangle', analyze: 'weft' }), seconds)
+            audition(() => ({ note: midi, s: sound ?? 'triangle' }), seconds)
         },
         sounds() {
             const seen = new Set<unknown>()
