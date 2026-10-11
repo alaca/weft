@@ -10,7 +10,7 @@ import { DEMOS } from '../library/demos'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitWidth, isUsual, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type ViewMode } from '../library/layout'
 import { readSongFile, renameSound, SONG_FILE, soundsUsed, writeSongFile } from '../library/songfile'
-import { startTake, type Take } from '../library/recorder'
+import { startTake, whyNot, type NoTake, type Take } from '../library/recorder'
 import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
 import { readKey, writeKey, type Key } from '../song/scales'
 import { gradeOf, readAudio, RING_SECONDS, type AudioOptions, type Format } from '../library/audio'
@@ -1105,6 +1105,15 @@ export async function addOwnSounds(files: File[]) {
 // A take from the microphone becomes a sound of your own, called recording, recording_2 and so on.
 let take: Take | null = null
 
+// Each way the microphone can fail, with what can be done about it.
+const NO_TAKE: Record<NoTake, string> = {
+    unreachable: 'The microphone could not be used: this window has no way to reach one. In the desktop app, quit and start it again, so that it is built with the microphone allowed.',
+    refused:
+        'The microphone could not be used: the system did not allow it. Open System Settings, Privacy and Security, Microphone, and allow Weft there, or the terminal it was started from. Then press Record again.',
+    missing: 'The microphone could not be used: none was found. Plug one in, or choose an input in the sound settings of the system, and press Record again.',
+    other: 'The microphone could not be used.',
+}
+
 export async function recordTake() {
     if (take) return
     setOwnSoundNote(null)
@@ -1112,7 +1121,8 @@ export async function recordTake() {
         take = await startTake()
         setTakeSince(Date.now())
     } catch (err) {
-        setOwnSoundNote(`The microphone could not be used: ${String((err as Error)?.message ?? err)}.`)
+        const refused = whyNot(err)
+        setOwnSoundNote(`${NO_TAKE[refused.why]}${refused.why === 'other' ? ` (${refused.message})` : ''}`)
     }
 }
 

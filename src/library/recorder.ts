@@ -11,9 +11,32 @@ const ENDINGS: [type: string, ending: string][] = [
 
 const endingOf = (type: string) => ENDINGS.find(([part]) => type.includes(part))?.[1] ?? 'webm'
 
+// Why a take could not be started, said so that there is something to do about it.
+export type NoTake = 'unreachable' | 'refused' | 'missing' | 'other'
+
+export class TakeRefused extends Error {
+    constructor(
+        readonly why: NoTake,
+        message: string,
+    ) {
+        super(message)
+    }
+}
+
+export function whyNot(err: unknown): TakeRefused {
+    if (err instanceof TakeRefused) return err
+    const name = (err as { name?: string })?.name ?? ''
+    const said = String((err as Error)?.message ?? err)
+    if (name === 'NotAllowedError' || name === 'SecurityError') return new TakeRefused('refused', said)
+    if (name === 'NotFoundError' || name === 'OverconstrainedError') return new TakeRefused('missing', said)
+    return new TakeRefused('other', said)
+}
+
 export async function startTake(): Promise<Take> {
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new Error('this machine does not let the app record')
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new TakeRefused('unreachable', 'no way to record in this window')
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }).catch((err) => {
+        throw whyNot(err)
+    })
     const recorder = new MediaRecorder(stream)
     const parts: Blob[] = []
     recorder.addEventListener('dataavailable', (event) => {

@@ -13,7 +13,10 @@ const KIT = 'RolandTR909'
 type Row = [sound: string, steps: string, controls?: string]
 type Played = [names: string | string[], start: number, length: number]
 
-const hits = (text: string) => [...text.replace(/[^x.]/g, '')].map((step) => step === 'x')
+// A row of a kit is written as x for a hit, X for a louder one and a full stop for a rest.
+const cells = (text: string) => [...text.replace(/[^xX.]/g, '')]
+const hits = (text: string) => cells(text).map((step) => step !== '.')
+const louder = (text: string) => cells(text).map((step) => step === 'X')
 const calls = (tail: string[]) => tail.map((call) => `  ${call}\n`).join('')
 const plays = (runs: string) => `.mask("<${runs}>")`
 
@@ -23,7 +26,7 @@ const LEVEL = 0.58
 const vol = (level: number) => `.gain(slider(${Number((level * LEVEL).toFixed(2))}, 0, 1.5))`
 
 function kit(name: string, rows: Row[], tail: string[], bank = KIT): string {
-    const lines = kitText(rows.map(([sound, steps]) => ({ sound, steps: hits(steps) }))).split('\n')
+    const lines = kitText(rows.map(([sound, steps]) => ({ sound, steps: hits(steps), ...(louder(steps).some(Boolean) ? { accents: louder(steps) } : {}) }))).split('\n')
     rows.forEach(([, , controls], at) => {
         if (controls) lines[at + 1] = lines[at + 1].replace(/,$/, `${controls},`)
     })
@@ -587,6 +590,210 @@ const undertow = song('Undertow', 80, [
     ),
 ])
 
+// The slowest and the fullest of the demos: a beat that leans back, with louder and softer hits,
+// a bass and strings that drop under the kick, an electric piano whose filter moves by itself,
+// and voices that come and go over seventeen patterns. Its first drop is the beat leaving for
+// four bars under a swell of noise; its bridge has chords, a bass and a flute of its own.
+const DUSTY_KIT = 'EmuSP12'
+const MAIN = '0!8 1!20 0!4 1!16 0!8 1!8'
+const BRIDGE = '0!48 1!8 0!8'
+const PUMPED = '.orbit(2)'
+
+// Chords played to a rhythm: every chord on the same steps of its bar.
+const comped = (chords: string[][], rhythm: [step: number, length: number][]): Played[] =>
+    chords.flatMap((chord, bar) => rhythm.map(([step, length]): Played => [chord, bar * BAR + step, length]))
+
+const slowBurn = song('Slow burn', 84, [
+    kit(
+        'drums',
+        [
+            ['bd', 'x......x..x..... x.....x...x....x', `${vol(0.95)}.duckorbit(2).duckattack(0.22).duckdepth(slider(0.55, 0, 1))`],
+            ['sd', '....X..x....X... ....X.......X.x.', `.room(0.25)${vol(0.5)}`],
+        ],
+        ['.swingBy(slider(0.14, 0, 0.5), 8)', plays(MAIN)],
+        DUSTY_KIT,
+    ),
+    kit(
+        'hats',
+        [
+            ['hh', 'x.X.x.X.x.X.x.Xx', vol(0.22)],
+            ['oh', '..............x.', vol(0.2)],
+        ],
+        ['.swingBy(slider(0.2, 0, 0.5), 8)', plays('0!12 1!16 0!4 1!16 0!4 1!12')],
+        DUSTY_KIT,
+    ),
+    kit(
+        'perc',
+        [
+            ['rim', '..x.....x..x....', `${vol(0.35)}.pan(slider(0.3, 0, 1))`],
+            ['perc', '.......x......x.', `${vol(0.28)}.pan(slider(0.72, 0, 1))`],
+        ],
+        ['.room(0.3)', plays('0!16 1!12 0!4 1!16 0!8 1!8')],
+        DUSTY_KIT,
+    ),
+    line(
+        'bass',
+        [
+            ['c2', 0, 6],
+            ['c2', 10, 3],
+            ['bb1', 14, 2],
+            ['ab1', 16, 6],
+            ['ab1', 26, 3],
+            ['g1', 30, 2],
+            ['f1', 32, 6],
+            ['f1', 42, 3],
+            ['ab1', 46, 2],
+            ['g1', 48, 6],
+            ['g1', 55, 2],
+            ['b1', 58, 3],
+            ['d2', 62, 2],
+        ],
+        64,
+        4,
+        ['.s("triangle")', '.lpf(slider(340, 100, 8000))', vol(1.15), PUMPED, plays(MAIN)],
+    ),
+    line(
+        'rhodes',
+        comped(
+            [
+                ['bb2', 'eb3', 'g3', 'd4'],
+                ['ab2', 'eb3', 'g3', 'c4'],
+                ['c3', 'eb3', 'f3', 'ab3'],
+                ['b2', 'f3', 'g3', 'd#4'],
+            ],
+            [
+                [0, 6],
+                [10, 5],
+            ],
+        ),
+        64,
+        4,
+        ['.s("gm_epiano1")', '.lpf(sine.range(600, 2400).slow(8))', '.room(slider(0.4, 0, 1))', vol(0.6), plays('1!48 0!8 1!8')],
+    ),
+    line(
+        'strings',
+        [
+            [['g4', 'eb5'], 0, 16],
+            [['ab4', 'eb5'], 16, 16],
+            [['ab4', 'c5'], 32, 16],
+            [['g4', 'b4', 'd5'], 48, 16],
+        ],
+        64,
+        4,
+        ['.s("gm_string_ensemble_1")', '.attack(.5).release(1)', '.lpf(slider(2400, 100, 8000))', '.room(.5)', vol(0.3), PUMPED, plays('0!20 1!12 0!4 1!12 0!8 1!8')],
+    ),
+    line(
+        'piano',
+        [
+            ['g4', 2, 2],
+            ['c5', 4, 4],
+            ['bb4', 10, 2],
+            ['g4', 12, 4],
+            ['eb5', 22, 2],
+            ['d5', 24, 2],
+            ['c5', 26, 6],
+            ['ab4', 34, 2],
+            ['c5', 36, 4],
+            ['f5', 42, 2],
+            ['eb5', 44, 4],
+            ['d5', 48, 6],
+            ['b4', 56, 4],
+            ['g4', 60, 4],
+        ],
+        64,
+        4,
+        ['.s("gm_piano")', '.delay(slider(0.35, 0, 1)).delayfeedback(.45).delaysync(.1875)', '.room(.5)', vol(0.5), plays('0!4 1!24 0!12 1!8 0!8 1!8')],
+    ),
+    line(
+        'voice',
+        [
+            ['g4', 0, 12],
+            ['bb4', 12, 4],
+            ['c5', 16, 12],
+            ['bb4', 28, 4],
+            ['ab4', 32, 8],
+            ['c5', 40, 8],
+            ['b4', 48, 8],
+            ['d5', 56, 8],
+        ],
+        64,
+        4,
+        ['.s("gm_voice_oohs")', '.vib(slider(4, 0, 12)).vibmod(.2)', '.attack(.2).release(.6)', '.room(.7)', vol(0.55), plays('0!24 1!8 0!8 1!8 0!8 1!8')],
+    ),
+    line(
+        'bells',
+        figure([0, 3, 6, 8, 11, 14], 2, [
+            ['g5', 'd5', 'eb5', 'g5', 'bb5', 'd5'],
+            ['g5', 'c5', 'eb5', 'g5', 'ab5', 'c5'],
+            ['f5', 'c5', 'eb5', 'f5', 'ab5', 'c5'],
+            ['f5', 'b4', 'd5', 'f5', 'g5', 'b4'],
+        ]),
+        64,
+        4,
+        ['.s("gm_vibraphone")', '.delay(slider(0.45, 0, 1)).delayfeedback(.5).delaysync(.1875)', '.room(.4)', vol(0.34), plays('0!32 1!16 0!8 1!8')],
+    ),
+    line(
+        'rhodes2',
+        comped(
+            [
+                ['ab2', 'eb3', 'g3', 'c4'],
+                ['bb2', 'd3', 'g3', 'c4'],
+                ['bb2', 'eb3', 'g3', 'd4'],
+                ['b2', 'f3', 'g3', 'd#4'],
+            ],
+            [[0, 14]],
+        ),
+        64,
+        4,
+        ['.s("gm_epiano1")', '.room(.5)', vol(0.6), plays(BRIDGE)],
+    ),
+    line(
+        'bass2',
+        [
+            ['ab1', 0, 12],
+            ['bb1', 16, 12],
+            ['c2', 32, 12],
+            ['g1', 48, 8],
+            ['g1', 58, 2],
+            ['b1', 60, 4],
+        ],
+        64,
+        4,
+        ['.s("triangle")', '.lpf(slider(340, 100, 8000))', vol(1.05), plays(BRIDGE)],
+    ),
+    line(
+        'flute',
+        [
+            ['c5', 4, 4],
+            ['eb5', 8, 6],
+            ['c5', 14, 2],
+            ['d5', 16, 6],
+            ['f5', 22, 2],
+            ['d5', 24, 8],
+            ['eb5', 32, 4],
+            ['g5', 36, 8],
+            ['eb5', 44, 4],
+            ['d5', 48, 8],
+            ['b4', 56, 8],
+        ],
+        64,
+        4,
+        ['.s("gm_flute")', '.vib(slider(5, 0, 12)).vibmod(.15)', '.delay(.3).room(.6)', vol(0.5), plays(BRIDGE)],
+    ),
+    line('brass', [[['c4', 'eb4', 'g4'], 0, 3]], 16, 1, ['.s("gm_brass_section")', '.release(.4)', '.room(.5)', vol(0.45), plays('0!32 1 0!7 1 0!15 1 0!7')]),
+    kit('crash', [['cr', 'x...............', `${vol(0.5)}.room(0.4)`]], [plays(DROPS)], DUSTY_KIT),
+    line('swell', figure(EVERY_STEP, 1, [['c4'], ['c4'], ['c4'], ['c4']]), 64, 4, [
+        '.s("white")',
+        '.lpf(saw.range(300, 8000).slow(4))',
+        `.gain(saw.range(0.02, ${Number((0.3 * LEVEL).toFixed(2))}).slow(4))`,
+        '.decay(.08).sustain(.5)',
+        '.room(.3)',
+        plays(BUILD),
+    ]),
+    kit('fill', [['sd', '....x...x.x.XxXX', `.room(0.3)${vol(0.5)}`]], [plays('0!31 1 0!23 1 0!8')], DUSTY_KIT),
+    line('vinyl', [['c3', 0, 16]], 16, 1, ['.s("crackle")', vol(0.3)]),
+])
+
 export const DEMOS: Demo[] = [
     { id: 'glasshouse', name: 'Glasshouse', about: 'Melodic techno, 124 bpm', code: glasshouse },
     { id: 'low-sun', name: 'Low sun', about: 'Melodic techno, 122 bpm', code: lowSun },
@@ -595,4 +802,5 @@ export const DEMOS: Demo[] = [
     { id: 'spiral', name: 'Spiral', about: 'Psytrance, 145 bpm', code: spiral },
     { id: 'night-shift', name: 'Night shift', about: 'Drum and bass, 174 bpm', code: nightShift },
     { id: 'undertow', name: 'Undertow', about: 'Slow guitar ballad, 80 bpm', code: undertow },
+    { id: 'slow-burn', name: 'Slow burn', about: 'Trip hop, 84 bpm', code: slowBurn },
 ]

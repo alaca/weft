@@ -9,11 +9,12 @@ import { readNotes } from '../../src/song/notes'
 const KITS: Record<string, string[]> = {
     RolandTR909: ['bd', 'cp', 'cr', 'hh', 'ht', 'lt', 'mt', 'oh', 'rd', 'rim', 'sd'],
     LinnDrum: ['bd', 'cb', 'cp', 'cr', 'hh', 'ht', 'lt', 'mt', 'oh', 'perc', 'rd', 'rim', 'sd', 'sh', 'tb'],
+    EmuSP12: ['bd', 'cb', 'cp', 'cr', 'hh', 'ht', 'lt', 'misc', 'mt', 'oh', 'perc', 'rd', 'rim', 'sd'],
 }
 
 describe('the demo songs', () => {
-    it('are seven, each under its own name', () => {
-        expect(DEMOS.map((demo) => demo.name)).toEqual(['Glasshouse', 'Low sun', 'Grey area', 'Squelch', 'Spiral', 'Night shift', 'Undertow'])
+    it('are eight, each under its own name', () => {
+        expect(DEMOS.map((demo) => demo.name)).toEqual(['Glasshouse', 'Low sun', 'Grey area', 'Squelch', 'Spiral', 'Night shift', 'Undertow', 'Slow burn'])
         expect(new Set(DEMOS.map((demo) => demo.id)).size).toBe(DEMOS.length)
     })
 
