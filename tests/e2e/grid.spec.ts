@@ -111,7 +111,7 @@ test('a new kit stays a grid at its longest and finest, four cycles of 32 steps'
     await drums.getByRole('button', { name: 'Cycle 4', exact: true }).click()
     await drums.getByRole('button', { name: 'bd step 32', exact: true }).click()
     await expect(drums.locator('.pad.on')).toHaveCount(1)
-    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.events('drums2', 3).length)).toBe(1)
+    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.events('drums2', 3, true).length)).toBe(1)
 })
 
 test('a kit with no sounds says so and takes a first one', async ({ page }) => {

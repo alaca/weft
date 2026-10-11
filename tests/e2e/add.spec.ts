@@ -2,8 +2,10 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 
 const SONG = 'setcpm(120/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n'
 const NONE = '~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~'
+// A pattern that is added is in none of the sixteen bars of a song that has no length of its own yet.
+const NOWHERE = '  .mask("<0!16>")\n'
 const CLEAN_DRUMS = (name: string) =>
-    `${name}: stack(\n${['bd', 'sd', 'cp', 'hh'].map((sound) => `  s("${sound}").struct("${NONE}"),\n`).join('')})\n  .bank("RolandTR909")\n`
+    `${name}: stack(\n${['bd', 'sd', 'cp', 'hh'].map((sound) => `  s("${sound}").struct("${NONE}"),\n`).join('')})\n  .bank("RolandTR909")\n${NOWHERE}`
 
 const code = (page: Page) => page.evaluate(() => (window as any).__weft.engine.getCode() as string)
 const chip = (page: Page, name: string) => page.getByTestId('add-pattern').getByRole('button', { name, exact: true })
@@ -47,7 +49,7 @@ test('what is clicked into a new pattern is part of the song at once', async ({ 
     const strip = page.getByTestId('strip-drums2')
     await step(strip, 'bd', 1).click()
     await step(strip, 'hh', 3).click()
-    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.events('drums2', 0).length)).toBe(2)
+    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.events('drums2', 0, true).length)).toBe(2)
     await expect(page.getByTestId('code-status')).toHaveText('Stopped')
 })
 
@@ -86,7 +88,7 @@ test('adds a bass line: an empty roll in the low notes, with a knob to turn', as
     await open(page)
     await chip(page, 'Bass line').click()
     const strip = page.getByTestId('strip-bass')
-    await expect.poll(() => code(page)).toBe(`${SONG}\nbass: note("~")\n  .s("sawtooth")\n  .lpf(slider(900, 100, 8000))\n`)
+    await expect.poll(() => code(page)).toBe(`${SONG}\nbass: note("~")\n  .s("sawtooth")\n  .lpf(slider(900, 100, 8000))\n${NOWHERE}`)
     await expect(strip.locator('.nt')).toHaveCount(0)
     await expect(strip.locator('.nr-g')).toHaveAttribute('data-low', '28')
     await expect(strip.locator('.nr-g')).toHaveAttribute('data-high', '45')
@@ -145,7 +147,7 @@ test('starts a song from nothing', async ({ page }) => {
     await expect(page.getByTestId('code-status')).toHaveText('Stopped')
     expect(errors).toEqual([])
     await chip(page, 'Melody').click()
-    await expect.poll(() => code(page)).toBe('melody: note("~")\n  .s("triangle")\n  .delay(slider(0.25, 0, 1))\n')
+    await expect.poll(() => code(page)).toBe(`melody: note("~")\n  .s("triangle")\n  .delay(slider(0.25, 0, 1))\n${NOWHERE}`)
     await expect(page.getByTestId('strip-melody')).toBeVisible()
     await expect(page.getByTestId('controls')).not.toContainText('Give a pattern a name')
 })
@@ -192,12 +194,28 @@ test('a pattern added to a song that has been arranged is in none of its bars', 
     await expect(page.getByTestId('strip-bass2')).toHaveCount(0)
 })
 
-test('in a song with nothing arranged a new pattern goes round with the rest', async ({ page }) => {
-    await page.addInitScript((value) => localStorage.setItem('weft.song', value), 'setcpm(120/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n')
+test('in a new song too a pattern that is added is in no bar, and live is how it is heard', async ({ page }) => {
+    await page.addInitScript((value) => localStorage.setItem('weft.song', value), 'setcpm(480/4)\n')
     await page.goto('/')
     await page.waitForFunction(() => Boolean((window as any).__weft))
+    const mode = (name: string) => page.getByRole('group', { name: 'What plays' }).getByRole('button', { name, exact: true })
+    await expect(mode('Live')).toHaveAttribute('aria-pressed', 'true')
+    await page.getByTestId('add-pattern').getByRole('button', { name: 'Drums', exact: true }).click()
     await page.getByTestId('add-pattern').getByRole('button', { name: 'Bass line', exact: true }).click()
-    await expect(page.getByTestId('strip-bass')).toBeVisible()
-    expect(await page.evaluate(() => (window as any).__weft.engine.getCode() as string)).not.toContain('.mask(')
-    await expect(page.getByTestId('lane-bass').getByRole('button', { pressed: true })).toHaveCount(16)
+    await expect(page.getByTestId('lane-drums').getByRole('button', { pressed: true })).toHaveCount(0)
+    await expect(page.getByTestId('lane-bass').getByRole('button', { pressed: true })).toHaveCount(0)
+    await page.getByTestId('strip-drums').getByRole('button', { name: 'bd step 1', exact: true }).click()
+
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.audible(0).length as number)).toBe(1)
+    await page.getByRole('button', { name: 'Stop', exact: true }).click()
+
+    await mode('Song').click()
+    await expect(page.getByTestId('empty-note')).toContainText('Nothing is in the song yet')
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    expect(await page.evaluate(() => (window as any).__weft.engine.audible(0).length as number)).toBe(0)
+    await page.getByTestId('lane-drums').getByRole('button', { name: 'drums bar 1', exact: true }).click()
+    await expect(page.getByTestId('empty-note')).toHaveCount(0)
 })

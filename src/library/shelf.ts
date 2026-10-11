@@ -3,7 +3,8 @@
 // so nothing is lost when a song is not saved, and saving marks the version to go back to.
 // `keys` holds the key each pattern's piano roll keeps to, by the pattern's name, written as
 // "9:minor". A pattern with no key is not in it.
-export type SongRecord = { id: string; name: string; saved: string; draft: string; changedAt: number; keys?: Record<string, string> }
+// `mode` is what plays, the song or every pattern, once that has been chosen for this song.
+export type SongRecord = { id: string; name: string; saved: string; draft: string; changedAt: number; keys?: Record<string, string>; mode?: 'song' | 'live' }
 export type SongInfo = { id: string; name: string; changed: boolean; changedAt: number }
 
 type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'>
@@ -38,7 +39,7 @@ function parse(id: string, text: string | null): SongRecord | null {
     try {
         const value = JSON.parse(text) as Partial<SongRecord>
         if (typeof value.name !== 'string' || typeof value.saved !== 'string' || typeof value.draft !== 'string') return null
-        return { id, name: value.name, saved: value.saved, draft: value.draft, changedAt: typeof value.changedAt === 'number' ? value.changedAt : 0, ...(value.keys && typeof value.keys === 'object' ? { keys: value.keys } : {}) }
+        return { id, name: value.name, saved: value.saved, draft: value.draft, changedAt: typeof value.changedAt === 'number' ? value.changedAt : 0, ...(value.keys && typeof value.keys === 'object' ? { keys: value.keys } : {}), ...(value.mode === 'song' || value.mode === 'live' ? { mode: value.mode } : {}) }
     } catch {
         return null
     }

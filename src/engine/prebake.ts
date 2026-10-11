@@ -51,8 +51,17 @@ export async function addOwnSound(name: string, url: string): Promise<void> {
     for (const key of inKits(name)) soundMap.setKey(key, entry)
 }
 
+// Every name the sound is known under goes, whoever gave it the name: Strudel hands out names
+// of its own for kits that have more than one, and a sound left under one of those would be
+// listed as a sound of yours that nobody added.
 export function removeOwnSound(name: string): void {
+    const known = soundMap.get()
+    const sound = known[name]
     for (const key of [name, ...inKits(name)]) soundMap.setKey(key, undefined)
+    if (!sound) return
+    for (const [key, other] of Object.entries(known)) {
+        if (other === sound) soundMap.setKey(key, undefined)
+    }
 }
 
 export function soundTaken(name: string): boolean {

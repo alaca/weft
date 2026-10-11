@@ -14,6 +14,9 @@ async function open(page: Page, text = SONG) {
     await page.addInitScript((value) => localStorage.setItem('weft.song', value), text)
     await page.goto('/')
     await page.waitForFunction(() => Boolean((window as any).__weft))
+    // These are about the song as it is arranged. A song with no bars written yet opens in
+    // Live, where the bars are not followed, so Song is chosen first.
+    await page.getByRole('group', { name: 'What plays' }).getByRole('button', { name: 'Song', exact: true }).click()
 }
 
 const scrollTo = (page: Page, left: number) => page.getByTestId('song-scroll').evaluate((el, x) => (el.scrollLeft = x === Infinity ? el.scrollWidth : x), left)
@@ -195,7 +198,7 @@ test('lanes follow the patterns of the song', async ({ page }) => {
     await expect(song(page).locator('.sg-n span')).toHaveText(['drums', 'lead'])
     await page.getByTestId('add-pattern').getByRole('button', { name: 'Melody', exact: true }).click()
     await expect(song(page).locator('.sg-n span')).toHaveText(['drums', 'lead', 'melody'])
-    await expect(pressed(lane(page, 'melody'))).toHaveCount(16)
+    await expect(pressed(lane(page, 'melody'))).toHaveCount(0)
     await song(page).getByRole('button', { name: 'Go to drums', exact: true }).click()
     await expect(page.getByTestId('strip-drums')).toHaveClass(/sel/)
 })

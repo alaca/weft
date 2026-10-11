@@ -238,6 +238,8 @@ export function SongPanel() {
         return Math.max(0, Math.min(length() - 1, Math.floor((event.clientX - box.left + scroller.scrollLeft) / barWidth())))
     }
     const band = () => picking() ?? loopBars()
+    // Whether no pattern plays in any bar of the song.
+    const nothingIn = () => song().patterns.length > 0 && song().patterns.every((block) => !barsOf(block, length()).some(Boolean))
     const every = () => (barWidth() >= 22 ? 1 : barWidth() >= 9 ? 4 : 16)
     const wider = () => ZOOMS.find((px) => px > barWidth())
     const narrower = () => [...ZOOMS].reverse().find((px) => px < barWidth())
@@ -281,6 +283,11 @@ export function SongPanel() {
                 <Show when={playMode() === 'live'}>
                     <span class="sg-lp" data-testid="live-note">
                         Live: every pattern plays, the bars are not followed
+                    </span>
+                </Show>
+                <Show when={playMode() === 'song' && nothingIn()}>
+                    <span class="sg-lp" data-testid="empty-note">
+                        Nothing is in the song yet. Fill bars for a pattern below, or switch to Live to hear every pattern.
                     </span>
                 </Show>
                 <Show when={playMode() === 'song' ? loopBars() : null}>

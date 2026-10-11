@@ -139,6 +139,7 @@ test('a change made while paused is kept in step, and the song still goes on fro
 test('choosing a bar while paused starts from that bar', async ({ page }) => {
     await page.goto('/')
     await ready(page)
+    await page.getByRole('group', { name: 'What plays' }).getByRole('button', { name: 'Song', exact: true }).click()
     await page.getByRole('button', { name: 'Play', exact: true }).click()
     await expect.poll(() => now(page)).toBeGreaterThan(0.3)
     await page.getByRole('button', { name: 'Pause', exact: true }).click()

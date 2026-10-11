@@ -142,7 +142,6 @@ const DEMO = 'demo:'
 const STARTER_NAME = 'Night bus'
 const VOLUME_KEY = 'weft.volume'
 const LAYOUT_KEY = 'weft.layout'
-const MODE_KEY = 'weft.mode'
 const COLORS = ['var(--madder)', 'var(--saffron)', 'var(--woad)', 'var(--lichen)', 'var(--orchil)']
 
 const engine = createEngine()
@@ -273,6 +272,7 @@ export async function mount(root: HTMLElement): Promise<void> {
     engine.setMasterVolume(startVolume)
     current = firstSong()
     setPatternKeys(keysOf(current))
+    applyMode(modeOf(current))
     refreshSongs()
     const initial = current.draft
     window.addEventListener('pagehide', flush)
@@ -343,18 +343,25 @@ export const play = () => void engine.evaluate()
 // Song plays the bars as they are filled in the Song panel. Live plays every pattern round and
 // round, whatever the bars say, which is how a pattern is worked on and how a song is tried out
 // before it is arranged.
-export function setPlayMode(mode: PlayMode) {
-    if (playMode() === mode) return
+function applyMode(mode: PlayMode) {
     setPlayModeValue(mode)
-    localStorage.setItem(MODE_KEY, mode)
     engine.setLive(mode === 'live')
     if (!engineState().playing) setCycle(mode === 'live' ? 0 : (loopBars()?.from ?? startBar()))
 }
 
-if (localStorage.getItem(MODE_KEY) === 'live') {
-    setPlayModeValue('live')
-    engine.setLive(true)
+// The choice is kept with the song: one song is still being put together from its patterns
+// while another is arranged and played as a song.
+export function setPlayMode(mode: PlayMode) {
+    if (playMode() === mode) return
+    applyMode(mode)
+    if (!current) return
+    current = { ...current, mode }
+    flush()
 }
+
+// A song for which nothing was chosen yet is played as a song when bars have been written for
+// one of its patterns, as in a demo, and pattern by pattern when none have.
+const modeOf = (record: SongRecord): PlayMode => record.mode ?? (analyze(record.draft).patterns.some((block) => readArrangement(block)) ? 'song' : 'live')
 
 // One step back, or forward again, in everything that changed the song: a click in a grid, a
 // knob, a sound, or typing in the code.
@@ -922,17 +929,16 @@ function addStarter(base: string, code: (name: string) => string, range?: { low:
     })
     lastLength.delete(name)
     if (patternKeys()[name]) keepKeys(without(patternKeys(), name))
-    const arranged = songEnd()
+    const length = songLengthNow()
     engine.applyEdit(appendPattern(engine.getCode(), code(name)))
-    if (arranged !== null) restEverywhere(name, arranged)
+    restEverywhere(name, length)
     replay()
     select(name)
     return name
 }
 
-// A pattern that is added to a song that has been arranged is in none of its bars: it is there
-// to be worked on, and is put into the song where it is wanted. In a song with nothing arranged
-// every pattern goes round, the new one too.
+// A pattern that is added is in none of the bars of the song: it is there to be worked on, and
+// is put into the song where it is wanted. Live, it is heard at once with every other pattern.
 function restEverywhere(id: string, length: number) {
     const block = find(id)
     const edit = block ? arrangeEdit(engine.getCode(), block, Array<boolean>(length).fill(false)) : null
@@ -1000,9 +1006,9 @@ export function duplicatePattern(id: string): string | null {
     )
     if (rollRanges()[id]) setRollRanges({ ...rollRanges(), [name]: rollRanges()[id] })
     keepKeys(patternKeys()[id] ? { ...patternKeys(), [name]: patternKeys()[id] } : without(patternKeys(), name))
-    const arranged = songEnd()
+    const length = songLengthNow()
     engine.applyEdit(duplicateEdit(engine.getCode(), block, name))
-    if (arranged !== null) restEverywhere(name, arranged)
+    restEverywhere(name, length)
     replay()
     select(name)
     return name
@@ -1032,7 +1038,12 @@ export function closeSounds() {
 
 export const toggleSounds = () => (soundsOpen() ? closeSounds() : openSounds())
 
-export const soundCatalogue = (): SoundItem[] => catalogue(engine.sounds(), engine.kitNames())
+// Yours are the sounds the app keeps for you, and no others: a sound that is only known to the
+// engine under such a name is not shown as one.
+export const soundCatalogue = (): SoundItem[] => {
+    const kept = new Set(ownSounds().map((sound) => sound.name))
+    return catalogue(engine.sounds(), engine.kitNames()).filter((item) => item.group !== 'yours' || kept.has(item.name))
+}
 
 const PREVIEW_PITCH = 60
 
@@ -1317,6 +1328,7 @@ function show(record: SongRecord, demo: string | null = null) {
     lastLength.clear()
     setLoopBars(null)
     engine.setLoop(null)
+    applyMode(modeOf(record))
     batch(() => {
         setExportNote(null)
         setSelected(null)
