@@ -1,5 +1,6 @@
-import { createSignal, onCleanup, onMount } from 'solid-js'
-import { copyCode, dragCode, mount, play, usualWidth } from '../app/controller'
+import { createSignal, onCleanup, onMount, Show } from 'solid-js'
+import { copyCode, dragCode, mount, play, trustSong, usualWidth } from '../app/controller'
+import { jamming } from '../stores/jam'
 import { engineState } from '../stores/song'
 import { Divider } from './Divider'
 import { MOD } from './keys'
@@ -48,6 +49,23 @@ export function CodePane() {
                     Update <kbd>{MOD} Enter</kbd>
                 </button>
             </div>
+            <Show when={engineState().error?.guard}>
+                <div class="guard" role="status" data-testid="guard">
+                    <Show
+                        when={jamming()}
+                        fallback={
+                            <>
+                                <p>This song came from someone else, so only music code is played: patterns, sounds and numbers. Read that line. If you trust who made the song, it can be played as it is.</p>
+                                <button class="btn" onClick={trustSong}>
+                                    Play it anyway
+                                </button>
+                            </>
+                        }
+                    >
+                        <p>While you jam, only music code is played: patterns, sounds and numbers. Take that line out and the song goes on.</p>
+                    </Show>
+                </div>
+            </Show>
             <div class="ed" ref={root} />
         </section>
     )

@@ -103,6 +103,7 @@ import {
     soundsWidth,
     viewMode,
     setOpenDemoId,
+    setSongGuarded,
     setOpenPanel,
     setOwnSoundNote,
     setOwnSounds,
@@ -274,6 +275,7 @@ export async function mount(root: HTMLElement): Promise<void> {
     setMasterVolumeValue(startVolume)
     engine.setMasterVolume(startVolume)
     current = firstSong()
+    guardAs(current)
     setPatternKeys(keysOf(current))
     applyMode(modeOf(current))
     refreshSongs()
@@ -303,6 +305,7 @@ export async function mount(root: HTMLElement): Promise<void> {
         songName: () => current?.name ?? '',
         songKeys: () => current?.keys ?? {},
         openAs,
+        guardSong,
         startFrom,
         setLoop: followLoop,
         setMode: setPlayMode,
@@ -1399,6 +1402,7 @@ function show(record: SongRecord, demo: string | null = null) {
     if (jamStage() === 'jamming') leaveJam()
     engine.stop()
     current = record
+    guardAs(record)
     setPatternKeys(keysOf(record))
     setOpenDemoId(demo)
     shelf.setCurrent(demo === null ? record.id : DEMO + demo)
@@ -1425,11 +1429,35 @@ function show(record: SongRecord, demo: string | null = null) {
     replay()
 }
 
+// A song is code, and the app does what code says. One that came from someone else, in a file
+// or in a jam, and one that someone else has had their hands on, is therefore only played while
+// all of it is music code. Its owner can lift that for a song they trust, but not during a jam.
+function guardAs(record: SongRecord) {
+    engine.setGuard(Boolean(record.guarded))
+    setSongGuarded(Boolean(record.guarded))
+}
+
+function guardSong() {
+    if (!current || current.guarded) return
+    current = { ...current, guarded: true }
+    guardAs(current)
+    flush()
+}
+
+export function trustSong() {
+    if (!current || !current.guarded || jamStage() === 'jamming') return
+    const { guarded: _, ...trusted } = current
+    current = trusted
+    guardAs(current)
+    flush()
+    replay()
+}
+
 // The song of the person who invited you to a jam, as a song of your own from the moment you join.
 function openAs(name: string, code: string, keys: Record<string, string>, mode: PlayMode) {
     flush()
     const kept = Object.fromEntries(Object.entries(keys).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
-    const record: SongRecord = { id: newId(), name: freeTitle(cleanName(name) || UNTITLED, titles()), saved: code, draft: code, changedAt: Date.now(), mode, ...(Object.keys(kept).length ? { keys: kept } : {}) }
+    const record: SongRecord = { id: newId(), name: freeTitle(cleanName(name) || UNTITLED, titles()), saved: code, draft: code, changedAt: Date.now(), mode, guarded: true, ...(Object.keys(kept).length ? { keys: kept } : {}) }
     shelf.write(record)
     show(record)
 }
@@ -1593,7 +1621,7 @@ export async function openSongFile(file: File) {
             added++
         }
         flush()
-        const record: SongRecord = { id: newId(), name: freeTitle(cleanName(read.name) || UNTITLED, titles()), saved: code, draft: code, changedAt: Date.now(), ...(Object.keys(read.keys).length ? { keys: read.keys } : {}) }
+        const record: SongRecord = { id: newId(), name: freeTitle(cleanName(read.name) || UNTITLED, titles()), saved: code, draft: code, changedAt: Date.now(), guarded: true, ...(Object.keys(read.keys).length ? { keys: read.keys } : {}) }
         shelf.write(record)
         show(record)
         setSongNote(added ? `Opened ${record.name}, with ${added} ${added === 1 ? 'sound' : 'sounds'} of its own, now among yours.` : `Opened ${record.name}.`)

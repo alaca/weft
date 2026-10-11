@@ -33,6 +33,7 @@ export type JamDeps = {
     songName(): string
     songKeys(): Record<string, string>
     openAs(name: string, code: string, keys: Record<string, string>, mode: PlayMode): void
+    guardSong(): void
     startFrom(bar: number): void
     setLoop(range: Bars | null): void
     setMode(mode: PlayMode): void
@@ -234,6 +235,7 @@ function fromRelay(message: FromRelay) {
     // sent is the song as it is at this moment.
     if (message.t === 'joined') {
         if (jamStage() !== 'waiting') return
+        deps.guardSong()
         const code = deps.engine.getCode()
         deps.engine.startSync(0, 'host', push)
         line?.send({ t: 'tell', d: { k: 'song', name: deps.songName(), code, keys: deps.songKeys(), start: startBar(), loop: loopBars(), mode: playMode() } satisfies Told })

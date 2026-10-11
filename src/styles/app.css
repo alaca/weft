@@ -491,3 +491,8 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .jm-with u { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--lichen); }
 .jm-with b { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; display: grid; place-items: center; background: var(--woad); color: var(--vat); font-size: 10px; font-weight: 600; }
 .jm-hand { position: absolute; top: -9px; right: 60px; z-index: 4; padding: 2px 8px 3px; border-radius: 6px; background: var(--woad); color: var(--vat); font-size: 10.5px; font-weight: 600; pointer-events: none; }
+
+/* ---- a song that is not all music code */
+.guard { display: flex; align-items: center; gap: 12px; padding: 10px 14px 11px 18px; border-bottom: 1px solid var(--seam); background: color-mix(in srgb, var(--madder) 9%, var(--cloth)); color: var(--linen-2); font-size: 11.5px; line-height: 1.5; }
+.guard p { flex: 1; min-width: 0; }
+.guard .btn { flex: none; }

@@ -43,6 +43,8 @@ export const [songs, setSongs] = createSignal<SongInfo[]>([])
 export const [currentSong, setCurrentSong] = createSignal<SongInfo | null>(null)
 export const [deletedSong, setDeletedSong] = createSignal<SongRecord | null>(null)
 export const [openDemoId, setOpenDemoId] = createSignal<string | null>(null)
+// Whether the open song is one that is only played while all of it is music code.
+export const [songGuarded, setSongGuarded] = createSignal(false)
 // The key each pattern's piano roll keeps to, by the pattern's name.
 export const [patternKeys, setPatternKeys] = createSignal<Record<string, Key>>({})
 // Bars that go round while the song plays: from `from` up to, not including, `to`.

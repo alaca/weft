@@ -17,6 +17,7 @@ import {
     superdough,
     webaudioOutput,
 } from '@strudel/webaudio'
+import { checkSong } from '../guard/check'
 import type { SentUpdate } from '../jam/protocol'
 import type { PatternEvent, TextEdit } from '../song/types'
 import { toEvents } from './events'
@@ -29,7 +30,7 @@ import { registerTheme } from './theme'
 
 export type { BlockMark } from './marks'
 
-export type EvalError = { message: string; line: number | null }
+export type EvalError = { message: string; line: number | null; guard?: boolean }
 export type Rendered = { channels: Float32Array[]; sampleRate: number; secondsPerBar: number; missed: number }
 export type RenderRequest = { bars: number; ringSeconds: number; sampleRate: number }
 export type Moved = { k: 'play'; at: number } | { k: 'pause'; at: number } | { k: 'stop' }
@@ -77,6 +78,7 @@ export interface Engine {
     audioLength(bytes: ArrayBuffer): Promise<number | null>
     decodeAudio(bytes: ArrayBuffer): Promise<{ channels: Float32Array[]; sampleRate: number } | null>
     setLive(on: boolean): void
+    setGuard(on: boolean): void
     playAt(position: number): void
     pauseAt(position: number): void
     startSync(version: number, by: string, send: (version: number, updates: SentUpdate[]) => void): void
@@ -104,10 +106,11 @@ const LEAD = 0.05
 const BEFORE_MASK = '__weftBeforeMask'
 
 function toEvalError(err: unknown): EvalError {
-    const e = err as { message?: string; loc?: { line?: number } }
+    const e = err as { message?: string; loc?: { line?: number }; guard?: boolean }
     return {
         message: String(e?.message ?? err).replace(/\s*\(\d+:\d+\)$/, ''),
         line: typeof e?.loc?.line === 'number' ? e.loc.line : null,
+        ...(e?.guard ? { guard: true } : {}),
     }
 }
 
@@ -175,6 +178,15 @@ export function createEngine(): Engine {
     // change of theirs is being put into the code.
     let sync: Sync | null = null
     let receiving = false
+    // A song that came from someone else is only played when all of it is music code. Every
+    // way of playing code goes through the one step that Strudel is handed to prepare it, so
+    // that is where a song is checked.
+    let guarded = false
+    const prepare = (code: string, options: unknown) => {
+        const refused = guarded ? checkSong(code) : null
+        if (refused) throw Object.assign(new Error(refused.what), { loc: { line: refused.line }, guard: true })
+        return (transpiler as unknown as (code: string, options: unknown) => unknown)(code, options)
+    }
     const cursorFns = new Set<(offset: number) => void>()
     const dropFns = new Set<(offset: number, name: string) => void>()
     const evaluatedFns = new Set<() => void>()
@@ -372,7 +384,7 @@ export function createEngine(): Engine {
                 return webaudioOutput(hap, deadline, duration, cps, time)
             },
             getTime: () => getAudioContext().currentTime,
-            transpiler,
+            transpiler: prepare,
             root,
             initialCode,
             drawTime: [0, 0],
@@ -782,6 +794,9 @@ export function createEngine(): Engine {
         // Live, every pattern goes round as if no bars had been written for it: nothing of the
         // song's arrangement is followed, and there is no end to stop at. Going back to the
         // song while it plays starts from the start bar.
+        setGuard(on) {
+            guarded = on
+        },
         setLive(on) {
             if (liveMode === on) return
             liveMode = on
