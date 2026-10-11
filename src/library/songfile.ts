@@ -1,9 +1,13 @@
 // A song as one file, to keep somewhere safe or to give to someone: its name, its code, the keys
 // of its patterns and the audio files of your own that it uses, so that it plays wherever it is opened.
-export type PackedSound = { name: string; file: string; type: string; seconds: number; data: Uint8Array }
+// `onset` is only there for a sound that was made smaller for the file: where the sound it was
+// made from started, in seconds.
+export type PackedSound = { name: string; file: string; type: string; seconds: number; data: Uint8Array; onset?: number }
 export type SongFile = { name: string; code: string; keys: Record<string, string>; sounds: PackedSound[] }
 
 export const SONG_FILE = 'weft'
+// The most a song file may be to be published, the owner's rule.
+export const SONG_LIMIT = 1024 * 1024
 const VERSION = 1
 const CHUNK = 0x8000
 
@@ -13,7 +17,7 @@ function toBase64(bytes: Uint8Array): string {
     return btoa(text)
 }
 
-function fromBase64(text: string): Uint8Array {
+export function fromBase64(text: string): Uint8Array {
     const raw = atob(text)
     const bytes = new Uint8Array(raw.length)
     for (let at = 0; at < raw.length; at++) bytes[at] = raw.charCodeAt(at)
@@ -53,6 +57,7 @@ export function readSongFile(text: string, file: string): SongFile | null {
                               type: typeof sound.type === 'string' ? sound.type : '',
                               seconds: typeof sound.seconds === 'number' ? sound.seconds : 0,
                               data: fromBase64(sound.data),
+                              ...(typeof sound.onset === 'number' && sound.onset >= 0 ? { onset: sound.onset } : {}),
                           },
                       ]
                     : [],

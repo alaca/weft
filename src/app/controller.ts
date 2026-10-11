@@ -9,7 +9,9 @@ import { createEngine } from '../engine/engine'
 import { DEMOS } from '../library/demos'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type ViewMode } from '../library/layout'
-import { readSongFile, renameSound, SONG_FILE, soundsUsed, writeSongFile } from '../library/songfile'
+import { readSongFile, renameSound, SONG_FILE, soundsUsed, writeSongFile, type PackedSound } from '../library/songfile'
+import { prepareForPublishing, type Prepared } from '../library/publish'
+import { withoutLead } from '../library/shrink'
 import { startTake, whyNot, type NoTake, type Take } from '../library/recorder'
 import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
 import { readKey, writeKey, type Key } from '../song/scales'
@@ -359,7 +361,7 @@ export async function mount(root: HTMLElement): Promise<void> {
             )
         })
     })
-    if (import.meta.env.DEV) (window as any).__weft = { engine }
+    if (import.meta.env.DEV) (window as any).__weft = { engine, prepareToPublish }
 }
 
 export const play = () => void engine.evaluate()
@@ -1585,19 +1587,46 @@ export async function exportCode() {
 
 const SONG_KIND: FileKind = { extension: SONG_FILE, label: 'Weft song', type: 'application/json' }
 
-// The song as one file with the sounds of your own that it uses inside it.
+// The sounds of your own that the song's code names, as they go into a file.
+async function soundsOfSong(code: string): Promise<PackedSound[]> {
+    const used = soundsUsed(code, ownSounds().map((sound) => sound.name))
+    const kept = used.length ? (await ownSoundStore.all()).filter((sound) => used.includes(sound.name)) : []
+    return kept.map((sound) => ({ name: sound.name, file: sound.file, type: sound.type, seconds: sound.seconds, data: new Uint8Array(sound.data) }))
+}
+
+// The song as one file with the sounds of your own that it uses inside it, as they are.
 export async function saveSongFile() {
     if (!current) return
     const name = fileName(current.name, SONG_KIND.extension)
     try {
         const code = engine.getCode()
-        const used = soundsUsed(code, ownSounds().map((sound) => sound.name))
-        const kept = used.length ? (await ownSoundStore.all()).filter((sound) => used.includes(sound.name)) : []
-        const sounds = kept.map((sound) => ({ name: sound.name, file: sound.file, type: sound.type, seconds: sound.seconds, data: new Uint8Array(sound.data) }))
-        setExportNote(told(await saveFile(name, writeSongFile({ name: current.name, code, keys: current.keys ?? {}, sounds }), SONG_KIND), name))
+        setExportNote(told(await saveFile(name, writeSongFile({ name: current.name, code, keys: current.keys ?? {}, sounds: await soundsOfSong(code) }), SONG_KIND), name))
     } catch (err) {
         setExportNote(`The file could not be saved: ${String((err as Error)?.message ?? err)}`)
     }
+}
+
+// The open song as the file that would be published, or why it cannot be. Nothing publishes
+// yet; this is the step that will stand in front of it.
+async function prepareToPublish(): Promise<Prepared | null> {
+    if (!current) return null
+    const code = engine.getCode()
+    return prepareForPublishing(
+        { name: current.name, code, keys: current.keys ?? {}, sounds: await soundsOfSong(code) },
+        (bytes) => engine.decodeAudio(bytes.slice().buffer),
+        (sound, kbps) => encodeMp3(sound.channels, sound.sampleRate, kbps),
+    )
+}
+
+// A sound that was made into an MP3 for a small song file starts a little late, by the silence
+// an MP3 has in front. The file says where the sound started before, so that much is taken off
+// again and the sound is kept as plain audio, starting where it did.
+async function restored(packed: PackedSound): Promise<Pick<PackedSound, 'file' | 'type' | 'data'>> {
+    if (packed.onset === undefined) return packed
+    const heard = await engine.decodeAudio(packed.data.slice().buffer)
+    const cut = heard ? withoutLead(heard, packed.onset) : null
+    if (!cut) return packed
+    return { file: packed.file.replace(/\.mp3$/i, '.wav'), type: 'audio/wav', data: encodeWav(cut.channels, cut.sampleRate) }
 }
 
 // A song file, or any file of code, becomes a new song. The sounds that come in a song file are
@@ -1613,8 +1642,9 @@ export async function openSongFile(file: File) {
             if (ownSounds().some((sound) => sound.name === packed.name)) continue
             const name = soundNameFor(packed.name, engine.soundTaken)
             if (name !== packed.name) code = renameSound(code, packed.name, name)
-            const data = packed.data.buffer.slice(packed.data.byteOffset, packed.data.byteOffset + packed.data.byteLength) as ArrayBuffer
-            const sound: OwnSound = { name, file: packed.file, seconds: packed.seconds, addedAt: Date.now(), type: packed.type, data }
+            const back = await restored(packed)
+            const data = back.data.buffer.slice(back.data.byteOffset, back.data.byteOffset + back.data.byteLength) as ArrayBuffer
+            const sound: OwnSound = { name, file: back.file, seconds: packed.seconds, addedAt: Date.now(), type: back.type, data }
             await ownSoundStore.put(sound)
             await register(sound)
             setOwnSounds([...ownSounds(), infoOfSound(sound)].sort(byName))
