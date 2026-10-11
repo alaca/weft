@@ -62,6 +62,13 @@ const PLATFORMS: { id: Platform; name: string }[] = [
     { id: 'windows', name: 'Windows' },
     { id: 'linux', name: 'Linux' },
 ]
+// What each build is for, and what its system does the first time it is opened. None of them is
+// signed with the maker of its system, and each system says so in its own way.
+const FIRST_TIME: Record<Platform, string> = {
+    macos: 'For Macs with Apple or Intel chips. This build is not signed with Apple yet, so macOS will not open it the first time. Try to open it once, then go to System Settings, Privacy and Security, and press Open Anyway.',
+    windows: 'For Windows 10 and 11, 64 bit. This build is not signed with Microsoft yet, so Windows says it does not know it. Press More info, then Run anyway.',
+    linux: 'An AppImage for 64 bit Linux: make the file executable, then run it. A jam has no voice and no camera on Linux, because the window Weft runs in there cannot make a call.',
+}
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const MB = 1024 * 1024
 
@@ -331,7 +338,8 @@ export function downloadPage(around: Around, builds: Build[]): string {
                 <div>
                     <b>${platform.name}</b>
                     <p><span class="num">Version ${build.version}, ${size(build.bytes)}</span></p>
-                    ${platform.id === 'macos' ? html`<p>This build is not signed with Apple yet, so macOS will not open it the first time. Try to open it once, then go to System Settings, Privacy and Security, and press Open Anyway.</p>` : ''}
+                    <p>${FIRST_TIME[platform.id]}</p>
+                    ${platform.id === 'macos' ? '' : html`<p>This build is new. If something does not work, ${around.source ? html`say so where the <a href="${around.source}" rel="noopener">source code</a> is` : 'say so'}.</p>`}
                 </div>
                 <a class="btn go" href="/download/${platform.id}" aria-label="Download Weft for ${platform.name}">${DOWN}Download</a>
             </li>`

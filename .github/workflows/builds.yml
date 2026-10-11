@@ -1,0 +1,70 @@
+name: Builds for Windows and Linux
+
+# A tag like v0.1.3 builds the installers for Windows and Linux from it and puts them into a
+# release here. Nothing secret is used: the key that updates are signed with is on no server.
+# What is built here is signed afterwards on the machine that holds the key, and handed out
+# from weftloom.dev next to the macOS build.
+on:
+    push:
+        tags: ['v*']
+
+permissions:
+    contents: write
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Make the release the builds go into
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && exit 0
+                  gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "Weft ${GITHUB_REF_NAME#v}" \
+                      --notes "Installers for Windows and Linux, built from this tag by the workflow in this repository. Weft for macOS, and what to expect when opening each of them the first time, is at https://weftloom.dev/download"
+
+    build:
+        needs: release
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - os: windows-latest
+                      bundles: nsis
+                      files: src-tauri/target/release/bundle/nsis/*-setup.exe
+                    - os: ubuntu-22.04
+                      bundles: appimage
+                      files: src-tauri/target/release/bundle/appimage/*.AppImage
+        runs-on: ${{ matrix.os }}
+        steps:
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+              with:
+                  node-version: 22
+                  cache: npm
+            - name: What the Linux build is made with
+              if: runner.os == 'Linux'
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev libasound2-dev patchelf
+            - run: npm ci
+            - name: The tag has to be the version of the app
+              shell: bash
+              run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+            - name: Build
+              shell: bash
+              run: npx tauri build --bundles ${{ matrix.bundles }} --config '{"bundle":{"createUpdaterArtifacts":false}}' 2>&1 | tee build.log
+            # The log of a run can only be read by someone signed in. The end of a build that
+            # failed is said here as well, where anyone can read it.
+            - name: Say why it failed
+              if: failure()
+              shell: bash
+              run: |
+                  test -f build.log || exit 0
+                  said="$(tail -n 60 build.log | tr -d '\r' | sed 's/%/%25/g' | sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/%0A/g')"
+                  echo "::error title=The build failed::$said"
+            - name: Put the installer into the release
+              shell: bash
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: gh release upload "$GITHUB_REF_NAME" ${{ matrix.files }} --repo "$GITHUB_REPOSITORY" --clobber
