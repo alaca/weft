@@ -33,7 +33,7 @@ test('a click in a grid is undone and done again from the keyboard, with the foc
 
 test('a sound, a muted pattern and a removed pattern are undone the same way', async ({ page }) => {
     await open(page)
-    await page.getByRole('button', { name: 'Mute bass', exact: true }).click()
+    await page.getByTestId('strip-bass').getByRole('button', { name: 'Mute bass', exact: true }).click()
     await expect.poll(() => code(page)).toContain('_bass: note(')
     await page.getByTestId('strip-drums').getByRole('button', { name: 'Remove the pattern drums', exact: true }).click()
     await expect(page.getByTestId('strip-drums')).toHaveCount(0)

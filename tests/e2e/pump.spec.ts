@@ -74,7 +74,7 @@ test('a pumped pattern is quieter straight after the kick than without pump', as
     const quietKick = SONG.replace(`${KICK},`, `${KICK}.gain(0.001),`).replace('bass: note("c2")', 'bass: note("c2").sustain(1)')
     await open(page, quietKick)
     await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
-    await page.getByRole('button', { name: 'Mute pad', exact: true }).click()
+    await page.getByTestId('strip-pad').getByRole('button', { name: 'Mute pad', exact: true }).click()
     const loudness = () =>
         page.evaluate(async () => {
             const made = await (window as any).__weft.engine.render({ bars: 1, ringSeconds: 0, sampleRate: 44100 })

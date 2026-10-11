@@ -52,14 +52,14 @@ test('shows the sound, the lines and the right kind of picture', async ({ page }
 test('muting a strip leaves it open, so the pattern can still be seen and changed', async ({ page }) => {
     await open(page, SONG)
     const drums = page.getByTestId('strip-drums')
-    await page.getByRole('button', { name: 'Mute drums', exact: true }).click()
+    await page.getByTestId('strip-drums').getByRole('button', { name: 'Mute drums', exact: true }).click()
     await expect(drums).toHaveClass(/muted/)
     await expect(drums.locator('.st-b')).toHaveCount(1)
     await expect(drums.locator('.prow').nth(0).locator('.pad.on')).toHaveCount(4)
     await expect(drums.getByRole('button', { name: 'Sound controls for drums' })).toBeVisible()
     await drums.getByRole('button', { name: 'bd step 2', exact: true }).click()
     await expect.poll(() => code(page)).toContain('_drums: stack(\n  s("bd").struct("x x ~ ~')
-    await page.getByRole('button', { name: 'Mute drums', exact: true }).click()
+    await page.getByTestId('strip-drums').getByRole('button', { name: 'Mute drums', exact: true }).click()
     await expect(drums).not.toHaveClass(/muted/)
     await expect(drums.locator('.st-b')).toHaveCount(1)
     await expect.poll(() => code(page)).toContain('\ndrums: stack(\n  s("bd").struct("x x ~ ~')
@@ -81,12 +81,12 @@ test('mute writes the underscore into the code and takes the pattern out of what
     await page.getByRole('button', { name: 'Play' }).click()
     await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
 
-    await page.getByRole('button', { name: 'Mute bass' }).click()
+    await page.getByTestId('strip-bass').getByRole('button', { name: 'Mute bass' }).click()
     await expect.poll(() => code(page)).toContain('_bass: note(')
     await expect(page.getByTestId('strip-bass')).toHaveClass(/muted/)
     await expect.poll(() => audible(page)).not.toContain('sawtooth')
 
-    await page.getByRole('button', { name: 'Mute bass' }).click()
+    await page.getByTestId('strip-bass').getByRole('button', { name: 'Mute bass' }).click()
     await expect.poll(() => code(page)).not.toContain('_bass')
     await expect.poll(() => audible(page)).toContain('sawtooth')
 })
@@ -97,11 +97,11 @@ test('solo silences the others and leaves the code alone', async ({ page }) => {
     await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
     const before = await code(page)
 
-    await page.getByRole('button', { name: 'Solo bass' }).click()
+    await page.getByTestId('strip-bass').getByRole('button', { name: 'Solo bass' }).click()
     await expect.poll(() => audible(page)).toEqual(['sawtooth'])
     expect(await code(page)).toBe(before)
 
-    await page.getByRole('button', { name: 'Solo bass' }).click()
+    await page.getByTestId('strip-bass').getByRole('button', { name: 'Solo bass' }).click()
     await expect.poll(async () => (await audible(page)).length).toBeGreaterThan(1)
 })
 
@@ -121,10 +121,10 @@ test('keeps the strips and disables their buttons while the code does not parse'
     await open(page, SONG)
     await page.evaluate(() => (window as any).__weft.engine.applyEdit({ from: 0, to: 0, insert: 'broken: s("bd"\n' }))
     await expect(page.locator('[data-testid^="strip-"]')).toHaveCount(3)
-    await expect(page.getByRole('button', { name: 'Mute drums' })).toBeDisabled()
+    await expect(page.getByTestId('strip-drums').getByRole('button', { name: 'Mute drums' })).toBeDisabled()
 
     await page.evaluate(() => (window as any).__weft.engine.applyEdit({ from: 0, to: 15, insert: '' }))
-    await expect(page.getByRole('button', { name: 'Mute drums' })).toBeEnabled()
+    await expect(page.getByTestId('strip-drums').getByRole('button', { name: 'Mute drums' })).toBeEnabled()
 })
 
 test('updates the strips when the code is changed and played', async ({ page }) => {

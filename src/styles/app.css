@@ -409,8 +409,10 @@ svg.mini rect { fill: var(--h); }
 .sg-h h3 { font: 600 19px/1 var(--voice); padding-bottom: 2px; }
 .sg-h .seg.s button { min-width: 22px; font: 600 12px/1 var(--mono); }
 .sg-h .seg.s button:disabled { opacity: 0.35; cursor: default; }
-.sg-g { display: grid; grid-template-columns: 104px minmax(0, 1fr); padding: 0 16px 0 17px; }
-.sg-names { display: grid; grid-auto-rows: 30px; row-gap: 5px; align-content: start; padding-top: 23px; }
+.sg-g { display: grid; grid-template-columns: 236px minmax(0, 1fr); padding: 0 16px 0 17px; }
+.sg-names { display: grid; grid-template-rows: 18px; grid-auto-rows: 30px; row-gap: 5px; align-content: start; }
+.sg-nh { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding-right: 34px; font: 500 9.5px/1 var(--mono); font-stretch: 87%; text-transform: uppercase; letter-spacing: 0.06em; color: var(--linen-3); }
+.sg-nh span { width: 22px; text-align: center; }
 .sg-s { overflow-x: auto; overflow-y: hidden; padding-bottom: 4px; scrollbar-width: thin; scrollbar-color: var(--cloth-3) transparent; }
 .sg-t { position: relative; display: grid; grid-auto-rows: 30px; grid-template-rows: 18px; row-gap: 5px; min-width: 100%; }
 .sg-r { position: relative; display: grid; height: 18px; width: max-content; }
@@ -423,7 +425,11 @@ svg.mini rect { fill: var(--h); }
 .sg-n i { width: 8px; height: 8px; border-radius: 50%; background: var(--h); flex: none; }
 .sg-n span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sg-n.muted, .sg-l.muted { opacity: 0.45; }
-.sg-nr { position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; padding-right: 8px; }
+.sg-nr { position: relative; display: flex; align-items: center; gap: 6px; min-width: 0; padding-right: 8px; }
+.sg-nr .mix { gap: 8px; }
+.sg-nr .kn.small { gap: 0; }
+.sg-nr .kn.small .kn-d { width: 22px; height: 22px; }
+.sg-nr .kn.small .cap { display: none; }
 .sg-nr .sg-n { flex: 1; }
 .sg-dr { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; flex: none; color: var(--linen-3); }
 .sg-dr svg { width: 12px; height: 10px; stroke: currentColor; stroke-width: 1.4; fill: none; stroke-linecap: round; stroke-linejoin: round; }

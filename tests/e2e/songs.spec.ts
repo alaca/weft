@@ -269,7 +269,7 @@ test('a song can be exported as audio, from its first bar to its last, and plays
     await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
     await page.getByRole('button', { name: 'Play', exact: true }).click()
     await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.now() as number)).toBeGreaterThan(1.5)
-    await page.getByRole('button', { name: 'Solo bass', exact: true }).click()
+    await page.getByTestId('strip-bass').getByRole('button', { name: 'Solo bass', exact: true }).click()
     await openExport(page)
     await expect(page.getByTestId('export-size')).toHaveText('16 bit, 44.1 kHz, as on a CD. The whole song, 4 s, about 1.1 MB.')
     const [download] = await Promise.all([

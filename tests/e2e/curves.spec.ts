@@ -54,7 +54,7 @@ test('a knob is drawn over the song bar by bar, in the code and in what is heard
     await expect(bar(page, 'bass Volume', 4)).toHaveAttribute('aria-valuenow', '1.5')
 
     // The song is as the drawing says: nothing of the bass in the second bar, the most in the fourth.
-    await page.getByRole('button', { name: 'Mute hats', exact: true }).click()
+    await page.getByTestId('strip-hats').getByRole('button', { name: 'Mute hats', exact: true }).click()
     const heard = await loudness(page, 4)
     expect(heard[0]).toBeGreaterThan(0.02)
     expect(heard[1]).toBeLessThan(heard[0] * 0.2)

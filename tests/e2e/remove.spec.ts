@@ -42,7 +42,7 @@ test('stops offering to put it back once the song has changed', async ({ page })
     await open(page)
     await remove(page, 'bass').click()
     await expect(page.getByTestId('removed')).toBeVisible()
-    await page.getByRole('button', { name: 'Mute lead', exact: true }).click()
+    await page.getByTestId('strip-lead').getByRole('button', { name: 'Mute lead', exact: true }).click()
     await expect(page.getByTestId('removed')).toHaveCount(0)
     await expect.poll(() => code(page)).toContain('_lead: note("c4 e4")')
 })
@@ -102,7 +102,7 @@ test('removes nothing while the code has an error', async ({ page }) => {
 
 test('a muted pattern can be removed too', async ({ page }) => {
     await open(page)
-    await page.getByRole('button', { name: 'Mute bass', exact: true }).click()
+    await page.getByTestId('strip-bass').getByRole('button', { name: 'Mute bass', exact: true }).click()
     await remove(page, 'bass').click()
     await expect.poll(() => code(page)).toBe(NO_BASS)
 })

@@ -155,9 +155,9 @@ test('the selected strip stays open while another has its sound panel open', asy
     await expect(drums.locator('.st-b')).toHaveCount(1)
     await expect(drums.locator('.mini')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Sound controls for bass' })).toHaveAttribute('aria-pressed', 'true')
-    await page.getByRole('button', { name: 'Mute drums', exact: true }).click()
+    await page.getByTestId('strip-drums').getByRole('button', { name: 'Mute drums', exact: true }).click()
     await expect(drums.locator('.st-b')).toHaveCount(1)
-    await page.getByRole('button', { name: 'Mute drums', exact: true }).click()
+    await page.getByTestId('strip-drums').getByRole('button', { name: 'Mute drums', exact: true }).click()
     await expect(drums.locator('.st-b')).toHaveCount(1)
 })
 

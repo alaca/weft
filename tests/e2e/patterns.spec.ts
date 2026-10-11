@@ -39,12 +39,12 @@ test('a pattern is renamed from its menu or by a double click on its name', asyn
 
 test('a muted pattern stays muted under its new name', async ({ page }) => {
     await open(page)
-    await page.getByRole('button', { name: 'Mute lead', exact: true }).click()
+    await page.getByTestId('strip-lead').getByRole('button', { name: 'Mute lead', exact: true }).click()
     await more(page, 'lead', 'Rename')
     await page.getByLabel('New name for lead').fill('top')
     await page.getByLabel('New name for lead').press('Enter')
     await expect.poll(() => code(page)).toContain('\n_top: note("c4 e4")\n')
-    await expect(page.getByRole('button', { name: 'Mute top', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByTestId('strip-top').getByRole('button', { name: 'Mute top', exact: true })).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('a pattern is duplicated straight after itself and can then be changed on its own', async ({ page }) => {

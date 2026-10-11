@@ -128,7 +128,7 @@ test('a change made while paused is kept in step, and the song still goes on fro
     await expect.poll(() => now(page)).toBeGreaterThan(1.1)
     await page.getByRole('button', { name: 'Pause', exact: true }).click()
     const at = await now(page)
-    await page.getByRole('button', { name: 'Mute bass', exact: true }).click()
+    await page.getByTestId('strip-bass').getByRole('button', { name: 'Mute bass', exact: true }).click()
     await expect(page.getByTestId('code-status')).toHaveText('Paused')
     expect(await now(page)).toBe(at)
     await page.getByRole('button', { name: 'Play', exact: true }).click()

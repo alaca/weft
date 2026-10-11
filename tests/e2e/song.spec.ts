@@ -413,3 +413,37 @@ test('the bars that go round can be put in once more, in every pattern', async (
     await expect(page.getByTestId('song-length')).toContainText('10 bars')
     await expect(page.getByTestId('loop')).toContainText('Bars 5 to 6 go round')
 })
+
+test('a pattern is muted, played alone, turned up and moved to a side from its row in the song', async ({ page }) => {
+    await open(page)
+    const rows = song(page)
+    const strip = page.getByTestId('strip-bass')
+
+    await rows.getByRole('button', { name: 'Mute bass', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('_bass: note(')
+    await expect(rows.getByRole('button', { name: 'Mute bass', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(strip.getByRole('button', { name: 'Mute bass', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await strip.getByRole('button', { name: 'Mute bass', exact: true }).click()
+    await expect.poll(() => code(page)).not.toContain('_bass')
+    await expect(rows.getByRole('button', { name: 'Mute bass', exact: true })).toHaveAttribute('aria-pressed', 'false')
+    // A pattern that is switched off in the code shows so in its row as well.
+    await expect(rows.getByRole('button', { name: 'Mute lead', exact: true })).toHaveAttribute('aria-pressed', 'true')
+
+    await rows.getByRole('button', { name: 'Solo bass', exact: true }).click()
+    await expect(strip.getByRole('button', { name: 'Solo bass', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await rows.getByRole('button', { name: 'Solo bass', exact: true }).click()
+    await expect(strip.getByRole('button', { name: 'Solo bass', exact: true })).toHaveAttribute('aria-pressed', 'false')
+
+    const volume = rows.getByRole('slider', { name: 'Volume of bass', exact: true })
+    await expect(volume).toHaveAttribute('aria-valuenow', '0.8')
+    await volume.focus()
+    await page.keyboard.press('End')
+    await expect.poll(() => code(page)).toContain('.gain(slider(1.5, 0, 1.5))')
+    await expect(strip.getByRole('slider', { name: 'Volume of bass', exact: true })).toHaveAttribute('aria-valuenow', '1.5')
+
+    const pan = rows.getByRole('slider', { name: 'Pan of bass', exact: true })
+    await pan.focus()
+    await page.keyboard.press('Home')
+    await expect.poll(() => code(page)).toContain('.pan(slider(0, 0, 1))')
+    await expect(pan).toHaveAttribute('aria-valuenow', '0')
+})

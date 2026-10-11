@@ -1,11 +1,12 @@
 import { batch, createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { clearLoop, colorAt, drawControl, eventsOf, inStep, loopBetween, patternText, repeatLoop, select, setBars, setCurve, setMotion, songLengthNow, startFrom, toggleBar } from '../app/controller'
+import { clearLoop, colorAt, drawControl, eventsOf, inStep, loopBetween, patternText, repeatLoop, select, setBars, setCurve, setMix, setMotion, songLengthNow, startFrom, toggleBar, toggleMute, toggleSolo } from '../app/controller'
 import { fromUnit, toUnit } from '../controls/catalog'
-import { drawableIn, drawnIn } from '../controls/views'
+import { drawableIn, drawnIn, panOf, volumeOf, type ControlView } from '../controls/views'
 import { barsOf, clips, paint, type Clip } from '../song/arrange'
 import { MAX_BARS } from '../song/bars'
 import type { PatternEvent } from '../song/types'
-import { bpm, cycle, engineState, loopBars, playMode, position, revision, song, stale, startBar } from '../stores/song'
+import { bpm, cycle, engineState, loopBars, playMode, position, revision, soloIds, song, stale, startBar } from '../stores/song'
+import { Knob } from './Knob'
 
 // A clip shows what its pattern plays, bar by bar. The pattern is asked for no more bars than
 // this: beyond them the drawing repeats, which is true of every pattern that is not random.
@@ -318,8 +319,10 @@ function CurveLane(props: { id: string; fn: string; index: number; view: View })
     )
 }
 
-// The name of a pattern, with the way to draw one of its knobs over the song beside it, and
-// under it a row for every knob that is drawn.
+// The name of a pattern with what is reached for most while a song is arranged: whether it
+// plays, whether only it plays, how loud it is and where it sits. They are the same switches
+// and knobs the pattern has on its strip. Beside them is the way to draw one of its knobs over
+// the song, and under the name a row for every knob that is drawn.
 function NameRows(props: { id: string; index: number }) {
     let row: HTMLDivElement | undefined
     const block = () => song().patterns.find((p) => p.id === props.id)
@@ -330,6 +333,15 @@ function NameRows(props: { id: string; index: number }) {
     const drawn = createMemo(() => {
         const now = block()
         return now ? drawnIn(now) : []
+    })
+    const mix = createMemo((): { fn: 'gain' | 'pan'; name: string; view: ControlView }[] => {
+        const now = block()
+        return now
+            ? [
+                  { fn: 'gain', name: `Volume of ${props.id}`, view: volumeOf(now) },
+                  { fn: 'pan', name: `Pan of ${props.id}`, view: panOf(now) },
+              ]
+            : []
     })
     const [choosing, setChoosing] = createSignal(false)
     const away = (event: PointerEvent) => {
@@ -361,6 +373,19 @@ function NameRows(props: { id: string; index: number }) {
                     <i />
                     <span>{props.id}</span>
                 </button>
+                <span class="ms">
+                    <button classList={{ on: block()?.muted }} aria-label={`Mute ${props.id}`} aria-pressed={block()?.muted ?? false} disabled={stale()} onClick={() => toggleMute(props.id)}>
+                        M
+                    </button>
+                    <button classList={{ on: soloIds().includes(props.id) }} aria-label={`Solo ${props.id}`} aria-pressed={soloIds().includes(props.id)} onClick={() => toggleSolo(props.id)}>
+                        S
+                    </button>
+                </span>
+                <span class="mix">
+                    <For each={mix().map((knob) => knob.fn)}>
+                        {(fn) => <Show when={mix().find((knob) => knob.fn === fn)}>{(knob) => <Knob small name={knob().name} view={knob().view} disabled={stale()} onChange={(value) => setMix(props.id, fn, value)} />}</Show>}
+                    </For>
+                </span>
                 <button
                     class="sg-dr"
                     aria-label={`Draw a knob of ${props.id} over the song`}
@@ -543,6 +568,10 @@ export function SongPanel() {
             </div>
             <div class="sg-g">
                 <div class="sg-names">
+                    <div class="sg-nh" aria-hidden="true">
+                        <span>Vol</span>
+                        <span>Pan</span>
+                    </div>
                     <For each={ids()}>{(id, index) => <NameRows id={id} index={index()} />}</For>
                 </div>
                 <div class="sg-s" ref={scroller} data-testid="song-scroll" onScroll={() => setLeft(scroller.scrollLeft)}>

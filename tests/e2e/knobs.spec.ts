@@ -154,7 +154,7 @@ test('a strip with nothing else to turn still has volume and pan, also when it i
     await open(page, 'setcpm(120/4)\n\nlead: note("c4 e4")\n')
     const lead = page.getByTestId('strip-lead')
     await expect(lead.getByRole('slider')).toHaveCount(2)
-    await page.getByRole('button', { name: 'Mute lead', exact: true }).click()
+    await page.getByTestId('strip-lead').getByRole('button', { name: 'Mute lead', exact: true }).click()
     await expect(lead.getByRole('slider', { name: 'Volume of lead', exact: true })).toBeVisible()
 })
 
