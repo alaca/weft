@@ -311,7 +311,7 @@ describe('the downloads', () => {
         const html = await page('/download')
         expect(html).toContain('<span class="num">Version 0.1.0, 0.3 MB</span>')
         expect(html).toContain('<span class="num">Version 0.1.0-beta, 1 KB</span>')
-        expect(html).toContain('This build is not signed with Apple yet. The first time, open it with a right click and Open.')
+        expect(html).toContain('This build is not signed with Apple yet, so macOS will not open it the first time.')
         expect(html.match(/This build is not signed/g)).toHaveLength(1)
         expect(html.match(/<p>Not out yet\.<\/p>/g)).toHaveLength(1)
         expect(html).toContain('<a class="btn go" href="/download/macos" aria-label="Download Weft for macOS">')

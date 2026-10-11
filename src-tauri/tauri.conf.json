@@ -35,7 +35,11 @@
             "icons/icon.icns",
             "icons/icon.ico"
         ],
-        "createUpdaterArtifacts": true
+        "createUpdaterArtifacts": true,
+        "macOS": {
+            "signingIdentity": "-",
+            "entitlements": "Entitlements.plist"
+        }
     },
     "plugins": {
         "deep-link": {

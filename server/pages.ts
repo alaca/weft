@@ -330,7 +330,7 @@ export function downloadPage(around: Around, builds: Build[]): string {
                 <div>
                     <b>${platform.name}</b>
                     <p><span class="num">Version ${build.version}, ${size(build.bytes)}</span></p>
-                    ${platform.id === 'macos' ? html`<p>This build is not signed with Apple yet. The first time, open it with a right click and Open.</p>` : ''}
+                    ${platform.id === 'macos' ? html`<p>This build is not signed with Apple yet, so macOS will not open it the first time. Try to open it once, then go to System Settings, Privacy and Security, and press Open Anyway.</p>` : ''}
                 </div>
                 <a class="btn go" href="/download/${platform.id}" aria-label="Download Weft for ${platform.name}">${DOWN}Download</a>
             </li>`
