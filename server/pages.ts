@@ -67,7 +67,7 @@ const PLATFORMS: { id: Platform; name: string }[] = [
 const FIRST_TIME: Record<Platform, string> = {
     macos: 'For Macs with Apple or Intel chips. This build is not signed with Apple yet, so macOS will not open it the first time. Try to open it once, then go to System Settings, Privacy and Security, and press Open Anyway.',
     windows: 'For Windows 10 and 11, 64 bit. This build is not signed with Microsoft yet, so Windows says it does not know it. Press More info, then Run anyway.',
-    linux: 'An AppImage for 64 bit Linux: make the file executable, then run it. A jam has no voice and no camera on Linux, because the window Weft runs in there cannot make a call.',
+    linux: 'An AppImage for 64 bit Linux: make the file executable, then run it. For sound it uses the GStreamer plugins that most desktops come with (the base and the good set). A jam has no voice and no camera on Linux, because the window Weft runs in there cannot make a call.',
 }
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const MB = 1024 * 1024
