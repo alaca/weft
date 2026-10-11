@@ -8,6 +8,7 @@ import { ExportDialog } from './ui/ExportDialog'
 import { LeftColumn } from './ui/LeftColumn'
 import { AccountDialog } from './ui/AccountDialog'
 import { CloseDialog } from './ui/CloseDialog'
+import { JamAsk } from './ui/JamAsk'
 import { PublishDialog } from './ui/PublishDialog'
 import { StartScreen } from './ui/StartScreen'
 import { StatusBar } from './ui/StatusBar'
@@ -55,6 +56,7 @@ export function App() {
             <StatusBar />
             <StartScreen />
             <CloseDialog />
+            <JamAsk />
             <ExportDialog />
             <PublishDialog />
             <AccountDialog />

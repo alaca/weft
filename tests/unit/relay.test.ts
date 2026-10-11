@@ -54,6 +54,22 @@ async function pair() {
 
 const quiet = () => new Promise((resolve) => setTimeout(resolve, 60))
 
+type Listed = { id: string; name: string; bpm: number | null; patterns: number; since: number }
+const listed = async (): Promise<Listed[]> => ((await (await fetch(`http://127.0.0.1:${relay.port}/jams`)).json()) as { jams: Listed[] }).jams
+
+async function open(name = 'Ante', about: object = { bpm: 124, patterns: 6 }) {
+    const host = await person()
+    host.send({ t: 'host', name, open: true, about })
+    const invite = await host.next('invite')
+    return { host, id: String(invite.id), code: String(invite.code) }
+}
+
+async function asks(id: string, name = 'Tomo') {
+    const asker = await person()
+    asker.send({ t: 'ask', id, name })
+    return asker
+}
+
 beforeEach(async () => {
     relay = await createRelay({ port: 0 })
 })
@@ -186,5 +202,197 @@ describe('the relay of a jam', () => {
         const { host, guest } = await pair()
         guest.socket.pause()
         expect(await host.next('over')).toEqual({ t: 'over', why: 'left' })
+    })
+})
+
+describe('jams that are open to anyone', () => {
+    it('lists a jam only when the one who made it said so, and says of it no more than a name and the size of the song', async () => {
+        const quietOne = await person()
+        quietOne.send({ t: 'host', name: 'Mara', about: { bpm: 90, patterns: 3 } })
+        await quietOne.next('invite')
+        expect(await listed()).toEqual([])
+        const { id, code } = await open('  Ante  ', { bpm: 124.4, patterns: 6, code: 's("bd")' })
+        const jams = await listed()
+        expect(jams).toEqual([{ id, name: 'Ante', bpm: 124, patterns: 6, since: expect.any(Number) }])
+        expect(JSON.stringify(jams)).not.toContain(code)
+    })
+
+    it('answers nothing else over the web, and the list to anyone', async () => {
+        const list = await fetch(`http://127.0.0.1:${relay.port}/jams`)
+        expect(list.headers.get('access-control-allow-origin')).toBe('*')
+        expect(list.headers.get('cache-control')).toBe('no-store')
+        expect((await fetch(`http://127.0.0.1:${relay.port}/`)).status).toBe(404)
+        expect((await fetch(`http://127.0.0.1:${relay.port}/jams`, { method: 'POST' })).status).toBe(404)
+    })
+
+    it('lists and unlists a waiting jam as its maker says, and keeps what it says of the song as it is told', async () => {
+        const host = await person()
+        host.send({ t: 'host', name: 'Ante' })
+        await host.next('invite')
+        host.send({ t: 'about', about: { bpm: 80, patterns: 2 } })
+        host.send({ t: 'open', open: true, about: { bpm: 100, patterns: 4 } })
+        await quiet()
+        expect(await listed()).toMatchObject([{ name: 'Ante', bpm: 100, patterns: 4 }])
+        host.send({ t: 'about', about: { bpm: 'fast', patterns: -1 } })
+        await quiet()
+        expect(await listed()).toMatchObject([{ bpm: null, patterns: 0 }])
+        host.send({ t: 'open', open: false })
+        await quiet()
+        expect(await listed()).toEqual([])
+    })
+
+    it('tells the one who made a jam who asks to join, and lets them in when told to', async () => {
+        const { host, id } = await open()
+        const asker = await asks(id, ' Tomo ')
+        const asked = await host.next('asked')
+        expect(asked).toEqual({ t: 'asked', ask: expect.any(String), name: 'Tomo' })
+        await quiet()
+        expect(asker.heard).toEqual([])
+        host.send({ t: 'let', ask: asked.ask })
+        expect(await asker.next('in')).toEqual({ t: 'in', name: 'Ante' })
+        expect(await host.next('joined')).toEqual({ t: 'joined', name: 'Tomo' })
+        expect(await listed()).toEqual([])
+        asker.send({ t: 'tell', d: { k: 'say', text: 'hello' } })
+        expect(await host.next('told')).toEqual({ t: 'told', d: { k: 'say', text: 'hello' } })
+    })
+
+    it('turns away the others who asked once one is let in', async () => {
+        const { host, id } = await open()
+        const first = await asks(id, 'Tomo')
+        const one = await host.next('asked')
+        const second = await asks(id, 'Deniz')
+        await host.next('asked')
+        host.send({ t: 'let', ask: one.ask })
+        await first.next('in')
+        expect(await second.next('no')).toEqual({ t: 'no', why: 'gone' })
+    })
+
+    it('says no to the one who asked when the answer is not now, and they may ask again', async () => {
+        const { host, id } = await open()
+        const asker = await asks(id)
+        const asked = await host.next('asked')
+        host.send({ t: 'deny', ask: asked.ask })
+        expect(await asker.next('no')).toEqual({ t: 'no', why: 'declined' })
+        expect(await listed()).toHaveLength(1)
+        asker.send({ t: 'ask', id, name: 'Tomo' })
+        expect((await host.next('asked')).name).toBe('Tomo')
+    })
+
+    it('does not bring the one who made a jam a second question from someone they blocked', async () => {
+        const { host, id } = await open()
+        const asker = await asks(id)
+        const asked = await host.next('asked')
+        host.send({ t: 'block', ask: asked.ask })
+        expect(await asker.next('no')).toEqual({ t: 'no', why: 'declined' })
+        asker.send({ t: 'ask', id, name: 'Somebody else' })
+        expect(await asker.next('no')).toEqual({ t: 'no', why: 'declined' })
+        await quiet()
+        expect(host.heard).toEqual([])
+    })
+
+    it('takes the question back when the one who asked says so or goes away', async () => {
+        const { host, id } = await open()
+        const first = await asks(id, 'Tomo')
+        const one = await host.next('asked')
+        first.send({ t: 'unask' })
+        expect(await host.next('unasked')).toEqual({ t: 'unasked', ask: one.ask })
+        const second = await asks(id, 'Deniz')
+        const two = await host.next('asked')
+        second.socket.terminate()
+        expect(await host.next('unasked')).toEqual({ t: 'unasked', ask: two.ask })
+        host.send({ t: 'let', ask: two.ask })
+        await quiet()
+        expect(host.heard).toEqual([])
+    })
+
+    it('takes back a question that nobody answered, and says so to both', async () => {
+        await relay.close()
+        relay = await createRelay({ port: 0, askMs: 40 })
+        const { host, id } = await open()
+        const asker = await asks(id)
+        const asked = await host.next('asked')
+        expect(await asker.next('no')).toEqual({ t: 'no', why: 'quiet' })
+        expect(await host.next('unasked')).toEqual({ t: 'unasked', ask: asked.ask })
+        asker.send({ t: 'ask', id, name: 'Tomo' })
+        const again = await host.next('asked')
+        host.send({ t: 'let', ask: again.ask })
+        await asker.next('in')
+        await quiet()
+        expect(asker.heard).toEqual([])
+    })
+
+    it('tells those who asked when the jam is gone, taken off the list or already full', async () => {
+        const { host, id, code } = await open()
+        const first = await asks(id, 'Tomo')
+        await host.next('asked')
+        host.send({ t: 'open', open: false })
+        expect(await first.next('no')).toEqual({ t: 'no', why: 'gone' })
+        host.send({ t: 'open', open: true })
+        const second = await asks(id, 'Deniz')
+        await host.next('asked')
+        const guest = await person()
+        guest.send({ t: 'join', code, name: 'Mara' })
+        await guest.next('in')
+        expect(await second.next('no')).toEqual({ t: 'no', why: 'gone' })
+        const late = await asks(id, 'Rafa')
+        expect(await late.next('no')).toEqual({ t: 'no', why: 'gone' })
+        const nowhere = await asks('000000000000', 'Rafa')
+        expect(await nowhere.next('no')).toEqual({ t: 'no', why: 'gone' })
+    })
+
+    it('lets someone who waits in a jam of their own ask, and ends that jam when they are let in', async () => {
+        const mara = await open('Mara')
+        const ante = await open('Ante')
+        ante.host.send({ t: 'ask', id: mara.id, name: 'Ante' })
+        const asked = await mara.host.next('asked')
+        expect((await listed()).map((jam) => jam.name).sort()).toEqual(['Ante', 'Mara'])
+        const waiting = await asks(ante.id, 'Tomo')
+        await ante.host.next('asked')
+        mara.host.send({ t: 'let', ask: asked.ask })
+        expect(await ante.host.next('in')).toEqual({ t: 'in', name: 'Mara' })
+        expect(await waiting.next('no')).toEqual({ t: 'no', why: 'gone' })
+        expect(await listed()).toEqual([])
+        expect(relay.rooms()).toBe(1)
+        await quiet()
+        expect(ante.host.heard).toEqual([])
+    })
+
+    it('takes back the question of someone whose own jam got its second person first', async () => {
+        const mara = await open('Mara')
+        const ante = await open('Ante')
+        ante.host.send({ t: 'ask', id: mara.id, name: 'Ante' })
+        const asked = await mara.host.next('asked')
+        const guest = await person()
+        guest.send({ t: 'join', code: ante.code, name: 'Tomo' })
+        await ante.host.next('joined')
+        expect(await mara.host.next('unasked')).toEqual({ t: 'unasked', ask: asked.ask })
+        expect(relay.rooms()).toBe(2)
+    })
+
+    it('does not let anyone ask their own jam, ask twice at once, or answer for a jam that is not theirs', async () => {
+        const { host, id } = await open()
+        host.send({ t: 'ask', id, name: 'Ante' })
+        expect(await host.next('no')).toEqual({ t: 'no', why: 'gone' })
+        const other = await open('Mara')
+        const asker = await asks(id)
+        const asked = await host.next('asked')
+        asker.send({ t: 'ask', id: other.id, name: 'Tomo' })
+        other.host.send({ t: 'let', ask: asked.ask })
+        await quiet()
+        expect(other.host.heard).toEqual([])
+        expect(asker.heard).toEqual([])
+    })
+
+    it('hears no more than a handful of questions for one jam at a time, and shows the door to someone who keeps asking', async () => {
+        const { host, id } = await open()
+        for (let count = 0; count < 5; count++) {
+            await asks(id, `P${count}`)
+            await host.next('asked')
+        }
+        const sixth = await asks(id, 'Late')
+        expect(await sixth.next('no')).toEqual({ t: 'no', why: 'busy' })
+        const pest = await person()
+        for (let count = 0; count < 21; count++) pest.send({ t: 'ask', id: 'nothing', name: 'x' })
+        expect(await pest.closed).toBe(1008)
     })
 })

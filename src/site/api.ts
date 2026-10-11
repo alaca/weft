@@ -1,7 +1,7 @@
 // The app's side of the site that songs are published to. An account is an address and a
 // password, made here in the app; the site itself has no sign-in. What the site hands back for
 // signing in is kept in this app and sent along from then on, so a person signs in once.
-export type Me = { name: string; email: string; used: number; most: number; jams: { open: boolean; blocked: { id: string; name: string }[] } }
+export type Me = { name: string; email: string; used: number; most: number }
 export type Refusal = { why: string; what: string; line?: number }
 export type Published = { id: string; name: string; description: string; style: string; licence: string; hidden: boolean; published: number; plays: number; downloads: number; bytes: number; url: string }
 // A song as the site's public list gives it.
@@ -67,7 +67,6 @@ export const site = {
     password: (token: string, old: string, next: string) => call<object>('/api/password', { token, json: { old, new: next } }),
     me: (token: string) => call<Me>('/api/me', { token }),
     rename: (token: string, name: string) => call<Me>('/api/me', { token, json: { name } }),
-    jams: (token: string, change: { open?: boolean; unblock?: string }) => call<Me>('/api/me/jams', { token, json: change }),
     removeAccount: (token: string, password: string) => call<object>('/api/me', { token, method: 'DELETE', json: { password } }),
     songs: () => call<{ songs: SiteSong[] }>('/api/songs'),
     mine: (token: string) => call<{ songs: Published[]; used: number; most: number }>('/api/songs?mine', { token }),

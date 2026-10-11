@@ -4,7 +4,7 @@ import { accountBusy, forgotFor, me, setAccountBusy, setAccountNote, setAccountO
 import { nameYourself } from './jam'
 
 // Your account on the site, kept from inside the app: making it, signing in and out, your
-// published songs, your name, what you chose for jams, your password. The site has no sign-in
+// published songs, your name, your password. The site has no sign-in
 // of its own, so everything that is yours to change is changed here.
 const said = (err: unknown): string => (err instanceof SiteRefused ? err.refusal.what : String((err as Error)?.message ?? err))
 
@@ -137,8 +137,6 @@ export async function renameYourself(name: string) {
     if (await withToken((token) => site.rename(token, name.trim()), 'Your name is changed.')) nameYourself(name.trim())
 }
 
-export const setOpenToJam = (open: boolean) => withToken((token) => site.jams(token, { open }))
-export const unblock = (id: string) => withToken((token) => site.jams(token, { unblock: id }))
 
 export async function changePassword(old: string, next: string): Promise<boolean> {
     if (shortPassword(next)) return setAccountNote(`A password needs at least ${PASSWORD_LEAST} characters.`), false

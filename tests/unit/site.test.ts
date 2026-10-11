@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -56,7 +56,7 @@ describe('accounts', () => {
         expect(made.status).toBe(201)
         const { token, ...rest } = await made.json()
         expect(rest).toEqual({ name: 'Ante', email: 'ante@example.com' })
-        expect(await (await ask('/api/me', { token })).json()).toEqual({ name: 'Ante', email: 'ante@example.com', used: 0, most: 10, jams: { open: false, blocked: [] } })
+        expect(await (await ask('/api/me', { token })).json()).toEqual({ name: 'Ante', email: 'ante@example.com', used: 0, most: 10 })
     })
 
     it('are refused without an address, a password of eight characters or a name, and when the address is taken', async () => {
@@ -95,30 +95,12 @@ describe('accounts', () => {
     it('change the name that stands beside their songs', async () => {
         const token = await signIn()
         const made = await (await publish(token)).json()
-        expect(await told(ask('/api/me', { token, json: { name: '  Ante   L. ' } }))).toEqual([200, { name: 'Ante L.', email: 'ante@example.com', used: 1, most: 10, jams: { open: false, blocked: [] } }])
+        expect(await told(ask('/api/me', { token, json: { name: '  Ante   L. ' } }))).toEqual([200, { name: 'Ante L.', email: 'ante@example.com', used: 1, most: 10 }])
         expect((await (await ask('/api/songs')).json()).songs[0].by).toBe('Ante L.')
         expect(await told(ask('/api/me', { token, json: { name: ' ' } }))).toMatchObject([400, { why: 'name' }])
         expect(await told(ask('/api/me', { token, json: { name: 'x'.repeat(25) } }))).toMatchObject([400, { why: 'name' }])
         expect((await ask('/api/me', { json: { name: 'Nobody' } })).status).toBe(401)
         expect(await (await fetch(made.url)).text()).toContain('Ante L.')
-    })
-
-    it('say whether they are open to jam, and take people off the list of those they blocked', async () => {
-        const token = await signIn()
-        expect((await ask('/api/me/jams', { json: { open: true } })).status).toBe(401)
-        expect(await told(ask('/api/me/jams', { token, json: { open: true } }))).toMatchObject([200, { name: 'Ante', used: 0, jams: { open: true, blocked: [] } }])
-        await site.close()
-        const held = kept()
-        held.people[0].jams.blocked = [
-            { id: 'rafa01', name: 'Rafa' },
-            { id: 'nine02', name: 'nine_volt' },
-        ]
-        writeFileSync(join(dataDir, 'site.json'), JSON.stringify(held))
-        await start()
-        expect((await (await ask('/api/me', { token })).json()).jams).toEqual({ open: true, blocked: held.people[0].jams.blocked })
-        expect((await (await ask('/api/me/jams', { token, json: { unblock: 'rafa01' } })).json()).jams).toEqual({ open: true, blocked: [{ id: 'nine02', name: 'nine_volt' }] })
-        expect((await (await ask('/api/me/jams', { token, json: { open: false, unblock: 'nine02' } })).json()).jams).toEqual({ open: false, blocked: [] })
-        expect((await (await ask('/api/me/jams', { token, json: { open: 'yes' } })).json()).jams).toEqual({ open: false, blocked: [] })
     })
 
     it('are deleted with their sessions, songs and files, by whoever knows the password', async () => {

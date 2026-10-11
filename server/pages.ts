@@ -275,7 +275,7 @@ export function homePage(around: Around, songs: Listed[], builds: Build[]): stri
                     <svg viewBox="0 0 32 32" fill="none" stroke="var(--linen-2)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11.5" cy="12" r="4" /><path d="M4 26c.8-5 3.8-7 7.5-7s6.7 2 7.5 7" /><circle cx="22" cy="12.5" r="3.2" stroke="var(--woad)" /><path d="M22.5 19c3 .3 5 2.2 5.6 6" stroke="var(--woad)" /></svg>
                 </div>
                 <h3>Jams</h3>
-                <p>Two people on one song at once, each on their own machine, with chat and voice.</p>
+                <p>Two people on one song at once, by invite or from the list of people open to jam, with chat and voice.</p>
             </li>
             <li class="card feat">
                 <div class="feat-i" aria-hidden="true">

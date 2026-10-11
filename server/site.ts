@@ -76,10 +76,9 @@ const WRONG = 'The email or the password is not right.'
 const WAIT = 'Too many tries. Wait a quarter of an hour and try again.'
 const NOT_AN_ADDRESS = 'That is not an email address.'
 
-type Jams = { open: boolean; blocked: { id: string; name: string }[] }
 // `password` is what scrypt made of it, never the password. An account from before there were
 // passwords has none, and gets one with a code, as for a forgotten one.
-type Person = { id: string; email: string; name: string; since: number; password?: string; jams?: Jams }
+type Person = { id: string; email: string; name: string; since: number; password?: string }
 type Session = { hash: string; person: string; until: number }
 type Song = {
     id: string
@@ -294,9 +293,8 @@ export function createSite(options: SiteOptions): Promise<Site> {
     const mine = (person: Person) => kept.songs.filter((song) => song.by === person.id)
     const nameOf = (id: string) => kept.people.find((person) => person.id === id)?.name ?? 'Someone'
     const makerOf = (id: string): Maker => ({ name: nameOf(id), tint: tintOf(id) })
-    const jamsOf = (person: Person): Jams => ({ open: person.jams?.open === true, blocked: (person.jams?.blocked ?? []).map(({ id, name }) => ({ id, name })) })
     const shown = (song: Song) => ({ ...song, by: nameOf(song.by), url: `${origin}/songs/${song.id}`, file: `${origin}/songs/${song.id}.weft`, preview: `${origin}/songs/${song.id}.mp3` })
-    const meOf = (person: Person): Answer => ({ status: 200, body: { name: person.name, email: person.email, used: mine(person).length, most: MOST_SONGS, jams: jamsOf(person) } })
+    const meOf = (person: Person): Answer => ({ status: 200, body: { name: person.name, email: person.email, used: mine(person).length, most: MOST_SONGS } })
     const refuse = (status: number, why: string, what: string, more: object = {}): Answer => ({ status, body: { why, what, ...more } })
     const signIn: Answer = refuse(401, 'signin', 'Sign in first.')
 
@@ -510,15 +508,6 @@ export function createSite(options: SiteOptions): Promise<Site> {
         return meOf(person)
     }
 
-    // What a person chose about jams: whether they are open to one, and one person fewer among
-    // those they blocked. Either may be sent alone.
-    function jamsSet(person: Person, body: any): Answer {
-        const jams = jamsOf(person)
-        person.jams = { open: typeof body?.open === 'boolean' ? body.open : jams.open, blocked: typeof body?.unblock === 'string' ? jams.blocked.filter((one) => one.id !== body.unblock) : jams.blocked }
-        keep()
-        return meOf(person)
-    }
-
     function published(person: Person, body: any): Answer {
         if (mine(person).length >= MOST_SONGS) return refuse(409, 'full', `All ${MOST_SONGS} of your songs are used. Delete one to make room for a new one.`)
         const text = typeof body?.file === 'string' ? body.file : ''
@@ -673,7 +662,6 @@ export function createSite(options: SiteOptions): Promise<Site> {
         if (path === '/api/me' && method === 'GET') return person ? meOf(person) : signIn
         if (path === '/api/me' && method === 'POST') return person ? renamed(person, body) : signIn
         if (path === '/api/me' && method === 'DELETE') return person ? accountDeleted(person, body) : signIn
-        if (path === '/api/me/jams' && method === 'POST') return person ? jamsSet(person, body) : signIn
         if (path === '/api/password' && method === 'POST') return person ? passwordChanged(person, bearerOf(request) ?? '', body) : signIn
         if (path === '/api/sign-out' && method === 'POST') {
             const given = bearerOf(request)

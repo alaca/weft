@@ -1,4 +1,5 @@
 import { createSignal } from 'solid-js'
+import type { OpenJam } from '../jam/protocol'
 
 // A jam is two people on one song. `calling` and `joining` are the moments before the relay has
 // answered, `waiting` is an invite that nobody has used yet.
@@ -26,5 +27,16 @@ export const [jamMic, setJamMic] = createSignal(false)
 export const [jamTheirMic, setJamTheirMic] = createSignal(false)
 export const [jamLevels, setJamLevels] = createSignal<{ mine: number; theirs: number }>({ mine: 0, theirs: 0 })
 export const [jamVoiceNote, setJamVoiceNote] = createSignal<string | null>(null)
+
+// Jams that anyone may ask to join. Yours is `jamListed` while you wait in it; `openJams` are
+// those of others, null while the list cannot be read. `jamAsked` is the one you asked and have
+// no answer from yet, `jamAsks` are the people who asked you, and `jamTurnedDown` are the jams
+// that said not now.
+export const [jamListed, setJamListed] = createSignal(false)
+export const [jamOwn, setJamOwn] = createSignal<string | null>(null)
+export const [openJams, setOpenJams] = createSignal<OpenJam[] | null>([])
+export const [jamAsked, setJamAsked] = createSignal<{ id: string; name: string } | null>(null)
+export const [jamAsks, setJamAsks] = createSignal<{ ask: string; name: string }[]>([])
+export const [jamTurnedDown, setJamTurnedDown] = createSignal<string[]>([])
 
 export const jamming = () => jamStage() === 'jamming'

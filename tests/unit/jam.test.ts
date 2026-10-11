@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { arrivedAt, cleanName, cleanSay, digestOf, packPiece, PIECE, piecesOf, readInvite, readPiece, showInvite } from '../../src/jam/protocol'
+import { aboutText, arrivedAt, cleanName, cleanSay, digestOf, listAddress, packPiece, PIECE, piecesOf, readInvite, readOpenJams, readPiece, showInvite } from '../../src/jam/protocol'
 import { soundRenames } from '../../src/library/songfile'
 
 describe('invites', () => {
@@ -25,6 +25,30 @@ describe('invites', () => {
         expect(readInvite('7KQ-M2O')).toBeNull()
         expect(readInvite('7KQ-M21')).toBeNull()
         expect(readInvite('')).toBeNull()
+    })
+})
+
+describe('the list of open jams', () => {
+    it('is read from where the relay is reached', () => {
+        expect(listAddress('ws://127.0.0.1:5190')).toBe('http://127.0.0.1:5190/jams')
+        expect(listAddress('wss://jam.example.org/')).toBe('https://jam.example.org/jams')
+    })
+
+    it('is taken as it comes, without what is not a jam', () => {
+        const mara = { id: 'a1b2c3d4e5f6', name: '  Mara  ', bpm: 84.2, patterns: 6, since: 1700000000000 }
+        expect(readOpenJams({ jams: [mara, null, 'x', { id: 'NOT-AN-ID', name: 'x' }, { id: 'a1b2c3d4e5f7', name: ' ' }, { id: 'a1b2c3d4e5f8', name: 'x'.repeat(40), bpm: 'fast', patterns: -3 }] })).toEqual([
+            { id: 'a1b2c3d4e5f6', name: 'Mara', bpm: 84, patterns: 6, since: 1700000000000 },
+            { id: 'a1b2c3d4e5f8', name: 'x'.repeat(24), bpm: null, patterns: 0, since: 0 },
+        ])
+        expect(readOpenJams(null)).toEqual([])
+        expect(readOpenJams({ jams: 'many' })).toEqual([])
+    })
+
+    it('says of a jam how fast its song is and how many patterns it has', () => {
+        expect(aboutText({ bpm: 84, patterns: 6 })).toBe('84 bpm, 6 patterns')
+        expect(aboutText({ bpm: 132, patterns: 1 })).toBe('132 bpm, 1 pattern')
+        expect(aboutText({ bpm: null, patterns: 3 })).toBe('3 patterns')
+        expect(aboutText({ bpm: 120, patterns: 0 })).toBe('Just started')
     })
 })
 

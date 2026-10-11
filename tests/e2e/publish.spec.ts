@@ -290,7 +290,7 @@ test('your songs are kept from the app: what a song says, whether it is shown, a
     await shown.close()
 })
 
-test('your name, your jam switch and your password are changed in the app', async ({ page }) => {
+test('your name and your password are changed in the app', async ({ page }) => {
     const { email, address } = await withASong(page)
     const note = page.getByTestId('account-note')
     await account(page).getByRole('tab', { name: 'Profile', exact: true }).click()
@@ -302,13 +302,7 @@ test('your name, your jam switch and your password are changed in the app', asyn
     await expect(shown.locator('body')).toContainText('Ante L')
     await shown.close()
 
-    await account(page).getByRole('tab', { name: 'Jams', exact: true }).click()
-    const open = account(page).getByRole('switch', { name: /Open to jam/ })
-    await expect(open).toHaveAttribute('aria-checked', 'false')
-    await open.click()
-    await expect(open).toHaveAttribute('aria-checked', 'true')
-    await expect(account(page)).toContainText('The list of people open to jam is not open yet.')
-    await expect(account(page)).toContainText('Nobody is blocked.')
+    await expect(account(page).getByRole('tab', { name: 'Jams', exact: true })).toHaveCount(0)
 
     await account(page).getByRole('tab', { name: 'Account', exact: true }).click()
     await account(page).getByLabel('Your password now').fill('not it')
@@ -325,8 +319,6 @@ test('your name, your jam switch and your password are changed in the app', asyn
     await account(page).getByLabel('Your password', { exact: true }).fill('a new password 43')
     await account(page).getByLabel('Your password', { exact: true }).press('Enter')
     await expect(page.getByTestId('account-count')).toContainText('You have used 1 of your 10 songs.')
-    await account(page).getByRole('tab', { name: 'Jams', exact: true }).click()
-    await expect(account(page).getByRole('switch', { name: /Open to jam/ })).toHaveAttribute('aria-checked', 'true')
     expect(email).toContain('@')
 })
 

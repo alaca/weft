@@ -1470,6 +1470,7 @@ export function recentSongs(): RecentSong[] {
 // goes. A song with changes since it was saved asks first whether to save them, because saving
 // marks the version that can be gone back to.
 function toStart() {
+    leaveJam()
     engine.stop()
     flush()
     refreshSongs()

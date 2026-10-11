@@ -26,11 +26,19 @@ export type Told =
     | { k: 'ice'; candidate: RTCIceCandidateInit | null }
     | { k: 'mic'; on: boolean }
 
+// A jam whose maker said that anyone may ask to join it, as the list of them tells it: a name,
+// and how big the song is. Nothing of the song itself.
+export type OpenJam = { id: string; name: string; bpm: number | null; patterns: number; since: number }
+export type About = { bpm: number | null; patterns: number }
+export type Answer = 'let' | 'deny' | 'block'
+
 export type FromRelay =
-    | { t: 'invite'; code: string }
+    | { t: 'invite'; code: string; id: string }
     | { t: 'joined'; name: string }
     | { t: 'in'; name: string }
-    | { t: 'no'; why: 'code' | 'full' }
+    | { t: 'no'; why: 'code' | 'full' | 'gone' | 'declined' | 'busy' | 'quiet' }
+    | { t: 'asked'; ask: string; name: string }
+    | { t: 'unasked'; ask: string }
     | { t: 'updates'; updates: SentUpdate[] }
     | { t: 'told'; d: Told }
     | { t: 'over'; why: 'left' | 'expired' }
@@ -52,6 +60,32 @@ export const showInvite = (code: string): string => `${code.slice(0, 3)}-${code.
 export function readInvite(text: string): string | null {
     const found = text.toUpperCase().match(/(?:^|[^A-Z0-9])([A-HJ-NP-Z2-9]{3})[\s-]?([A-HJ-NP-Z2-9]{3})\s*$/)
     return found ? found[1] + found[2] : null
+}
+
+// Where the list of open jams is read, from where the relay is reached.
+export const listAddress = (relay: string): string => `${relay.replace(/^ws/, 'http').replace(/\/+$/, '')}/jams`
+
+// The list as it came over the network, with everything left out that is not what a list holds.
+export function readOpenJams(value: unknown): OpenJam[] {
+    const jams = (value as { jams?: unknown } | null)?.jams
+    if (!Array.isArray(jams)) return []
+    const read: OpenJam[] = []
+    for (const one of jams as Partial<OpenJam>[]) {
+        if (!one || typeof one.id !== 'string' || !/^[0-9a-f]{6,32}$/.test(one.id)) continue
+        const name = cleanName(String(one.name ?? ''))
+        if (!name) continue
+        const bpm = Number(one.bpm)
+        const patterns = Number(one.patterns)
+        read.push({ id: one.id, name, bpm: one.bpm !== null && Number.isFinite(bpm) && bpm >= 1 && bpm <= 999 ? Math.round(bpm) : null, patterns: Number.isInteger(patterns) && patterns > 0 ? Math.min(patterns, 999) : 0, since: Number(one.since) || 0 })
+    }
+    return read
+}
+
+// What the list says under a name.
+export function aboutText(jam: About): string {
+    const patterns = jam.patterns === 1 ? '1 pattern' : `${jam.patterns} patterns`
+    if (!jam.patterns) return 'Just started'
+    return jam.bpm ? `${jam.bpm} bpm, ${patterns}` : patterns
 }
 
 // A sound goes over in pieces, so that a long one does not hold up the changes and the chat

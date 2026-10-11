@@ -8,15 +8,20 @@ import {
     cleanSay,
     digestOf,
     DRIFT,
+    listAddress,
     packPiece,
     PIECE,
     piecesOf,
     readInvite,
+    readOpenJams,
     readPiece,
     SOUND_LIMIT,
+    type About,
+    type Answer,
     type Bars,
     type FromRelay,
     type Offer,
+    type OpenJam,
     type Told,
 } from '../jam/protocol'
 import { openVoice, primeVoice, type Voice } from '../jam/voice'
@@ -25,25 +30,36 @@ import { whyNot, type NoTake } from '../library/recorder'
 import { soundRenames, soundsUsed } from '../library/songfile'
 import { soundNameFor, type OwnSound } from '../library/sounds'
 import {
+    jamAsked,
+    jamAsks,
     jamLines,
+    jamListed,
     jamMic,
     jamName,
     jamPeer,
     jamsOpen,
     jamStage,
+    jamTurnedDown,
     jamUnread,
+    openJams,
+    setJamAsked,
+    setJamAsks,
     setJamHand,
     setJamInvite,
     setJamLevels,
     setJamLines,
+    setJamListed,
     setJamMic,
     setJamName,
     setJamNote,
+    setJamOwn,
     setJamPeer,
     setJamStage,
     setJamTheirMic,
+    setJamTurnedDown,
     setJamUnread,
     setJamVoiceNote,
+    setOpenJams,
     type JamLine,
 } from '../stores/jam'
 import { engineState, loopBars, ownSounds, playMode, song, stale, startBar, type PlayMode } from '../stores/song'
@@ -78,6 +94,10 @@ const UNREACHABLE = 'Jams could not be reached. Check that you are online, then 
 
 let deps: JamDeps
 let line: Line | null = null
+// The line while it is being opened. A jam that is given up meanwhile leaves it to be closed.
+let opening: Promise<Line> | null = null
+// What the list of open jams was last told about the song.
+let saidAbout = ''
 let host = false
 // True while something the other person did is being done here, so that it is not sent back.
 let applying = false
@@ -156,30 +176,122 @@ const named = (): boolean => {
 
 // ---- starting and ending
 
+// One line carries all of it: a question put to someone else's jam, and a jam of your own.
 async function reach(first: object): Promise<boolean> {
+    const mine = (opening ??= openLine(RELAY, { message: fromRelay, bytes: pieceArrived, closed: lineLost }))
     try {
-        line = await openLine(RELAY, { message: fromRelay, bytes: pieceArrived, closed: lineLost })
+        const reached = await mine
+        if (opening !== mine) {
+            reached.close()
+            return false
+        }
+        line = reached
         line.send(first)
         return true
     } catch {
-        line = null
-        batch(() => {
-            setJamStage('idle')
-            setJamNote(UNREACHABLE)
-        })
+        if (opening === mine) finish(UNREACHABLE)
         return false
     }
 }
 
-export async function inviteToJam() {
+// How big the song is, for the list. Said only of a jam that is listed.
+const about = (): About => ({ bpm: Math.round(deps.engine.bpm()), patterns: song().patterns.length })
+
+function tellAbout() {
+    if (jamStage() !== 'waiting' || !jamListed() || stale()) return
+    const now = JSON.stringify(about())
+    if (now === saidAbout) return
+    saidAbout = now
+    line?.send({ t: 'about', about: about() })
+}
+
+// An invite is for one person you know. A jam that is open is also in the list that anyone can
+// read, until someone is let in or the switch is put back.
+export async function inviteToJam(open = false) {
     if (jamStage() !== 'idle' || !named()) return
     primeVoice()
     host = true
+    saidAbout = open ? JSON.stringify(about()) : ''
     batch(() => {
         setJamNote(null)
+        setJamListed(open)
         setJamStage('calling')
     })
-    await reach({ t: 'host', name: jamName() })
+    await reach(open ? { t: 'host', name: jamName(), open: true, about: about() } : { t: 'host', name: jamName() })
+}
+
+export function openToJam(on: boolean) {
+    const stage = jamStage()
+    if (stage === 'idle') return void (on && inviteToJam(true))
+    if (stage !== 'waiting' || on === jamListed()) return
+    saidAbout = on ? JSON.stringify(about()) : ''
+    batch(() => {
+        setJamListed(on)
+        if (!on) setJamAsks([])
+    })
+    line?.send(on ? { t: 'open', open: true, about: about() } : { t: 'open', open: false })
+}
+
+// ---- the list of open jams, and asking to join one
+
+const LIST = listAddress(RELAY)
+
+export async function refreshOpenJams() {
+    try {
+        const response = await fetch(LIST, { cache: 'no-store' })
+        if (!response.ok) throw new Error(String(response.status))
+        // A jam that reads as it did is kept as it was, so its row is not made anew each time.
+        const before = new Map((openJams() ?? []).map((jam) => [jam.id, jam]))
+        const same = (was: OpenJam | undefined, now: OpenJam) => was && was.name === now.name && was.bpm === now.bpm && was.patterns === now.patterns
+        setOpenJams(readOpenJams(await response.json()).map((jam) => (same(before.get(jam.id), jam) ? before.get(jam.id)! : jam)))
+    } catch {
+        setOpenJams(null)
+    }
+}
+
+export async function askToJoin(jam: OpenJam) {
+    const stage = jamStage()
+    if ((stage !== 'idle' && stage !== 'waiting') || jamAsked() || !named()) return
+    primeVoice()
+    batch(() => {
+        setJamNote(null)
+        setJamAsked({ id: jam.id, name: jam.name })
+    })
+    await reach({ t: 'ask', id: jam.id, name: jamName() })
+}
+
+export function cancelAsk() {
+    if (!jamAsked()) return
+    if (jamStage() === 'idle') return finish(null)
+    setJamAsked(null)
+    line?.send({ t: 'unask' })
+}
+
+// What you say to someone who asked to join the jam you wait in.
+export function answerAsk(ask: string, answer: Answer) {
+    if (jamStage() !== 'waiting' || !jamAsks().some((one) => one.ask === ask)) return
+    setJamAsks(jamAsks().filter((one) => one.ask !== ask))
+    line?.send({ t: answer, ask })
+}
+
+function askAnswered(why: 'gone' | 'declined' | 'busy' | 'quiet') {
+    const asked = jamAsked()
+    if (!asked) return
+    const note =
+        why === 'declined'
+            ? `${asked.name} did not let you in this time. Ask someone else in the list, or send an invite to someone you know.`
+            : why === 'busy'
+              ? `Several people are asking ${asked.name} at the moment. Ask again in a little while.`
+              : why === 'quiet'
+                ? `${asked.name} did not answer, and may be away. Ask someone else in the list, or ask them again later.`
+                : `${asked.name} is no longer open to jam: someone else joined, or they stopped waiting. Ask someone else in the list.`
+    if (why === 'declined') setJamTurnedDown([...jamTurnedDown(), asked.id])
+    void refreshOpenJams()
+    if (jamStage() === 'idle') return finish(note)
+    batch(() => {
+        setJamAsked(null)
+        setJamNote(note)
+    })
 }
 
 export async function joinJam(text: string) {
@@ -197,7 +309,7 @@ export async function joinJam(text: string) {
 
 export function leaveJam() {
     const stage = jamStage()
-    if (stage === 'idle') return
+    if (stage === 'idle') return cancelAsk()
     line?.send({ t: 'leave' })
     finish(stage === 'jamming' ? `You left the jam with ${peer()}. ${deps.songName()} stays with your songs as it is now.` : null)
 }
@@ -208,6 +320,8 @@ function finish(note: string | null) {
     window.clearTimeout(handTimer)
     line?.close()
     line = null
+    opening = null
+    saidAbout = ''
     deps.engine.stopSync()
     endVoice()
     if (was === 'jamming') void giveBack()
@@ -224,6 +338,10 @@ function finish(note: string | null) {
     batch(() => {
         setJamStage('idle')
         setJamInvite(null)
+        setJamOwn(null)
+        setJamListed(false)
+        setJamAsked(null)
+        setJamAsks([])
         setJamPeer(null)
         setJamHand(null)
         setJamLines([])
@@ -240,6 +358,10 @@ function begin(who: string, joined: string) {
     batch(() => {
         setJamPeer(who)
         setJamInvite(null)
+        setJamOwn(null)
+        setJamListed(false)
+        setJamAsked(null)
+        setJamAsks([])
         setJamLines([])
         setJamNote(null)
         setJamStage('jamming')
@@ -256,12 +378,21 @@ function begin(who: string, joined: string) {
 
 function fromRelay(message: FromRelay) {
     if (message.t === 'invite') {
+        if (jamStage() !== 'calling') return
         return batch(() => {
             setJamInvite(message.code)
+            setJamOwn(String(message.id ?? ''))
             setJamStage('waiting')
         })
     }
+    if (message.t === 'asked') {
+        if (jamStage() !== 'waiting' || !jamListed()) return
+        const name = cleanName(String(message.name ?? '')) || 'Someone'
+        return void setJamAsks([...jamAsks().filter((one) => one.ask !== message.ask), { ask: String(message.ask), name }])
+    }
+    if (message.t === 'unasked') return void setJamAsks(jamAsks().filter((one) => one.ask !== message.ask))
     if (message.t === 'no') {
+        if (message.why !== 'code' && message.why !== 'full') return askAnswered(message.why)
         return finish(message.why === 'full' ? 'Jams are full at the moment. Try again in a little while.' : 'No jam is waiting under that invite. It may have been used already, or taken back. Ask for a new one.')
     }
     if (message.t === 'over') {
@@ -281,7 +412,21 @@ function fromRelay(message: FromRelay) {
         codeChanged(code, false)
         return
     }
-    if (message.t === 'in') return void setJamPeer(message.name)
+    // Let in: by the invite that was typed, or by the one who was asked. A jam of your own that
+    // you were waiting in is over with that, and it is their song that both are on.
+    if (message.t === 'in') {
+        if (jamStage() !== 'joining' && !jamAsked()) return
+        host = false
+        return batch(() => {
+            setJamPeer(message.name)
+            setJamInvite(null)
+            setJamOwn(null)
+            setJamListed(false)
+            setJamAsked(null)
+            setJamAsks([])
+            setJamStage('joining')
+        })
+    }
     if (message.t === 'updates') return deps.engine.receive(message.updates)
     if (message.t === 'told') return told(message.d)
 }
@@ -459,6 +604,7 @@ function theirChange(before: Map<string, string>, now: Map<string, string>) {
 }
 
 function codeChanged(code: string, remote: boolean) {
+    if (jamStage() === 'waiting') return tellAbout()
     if (jamStage() !== 'jamming') return
     if (!stale()) {
         const now = patternTexts(code)

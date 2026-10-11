@@ -1,22 +1,21 @@
 import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, onMount, Show, Switch } from 'solid-js'
-import { changePassword, closeAccount, deleteAccount, editSong, hideSong, renameYourself, setOpenToJam, signOutOfSite, takeDown, unblock } from '../app/account'
+import { changePassword, closeAccount, deleteAccount, editSong, hideSong, renameYourself, signOutOfSite, takeDown } from '../app/account'
 import { sizeText } from '../library/audio'
 import { NAME_LIMIT } from '../jam/protocol'
 import { LICENCES, PASSWORD_LEAST, type Published } from '../site/api'
 import { accountBusy, accountNote, accountOpen, me, mySongs } from '../stores/account'
 import { AccountForm } from './AccountForm'
 
-type Part = 'songs' | 'profile' | 'jams' | 'account'
+type Part = 'songs' | 'profile' | 'account'
 const PARTS: { id: Part; label: string }[] = [
     { id: 'songs', label: 'Songs' },
     { id: 'profile', label: 'Profile' },
-    { id: 'jams', label: 'Jams' },
     { id: 'account', label: 'Account' },
 ]
 const dayOf = (at: number) => new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 
 // Your account on the site, kept from here: the songs you published, the name beside them,
-// what you chose for jams, and the account itself. The site has no sign-in, so this is the
+// and the account itself. The site has no sign-in, so this is the
 // only place any of it is changed.
 export function AccountDialog() {
     let box: HTMLDivElement | undefined
@@ -239,31 +238,6 @@ export function AccountDialog() {
                                                 </button>
                                             </div>
                                         </form>
-                                    </Match>
-                                    <Match when={part() === 'jams'}>
-                                        <button class="ac-sw" role="switch" aria-checked={who().jams.open} disabled={accountBusy()} onClick={() => void setOpenToJam(!who().jams.open)}>
-                                            <i classList={{ on: who().jams.open }} />
-                                            <b>Open to jam</b>
-                                            <span>People in the list can see you and ask to join. Off, nobody sees you.</span>
-                                        </button>
-                                        <p class="ac-none">The list of people open to jam is not open yet. What you choose here is kept for when it is. A jam by invite works now, from the Jams panel.</p>
-                                        <h4 class="pb-h">People you blocked</h4>
-                                        <Show when={who().jams.blocked.length} fallback={<p class="ac-none">Nobody is blocked.</p>}>
-                                            <div class="ac-list">
-                                                <For each={who().jams.blocked}>
-                                                    {(person) => (
-                                                        <div class="ac-r">
-                                                            <div class="ac-n">
-                                                                <b>{person.name}</b>
-                                                            </div>
-                                                            <button class="chip tgl" disabled={accountBusy()} onClick={() => void unblock(person.id)}>
-                                                                Unblock
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </For>
-                                            </div>
-                                        </Show>
                                     </Match>
                                     <Match when={part() === 'account'}>
                                         <div class="xp-f">
