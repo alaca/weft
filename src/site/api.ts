@@ -4,6 +4,8 @@
 export type Me = { name: string; email: string; used: number; most: number; jams: { open: boolean; blocked: { id: string; name: string }[] } }
 export type Refusal = { why: string; what: string; line?: number }
 export type Published = { id: string; name: string; description: string; style: string; licence: string; hidden: boolean; published: number; plays: number; downloads: number; bytes: number; url: string }
+// A song as the site's public list gives it.
+export type SiteSong = Published & { by: string; tempo: number | null; patterns: string[]; preview: string; seconds?: number }
 export type Signed = { token: string; name: string; email: string }
 export type SongWords = { description: string; style: string; licence: string }
 export type ToPublish = SongWords & { file: string; preview: string; peaks: number[]; seconds: number; previewFrom: number; from?: string }
@@ -67,6 +69,7 @@ export const site = {
     rename: (token: string, name: string) => call<Me>('/api/me', { token, json: { name } }),
     jams: (token: string, change: { open?: boolean; unblock?: string }) => call<Me>('/api/me/jams', { token, json: change }),
     removeAccount: (token: string, password: string) => call<object>('/api/me', { token, method: 'DELETE', json: { password } }),
+    songs: () => call<{ songs: SiteSong[] }>('/api/songs'),
     mine: (token: string) => call<{ songs: Published[]; used: number; most: number }>('/api/songs?mine', { token }),
     publish: (token: string, song: ToPublish) => call<Published>('/api/songs', { token, json: song }),
     edit: (token: string, id: string, words: SongWords) => call<Published>(`/api/songs/${id}`, { token, json: words }),

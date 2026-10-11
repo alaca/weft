@@ -356,7 +356,7 @@ test('another song cannot be opened in the middle of a jam, and can after it', a
     const menu = mara.getByTestId('song-menu')
     await expect(mara.getByTestId('song-jam')).toContainText('You are in a jam with Ante on this song.')
     await expect(menu.getByRole('button', { name: '+ New song', exact: true })).toBeDisabled()
-    await expect(menu.getByRole('button', { name: 'Open a copy of Glasshouse', exact: true })).toBeDisabled()
+    await expect(menu.getByRole('button', { name: 'Close song', exact: true })).toBeDisabled()
     await expect(menu.getByRole('button', { name: 'Open Untitled', exact: true })).toBeDisabled()
     await mara.keyboard.press('Escape')
     await mara.getByRole('button', { name: 'Leave', exact: true }).click()

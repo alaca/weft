@@ -211,7 +211,7 @@ export function homePage(around: Around, songs: Listed[], builds: Build[]): stri
     const defs = defsOf(songs.map((song) => waveDef(`w-${song.id}`, song.preview.peaks, 44)))
     const main = html`<main>
     <section class="hero wrap">
-        <h1>Make music<br>without writing code.</h1>
+        <h1>Build songs from patterns,<br>alone or together.</h1>
         <p class="lede">Weft is a desktop app built on Strudel. Drum grids, piano rolls and knobs sit beside the code, and both show the same song.</p>
         <div class="dl" id="download">
             <a class="btn go" href="${get('macos')}">${DOWN}Download for macOS</a>
@@ -270,6 +270,20 @@ export function homePage(around: Around, songs: Listed[], builds: Build[]): stri
                 <h3>One file to share</h3>
                 <p>A .weft file holds the song, its code and your sounds.</p>
             </li>
+            <li class="card feat">
+                <div class="feat-i" aria-hidden="true">
+                    <svg viewBox="0 0 32 32" fill="none" stroke="var(--linen-2)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11.5" cy="12" r="4" /><path d="M4 26c.8-5 3.8-7 7.5-7s6.7 2 7.5 7" /><circle cx="22" cy="12.5" r="3.2" stroke="var(--woad)" /><path d="M22.5 19c3 .3 5 2.2 5.6 6" stroke="var(--woad)" /></svg>
+                </div>
+                <h3>Jams</h3>
+                <p>Two people on one song at once, each on their own machine, with chat and voice.</p>
+            </li>
+            <li class="card feat">
+                <div class="feat-i" aria-hidden="true">
+                    <svg viewBox="0 0 32 32" fill="none" stroke="var(--linen-2)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9h12M6 16h12M6 23h8" /><path d="M22 13.5v9l7-4.5z" fill="var(--saffron)" stroke="none" /></svg>
+                </div>
+                <h3>Songs to open</h3>
+                <p>Hear what others published, open a copy, and see how it is made.</p>
+            </li>
         </ul>
     </section>
 
@@ -284,7 +298,7 @@ export function homePage(around: Around, songs: Listed[], builds: Build[]): stri
         </div>
     </section>
 </main>`
-    return layout(around, 'home', 'Weft, make music without writing code', main, defs)
+    return layout(around, 'home', 'Weft, build songs from patterns', main, defs)
 }
 
 export function downloadPage(around: Around, builds: Build[]): string {

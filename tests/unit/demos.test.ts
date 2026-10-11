@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEMOS } from '../../src/library/demos'
+import { DEMOS } from '../songs'
 import { analyze } from '../../src/song/analyze'
 import { readArrangement, songLength } from '../../src/song/arrange'
 import { barsText } from '../../src/song/bars'
@@ -12,10 +12,9 @@ const KITS: Record<string, string[]> = {
     EmuSP12: ['bd', 'cb', 'cp', 'cr', 'hh', 'ht', 'lt', 'misc', 'mt', 'oh', 'perc', 'rd', 'rim', 'sd'],
 }
 
-describe('the demo songs', () => {
-    it('are eight, each under its own name', () => {
-        expect(DEMOS.map((demo) => demo.name)).toEqual(['Glasshouse', 'Low sun', 'Grey area', 'Squelch', 'Spiral', 'Night shift', 'Undertow', 'Slow burn'])
-        expect(new Set(DEMOS.map((demo) => demo.id)).size).toBe(DEMOS.length)
+describe('the songs that used to come with the app', () => {
+    it('are eight, each under its own name, kept as song files for the owner to publish', () => {
+        expect(DEMOS.map((demo) => demo.name).sort()).toEqual(['Glasshouse', 'Grey area', 'Low sun', 'Night shift', 'Slow burn', 'Spiral', 'Squelch', 'Undertow'])
     })
 
     for (const demo of DEMOS) {

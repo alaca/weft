@@ -14,6 +14,8 @@ export type PublishDeps = {
     busiestBar(): number
     // The published song the open one was downloaded as, when it was.
     cameFrom(): string | null
+    // Told once the song is on the site, with the name it has there.
+    published(id: string): void
 }
 export type PublishForm = { description: string; style: string; licence: string; previewFrom: number }
 
@@ -115,6 +117,7 @@ export async function publishNow(form: PublishForm) {
             previewFrom: form.previewFrom,
             ...(deps.cameFrom() ? { from: deps.cameFrom()! } : {}),
         })
+        deps.published(done.id)
         batch(() => {
             setPublishDone(done)
             setPublishNote(null)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { analyze } from '../../src/song/analyze'
-import { STARTER } from '../../src/song/starter'
+import { STARTER } from '../songs'
 
 const first = (code: string) => analyze(code).patterns[0]
 

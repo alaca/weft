@@ -8,8 +8,9 @@ import { readSource, type SongSource } from './songfile'
 // `mode` is what plays, the song or every pattern, once that has been chosen for this song.
 // `guarded` is true for a song that came from someone else, or that someone else has changed:
 // it is only played while all of it is music code, until its owner says otherwise.
-// `source` is the published song this one was downloaded as.
-export type SongRecord = { id: string; name: string; saved: string; draft: string; changedAt: number; keys?: Record<string, string>; mode?: 'song' | 'live'; guarded?: boolean; source?: SongSource }
+// `source` is the published song this one was downloaded as; `publishedAs` is what this song is
+// called on the site once it has been published from here.
+export type SongRecord = { id: string; name: string; saved: string; draft: string; changedAt: number; keys?: Record<string, string>; mode?: 'song' | 'live'; guarded?: boolean; source?: SongSource; publishedAs?: string }
 export type SongInfo = { id: string; name: string; changed: boolean; changedAt: number }
 
 type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'>
@@ -44,7 +45,7 @@ function parse(id: string, text: string | null): SongRecord | null {
     try {
         const value = JSON.parse(text) as Partial<SongRecord>
         if (typeof value.name !== 'string' || typeof value.saved !== 'string' || typeof value.draft !== 'string') return null
-        return { id, name: value.name, saved: value.saved, draft: value.draft, changedAt: typeof value.changedAt === 'number' ? value.changedAt : 0, ...(value.keys && typeof value.keys === 'object' ? { keys: value.keys } : {}), ...(value.mode === 'song' || value.mode === 'live' ? { mode: value.mode } : {}), ...(value.guarded === true ? { guarded: true } : {}), ...(readSource(value.source) ? { source: readSource(value.source)! } : {}) }
+        return { id, name: value.name, saved: value.saved, draft: value.draft, changedAt: typeof value.changedAt === 'number' ? value.changedAt : 0, ...(value.keys && typeof value.keys === 'object' ? { keys: value.keys } : {}), ...(value.mode === 'song' || value.mode === 'live' ? { mode: value.mode } : {}), ...(value.guarded === true ? { guarded: true } : {}), ...(readSource(value.source) ? { source: readSource(value.source)! } : {}), ...(typeof value.publishedAs === 'string' && /^[a-z0-9]{1,16}$/.test(value.publishedAs) ? { publishedAs: value.publishedAs } : {}) }
     } catch {
         return null
     }

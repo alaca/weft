@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 
 const SONG = 'setcpm(120/4)\n\nbass: note("c2 e2")\n  .s("sawtooth")\n'
 const NEW = 'setcpm(120/4)\n'
@@ -22,19 +23,21 @@ async function open(page: Page, text: string | null = SONG) {
     await page.waitForFunction(() => Boolean((window as any).__weft))
 }
 
+// One of the songs that used to come with the app, opened from its file the way its owner will
+// open it to publish it.
+async function openStored(page: Page, song: string) {
+    await name(page).click()
+    await page.getByTestId('song-file').setInputFiles({ name: `${song}.weft`, mimeType: 'application/json', buffer: readFileSync(`demos/${song}.weft`) })
+    await expect(page.getByTestId('song-note')).toContainText(`Opened ${song}`)
+    await page.keyboard.press('Escape')
+    await expect(name(page)).toContainText(song)
+}
+
 async function again(page: Page) {
     await page.waitForTimeout(700)
     await page.reload()
     await page.waitForFunction(() => Boolean((window as any).__weft))
 }
-
-test('the first song is the starter, under its own name', async ({ page }) => {
-    await open(page, null)
-    await expect(name(page)).toContainText('Night bus')
-    await name(page).click()
-    await expect(rows(page)).toHaveText(['Night bus'])
-    await expect(page.getByTestId('song-state')).toContainText('Saved.')
-})
 
 test('a new song starts with nothing but the tempo, and the old one is kept', async ({ page }) => {
     await open(page)
@@ -198,86 +201,14 @@ test('the menu closes on Escape and on a click outside it', async ({ page }) => 
     await expect(menu(page)).toHaveCount(0)
 })
 
-test('the menu lists demo songs, and one becomes a song of your own when it is changed', async ({ page }) => {
-    await open(page)
-    await name(page).click()
-    await expect(menu(page).getByRole('button', { name: /^Open a copy of / })).toHaveText([
-        /Glasshouse.*Melodic techno, 124 bpm/,
-        /Low sun.*Melodic techno, 122 bpm/,
-        /Grey area.*Minimal techno, 130 bpm/,
-        /Squelch.*Acid techno, 132 bpm/,
-        /Spiral.*Psytrance, 145 bpm/,
-        /Night shift.*Drum and bass, 174 bpm/,
-        /Undertow.*Slow guitar ballad, 80 bpm/,
-        /Slow burn.*Trip hop, 84 bpm/,
-    ])
-    await menu(page).getByRole('button', { name: 'Open a copy of Squelch', exact: true }).click()
-    await expect(name(page)).toContainText('Squelch')
-    await expect(page.getByTestId('code-status')).toHaveText('Stopped')
-    await expect(page.locator('.st .st-n')).toHaveText(['drums', 'hats', 'acid', 'answer', 'stabs', 'roll', 'riser', 'crash'])
-    await expect(page.getByTestId('song-length')).toContainText('64 bars')
-    await expect(page.getByTestId('tempo')).toHaveValue('132')
-
-    await name(page).click()
-    await expect(rows(page)).toHaveText(['Untitled'])
-    await expect(page.getByTestId('song-state')).toContainText('This is a demo')
-    await expect(menu(page).getByRole('button', { name: 'Open a copy of Squelch', exact: true })).toContainText('open now')
-    await page.keyboard.press('Escape')
-
-    await page.getByTestId('strip-drums').getByRole('button', { name: 'bd step 2', exact: true }).click()
-    await expect.poll(() => code(page)).toContain('s("bd").struct("x x ~ ~')
-    await name(page).click()
-    await expect(rows(page)).toHaveText(['Squelch', 'Untitled'])
-    await expect(page.getByTestId('song-state')).not.toContainText('This is a demo')
-    await menu(page).getByRole('button', { name: 'Open a copy of Squelch', exact: true }).click()
-    await expect(name(page)).toContainText('Squelch 2')
-    await expect.poll(() => code(page)).toContain('s("bd").struct("x ~ ~ ~')
-    await name(page).click()
-    await expect(rows(page)).toHaveText(['Squelch', 'Untitled'])
-})
-
-test('a demo that was only opened is not kept with your songs, and is still open after a restart', async ({ page }) => {
-    await open(page)
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'Open a copy of Glasshouse', exact: true }).click()
-    await again(page)
-    await expect(name(page)).toContainText('Glasshouse')
-    await expect(page.getByTestId('tempo')).toHaveValue('124')
-    await name(page).click()
-    await expect(rows(page)).toHaveText(['Untitled'])
-    await menu(page).getByRole('button', { name: 'Open a copy of Low sun', exact: true }).click()
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'Open Untitled', exact: true }).click()
-    await again(page)
-    await expect(name(page)).toContainText('Untitled')
-    await name(page).click()
-    await expect(rows(page)).toHaveText(['Untitled'])
-})
-
-test('saving or naming a demo keeps it with your songs', async ({ page }) => {
-    await open(page)
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'Open a copy of Spiral', exact: true }).click()
-    await name(page).click()
-    await menu(page).getByRole('button', { name: /^Save/ }).click()
-    await expect(rows(page)).toHaveText(['Spiral', 'Untitled'])
-    await menu(page).getByRole('button', { name: 'Open a copy of Night shift', exact: true }).click()
-    await name(page).click()
-    await menu(page).getByLabel('Name of this song').fill('Late one')
-    await menu(page).getByLabel('Name of this song').press('Enter')
-    await expect(rows(page)).toHaveText(['Late one', 'Spiral', 'Untitled'])
-    await again(page)
-    await expect(name(page)).toContainText('Late one')
-})
-
 for (const demo of ['Glasshouse', 'Low sun', 'Grey area', 'Squelch', 'Spiral', 'Night shift', 'Undertow', 'Slow burn']) {
-    test(`the demo ${demo} plays, and every pattern in it can be clicked`, async ({ page }) => {
+    test(`the stored song ${demo} opens from its file, plays, and every pattern in it can be clicked`, async ({ page }) => {
         const errors: string[] = []
         page.on('pageerror', (error) => errors.push(error.message))
         await open(page)
-        await name(page).click()
-        await menu(page).getByRole('button', { name: `Open a copy of ${demo}`, exact: true }).click()
+        await openStored(page, demo)
         await expect(page.getByTestId('code-status')).toHaveText('Stopped')
+        await expect(page.getByTestId('guard')).toHaveCount(0)
         const strips = page.locator('.st')
         const count = await strips.count()
         expect(count).toBeGreaterThanOrEqual(4)
@@ -293,8 +224,7 @@ test('the pictures in the playlist are of the song that is open, not the one bef
     await open(page)
     const picture = (id: string) => page.getByTestId(`lane-${id}`).locator('.sg-c path').first()
     await expect(picture('bass')).toHaveAttribute('d', /M/)
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'Open a copy of Glasshouse', exact: true }).click()
+    await openStored(page, 'Glasshouse')
     await expect(picture('pluck')).toHaveAttribute('d', /M/)
     await expect(picture('drums')).toHaveAttribute('d', /M/)
     const bass = await picture('bass').getAttribute('d')
@@ -423,12 +353,11 @@ test('the audio file is of the format and quality that were chosen, and the choi
     await expect(chosen('Quality', 'Highest')).toHaveAttribute('aria-pressed', 'true')
 })
 
-test('a whole demo is made into audio in far less time than it plays', async ({ page }) => {
+test('a whole song is made into audio in far less time than it plays', async ({ page }) => {
     test.setTimeout(120000)
     await open(page)
     await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'Open a copy of Glasshouse', exact: true }).click()
+    await openStored(page, 'Glasshouse')
     await openExport(page)
     const started = Date.now()
     const [download] = await Promise.all([

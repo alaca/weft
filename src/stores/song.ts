@@ -42,7 +42,10 @@ export const [removed, setRemoved] = createSignal<Removed | null>(null)
 export const [songs, setSongs] = createSignal<SongInfo[]>([])
 export const [currentSong, setCurrentSong] = createSignal<SongInfo | null>(null)
 export const [deletedSong, setDeletedSong] = createSignal<SongRecord | null>(null)
-export const [openDemoId, setOpenDemoId] = createSignal<string | null>(null)
+// The start screen: what the app opens with, over everything else.
+export const [startOpen, setStartOpen] = createSignal(false)
+// A song with changes since it was saved is being closed, and the question is whether to save.
+export const [closingSong, setClosingSong] = createSignal(false)
 // Whether the open song is one that is only played while all of it is music code.
 export const [songGuarded, setSongGuarded] = createSignal(false)
 // The key each pattern's piano roll keeps to, by the pattern's name.

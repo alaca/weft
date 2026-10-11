@@ -182,7 +182,7 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
 .ib:hover { background: var(--cloth-3); color: var(--linen); }
 .ib svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
-.feats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .feat { padding: 22px 22px 26px; }
 .feat-i { width: 54px; height: 54px; border-radius: 13px; background: var(--vat); border: 1px solid var(--seam); display: grid; place-items: center; margin-bottom: 24px; }
 .feat-i svg { width: 36px; height: 36px; }

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { CONTROLS } from '../../src/controls/catalog'
 import { checkSong } from '../../src/guard/check'
 import { FUNCTIONS, METHODS } from '../../src/guard/names'
-import { DEMOS } from '../../src/library/demos'
+import { DEMOS } from '../songs'
 import { NEW_SONG } from '../../src/library/shelf'
 import { PATTERN_STARTERS, soundStarter, starterCode } from '../../src/song/patterns'
-import { STARTER } from '../../src/song/starter'
+import { STARTER } from '../songs'
 
 const refusedAt = (code: string) => checkSong(code)?.line ?? null
 const why = (code: string) => checkSong(code)?.what ?? null

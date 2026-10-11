@@ -7,8 +7,7 @@ import { onSongLink } from '../desktop/links'
 import { installViewMenu } from '../desktop/menu'
 import { saveFile, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
-import { DEMOS } from '../library/demos'
-import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongRecord } from '../library/shelf'
+import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type ViewMode } from '../library/layout'
 import { readSongFile, renameSound, SONG_FILE, soundsUsed, writeSongFile, type PackedSound } from '../library/songfile'
 import { prepareForPublishing, type Prepared } from '../library/publish'
@@ -65,7 +64,6 @@ import {
     swapEdits,
     type StarterKind,
 } from '../song/patterns'
-import { STARTER } from '../song/starter'
 import type { PatternBlock, PatternEvent } from '../song/types'
 import { fits, isRow, soundEdit, soundTextAt } from '../sounds/apply'
 import { catalogue, type SoundItem } from '../sounds/catalog'
@@ -80,7 +78,6 @@ import {
     engineState,
     exporting,
     gridNotes,
-    openDemoId,
     openPanel,
     ownSounds,
     removed,
@@ -107,7 +104,6 @@ import {
     setViewMode,
     soundsWidth,
     viewMode,
-    setOpenDemoId,
     setSongGuarded,
     setOpenPanel,
     setOwnSoundNote,
@@ -133,6 +129,8 @@ import {
     setSongs,
     setSoundsOpen,
     setStartBar,
+    setStartOpen,
+    setClosingSong,
     setUnfolded,
     setStale,
     soloIds,
@@ -147,8 +145,7 @@ import {
 // Where the one song was kept before there could be several. It is read once, to become the
 // first song of the shelf.
 const FIRST_SONG_KEY = 'weft.song'
-const DEMO = 'demo:'
-const STARTER_NAME = 'Night bus'
+const START_KEY = 'weft.start'
 const VOLUME_KEY = 'weft.volume'
 const LAYOUT_KEY = 'weft.layout'
 const COLORS = ['var(--madder)', 'var(--saffron)', 'var(--woad)', 'var(--lichen)', 'var(--orchil)']
@@ -189,25 +186,14 @@ function refreshSongs() {
     })
 }
 
-// A demo that is open and as it came is not one of your songs: it is kept in the app only, and
-// becomes a song of your own with the first change, a new name or a save.
 function flush() {
     window.clearTimeout(saveTimer)
-    if (current && openDemoId() === null) shelf.write(current)
-}
-
-function keepAsOwn() {
-    if (!current || openDemoId() === null) return
-    setOpenDemoId(null)
-    shelf.write(current)
-    shelf.setCurrent(current.id)
-    refreshSongs()
+    if (current) shelf.write(current)
 }
 
 function keepDraft(code: string) {
     if (!current || code === current.draft) return
     current = { ...current, draft: code, changedAt: Date.now() }
-    keepAsOwn()
     setCurrentSong(infoOf(current))
     window.clearTimeout(saveTimer)
     saveTimer = window.setTimeout(flush, 500)
@@ -215,23 +201,16 @@ function keepDraft(code: string) {
 
 const titles = () => shelf.list().map((entry) => entry.name)
 
-function demoSong(id: string): SongRecord | null {
-    const demo = DEMOS.find((entry) => entry.id === id)
-    return demo ? { id: newId(), name: freeTitle(demo.name, titles()), saved: demo.code, draft: demo.code, changedAt: Date.now() } : null
-}
-
-function firstSong(): SongRecord {
+// The song the app opens with: the one that was open last, or failing that the most recent.
+// On a first start there is none; the app comes with no songs of its own, and the start screen
+// offers a new one and the songs on the site.
+function firstSong(): SongRecord | null {
     const open = shelf.current()
-    const demo = open?.startsWith(DEMO) ? demoSong(open.slice(DEMO.length)) : null
-    if (demo) {
-        setOpenDemoId(open!.slice(DEMO.length))
-        return demo
-    }
     const found = (open ? shelf.read(open) : null) ?? shelf.list().flatMap((entry) => shelf.read(entry.id) ?? [])[0]
     if (found) return found
     const before = localStorage.getItem(FIRST_SONG_KEY)
-    const code = before ?? STARTER
-    const record: SongRecord = { id: newId(), name: before === null ? STARTER_NAME : UNTITLED, saved: code, draft: code, changedAt: Date.now() }
+    if (before === null) return null
+    const record: SongRecord = { id: newId(), name: UNTITLED, saved: before, draft: before, changedAt: Date.now() }
     shelf.write(record)
     shelf.setCurrent(record.id)
     return record
@@ -280,11 +259,16 @@ export async function mount(root: HTMLElement): Promise<void> {
     setMasterVolumeValue(startVolume)
     engine.setMasterVolume(startVolume)
     current = firstSong()
-    guardAs(current)
-    setPatternKeys(keysOf(current))
-    applyMode(modeOf(current))
+    if (current) {
+        guardAs(current)
+        setPatternKeys(keysOf(current))
+        applyMode(modeOf(current))
+    }
     refreshSongs()
-    const initial = current.draft
+    // The start screen is what the app opens with. It can be skipped, to open straight into the
+    // song that was open last, but not when there is no song to open into.
+    setStartOpen(!current || localStorage.getItem(START_KEY) !== 'skip')
+    const initial = current?.draft ?? ''
     window.addEventListener('pagehide', flush)
     engine.onState((next) => {
         const before = engineState()
@@ -323,7 +307,7 @@ export async function mount(root: HTMLElement): Promise<void> {
         },
         replay,
     })
-    attachPublish({ prepare: prepareToPublish, preview: previewToPublish, busiestBar, cameFrom: () => current?.source?.id ?? null })
+    attachPublish({ prepare: prepareToPublish, preview: previewToPublish, busiestBar, cameFrom: () => current?.source?.id ?? null, published: publishedAs })
     engine.onSoundDrop(dropSound)
     engine.onCursor((offset) => {
         if (stale()) return
@@ -1405,14 +1389,14 @@ export const restsNow = (id: string): boolean => {
 }
 
 // A jam is on one song. Opening another is leaving it.
-function show(record: SongRecord, demo: string | null = null) {
+function show(record: SongRecord) {
     if (jamStage() === 'jamming') leaveJam()
     engine.stop()
     current = record
     guardAs(record)
     setPatternKeys(keysOf(record))
-    setOpenDemoId(demo)
-    shelf.setCurrent(demo === null ? record.id : DEMO + demo)
+    setStartOpen(false)
+    shelf.setCurrent(record.id)
     lastLength.clear()
     setLoopBars(null)
     engine.setLoop(null)
@@ -1469,18 +1453,64 @@ function openAs(name: string, code: string, keys: Record<string, string>, mode: 
     show(record)
 }
 
+// What the start screen lists under your songs: each with how fast it is and how many patterns
+// it has, read from the song as it was last worked on.
+export type RecentSong = SongInfo & { bpm: number | null; patterns: number; onSite: boolean }
+
+export function recentSongs(): RecentSong[] {
+    return shelf.list().flatMap((info) => {
+        const record = shelf.read(info.id)
+        if (!record) return []
+        const read = analyze(record.draft)
+        return [{ ...info, bpm: read.tempo?.bpm ?? null, patterns: read.patterns.length, onSite: Boolean(record.publishedAs) }]
+    })
+}
+
+// Closing a song goes back to the start screen. Nothing is lost by it: the work is kept as it
+// goes. A song with changes since it was saved asks first whether to save them, because saving
+// marks the version that can be gone back to.
+function toStart() {
+    engine.stop()
+    flush()
+    refreshSongs()
+    batch(() => {
+        setClosingSong(false)
+        setSongNote(null)
+        setStartOpen(true)
+    })
+}
+
+export function closeSong() {
+    if (!current || jamStage() === 'jamming') return
+    if (current.draft !== current.saved) return void setClosingSong(true)
+    toStart()
+}
+
+export function closeSaved() {
+    saveSong()
+    toStart()
+}
+
+export const closeUnsaved = () => toStart()
+export const keepOpen = () => setClosingSong(false)
+
+// Going on with the song that was open: the start screen is put away and the song is there.
+export function goOn() {
+    if (current) setStartOpen(false)
+}
+
+// The song that was published keeps the name it has on the site, so the start screen can mark it.
+function publishedAs(id: string) {
+    if (!current) return
+    current = { ...current, publishedAs: id }
+    flush()
+}
+
 export function newSong() {
     flush()
     const record: SongRecord = { id: newId(), name: freeTitle(UNTITLED, titles()), saved: NEW_SONG, draft: NEW_SONG, changedAt: Date.now() }
     shelf.write(record)
     show(record)
-}
-
-export function openDemo(id: string) {
-    const record = demoSong(id)
-    if (!record) return
-    flush()
-    show(record, id)
 }
 
 export function openSong(id: string) {
@@ -1493,7 +1523,6 @@ export function openSong(id: string) {
 export function saveSong() {
     if (!current) return
     current = { ...current, saved: current.draft }
-    keepAsOwn()
     flush()
     refreshSongs()
 }
@@ -1509,10 +1538,7 @@ export function renameSong(id: string, name: string): boolean {
     const record = id === current?.id ? current : shelf.read(id)
     if (!clean || !record) return false
     const renamed = { ...record, name: clean }
-    if (id === current?.id) {
-        current = renamed
-        keepAsOwn()
-    }
+    if (id === current?.id) current = renamed
     shelf.write(renamed)
     refreshSongs()
     return true
@@ -1672,17 +1698,17 @@ async function previewToPublish(from: number, onProgress: (done: number) => void
 // A published song, fetched from the site and opened like a song file. It is the site's own
 // address that is asked, whatever the link said, and the song is from someone else like any
 // other file, so it is only played while it is music code.
-async function openFromSite(id: string) {
-    if (!/^[a-z0-9]{1,16}$/.test(id)) return
-    if (jamStage() === 'jamming') return void setSongNote('A song from the site cannot be opened in the middle of a jam. Press Leave in the Jams panel first.')
+export async function openFromSite(id: string): Promise<boolean> {
+    if (!/^[a-z0-9]{1,16}$/.test(id)) return false
+    if (jamStage() === 'jamming') return setSongNote('A song from the site cannot be opened in the middle of a jam. Press Leave in the Jams panel first.'), false
     try {
         const answer = await fetch(`${SITE}/songs/${id}.weft`)
-        if (!answer.ok) return void setSongNote('That song is no longer on the site.')
+        if (!answer.ok) return setSongNote('That song is no longer on the site.'), false
         const text = await answer.text()
         const name = (JSON.parse(text) as { name?: unknown }).name
-        await openSongFile(new File([text], `${typeof name === 'string' && name.trim() ? name.trim() : 'Song'}.${SONG_FILE}`, { type: 'application/json' }))
+        return await openSongFile(new File([text], `${typeof name === 'string' && name.trim() ? name.trim() : 'Song'}.${SONG_FILE}`, { type: 'application/json' }))
     } catch {
-        setSongNote('The song could not be fetched from the site. Check that you are online, then try the link again.')
+        return setSongNote('The song could not be fetched from the site. Check that you are online, then try again.'), false
     }
 }
 
@@ -1700,10 +1726,10 @@ async function restored(packed: PackedSound): Promise<Pick<PackedSound, 'file' |
 // A song file, or any file of code, becomes a new song. The sounds that come in a song file are
 // added to yours. One whose name is already yours is taken to be the same sound; one whose name
 // belongs to another sound gets a new name, in the song's code as well.
-export async function openSongFile(file: File) {
+export async function openSongFile(file: File): Promise<boolean> {
     try {
         const read = readSongFile(await file.text(), file.name)
-        if (!read) return void setSongNote(`${file.name} is not a song this app can read.`)
+        if (!read) return setSongNote(`${file.name} is not a song this app can read.`), false
         let code = read.code
         let added = 0
         for (const packed of read.sounds) {
@@ -1723,8 +1749,10 @@ export async function openSongFile(file: File) {
         shelf.write(record)
         show(record)
         setSongNote(added ? `Opened ${record.name}, with ${added} ${added === 1 ? 'sound' : 'sounds'} of its own, now among yours.` : `Opened ${record.name}.`)
+        return true
     } catch (err) {
         setSongNote(`${file.name} could not be opened: ${String((err as Error)?.message ?? err)}`)
+        return false
     }
 }
 

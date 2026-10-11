@@ -2,18 +2,22 @@ import { onCleanup, onMount } from 'solid-js'
 import { redoChange, saveSong, togglePlay, undoChange } from './app/controller'
 import { SOUNDS_WIDTH } from './library/layout'
 import { jamsOpen } from './stores/jam'
-import { codeWidth, soundsOpen, soundsWidth, viewMode } from './stores/song'
+import { codeWidth, soundsOpen, soundsWidth, startOpen, viewMode } from './stores/song'
 import { CodePane } from './ui/CodePane'
 import { ExportDialog } from './ui/ExportDialog'
 import { LeftColumn } from './ui/LeftColumn'
 import { AccountDialog } from './ui/AccountDialog'
+import { CloseDialog } from './ui/CloseDialog'
 import { PublishDialog } from './ui/PublishDialog'
+import { StartScreen } from './ui/StartScreen'
 import { StatusBar } from './ui/StatusBar'
 import { StripList } from './ui/StripList'
 import { TopBar } from './ui/TopBar'
 
 export function App() {
     const onKey = (event: KeyboardEvent) => {
+        // On the start screen no song is in front, so the keys that act on a song do nothing.
+        if (startOpen()) return
         if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 's') {
             event.preventDefault()
             saveSong()
@@ -49,6 +53,8 @@ export function App() {
             <StripList />
             <CodePane />
             <StatusBar />
+            <StartScreen />
+            <CloseDialog />
             <ExportDialog />
             <PublishDialog />
             <AccountDialog />

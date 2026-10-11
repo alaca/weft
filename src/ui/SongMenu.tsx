@@ -1,11 +1,10 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { deleteSong, duplicateSong, listSongs, newSong, openDemo, openExport, openSong, openSongFile, renameSong, restoreSong, revertSong, saveSong } from '../app/controller'
+import { closeSong, deleteSong, duplicateSong, listSongs, newSong, openExport, openSong, openSongFile, renameSong, restoreSong, revertSong, saveSong } from '../app/controller'
 import { openAccount } from '../app/account'
 import { openPublish } from '../app/publish'
-import { DEMOS } from '../library/demos'
 import { whenText } from '../library/shelf'
 import { jamming, jamPeer } from '../stores/jam'
-import { currentSong, deletedSong, openDemoId, songNote, songs } from '../stores/song'
+import { currentSong, deletedSong, songNote, songs } from '../stores/song'
 import { MOD } from './keys'
 
 export function SongMenu() {
@@ -66,7 +65,7 @@ export function SongMenu() {
                             }}
                         />
                         <div class="sm-row">
-                            <button class="btn" disabled={!song().changed && openDemoId() === null} onClick={saveSong}>
+                            <button class="btn" disabled={!song().changed} onClick={saveSong}>
                                 Save <kbd>{MOD} S</kbd>
                             </button>
                             <Show when={song().changed}>
@@ -74,14 +73,21 @@ export function SongMenu() {
                                     Go back to the saved version
                                 </button>
                             </Show>
+                            <span class="grow" />
+                            <button
+                                class="btn"
+                                title="Back to the start screen, with your songs and the songs on the site"
+                                disabled={jamming()}
+                                onClick={() => {
+                                    closeSong()
+                                    setOpen(false)
+                                }}
+                            >
+                                Close song
+                            </button>
                         </div>
                         <p class="sm-note" data-testid="song-state">
-                            <Show
-                                when={openDemoId() === null}
-                                fallback="This is a demo. Change it, name it or save it, and it becomes a song of your own. Until then it is not kept with your songs."
-                            >
-                                {song().changed ? 'Changed since it was saved.' : 'Saved.'} Your work is kept as you go, also when you do not save. Saving marks the version you can go back to.
-                            </Show>
+                            {song().changed ? 'Changed since it was saved.' : 'Saved.'} Your work is kept as you go, also when you do not save. Saving marks the version you can go back to.
                         </p>
                         <Show when={jamming()}>
                             <p class="sm-note" role="status" data-testid="song-jam">
@@ -201,28 +207,6 @@ export function SongMenu() {
                                 </p>
                             )}
                         </Show>
-                        <h4>Demo songs</h4>
-                        <div class="sm-list">
-                            <For each={DEMOS}>
-                                {(demo) => (
-                                    <div class="sm-i" classList={{ on: demo.id === openDemoId() }}>
-                                        <button
-                                            class="sm-o"
-                                            aria-label={`Open a copy of ${demo.name}`}
-                                            aria-current={demo.id === openDemoId()}
-                                            disabled={jamming()}
-                                            onClick={() => {
-                                                openDemo(demo.id)
-                                                setOpen(false)
-                                            }}
-                                        >
-                                            <b>{demo.name}</b>
-                                            <span>{demo.id === openDemoId() ? `${demo.about}, open now` : demo.about}</span>
-                                        </button>
-                                    </div>
-                                )}
-                            </For>
-                        </div>
                     </div>
                 )}
             </Show>
