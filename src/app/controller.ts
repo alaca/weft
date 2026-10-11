@@ -11,6 +11,7 @@ import { createEngine } from '../engine/engine'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type ViewMode } from '../library/layout'
 import { readSongFile, renameSound, SONG_FILE, soundsUsed, writeSongFile, type PackedSound } from '../library/songfile'
+import { DEFAULT_MIX, fitMix, readMix, type Mix } from '../library/mix'
 import { prepareForPublishing, type Prepared } from '../library/publish'
 import { withoutLead } from '../library/shrink'
 import { startTake, whyNot, type NoTake, type Take } from '../library/recorder'
@@ -95,7 +96,6 @@ import {
     setExportOpen,
     setExporting,
     setGridNotes,
-    setMasterVolumeValue,
     setSongShown,
     setWaveShown,
     songShown,
@@ -127,6 +127,10 @@ import {
     setPlayModeValue,
     currentSong,
     startOpen,
+    mixerOpen,
+    mixNow,
+    setMixerOpen,
+    setMixNow,
     type PlayMode,
     setTakeSince,
     takeSince,
@@ -150,7 +154,7 @@ import {
 // first song of the shelf.
 const FIRST_SONG_KEY = 'weft.song'
 const START_KEY = 'weft.start'
-const VOLUME_KEY = 'weft.volume'
+const MIX_KEY = 'weft.mix'
 const LAYOUT_KEY = 'weft.layout'
 const COLORS = ['var(--madder)', 'var(--saffron)', 'var(--woad)', 'var(--lichen)', 'var(--orchil)']
 
@@ -258,10 +262,9 @@ function tick() {
 }
 
 export async function mount(root: HTMLElement): Promise<void> {
-    const storedVolume = Number(localStorage.getItem(VOLUME_KEY) ?? '1')
-    const startVolume = Number.isFinite(storedVolume) ? storedVolume : 1
-    setMasterVolumeValue(startVolume)
-    engine.setMasterVolume(startVolume)
+    const startMix = readMix(localStorage.getItem(MIX_KEY))
+    setMixNow(startMix)
+    engine.setMix(startMix)
     current = firstSong()
     if (current) {
         guardAs(current)
@@ -350,6 +353,7 @@ export async function mount(root: HTMLElement): Promise<void> {
             'line',
             { id: 'weft-view-sounds', text: 'Sounds', checked: soundsOpen, action: toggleSounds },
             { id: 'weft-view-jams', text: 'Jams', checked: jamsOpen, action: toggleJams },
+            { id: 'weft-view-mixer', text: 'Mixer', checked: mixerOpen, action: toggleMixer },
             { id: 'weft-view-wave', text: 'Waveform', checked: waveShown, action: toggleWaveform },
             { id: 'weft-view-song', text: 'Song Panel', checked: songShown, action: toggleSongPanel },
             'line',
@@ -677,19 +681,23 @@ export function setTempo(bpm: number) {
     replay()
 }
 
-export function setMasterVolume(value: number) {
-    const next = Math.round(Math.min(1.5, Math.max(0, value)) * 100) / 100
-    setMasterVolumeValue(next)
-    engine.setMasterVolume(next)
-    localStorage.setItem(VOLUME_KEY, String(next))
+// The mixer is how the song sounds on this machine. Nothing of it is written into the song.
+export function changeMix(part: Partial<Mix>) {
+    const next = fitMix({ ...mixNow(), ...part })
+    setMixNow(next)
+    engine.setMix(next)
+    localStorage.setItem(MIX_KEY, JSON.stringify(next))
 }
 
+export const resetMix = () => changeMix(DEFAULT_MIX)
 export const waveformOf = () => engine.waveform()
+export const levelsOf = () => engine.levels()
 
 const layoutNow = (): Layout => ({
     view: viewMode(),
     sounds: soundsOpen(),
     jams: jamsOpen(),
+    mixer: mixerOpen(),
     wave: waveShown(),
     song: songShown(),
     soundsWidth: soundsWidth(),
@@ -702,6 +710,7 @@ function applyLayout(layout: Layout) {
         setViewMode(layout.view)
         setSoundsOpen(layout.sounds)
         setJamsOpen(layout.jams)
+        setMixerOpen(layout.mixer)
         setSoundsShare(layout.soundsShare)
         setWaveShown(layout.wave)
         setSongShown(layout.song)
@@ -726,6 +735,11 @@ export function setView(view: ViewMode) {
     keepLayout()
 }
 
+export function toggleMixer() {
+    setMixerOpen(!mixerOpen())
+    keepLayout()
+}
+
 export function toggleWaveform() {
     setWaveShown(!waveShown())
     keepLayout()
@@ -740,7 +754,7 @@ export function toggleSongPanel() {
 const beside = (column: 'sounds' | 'code') => {
     const middle = viewMode() === 'code' ? 0 : MIDDLE_LEAST
     if (column === 'sounds') return middle + (viewMode() === 'controls' ? 0 : viewMode() === 'code' ? CODE_LEAST : (codeWidth() ?? usualCode(window.innerWidth)))
-    return middle + (soundsOpen() || jamsOpen() ? (soundsWidth() ?? SOUNDS_WIDTH) : 0)
+    return middle + (soundsOpen() || jamsOpen() || mixerOpen() ? (soundsWidth() ?? SOUNDS_WIDTH) : 0)
 }
 
 // While a divider is dragged the width follows the pointer; it is kept when it is let go.

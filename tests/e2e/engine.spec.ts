@@ -100,8 +100,8 @@ test('keeps a master volume and gives waveform data while playing', async ({ pag
     await ready(page)
     const volume = await page.evaluate(() => {
         const { engine } = (window as any).__weft
-        engine.setMasterVolume(0.4)
-        return engine.masterVolume() as number
+        engine.setMix({ ...engine.mix(), volume: 0.4 })
+        return engine.mix().volume as number
     })
     expect(volume).toBeCloseTo(0.4)
     await page.getByRole('button', { name: 'Play' }).click()

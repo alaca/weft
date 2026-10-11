@@ -210,20 +210,9 @@ test('opening a sound panel selects its strip, so the one selected before folds'
     await expect(drums.locator('.mini')).toHaveCount(1)
 })
 
-test('the master volume is in the top bar, is remembered and is never written into the code', async ({ page }) => {
+test('the strip of what you hear shows the sound and has no volume of its own', async ({ page }) => {
     await open(page)
     const output = page.getByTestId('output')
     await expect(output.locator('canvas')).toBeVisible()
     await expect(output.getByRole('slider')).toHaveCount(0)
-    const before = await code(page)
-    const volume = page.getByTestId('top').getByRole('slider', { name: 'Master volume', exact: true })
-    await expect(volume).toHaveAttribute('aria-valuetext', '100%')
-    await volume.focus()
-    await page.keyboard.press('PageDown')
-    await expect(volume).toHaveAttribute('aria-valuetext', '85%')
-    expect(await page.evaluate(() => (window as any).__weft.engine.masterVolume())).toBeCloseTo(0.85)
-    expect(await code(page)).toBe(before)
-    await page.reload()
-    await page.waitForFunction(() => Boolean((window as any).__weft))
-    await expect(page.getByTestId('top').getByRole('slider', { name: 'Master volume', exact: true })).toHaveAttribute('aria-valuetext', '85%')
 })

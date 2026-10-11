@@ -297,7 +297,34 @@ svg.mini rect { fill: var(--h); }
 .st-x:disabled { opacity: 0.4; cursor: default; }
 .st-x svg { width: 8px; height: 8px; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; fill: none; }
 .lc { grid-area: snd; position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.lc { background: var(--cloth); box-shadow: inset -1px 0 0 var(--seam); }
 .lc > .sb, .lc > .jm { flex: 1 1 0; }
+.lc > .mx { flex: none; }
+.lc > .sb ~ .mx, .lc > .jm ~ .mx { border-top: 1px solid var(--seam); }
+.mx { position: relative; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--seam); }
+.mx .jm-h { gap: 8px; }
+.mx .chip:disabled { opacity: 0.4; cursor: default; }
+.mx-b { display: flex; align-items: stretch; gap: 14px; padding: 8px 16px 4px; }
+.mx-k { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 6px; align-content: start; justify-items: center; --h: var(--linen-2); }
+.mx-k .chip { grid-column: 1 / -1; justify-self: stretch; justify-content: center; }
+.mx-v { flex: none; width: 46px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.mx-v b { font: 500 10.5px/1 var(--mono); font-stretch: 87%; margin-top: 3px; }
+.fd { position: relative; flex: 1; min-height: 150px; width: 30px; cursor: ns-resize; touch-action: none; border-radius: 6px; }
+.fd::before { content: ''; position: absolute; left: 13px; top: 0; bottom: 0; width: 4px; border-radius: 2px; background: var(--vat); box-shadow: inset 0 0 0 1px var(--seam); }
+.fd:focus-visible { outline: 2px solid var(--linen); outline-offset: 3px; }
+.fd-f { position: absolute; left: 13px; bottom: 0; width: 4px; border-radius: 2px; background: var(--linen-3); }
+.fd-u { position: absolute; left: 4px; right: 4px; height: 1px; background: var(--seam); }
+.fd-c { position: absolute; left: 3px; width: 24px; height: 14px; margin-bottom: -7px; border-radius: 4px; background: var(--linen); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
+.fd-c::after { content: ''; position: absolute; left: 4px; right: 4px; top: 6px; height: 2px; border-radius: 1px; background: var(--vat); }
+.vu { position: relative; flex: none; display: flex; gap: 4px; padding-left: 26px; margin: 0 0 28px; }
+.vu-s { position: absolute; left: 0; top: 0; bottom: 0; width: 22px; }
+.vu-s span { position: absolute; right: 0; transform: translateY(50%); font: 400 9px/1 var(--mono); font-stretch: 87%; color: var(--linen-3); }
+.vu-b { position: relative; width: 11px; border-radius: 3px; overflow: hidden; background: linear-gradient(to top, var(--lichen) 0 66.6%, var(--saffron) 66.6% 88.8%, var(--madder) 88.8% 100%); box-shadow: 0 0 0 1px var(--seam); }
+.vu-b[data-over='yes'] { box-shadow: 0 0 0 1px var(--madder); }
+.vu-b::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(to top, transparent 0 3px, var(--vat) 3px 4px); pointer-events: none; }
+.vu-d { position: absolute; left: 0; right: 0; top: 0; height: 100%; background: var(--vat); opacity: 0.86; }
+.vu-p { position: absolute; left: 0; right: 0; height: 2px; margin-bottom: -1px; background: var(--linen); opacity: 0; z-index: 1; }
+.mx-n { padding: 6px 16px 14px; }
 .lc.both > .sb { flex: 0 0 var(--sounds-share); }
 .lc.both > .jm { border-top: 1px solid var(--seam); }
 .share { position: relative; flex: none; height: 9px; margin: -4px 0 -5px; z-index: 4; cursor: row-resize; touch-action: none; }

@@ -2,15 +2,16 @@ import { Show } from 'solid-js'
 import { dragShare, dragSounds, usualWidth } from '../app/controller'
 import { SOUNDS_SHARE, SOUNDS_WIDTH } from '../library/layout'
 import { jamsOpen, soundsShare } from '../stores/jam'
-import { soundsOpen, soundsWidth } from '../stores/song'
+import { mixerOpen, soundsOpen, soundsWidth } from '../stores/song'
 import { Divider } from './Divider'
 import { JamPanel } from './JamPanel'
+import { MixerPanel } from './MixerPanel'
 import { SoundBrowser } from './SoundBrowser'
 
 const STEP = 0.04
 
-// The column on the left: the sounds, the jam under them, or either alone. With both, the line
-// between them is dragged up and down, the arrow keys do the same a little at a time, and a
+// The column on the left: the sounds, the jam under them and the mixer at its foot, or any of
+// them alone. With sounds and jam, the line between them is dragged up and down, the arrow keys do the same a little at a time, and a
 // double click gives the usual share back.
 export function LeftColumn() {
     let column: HTMLDivElement | undefined
@@ -21,7 +22,7 @@ export function LeftColumn() {
         return (event.clientY - box.top) / box.height
     }
     return (
-        <Show when={soundsOpen() || jamsOpen()}>
+        <Show when={soundsOpen() || jamsOpen() || mixerOpen()}>
             <div class="lc" classList={{ both: soundsOpen() && jamsOpen() }} style={{ '--sounds-share': `${share() * 100}%` }} ref={column}>
                 <Divider side="right" label="Width of the sounds" width={() => soundsWidth() ?? SOUNDS_WIDTH} onDrag={dragSounds} onUsual={() => usualWidth('sounds')} />
                 <SoundBrowser />
@@ -59,6 +60,7 @@ export function LeftColumn() {
                     />
                 </Show>
                 <JamPanel />
+                <MixerPanel />
             </div>
         </Show>
     )

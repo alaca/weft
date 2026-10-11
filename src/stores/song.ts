@@ -1,4 +1,5 @@
 import { createSignal } from 'solid-js'
+import { DEFAULT_MIX, type Mix } from '../library/mix'
 import type { EngineState } from '../engine/engine'
 import type { SongInfo, SongRecord } from '../library/shelf'
 import type { ViewMode } from '../library/layout'
@@ -30,7 +31,8 @@ export const [bpm, setBpm] = createSignal(120)
 export const [revision, setRevision] = createSignal(0)
 export const [openPanel, setOpenPanel] = createSignal<string | null>(null)
 export const [unfolded, setUnfolded] = createSignal<string[]>([])
-export const [masterVolume, setMasterVolumeValue] = createSignal(1)
+export const [mixNow, setMixNow] = createSignal<Mix>(DEFAULT_MIX)
+export const [mixerOpen, setMixerOpen] = createSignal(false)
 export const [gridNotes, setGridNotes] = createSignal<Record<string, boolean>>({})
 export const [rollRanges, setRollRanges] = createSignal<Record<string, { low: number; high: number }>>({})
 export const [soundsOpen, setSoundsOpen] = createSignal(false)

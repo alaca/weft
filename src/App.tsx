@@ -2,7 +2,7 @@ import { onCleanup, onMount } from 'solid-js'
 import { redoChange, saveSong, togglePlay, undoChange } from './app/controller'
 import { SOUNDS_WIDTH } from './library/layout'
 import { jamsOpen } from './stores/jam'
-import { codeWidth, soundsOpen, soundsWidth, startOpen, viewMode } from './stores/song'
+import { codeWidth, mixerOpen, soundsOpen, soundsWidth, startOpen, viewMode } from './stores/song'
 import { CodePane } from './ui/CodePane'
 import { ExportDialog } from './ui/ExportDialog'
 import { LeftColumn } from './ui/LeftColumn'
@@ -46,7 +46,7 @@ export function App() {
         <div
             class="app"
             data-view={viewMode()}
-            data-left={soundsOpen() || jamsOpen() ? 'shown' : 'hidden'}
+            data-left={soundsOpen() || jamsOpen() || mixerOpen() ? 'shown' : 'hidden'}
             style={{ '--sounds-w': `${soundsWidth() ?? SOUNDS_WIDTH}px`, '--code-w': codeWidth() === null ? undefined : `${codeWidth()}px` }}
         >
             <TopBar />

@@ -18,6 +18,7 @@ import {
 } from '@strudel/webaudio'
 import { checkSong } from '../guard/check'
 import type { SentUpdate } from '../jam/protocol'
+import { DEFAULT_MIX, fitMix, type Mix } from '../library/mix'
 import type { PatternEvent, TextEdit } from '../song/types'
 import { toEvents } from './events'
 import { marksField, setMarks, type BlockMark } from './marks'
@@ -66,8 +67,9 @@ export interface Engine {
     render(request: RenderRequest, onProgress?: (done: number) => void): Promise<Rendered>
     audible(cycle: number): PatternEvent[]
     waveform(): Float32Array | null
-    setMasterVolume(value: number): void
-    masterVolume(): number
+    setMix(mix: Mix): void
+    mix(): Mix
+    levels(): [number, number] | null
     miniEvents(text: string, cycles: number): { start: number; length: number; value: unknown }[][] | null
     soundNames(bank: string | null): string[]
     preview(sound: string, bank: string | null, cutAfter?: number): void
@@ -102,6 +104,9 @@ const pause = (ms: number) => new Promise<void>((resolve) => window.setTimeout(r
 const SETTLE = 300
 const STRETCH = 2
 const LEAD = 0.05
+// Where the limiter of the desk begins to hold back, in decibels, and how hard.
+const LIMIT_AT = -2
+const LIMIT_BY = 20
 const BEFORE_MASK = '__weftBeforeMask'
 
 function toEvalError(err: unknown): EvalError {
@@ -165,7 +170,7 @@ export function createEngine(): Engine {
     let soloIds: string[] = []
     let evaluated = false
     let lastCode = ''
-    let master = 1
+    let mix: Mix = DEFAULT_MIX
     let gesture = 0
     let editedIn = -1
     const step = () => {
@@ -173,29 +178,113 @@ export function createEngine(): Engine {
         editedIn = gesture
         return joins ? sameGesture.of(true) : isolateHistory.of('before')
     }
-    const applyMaster = () => {
+    // Everything Strudel plays comes together in one place. Between there and the speakers
+    // stands the desk: three tone controls, the pan, a limiter that is in the way or not, and
+    // the volume last. What is heard is measured after it, whole for the waveform and each side
+    // for the meters. Measuring there, and not by marking every sound, leaves a scope in the
+    // code the mark it puts on its own pattern. A song rendered to a file does not pass the desk.
+    type Desk = {
+        of: AudioNode
+        low: BiquadFilterNode
+        mid: BiquadFilterNode
+        high: BiquadFilterNode
+        pan: StereoPannerNode
+        limiter: DynamicsCompressorNode
+        out: GainNode
+        wave: AnalyserNode
+        sides: [AnalyserNode, AnalyserNode]
+        heard: Float32Array<ArrayBuffer>
+        side: Float32Array<ArrayBuffer>
+        limited: boolean | null
+    }
+    let desk: Desk | null = null
+    const deskNow = (): Desk | null => {
+        const output: AudioNode | null = getSuperdoughAudioController().output.destinationGain
+        if (!output || output.context instanceof OfflineAudioContext) return null
+        if (desk?.of === output) return desk
+        const context = output.context
+        const tone = (type: BiquadFilterType, hertz: number) => {
+            const node = context.createBiquadFilter()
+            node.type = type
+            node.frequency.value = hertz
+            return node
+        }
+        const low = tone('lowshelf', 120)
+        const mid = tone('peaking', 1000)
+        mid.Q.value = 0.9
+        const high = tone('highshelf', 6000)
+        const pan = context.createStereoPanner()
+        const limiter = context.createDynamicsCompressor()
+        limiter.threshold.value = LIMIT_AT
+        limiter.knee.value = 0
+        limiter.ratio.value = LIMIT_BY
+        limiter.attack.value = 0.002
+        limiter.release.value = 0.2
+        // A limiter of this kind makes everything a little louder by itself. That is taken back.
+        const even = context.createGain()
+        even.gain.value = Math.pow(Math.pow(10, (LIMIT_AT - LIMIT_AT / LIMIT_BY) / 20), 0.6)
+        const out = context.createGain()
+        const wave = context.createAnalyser()
+        wave.fftSize = 2048
+        const split = context.createChannelSplitter(2)
+        const side = () => {
+            const node = context.createAnalyser()
+            node.fftSize = 1024
+            return node
+        }
+        const sides: [AnalyserNode, AnalyserNode] = [side(), side()]
+        output.disconnect()
+        output.connect(low)
+        low.connect(mid)
+        mid.connect(high)
+        high.connect(pan)
+        limiter.connect(even)
+        even.connect(out)
+        out.connect(context.destination)
+        out.connect(wave)
+        out.connect(split)
+        split.connect(sides[0], 0)
+        split.connect(sides[1], 1)
+        desk = { of: output, low, mid, high, pan, limiter, out, wave, sides, heard: new Float32Array(wave.fftSize), side: new Float32Array(sides[0].fftSize), limited: null }
+        return desk
+    }
+    const applyMix = () => {
         try {
-            const gain = getSuperdoughAudioController().output.destinationGain
-            if (gain) gain.gain.value = master
+            const now = deskNow()
+            if (!now) return
+            const at = now.out.context.currentTime
+            const ease = (param: AudioParam, value: number) => param.setTargetAtTime(value, at, 0.015)
+            ease(now.out.gain, mix.volume)
+            ease(now.pan.pan, mix.pan)
+            ease(now.low.gain, mix.low)
+            ease(now.mid.gain, mix.mid)
+            ease(now.high.gain, mix.high)
+            if (now.limited !== mix.limit) {
+                now.pan.disconnect()
+                now.pan.connect(mix.limit ? now.limiter : now.out)
+                now.limited = mix.limit
+            }
         } catch {
             return
         }
     }
-    // The sound of the whole song, for the waveform, is measured where everything Strudel plays
-    // comes together. Marking every sound for a meter of the app's own would take away the mark
-    // a scope in the code puts on its pattern, and that scope would then draw a flat line.
-    let meter: { node: AnalyserNode; of: AudioNode; heard: Float32Array<ArrayBuffer> } | null = null
     const wholeSound = (): Float32Array | null => {
-        const output: AudioNode | null = getSuperdoughAudioController().output.destinationGain
-        if (!output || output.context instanceof OfflineAudioContext) return null
-        if (!meter || meter.of !== output) {
-            const node = output.context.createAnalyser()
-            node.fftSize = 2048
-            output.connect(node)
-            meter = { node, of: output, heard: new Float32Array(node.fftSize) }
-        }
-        meter.node.getFloatTimeDomainData(meter.heard)
-        return meter.heard
+        const now = deskNow()
+        if (!now) return null
+        now.wave.getFloatTimeDomainData(now.heard)
+        return now.heard
+    }
+    // The loudest moment of each side in the last instant, 1 being as loud as a machine plays
+    // without distorting.
+    const sidesNow = (): [number, number] | null => {
+        const now = deskNow()
+        if (!now) return null
+        return now.sides.map((side) => {
+            side.getFloatTimeDomainData(now.side)
+            let most = 0
+            for (let at = 0; at < now.side.length; at++) most = Math.max(most, Math.abs(now.side[at]))
+            return most
+        }) as [number, number]
     }
     const stateFns = new Set<(state: EngineState) => void>()
     const codeFns = new Set<(code: string, remote: boolean) => void>()
@@ -420,7 +509,7 @@ export function createEngine(): Engine {
             prebake: loadModules,
             beforeEval: wrapRegistration,
             afterEval: (done: { code?: string }) => {
-                applyMaster()
+                applyMix()
                 registry = pending
                 unmasked = pendingUnmasked
                 evaluated = true
@@ -737,7 +826,7 @@ export function createEngine(): Engine {
                 loop = before.loop
                 liveMode = before.liveMode
                 await mirror.repl.evaluate(mirror.code, false).catch(() => undefined)
-                applyMaster()
+                applyMix()
                 if (running) void live.resume().catch(() => undefined)
             }
         },
@@ -770,11 +859,18 @@ export function createEngine(): Engine {
                 return null
             }
         },
-        setMasterVolume(value) {
-            master = Math.min(1.5, Math.max(0, value))
-            applyMaster()
+        setMix(given) {
+            mix = fitMix(given)
+            applyMix()
         },
-        masterVolume: () => master,
+        mix: () => mix,
+        levels() {
+            try {
+                return sidesNow()
+            } catch {
+                return null
+            }
+        },
         miniEvents(text, cycles) {
             try {
                 const pattern = mini(text)

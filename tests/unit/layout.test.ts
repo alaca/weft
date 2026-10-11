@@ -12,6 +12,7 @@ describe('readLayout', () => {
             view: 'code',
             sounds: true,
             jams: false,
+            mixer: false,
             wave: false,
             song: true,
             soundsWidth: 302,
@@ -20,6 +21,7 @@ describe('readLayout', () => {
         })
         expect(readLayout(JSON.stringify({ jams: true, soundsShare: 0.95 }))).toMatchObject({ jams: true, soundsShare: 0.75 })
         expect(readLayout(JSON.stringify({ jams: 'yes', soundsShare: 'half' }))).toMatchObject({ jams: false, soundsShare: null })
+        expect([readLayout(JSON.stringify({ mixer: true })).mixer, readLayout(JSON.stringify({ mixer: 1 })).mixer]).toEqual([true, false])
         expect(readLayout(JSON.stringify({ view: 'sideways' })).view).toBe('both')
     })
 })

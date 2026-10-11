@@ -9,25 +9,23 @@ import {
     openJams,
     openSongFile,
     saveSong,
-    setMasterVolume,
     setPlayMode,
     setTempo,
     setView,
     SONG_KINDS,
     stop,
     toggleJams,
+    toggleMixer,
     togglePlay,
     toggleSongPanel,
     toggleSounds,
     toggleWaveform,
 } from '../app/controller'
 import { openPublish } from '../app/publish'
-import type { ControlView } from '../controls/views'
 import { me } from '../stores/account'
-import { beat, bpm, currentSong, cycle, engineState, masterVolume, playMode, song, songNote, songShown, soundsOpen, stale, startOpen, viewMode, waveShown, type PlayMode, type ViewMode } from '../stores/song'
+import { beat, bpm, currentSong, cycle, engineState, mixerOpen, playMode, song, songNote, songShown, soundsOpen, stale, startOpen, viewMode, waveShown, type PlayMode, type ViewMode } from '../stores/song'
 import { jamListed, jamming, jamPeer, jamsOpen, jamUnread } from '../stores/jam'
 import { MOD } from './keys'
-import { Knob } from './Knob'
 import { Mark } from './Mark'
 import { SongMenu } from './SongMenu'
 
@@ -52,19 +50,6 @@ export function TopBar() {
     onMount(() => document.addEventListener('pointerdown', away))
     onCleanup(() => document.removeEventListener('pointerdown', away))
     const inJam = 'You are in a jam on this song. Press Leave in the Jams panel first.'
-
-    const volume = (): ControlView => ({
-        fn: 'master',
-        label: 'Volume',
-        group: 'effects',
-        describe: 'How loud everything is. This is your listening volume, not part of the song.',
-        state: 'number',
-        value: masterVolume(),
-        min: 0,
-        max: 1.5,
-        scale: 'linear',
-        text: `${Math.round(masterVolume() * 100)}%`,
-    })
 
     return (
         <header class="top" data-testid="top">
@@ -188,9 +173,6 @@ export function TopBar() {
                     <span class="cap">Cycle</span>
                 </div>
             </div>
-            <span class="mix">
-                <Knob small name="Master volume" view={volume()} onChange={setMasterVolume} />
-            </span>
             <div class="grow" />
             <div class="shows">
                 <button
@@ -210,6 +192,12 @@ export function TopBar() {
                 <button class="ib" classList={{ on: soundsOpen() }} aria-pressed={soundsOpen()} aria-label="Sounds" title={soundsOpen() ? 'Hide the sounds' : 'Show the sounds'} onClick={toggleSounds}>
                     <svg viewBox="0 0 16 16" aria-hidden="true">
                         <path class="ln" d="M2.5 8h1.4M6 4.5v7M8.6 2.5v11M11.2 5.5v5M13.6 8h.4" />
+                    </svg>
+                </button>
+                <button class="ib" classList={{ on: mixerOpen() }} aria-pressed={mixerOpen()} aria-label="Mixer" title={mixerOpen() ? 'Hide the mixer' : 'Show the mixer: volume, pan, tone and the meters'} onClick={toggleMixer}>
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <path class="ln" d="M4 2.5v11M8 2.5v11M12 2.5v11" />
+                        <path d="M2.4 8.6h3.2v2.4H2.4zM6.4 4.2h3.2v2.4H6.4zM10.4 9.8h3.2v2.4h-3.2z" />
                     </svg>
                 </button>
                 <button class="ib" classList={{ on: waveShown() }} aria-pressed={waveShown()} aria-label="Waveform" title={waveShown() ? 'Hide the waveform' : 'Show the waveform'} onClick={toggleWaveform}>
