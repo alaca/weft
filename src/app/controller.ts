@@ -1018,6 +1018,27 @@ export function addNotesAt(id: string, at: { page: number; time: number; midis: 
     return added
 }
 
+// For a pattern that is played from the computer's keyboard: one note of it sounded now,
+// whatever the song is doing; the step of its roll that the song is nearest to at this moment;
+// and a note put on a step.
+export const soundNote = (id: string, midi: number) => engine.previewNote(midi, find(id)?.soundName ?? null)
+
+export function rollPlace(id: string): { step: number; perCycle: number; steps: number } | null {
+    const block = find(id)
+    const source = block && engineState().playing ? editableNotes(block) : null
+    if (!source) return null
+    const { perCycle, cycles, steps } = source.grid
+    const at = ((engine.now() % cycles) + cycles) % cycles
+    return { step: Math.round(at * perCycle) % steps, perCycle, steps }
+}
+
+export function putNote(id: string, start: number, midi: number): boolean {
+    return changeNotes(id, (source) => {
+        const next = addNote(source.grid.notes, { start, midi, length: 1 }, source.grid.steps)
+        return next ? { notes: next, perCycle: source.grid.perCycle, cycles: source.grid.cycles } : null
+    })
+}
+
 export const addNoteAt = (id: string, at: { page: number; time: number; midi: number }): NoteRef | null => addNotesAt(id, { page: at.page, time: at.time, midis: [at.midi] })
 
 export function removeNoteAt(id: string, ref: NoteRef) {

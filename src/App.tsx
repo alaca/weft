@@ -1,5 +1,6 @@
 import { onCleanup, onMount } from 'solid-js'
 import { play, redoChange, saveSong, stop, togglePlay, undoChange } from './app/controller'
+import { pianoDown, pianoUp } from './app/piano'
 import { SOUNDS_WIDTH } from './library/layout'
 import { jamsOpen } from './stores/jam'
 import { codeWidth, mixerOpen, soundsOpen, soundsWidth, startOpen, viewMode } from './stores/song'
@@ -45,13 +46,21 @@ export function App() {
             else undoChange()
             return
         }
+        // A pattern that is played from the keyboard takes its letters before anything else does.
+        if (pianoDown(event)) return void event.preventDefault()
         if (event.code !== 'Space') return
         if (target?.closest('.cm-editor, input, textarea, button, [role="dialog"]')) return
         event.preventDefault()
         togglePlay()
     }
-    onMount(() => document.addEventListener('keydown', onKey))
-    onCleanup(() => document.removeEventListener('keydown', onKey))
+    onMount(() => {
+        document.addEventListener('keydown', onKey)
+        document.addEventListener('keyup', pianoUp)
+    })
+    onCleanup(() => {
+        document.removeEventListener('keydown', onKey)
+        document.removeEventListener('keyup', pianoUp)
+    })
 
     return (
         <div

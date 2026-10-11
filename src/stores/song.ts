@@ -55,6 +55,11 @@ export const [closingSong, setClosingSong] = createSignal(false)
 export const [songGuarded, setSongGuarded] = createSignal(false)
 // The key each pattern's piano roll keeps to, by the pattern's name.
 export const [patternKeys, setPatternKeys] = createSignal<Record<string, Key>>({})
+// The pattern that is played from the computer's keyboard, the octave its first key is in, and
+// whether what is played while the song plays is written into the pattern.
+export const [pianoFor, setPianoFor] = createSignal<string | null>(null)
+export const [pianoOctave, setPianoOctave] = createSignal(3)
+export const [pianoWrites, setPianoWrites] = createSignal(true)
 // Bars that go round while the song plays: from `from` up to, not including, `to`.
 export const [loopBars, setLoopBars] = createSignal<{ from: number; to: number } | null>(null)
 export const [exporting, setExporting] = createSignal(false)

@@ -74,3 +74,45 @@ test('every pattern of the starter song can be edited by clicking', async ({ pag
     await expect(chords.getByRole('button', { name: 'Cycle 4', exact: true })).toBeVisible()
     await expect(note(chords, 'd4, step 1, 1 step')).toBeVisible()
 })
+
+test('a pattern is played on the computer keyboard, and what is played while the song plays is written into its roll', async ({ page }) => {
+    await open(page, 'setcpm(60/4)\n\nbass: note(`\n  ~  ~  ~  ~    ~  ~  ~  ~    ~  ~  ~  ~    ~  ~  ~  ~\n`)\n  .s("sawtooth")\n')
+    const strip = page.getByTestId('strip-bass')
+    const notes = async () => /note\(`([^`]*)`\)/.exec(await code(page))![1].trim().split(/\s+/)
+    await strip.getByRole('button', { name: 'Play bass on the keyboard', exact: true }).click()
+    await expect(page.getByTestId('piano-note')).toContainText('from c3 to c4')
+
+    // Stopped, a key is only heard: nothing is written.
+    await page.locator('body').click({ position: { x: 700, y: 30 } })
+    await page.keyboard.press('KeyA')
+    expect((await notes()).every((step) => step === '~')).toBe(true)
+
+    // While the song plays the note goes where it was played, and is as long as the key was held.
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await page.keyboard.down('KeyD')
+    await page.waitForTimeout(700)
+    await page.keyboard.up('KeyD')
+    await expect.poll(notes).toContain('e3')
+    const at = (await notes()).indexOf('e3')
+    expect((await notes())[at + 1]).toBe('_')
+
+    // An octave up, and the letters in the code are still letters.
+    await page.keyboard.press('KeyX')
+    await expect(page.getByTestId('piano-note')).toContainText('from c4 to c5')
+    await page.keyboard.press('KeyS')
+    await expect.poll(notes).toContain('d4')
+    const before = await code(page)
+    await page.locator('.cm-content').click()
+    await page.keyboard.press('ControlOrMeta+End')
+    await page.keyboard.type('// asdf')
+    await expect.poll(() => code(page)).toBe(`${before}// asdf`)
+
+    // With Write off it is heard and not written.
+    await strip.getByRole('button', { name: 'Write what is played', exact: true }).click()
+    await page.locator('body').click({ position: { x: 700, y: 30 } })
+    await page.keyboard.press('KeyG')
+    await page.waitForTimeout(300)
+    expect((await notes()).some((step) => step.startsWith('g'))).toBe(false)
+})
+
