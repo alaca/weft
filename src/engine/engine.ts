@@ -75,6 +75,7 @@ export interface Engine {
     miniEvents(text: string, cycles: number): { start: number; length: number; value: unknown }[][] | null
     soundNames(bank: string | null): string[]
     preview(sound: string, bank: string | null, cutAfter?: number): void
+    previewPart(sound: string, begin: number, end: number, seconds: number): void
     addSound(name: string, url: string): Promise<void>
     removeSound(name: string): void
     soundTaken(name: string): boolean
@@ -915,6 +916,10 @@ export function createEngine(): Engine {
         preview(sound, bank, cutAfter) {
             const cut = cutAfter ? { clip: 1 } : {}
             audition(() => (bank ? { s: sound, bank, ...cut } : { s: sound, ...cut }), cutAfter ?? 0.4)
+        },
+        // A stretch of a sample, from and to as parts of its whole length.
+        previewPart(sound, begin, end, seconds) {
+            audition(() => ({ s: sound, begin, end, clip: 1 }), seconds)
         },
         addSound: addOwnSound,
         removeSound: removeOwnSound,

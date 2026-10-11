@@ -94,3 +94,34 @@ test('a file that is not sound is refused, and a name that is taken gets a numbe
     await expect(page.getByTestId('own-note')).toHaveText('notes.txt could not be read as sound, so it was not added.')
     await expect(browser(page).locator('.sb-i code')).toHaveText(['bd_2'])
 })
+
+test('a sound of your own is cut shorter, and stays so', async ({ page }) => {
+    await open(page)
+    await yours(page)
+    await add(page, [{ name: 'Long take.wav', buffer: tone(330, 2) }])
+    const row = browser(page).locator('.sb-i', { hasText: 'long_take' })
+    await expect(row).toContainText('2.0 s')
+    await row.hover()
+    await row.getByRole('button', { name: /^Cut .* shorter$/ }).click()
+    const box = page.getByTestId('trim')
+    await expect(page.getByTestId('trim-length')).toHaveText('2.0 s kept')
+
+    // The start is moved in with the keys, the end by dragging its edge to the middle.
+    await box.getByRole('slider', { name: 'Where it starts', exact: true }).focus()
+    for (let press = 0; press < 5; press++) await page.keyboard.press('Shift+ArrowRight')
+    const picture = (await box.locator('.tr-w').boundingBox())!
+    await page.mouse.move(picture.x + picture.width - 2, picture.y + 40)
+    await page.mouse.down()
+    await page.mouse.move(picture.x + picture.width / 2, picture.y + 40, { steps: 4 })
+    await page.mouse.up()
+    await expect(page.getByTestId('trim-length')).toHaveText('0.5 s kept')
+    await box.getByRole('button', { name: 'Keep this part', exact: true }).click()
+    await expect(box).toHaveCount(0)
+    await expect(row).toContainText('0.5 s')
+
+    await page.reload()
+    await page.waitForFunction(() => Boolean((window as any).__weft))
+    await yours(page)
+    await expect(browser(page).locator('.sb-i', { hasText: 'long_take' })).toContainText('0.5 s')
+})
+

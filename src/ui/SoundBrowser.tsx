@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js'
 import { Fold, isFolded } from './Fold'
-import { addOwnSounds, closeSounds, colorAt, hearSound, keepTake, recordTake, removeOwnSound, soundCatalogue, useSound } from '../app/controller'
+import { addOwnSounds, closeSounds, colorAt, hearSound, keepTake, openTrim, recordTake, removeOwnSound, soundCatalogue, useSound } from '../app/controller'
 import { lengthText } from '../library/sounds'
 import { fits, inUse, takesKit } from '../sounds/apply'
 import { countSounds, findSounds, SOUND_DRAG, SOUND_GROUPS, type SoundGroup, type SoundItem } from '../sounds/catalog'
@@ -205,6 +205,11 @@ export function SoundBrowser() {
                                     </Show>
                                 </Show>
                                 <Show when={item.group === 'yours'}>
+                                    <button class="rx tr-b" aria-label={`Cut ${item.label} shorter`} title="Cut its start and its end off" onClick={() => void openTrim(item.name)}>
+                                        <svg viewBox="0 0 10 10">
+                                            <path d="M2 1.5v7M8 1.5v7M2 5h6" />
+                                        </svg>
+                                    </button>
                                     <button class="rx" aria-label={`Remove ${item.label} from your sounds`} onClick={() => void removeOwnSound(item.name)}>
                                         <svg viewBox="0 0 8 8">
                                             <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />

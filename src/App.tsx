@@ -16,6 +16,7 @@ import { StartScreen } from './ui/StartScreen'
 import { StatusBar } from './ui/StatusBar'
 import { StripList } from './ui/StripList'
 import { TopBar } from './ui/TopBar'
+import { TrimDialog } from './ui/TrimDialog'
 import { UpdateCard } from './ui/UpdateCard'
 
 export function App() {
@@ -80,6 +81,7 @@ export function App() {
             <JamAsk />
             <UpdateCard />
             <ExportDialog />
+            <TrimDialog />
             <PublishDialog />
             <AccountDialog />
         </div>

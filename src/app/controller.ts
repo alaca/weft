@@ -83,7 +83,9 @@ import {
     deletedSong,
     engineState,
     setTakingKnobs,
+    setTrim,
     takingKnobs,
+    trim,
     exporting,
     gridNotes,
     openPanel,
@@ -1414,6 +1416,66 @@ export async function keepTake() {
 }
 
 export const takingNow = (): boolean => takeSince() !== null
+
+// A sound of your own cut shorter: its start and its end taken off, the way a take is tidied
+// after it was recorded. The sound keeps its name, so every song that uses it plays the part
+// that was kept. What is cut away is gone.
+const TRIM_PEAKS = 480
+const SHORTEST = 0.02
+let trimmed: { channels: Float32Array[]; sampleRate: number } | null = null
+
+export async function openTrim(name: string) {
+    const sound = await ownSoundStore.get(name).catch(() => null)
+    const heard = sound ? await engine.decodeAudio(sound.data.slice(0)) : null
+    if (!sound || !heard || !heard.channels[0]?.length) return void setOwnSoundNote(`${name} could not be read as sound, so it cannot be cut here.`)
+    trimmed = heard
+    const frames = heard.channels[0].length
+    const peaks = Array.from({ length: TRIM_PEAKS }, (_, at) => {
+        let peak = 0
+        const end = Math.floor(((at + 1) * frames) / TRIM_PEAKS)
+        for (let frame = Math.floor((at * frames) / TRIM_PEAKS); frame < end; frame++) for (const channel of heard.channels) peak = Math.max(peak, Math.abs(channel[frame]))
+        return peak
+    })
+    const seconds = frames / heard.sampleRate
+    setTrim({ name, seconds, peaks, from: 0, to: seconds })
+}
+
+export function moveTrim(from: number, to: number) {
+    const now = trim()
+    if (!now) return
+    const start = Math.min(Math.max(0, from), now.seconds - SHORTEST)
+    setTrim({ ...now, from: start, to: Math.min(now.seconds, Math.max(start + SHORTEST, to)) })
+}
+
+export function hearTrim() {
+    const now = trim()
+    if (now) engine.previewPart(now.name, now.from / now.seconds, now.to / now.seconds, Math.min(OWN_PREVIEW_SECONDS, now.to - now.from))
+}
+
+export function closeTrim() {
+    trimmed = null
+    setTrim(null)
+}
+
+export async function keepTrim() {
+    const now = trim()
+    const heard = trimmed
+    const sound = now ? await ownSoundStore.get(now.name).catch(() => null) : null
+    if (!now || !heard || !sound) return closeTrim()
+    const from = Math.round(now.from * heard.sampleRate)
+    const to = Math.round(now.to * heard.sampleRate)
+    if (from > 0 || to < heard.channels[0].length) {
+        const channels = heard.channels.map((channel) => channel.subarray(from, to))
+        const bytes = encodeWav(channels, heard.sampleRate)
+        const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+        const next: OwnSound = { ...sound, file: sound.file.replace(/\.[^.]+$/, '') + '.wav', type: 'audio/wav', seconds: (to - from) / heard.sampleRate, data }
+        await ownSoundStore.put(next)
+        await register(next)
+        setOwnSounds([...ownSounds().filter((other) => other.name !== next.name), infoOfSound(next)].sort(byName))
+        replay()
+    }
+    closeTrim()
+}
 
 // A song that still uses the sound keeps the name in its code and is silent there.
 export async function removeOwnSound(name: string) {

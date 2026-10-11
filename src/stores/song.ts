@@ -66,6 +66,10 @@ export const [takingKnobs, setTakingKnobs] = createSignal(false)
 export const [loopBars, setLoopBars] = createSignal<{ from: number; to: number } | null>(null)
 export const [exporting, setExporting] = createSignal(false)
 export const [exportOpen, setExportOpen] = createSignal(false)
+// A sound of your own that is being cut shorter: how long it is, its outline, and the stretch
+// of it, in seconds, that will be kept.
+export type Trim = { name: string; seconds: number; peaks: number[]; from: number; to: number }
+export const [trim, setTrim] = createSignal<Trim | null>(null)
 export const [ownSounds, setOwnSounds] = createSignal<OwnSoundInfo[]>([])
 export const [ownSoundNote, setOwnSoundNote] = createSignal<string | null>(null)
 // When a take from the microphone was started, while one is being made.
