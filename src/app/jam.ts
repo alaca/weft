@@ -433,7 +433,9 @@ function tryBack() {
 }
 
 function beat() {
-    if (jamStage() !== 'jamming' || !line) return
+    // A relay that hands out no key to come back with keeps no place either. With such a one
+    // a line is only over when it ends, as it always was.
+    if (jamStage() !== 'jamming' || !line || !backKey) return
     if (performance.now() - heardAt < DEAD_AFTER) return line.send({ t: 'beat' })
     const dead = line
     line = null
