@@ -39,9 +39,8 @@ export const [songs, setSongs] = createSignal<SongInfo[]>([])
 export const [currentSong, setCurrentSong] = createSignal<SongInfo | null>(null)
 export const [deletedSong, setDeletedSong] = createSignal<SongRecord | null>(null)
 export const [openDemoId, setOpenDemoId] = createSignal<string | null>(null)
-export const [songKey, setSongKey] = createSignal<Key | null>(null)
-// With a key chosen, a click in a roll can put in the whole chord that stands on the note.
-export const [chordClicks, setChordClicks] = createSignal(false)
+// The key each pattern's piano roll keeps to, by the pattern's name.
+export const [patternKeys, setPatternKeys] = createSignal<Record<string, Key>>({})
 // Bars that go round while the song plays: from `from` up to, not including, `to`.
 export const [loopBars, setLoopBars] = createSignal<{ from: number; to: number } | null>(null)
 export const [exporting, setExporting] = createSignal(false)

@@ -131,3 +131,12 @@ describe('callFor', () => {
         expect(callFor(first('x: note("c")'), 'lpq')).toBeUndefined()
     })
 })
+
+describe('a drum kit', () => {
+    it('has no knob for a slider that belongs to one of its rows', () => {
+        const kit = first('hats: stack(\n  s("hh").struct("x x x x").gain(slider(0.17, 0, 1.5)),\n)\n  .bank("RolandTR909")\n')
+        const all = panelFor(kit).flatMap((group) => group.items)
+        expect(all.filter((view) => view.state !== 'faint')).toEqual([])
+        expect(favourites(kit)).toEqual([])
+    })
+})

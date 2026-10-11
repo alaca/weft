@@ -165,3 +165,39 @@ test('adds nothing while the code has an error', async ({ page }) => {
     await page.evaluate(() => (window as any).__weft.engine.applyEdit({ from: 0, to: 15, insert: '' }))
     await expect(chip(page, 'Drums')).toBeEnabled()
 })
+
+test('a pattern added to a song that has been arranged is in none of its bars', async ({ page }) => {
+    await page.addInitScript((value) => localStorage.setItem('weft.song', value), 'setcpm(120/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n  .mask("<1!4 0!4>")\n\nbass: note("c2 e2")\n  .s("sawtooth")\n')
+    await page.goto('/')
+    await page.waitForFunction(() => Boolean((window as any).__weft))
+    const code = () => page.evaluate(() => (window as any).__weft.engine.getCode() as string)
+    await page.getByTestId('add-pattern').getByRole('button', { name: 'Melody', exact: true }).click()
+    await expect.poll(code).toContain('melody: note("~")\n  .s("triangle")\n  .delay(slider(0.25, 0, 1))\n  .mask("<0!8>")\n')
+    await expect(page.getByTestId('lane-melody').getByRole('button', { pressed: true })).toHaveCount(0)
+    await expect(page.getByTestId('lane-bass').getByRole('button', { pressed: true })).toHaveCount(8)
+    await expect(page.getByTestId('song-length')).toContainText('8 bars')
+    await expect(page.getByTestId('strip-melody').locator('.nr-g')).toHaveCount(1)
+
+    await page.getByTestId('add-pattern').getByRole('button', { name: 'Drums', exact: true }).click()
+    await expect.poll(code).toContain(')\n  .bank("RolandTR909")\n  .mask("<0!8>")\n')
+    await expect(page.getByTestId('lane-drums2').getByRole('button', { pressed: true })).toHaveCount(0)
+
+    await page.getByTestId('strip-bass').getByRole('button', { name: 'More for bass', exact: true }).click()
+    await page.getByTestId('strip-bass').getByRole('menuitem', { name: 'Duplicate', exact: true }).click()
+    await expect(page.getByTestId('lane-bass2').getByRole('button', { pressed: true })).toHaveCount(0)
+    await expect(page.getByTestId('lane-bass').getByRole('button', { pressed: true })).toHaveCount(8)
+
+    await page.getByTestId('status').click()
+    await page.keyboard.press(`${process.platform === 'darwin' ? 'Meta' : 'Control'}+z`)
+    await expect(page.getByTestId('strip-bass2')).toHaveCount(0)
+})
+
+test('in a song with nothing arranged a new pattern goes round with the rest', async ({ page }) => {
+    await page.addInitScript((value) => localStorage.setItem('weft.song', value), 'setcpm(120/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n')
+    await page.goto('/')
+    await page.waitForFunction(() => Boolean((window as any).__weft))
+    await page.getByTestId('add-pattern').getByRole('button', { name: 'Bass line', exact: true }).click()
+    await expect(page.getByTestId('strip-bass')).toBeVisible()
+    expect(await page.evaluate(() => (window as any).__weft.engine.getCode() as string)).not.toContain('.mask(')
+    await expect(page.getByTestId('lane-bass').getByRole('button', { pressed: true })).toHaveCount(16)
+})

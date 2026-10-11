@@ -4,7 +4,7 @@ import { readSongFile, renameSound, soundsUsed, writeSongFile, type SongFile } f
 const SONG: SongFile = {
     name: 'Late one',
     code: 'setcpm(120/4)\n\nvox: note("c2")\n  .s("my_take")\n',
-    key: '9:minor',
+    keys: { vox: '9:minor' },
     sounds: [{ name: 'my_take', file: 'My take.wav', type: 'audio/wav', seconds: 1.5, data: Uint8Array.from([0, 1, 2, 250, 255, 128]) }],
 }
 
@@ -21,7 +21,7 @@ describe('a song file', () => {
     })
 
     it('takes any other file as code, named after the file', () => {
-        expect(readSongFile('setcpm(90/4)\n', 'Night bus.js')).toEqual({ name: 'Night bus', code: 'setcpm(90/4)\n', key: null, sounds: [] })
+        expect(readSongFile('setcpm(90/4)\n', 'Night bus.js')).toEqual({ name: 'Night bus', code: 'setcpm(90/4)\n', keys: {}, sounds: [] })
         expect(readSongFile('s("bd")', 'beat')).toMatchObject({ name: 'beat', code: 's("bd")' })
     })
 

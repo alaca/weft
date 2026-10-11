@@ -67,7 +67,9 @@ export function valueArg(call: Call | undefined): Value | null {
 
 function viewOfCall(call: Call): ControlView | null {
     const def = findDef(call.name)
-    const arg = valueArg(call) ?? call.args[0]
+    // A slider written inside the brackets of a call the controls do not know is not that call's knob:
+    // the first line of a drum kit holds the sliders of all its rows.
+    const arg = (def ? valueArg(call) : null) ?? call.args[0]
     if (!arg) return null
     if (!def && arg.kind !== 'slider') return null
     const base = {

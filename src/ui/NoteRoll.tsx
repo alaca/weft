@@ -4,7 +4,7 @@ import { NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, type NoteRef } fr
 import { chordOn, inKey, nearestInKey, ROOTS, SCALE_KINDS, SCALES, stepInKey, type ScaleKind } from '../song/scales'
 import type { PatternBlock } from '../song/types'
 import { noteName } from '../song/view'
-import { chordClicks, gridNotes, rollRanges, setChordClicks, songKey, stale } from '../stores/song'
+import { gridNotes, patternKeys, rollRanges, stale } from '../stores/song'
 import { GridFooter } from './GridFooter'
 
 const ROW = 10
@@ -94,6 +94,9 @@ export function NoteRoll(props: {
 
     // With a key chosen, a note can only be put on a note of the key: a click or a drag on any
     // other row lands on the closest one. A note that is already off the key stays where it is.
+    // The key and the chords switch belong to this pattern's roll and to no other.
+    const songKey = () => patternKeys()[props.id] ?? null
+    const [chordClicks, setChordClicks] = createSignal(false)
     const toKey = (midi: number) => Math.min(127, Math.max(0, nearestInKey(midi, songKey())))
     // What a click on an empty place puts in: the note, or with chords switched on the chord
     // of the key that stands on it.
@@ -264,11 +267,11 @@ export function NoteRoll(props: {
                 <span class="cap">Key</span>
                 <select
                     class="pick"
-                    aria-label="Scale of the song"
+                    aria-label="Scale this roll keeps to"
                     title="With a key chosen, the roll only takes the notes of that key"
                     onChange={(event) => {
                         const kind = event.currentTarget.value
-                        chooseKey(kind ? { root: songKey()?.root ?? 0, kind: kind as ScaleKind } : null)
+                        chooseKey(props.id, kind ? { root: songKey()?.root ?? 0, kind: kind as ScaleKind } : null)
                     }}
                 >
                     <option value="" selected={songKey() === null}>
@@ -284,7 +287,7 @@ export function NoteRoll(props: {
                 </select>
                 <Show when={songKey()}>
                     {(key) => (
-                        <select class="pick" aria-label="First note of the key" onChange={(event) => chooseKey({ root: Number(event.currentTarget.value), kind: key().kind })}>
+                        <select class="pick" aria-label="First note of the key" onChange={(event) => chooseKey(props.id, { root: Number(event.currentTarget.value), kind: key().kind })}>
                             <For each={ROOTS}>
                                 {(name, at) => (
                                     <option value={at()} selected={key().root === at()}>

@@ -32,7 +32,7 @@ function tone(hertz = 330, seconds = 0.5): Buffer {
 }
 
 const songFile = (sound: string, text: string) =>
-    Buffer.from(JSON.stringify({ weft: 1, name: 'From afar', key: '9:minor', code: text, sounds: [{ name: sound, file: `${sound}.wav`, type: 'audio/wav', seconds: 0.5, data: tone().toString('base64') }] }))
+    Buffer.from(JSON.stringify({ weft: 1, name: 'From afar', keys: { vox: '9:minor' }, code: text, sounds: [{ name: sound, file: `${sound}.wav`, type: 'audio/wav', seconds: 0.5, data: tone().toString('base64') }] }))
 
 async function open(page: Page) {
     await page.addInitScript((value) => {
@@ -84,7 +84,7 @@ test('a song file is opened as a new song, with its sounds and its key', async (
     await expect(page.getByTestId('song-note')).toHaveText('Opened From afar, with 1 sound of its own, now among yours.')
     expect(await code(page)).toBe(text)
     await page.keyboard.press('Escape')
-    await expect(page.getByTestId('strip-vox').getByLabel('Scale of the song')).toHaveValue('minor')
+    await expect(page.getByTestId('strip-vox').getByLabel('Scale this roll keeps to')).toHaveValue('minor')
 
     await page.getByRole('button', { name: 'Play', exact: true }).click()
     await expect.poll(() => heard(page)).toBeGreaterThan(0.05)

@@ -1,7 +1,7 @@
-// A song as one file, to keep somewhere safe or to give to someone: its name, its code, its key
-// and the audio files of your own that it uses, so that it plays wherever it is opened.
+// A song as one file, to keep somewhere safe or to give to someone: its name, its code, the keys
+// of its patterns and the audio files of your own that it uses, so that it plays wherever it is opened.
 export type PackedSound = { name: string; file: string; type: string; seconds: number; data: Uint8Array }
-export type SongFile = { name: string; code: string; key: string | null; sounds: PackedSound[] }
+export type SongFile = { name: string; code: string; keys: Record<string, string>; sounds: PackedSound[] }
 
 export const SONG_FILE = 'weft'
 const VERSION = 1
@@ -24,7 +24,7 @@ export function writeSongFile(song: SongFile): string {
     return JSON.stringify({
         weft: VERSION,
         name: song.name,
-        key: song.key,
+        keys: song.keys,
         code: song.code,
         sounds: song.sounds.map(({ data, ...rest }) => ({ ...rest, data: toBase64(data) })),
     })
@@ -35,15 +35,15 @@ const baseName = (file: string) => file.replace(/\.[a-z0-9]{1,8}$/i, '').trim() 
 // A song file made by the app, or failing that any file of code, which becomes a song with the
 // name of the file. Null when it is a song file that cannot be read.
 export function readSongFile(text: string, file: string): SongFile | null {
-    if (!file.toLowerCase().endsWith(`.${SONG_FILE}`)) return { name: baseName(file), code: text, key: null, sounds: [] }
+    if (!file.toLowerCase().endsWith(`.${SONG_FILE}`)) return { name: baseName(file), code: text, keys: {}, sounds: [] }
     try {
-        const kept = JSON.parse(text) as { weft?: unknown; name?: unknown; key?: unknown; code?: unknown; sounds?: unknown }
+        const kept = JSON.parse(text) as { weft?: unknown; name?: unknown; keys?: unknown; code?: unknown; sounds?: unknown }
         if (typeof kept.weft !== 'number' || typeof kept.code !== 'string') return null
         const sounds = Array.isArray(kept.sounds) ? kept.sounds : []
         return {
             name: typeof kept.name === 'string' && kept.name.trim() ? kept.name : baseName(file),
             code: kept.code,
-            key: typeof kept.key === 'string' ? kept.key : null,
+            keys: kept.keys && typeof kept.keys === 'object' ? Object.fromEntries(Object.entries(kept.keys).filter((entry): entry is [string, string] => typeof entry[1] === 'string')) : {},
             sounds: sounds.flatMap((sound: Partial<Record<keyof PackedSound, unknown>>) =>
                 typeof sound?.name === 'string' && typeof sound.data === 'string'
                     ? [

@@ -17,7 +17,7 @@ import { gradeOf, readAudio, RING_SECONDS, type AudioOptions, type Format } from
 import { encodeMp3 } from '../library/mp3'
 import { encodeWav, fileName, levelFor, peakOf, soundingLength } from '../library/wav'
 import { analyze } from '../song/analyze'
-import { arrangeSong, barsOf, readArrangement, repeatEdits, songLength } from '../song/arrange'
+import { arrangeEdit, arrangeSong, barsOf, readArrangement, repeatEdits, songLength } from '../song/arrange'
 import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
 import {
     gridFromEvents,
@@ -113,7 +113,8 @@ import {
     setLoopBars,
     loopBars,
     setSongBars,
-    setSongKey,
+    patternKeys,
+    setPatternKeys,
     setSongNote,
     setTakeSince,
     takeSince,
@@ -161,6 +162,12 @@ const find = (target: string) => resolve(song().patterns, target)
 // ---- songs. Every song has the version that was saved and the version being worked on. The
 // second is written half a second after each change, so closing the app loses nothing.
 const shelf = createShelf(localStorage)
+
+const keysOf = (record: SongRecord): Record<string, Key> =>
+    Object.fromEntries(Object.entries(record.keys ?? {}).flatMap(([id, text]) => {
+        const key = readKey(text)
+        return key ? [[id, key] as const] : []
+    }))
 let current: SongRecord | null = null
 
 function refreshSongs() {
@@ -261,7 +268,7 @@ export async function mount(root: HTMLElement): Promise<void> {
     setMasterVolumeValue(startVolume)
     engine.setMasterVolume(startVolume)
     current = firstSong()
-    setSongKey(readKey(current.key))
+    setPatternKeys(keysOf(current))
     refreshSongs()
     const initial = current.draft
     window.addEventListener('pagehide', flush)
@@ -894,10 +901,22 @@ function addStarter(base: string, code: (name: string) => string, range?: { low:
         setGridNotes(without(gridNotes(), name))
     })
     lastLength.delete(name)
+    if (patternKeys()[name]) keepKeys(without(patternKeys(), name))
+    const arranged = songEnd()
     engine.applyEdit(appendPattern(engine.getCode(), code(name)))
+    if (arranged !== null) restEverywhere(name, arranged)
     replay()
     select(name)
     return name
+}
+
+// A pattern that is added to a song that has been arranged is in none of its bars: it is there
+// to be worked on, and is put into the song where it is wanted. In a song with nothing arranged
+// every pattern goes round, the new one too.
+function restEverywhere(id: string, length: number) {
+    const block = find(id)
+    const edit = block ? arrangeEdit(engine.getCode(), block, Array<boolean>(length).fill(false)) : null
+    if (edit) engine.applyEdit(edit)
 }
 
 export function addPattern(kind: StarterKind): string | null {
@@ -936,6 +955,7 @@ export function renamePattern(id: string, text: string): boolean {
     if (name === id) return true
     if (song().patterns.some((other) => other.id === name)) return false
     const panel = openPanel()
+    keepKeys(carry(patternKeys(), id, name))
     batch(() => {
         setRollRanges(carry(rollRanges(), id, name))
         setGridNotes(carry(gridNotes(), id, name))
@@ -959,7 +979,10 @@ export function duplicatePattern(id: string): string | null {
         song().patterns.map((p) => p.id),
     )
     if (rollRanges()[id]) setRollRanges({ ...rollRanges(), [name]: rollRanges()[id] })
+    keepKeys(patternKeys()[id] ? { ...patternKeys(), [name]: patternKeys()[id] } : without(patternKeys(), name))
+    const arranged = songEnd()
     engine.applyEdit(duplicateEdit(engine.getCode(), block, name))
+    if (arranged !== null) restEverywhere(name, arranged)
     replay()
     select(name)
     return name
@@ -1239,7 +1262,7 @@ export const restsNow = (id: string): boolean => {
 function show(record: SongRecord, demo: string | null = null) {
     engine.stop()
     current = record
-    setSongKey(readKey(record.key))
+    setPatternKeys(keysOf(record))
     setOpenDemoId(demo)
     shelf.setCurrent(demo === null ? record.id : DEMO + demo)
     lastLength.clear()
@@ -1344,13 +1367,17 @@ export function restoreSong() {
 
 export const listSongs = () => refreshSongs()
 
-// The key is kept with the song, beside its code. It is a setting of the piano roll and not a
-// change to the song, so it is not something to save or to go back from.
-export function chooseKey(key: Key | null) {
+// A pattern's key is kept with the song, beside its code. It is a setting of that pattern's piano
+// roll and not a change to the song, so it is not something to save or to go back from.
+function keepKeys(keys: Record<string, Key>) {
+    setPatternKeys(keys)
     if (!current) return
-    current = { ...current, key: writeKey(key) }
-    setSongKey(key)
+    current = { ...current, keys: Object.fromEntries(Object.entries(keys).map(([id, key]) => [id, writeKey(key) as string])) }
     flush()
+}
+
+export function chooseKey(id: string, key: Key | null) {
+    keepKeys(key ? { ...patternKeys(), [id]: key } : without(patternKeys(), id))
 }
 
 const CODE_FILE: FileKind = { extension: 'js', label: 'Strudel code', type: 'text/javascript' }
@@ -1392,7 +1419,7 @@ export async function saveSongFile() {
         const used = soundsUsed(code, ownSounds().map((sound) => sound.name))
         const kept = used.length ? (await ownSoundStore.all()).filter((sound) => used.includes(sound.name)) : []
         const sounds = kept.map((sound) => ({ name: sound.name, file: sound.file, type: sound.type, seconds: sound.seconds, data: new Uint8Array(sound.data) }))
-        setExportNote(told(await saveFile(name, writeSongFile({ name: current.name, code, key: current.key ?? null, sounds }), SONG_KIND), name))
+        setExportNote(told(await saveFile(name, writeSongFile({ name: current.name, code, keys: current.keys ?? {}, sounds }), SONG_KIND), name))
     } catch (err) {
         setExportNote(`The file could not be saved: ${String((err as Error)?.message ?? err)}`)
     }
@@ -1419,7 +1446,7 @@ export async function openSongFile(file: File) {
             added++
         }
         flush()
-        const record: SongRecord = { id: newId(), name: freeTitle(cleanName(read.name) || UNTITLED, titles()), saved: code, draft: code, changedAt: Date.now(), ...(read.key ? { key: read.key } : {}) }
+        const record: SongRecord = { id: newId(), name: freeTitle(cleanName(read.name) || UNTITLED, titles()), saved: code, draft: code, changedAt: Date.now(), ...(Object.keys(read.keys).length ? { keys: read.keys } : {}) }
         shelf.write(record)
         show(record)
         setSongNote(added ? `Opened ${record.name}, with ${added} ${added === 1 ? 'sound' : 'sounds'} of its own, now among yours.` : `Opened ${record.name}.`)
