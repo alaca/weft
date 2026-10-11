@@ -1,15 +1,15 @@
 import type { CheckMenuItem as Tick, MenuItem as Item, Submenu as Sub } from '@tauri-apps/api/menu'
 
 // The desktop app's own menu bar. The system's usual menu is kept as it is: what is done with a
-// song is put at the top of its File menu, and what can be shown and hidden in the window at
-// the top of its View menu. In a browser there is no such menu and nothing happens.
+// song is put at the top of its File menu, what can be shown and hidden in the window at the
+// top of its View menu, and looking for a newer version at the top of its Help menu. In a browser there is no such menu and nothing happens.
 export type MenuEntry = { id: string; text: string; keys?: string; checked?: () => boolean; enabled?: () => boolean; action: () => void } | 'line'
 
 const inDesktop = () => '__TAURI_INTERNALS__' in window
 
 // Gives back a function that puts the ticks and what can be chosen right again after something
 // changed.
-export async function installMenus(menus: { File: MenuEntry[]; View: MenuEntry[] }): Promise<() => void> {
+export async function installMenus(menus: Record<string, MenuEntry[]>): Promise<() => void> {
     if (!inDesktop()) return () => undefined
     try {
         const { Menu, Submenu, MenuItem, CheckMenuItem, PredefinedMenuItem } = await import('@tauri-apps/api/menu')

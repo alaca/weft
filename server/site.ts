@@ -36,6 +36,11 @@ export type SiteOptions = {
     source?: string
     // The installers that are built. A platform without one is said to be not out yet.
     downloads?: { platform: Platform; file: string; version: string }[]
+    // A folder that releases of the app are put into. `downloads.json` in it lists the installers,
+    // as { builds: [{ platform, file, version }] } with file names in the folder, and `latest.json`
+    // is what an installed app reads to learn of a newer version. Both are read anew when they
+    // change, so a release needs no restart.
+    releases?: string
     // How often one sender, or one email, may ask for an account, a sign-in or a code within a
     // quarter of an hour. Only raised where the site is tried out on one's own machine.
     asks?: number
@@ -256,11 +261,38 @@ export function createSite(options: SiteOptions): Promise<Site> {
     }
     const fixed = fixedFiles()
     const around: Around = { source: /^https?:\/\//.test(options.source ?? '') ? options.source : undefined }
-    const builds = new Map<Platform, { file: string; version: string; bytes: number }>()
-    for (const build of options.downloads ?? []) {
-        if (Object.hasOwn(PLATFORM_NAMES, build.platform) && existsSync(build.file) && statSync(build.file).isFile()) builds.set(build.platform, { file: build.file, version: clean(build.version, 40), bytes: statSync(build.file).size })
+    type Installer = { file: string; version: string; bytes: number }
+    const installers = (list: { platform: Platform; file: string; version: string }[]) => {
+        const there = new Map<Platform, Installer>()
+        for (const build of list) {
+            if (Object.hasOwn(PLATFORM_NAMES, build.platform) && existsSync(build.file) && statSync(build.file).isFile()) there.set(build.platform, { file: build.file, version: clean(build.version, 40), bytes: statSync(build.file).size })
+        }
+        return there
     }
-    const built = (): Build[] => [...builds].map(([platform, build]) => ({ platform, version: build.version, bytes: build.bytes }))
+    // A file of a release, by its name alone: nothing above the folder, nothing hidden.
+    const released = (name: unknown): string | null => {
+        if (!options.releases || typeof name !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._ ()-]{0,120}$/.test(name)) return null
+        const file = join(options.releases, name)
+        return existsSync(file) && statSync(file).isFile() ? file : null
+    }
+    let builds = installers(options.downloads ?? [])
+    let listedAt = -1
+    const buildsNow = () => {
+        const list = released('downloads.json')
+        const at = list ? statSync(list).mtimeMs : 0
+        if (at === listedAt) return builds
+        listedAt = at
+        let said: { platform: Platform; file: string; version: string }[] = []
+        try {
+            const read = list ? (JSON.parse(readFileSync(list, 'utf8')) as { builds?: unknown }).builds : []
+            if (Array.isArray(read)) said = read.flatMap((one) => (released(one?.file) ? [{ platform: one.platform, file: released(one.file)!, version: String(one.version ?? '') }] : []))
+        } catch {
+            said = []
+        }
+        builds = new Map([...installers(options.downloads ?? []), ...installers(said)])
+        return builds
+    }
+    const built = (): Build[] => [...buildsNow()].map(([platform, build]) => ({ platform, version: build.version, bytes: build.bytes }))
     // The codes for choosing a new password that are out, by the address each was sent to.
     const codes = new Map<string, Code>()
     const asked = new Map<string, number[]>()
@@ -623,9 +655,18 @@ export function createSite(options: SiteOptions): Promise<Site> {
         if (get && path === '/download') return { status: 200, html: downloadPage(around, built()) }
         const wanted = /^\/download\/(macos|windows|linux)$/.exec(path)
         if (wanted && get) {
-            const build = builds.get(wanted[1] as Platform)
+            const build = buildsNow().get(wanted[1] as Platform)
             if (!build || !existsSync(build.file)) return note(404, 'Not out yet', [`Weft for ${PLATFORM_NAMES[wanted[1] as Platform]} is not out yet.`], { href: '/download', label: 'See what is out' })
             return { status: 200, build: { file: build.file, bytes: statSync(build.file).size } }
+        }
+
+        // What an installed app asks to learn of a newer version, and the file it then fetches.
+        // Without a release there is nothing to say, which the app takes as being up to date.
+        const update = /^\/updates\/([^/]+)$/.exec(path)
+        if (update && get) {
+            const file = released(decodeURIComponent(update[1]))
+            if (update[1] === 'latest.json') return file ? { status: 200, file: { bytes: readFileSync(file), type: 'application/json; charset=utf-8' } } : { status: 204 }
+            return file && update[1] !== 'downloads.json' ? { status: 200, build: { file, bytes: statSync(file).size } } : note(404, 'Not here', ['There is no such file among the releases.'], { href: '/download', label: 'See what is out' })
         }
 
         const told = /^\/songs\/([a-z0-9]+)\/report$/.exec(path)

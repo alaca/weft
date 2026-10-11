@@ -14,6 +14,7 @@ import { StartScreen } from './ui/StartScreen'
 import { StatusBar } from './ui/StatusBar'
 import { StripList } from './ui/StripList'
 import { TopBar } from './ui/TopBar'
+import { UpdateCard } from './ui/UpdateCard'
 
 export function App() {
     const onKey = (event: KeyboardEvent) => {
@@ -66,6 +67,7 @@ export function App() {
             <StartScreen />
             <CloseDialog />
             <JamAsk />
+            <UpdateCard />
             <ExportDialog />
             <PublishDialog />
             <AccountDialog />

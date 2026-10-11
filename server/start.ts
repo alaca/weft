@@ -12,6 +12,7 @@ import { createSite } from './site'
 //   WEFT_SITE_PORT   port of the site, 5191 unless said
 //   WEFT_RELAY_PORT  port of the relay, 5190 unless said
 //   WEFT_SOURCE      where the source code can be read, when there is such a place
+//   WEFT_RELEASES    folder that releases of the app are put into, when there is one
 //   WEFT_SENDMAIL    a program that sends a mail it is given, like /usr/bin/msmtp
 //   WEFT_MAIL_FROM   the address that mail is sent from
 //
@@ -66,6 +67,7 @@ async function start() {
         dataDir,
         origin,
         source: env.WEFT_SOURCE,
+        releases: env.WEFT_RELEASES,
         behindProxy: true,
         mail: from && program ? mailer(program, from) : undefined,
     })

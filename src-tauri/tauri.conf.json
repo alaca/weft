@@ -34,7 +34,8 @@
             "icons/128x128@2x.png",
             "icons/icon.icns",
             "icons/icon.ico"
-        ]
+        ],
+        "createUpdaterArtifacts": true
     },
     "plugins": {
         "deep-link": {
@@ -43,6 +44,12 @@
                     "weft"
                 ]
             }
+        },
+        "updater": {
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk4MDREMDA5NjMwQkE2M0YKUldRL3BndGpDZEFFbUE3dHd1Z25vQjRDM1F1RXc5NnNERnI2S3dGcnVHdCsrU2JTZ0g2UHVHVEkK",
+            "endpoints": [
+                "https://weftloom.dev/updates/latest.json"
+            ]
         }
     }
 }

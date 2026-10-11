@@ -566,6 +566,14 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .jm-as button { color: var(--linen); text-decoration: underline; text-underline-offset: 2px; }
 .ja { position: fixed; top: 66px; left: 50%; transform: translateX(-50%); z-index: 70; width: min(430px, calc(100vw - 32px)); display: flex; gap: 14px; padding: 16px 18px 14px 16px; border-radius: 14px; background: var(--cloth-2); border: 1px solid var(--seam); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55); }
 .ja > i { width: 40px; height: 40px; font-size: 18px; }
+.up { position: fixed; right: 14px; bottom: 40px; z-index: 70; width: min(360px, calc(100vw - 28px)); display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 14px; background: var(--cloth-2); border: 1px solid var(--seam); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55); }
+.up h3 { font: 600 17px/1.15 var(--voice); }
+.up p { color: var(--linen-2); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.up .up-n { max-height: 120px; overflow-y: auto; white-space: pre-line; }
+.up-a { display: flex; gap: 8px; padding-top: 2px; }
+.up .btn:disabled { opacity: 0.45; cursor: default; }
+.up-p { height: 6px; border-radius: 3px; background: var(--vat); overflow: hidden; }
+.up-p i { display: block; height: 100%; background: var(--lichen); }
 .ja-b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .ja-b h3 { font: 600 17px/1.15 var(--voice); overflow-wrap: anywhere; }
 .ja-b p { color: var(--linen-2); font-size: 12px; line-height: 1.45; }

@@ -74,6 +74,7 @@ import { jamsOpen, jamStage, setJamsOpen, setJamUnread, setSoundsShare, soundsSh
 import { attachJam, leaveJam, tellJam } from './jam'
 import { openAccount } from './account'
 import { attachPublish, openPublish } from './publish'
+import { attachUpdate, lookForNewVersion, lookWith } from './update'
 import { SITE } from '../site/api'
 import {
     cycle,
@@ -157,6 +158,8 @@ import {
 const FIRST_SONG_KEY = 'weft.song'
 const START_KEY = 'weft.start'
 const MIX_KEY = 'weft.mix'
+// How long after its start the app looks for a newer version of itself.
+const UPDATE_AFTER = 5000
 const LAYOUT_KEY = 'weft.layout'
 const COLORS = ['var(--madder)', 'var(--saffron)', 'var(--woad)', 'var(--lichen)', 'var(--orchil)']
 
@@ -317,6 +320,8 @@ export async function mount(root: HTMLElement): Promise<void> {
         replay,
     })
     attachPublish({ prepare: prepareToPublish, preview: previewToPublish, busiestBar, cameFrom: () => current?.source?.id ?? null, published: publishedAs })
+    attachUpdate({ keep: flush })
+    window.setTimeout(() => void lookForNewVersion(false), UPDATE_AFTER)
     engine.onSoundDrop(dropSound)
     engine.onCursor((offset) => {
         if (stale()) return
@@ -361,6 +366,7 @@ export async function mount(root: HTMLElement): Promise<void> {
             'line',
             { id: 'weft-view-reset', text: 'Reset Layout', action: resetLayout },
         ],
+        Help: [{ id: 'weft-help-update', text: 'Check for Updates…', action: () => void lookForNewVersion(true) }],
     })
     createRoot(() => {
         createEffect(() => {
@@ -378,7 +384,7 @@ export async function mount(root: HTMLElement): Promise<void> {
         })
     })
     void onSongLink((id) => void openFromSite(id))
-    if (import.meta.env.DEV) (window as any).__weft = { engine, prepareToPublish, openFromSite }
+    if (import.meta.env.DEV) (window as any).__weft = { engine, prepareToPublish, openFromSite, lookWith, lookForNewVersion }
 }
 
 export const play = () => void engine.evaluate()

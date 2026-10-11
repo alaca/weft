@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -324,6 +324,45 @@ describe('the downloads', () => {
         expect(Buffer.from(await file.arrayBuffer()).equals(readFileSync(mac))).toBe(true)
         expect(await (await fetch(`${site.origin}/download/linux`)).text()).toBe('an image')
         expect((await fetch(`${site.origin}/download/windows`)).status).toBe(404)
+    })
+})
+
+describe('a folder of releases', () => {
+    it('tells an installed app of the newest version, hands it the file, and gives nothing else of the machine away', async () => {
+        await site.close()
+        const releases = join(dataDir, 'releases')
+        mkdirSync(releases)
+        await start({ releases })
+        expect((await fetch(`${site.origin}/updates/latest.json`)).status).toBe(204)
+        const latest = { version: '0.2.0', notes: 'New things.', pub_date: '2026-10-11T12:00:00Z', platforms: { 'darwin-aarch64': { signature: 'c2ln', url: 'https://weftloom.dev/updates/Weft_0.2.0_aarch64.app.tar.gz' } } }
+        writeFileSync(join(releases, 'latest.json'), JSON.stringify(latest))
+        writeFileSync(join(releases, 'Weft_0.2.0_aarch64.app.tar.gz'), Buffer.alloc(2048, 3))
+        writeFileSync(join(dataDir, 'secret.txt'), 'not for anyone')
+        const told = await fetch(`${site.origin}/updates/latest.json`)
+        expect([told.status, told.headers.get('content-type'), told.headers.get('cache-control')]).toEqual([200, 'application/json; charset=utf-8', 'no-store'])
+        expect(await told.json()).toEqual(latest)
+        const file = await fetch(`${site.origin}/updates/Weft_0.2.0_aarch64.app.tar.gz`)
+        expect([file.status, file.headers.get('content-type'), (await file.arrayBuffer()).byteLength]).toEqual([200, 'application/octet-stream', 2048])
+        for (const path of ['/updates/..%2Fsecret.txt', '/updates/%2E%2E%2Fsite.json', '/updates/.hidden', '/updates/nothing.dmg', '/updates/downloads.json']) expect([path, (await fetch(site.origin + path)).status]).toEqual([path, 404])
+    })
+
+    it('puts the installers it lists on the download page, as they are released, without a restart', async () => {
+        await site.close()
+        const releases = join(dataDir, 'releases')
+        mkdirSync(releases)
+        await start({ releases })
+        expect(await page('/download')).not.toContain('href="/download/macos"')
+        writeFileSync(join(releases, 'Weft_0.1.0_aarch64.dmg'), Buffer.alloc(300 * 1024, 7))
+        writeFileSync(join(releases, 'downloads.json'), JSON.stringify({ builds: [{ platform: 'macos', file: 'Weft_0.1.0_aarch64.dmg', version: '0.1.0' }, { platform: 'linux', file: '../site.json', version: '9' }, { platform: 'windows', file: 'missing.msi', version: '0.1.0' }] }))
+        const html = await page('/download')
+        expect(html).toContain('<span class="num">Version 0.1.0, 0.3 MB</span>')
+        expect(html).toContain('<a class="btn go" href="/download/macos" aria-label="Download Weft for macOS">')
+        expect(html).not.toContain('href="/download/linux"')
+        expect(html).not.toContain('href="/download/windows"')
+        const got = await fetch(`${site.origin}/download/macos`)
+        expect([got.status, got.headers.get('content-disposition')]).toEqual([200, 'attachment; filename="Weft_0.1.0_aarch64.dmg"'])
+        await got.arrayBuffer()
+        expect((await fetch(`${site.origin}/download/linux`)).status).toBe(404)
     })
 })
 

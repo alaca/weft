@@ -39,6 +39,8 @@
         "@tauri-apps/plugin-deep-link": "^2.6.1",
         "@tauri-apps/plugin-dialog": "^2.8.2",
         "@tauri-apps/plugin-fs": "^2.7.0",
+        "@tauri-apps/plugin-process": "^2.4.0",
+        "@tauri-apps/plugin-updater": "^2.13.3",
         "acorn": "^8.19.0",
         "solid-js": "^1.9.17"
     },
