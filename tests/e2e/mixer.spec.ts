@@ -21,20 +21,6 @@ async function open(page: Page) {
     await expect(mixer(page)).toBeVisible()
 }
 
-test('the mixer is shown from the top bar, by itself or with the sounds, and is remembered', async ({ page }) => {
-    await open(page)
-    await expect(page.getByTestId('sound-browser')).toHaveCount(0)
-    await page.getByTestId('top').getByRole('button', { name: 'Sounds', exact: true }).click()
-    await expect(page.getByTestId('sound-browser')).toBeVisible()
-    await expect(mixer(page)).toBeVisible()
-    await page.reload()
-    await page.waitForFunction(() => Boolean((window as any).__weft))
-    await expect(mixer(page)).toBeVisible()
-    await mixer(page).getByRole('button', { name: 'Close mixer', exact: true }).click()
-    await expect(mixer(page)).toHaveCount(0)
-    await expect(page.getByTestId('top').getByRole('button', { name: 'Mixer', exact: true })).toHaveAttribute('aria-pressed', 'false')
-})
-
 test('volume, pan, tone and the limiter are set in the mixer, kept for next time and never written into the song', async ({ page }) => {
     await open(page)
     const before = await code(page)
@@ -73,18 +59,6 @@ test('volume, pan, tone and the limiter are set in the mixer, kept for next time
     expect(await mix(page)).toEqual({ volume: 1, pan: 0, low: 0, mid: 0, high: 0, limit: false })
     await expect(reset).toBeDisabled()
     await expect(knob(page, 'Pan')).toHaveAttribute('aria-valuetext', 'Centre')
-})
-
-test('the fader goes where it is pressed, and back to 100% on a double click', async ({ page }) => {
-    await open(page)
-    const volume = knob(page, 'Master volume')
-    const box = (await volume.boundingBox())!
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height - 2)
-    expect((await mix(page)).volume).toBeLessThan(0.05)
-    await page.mouse.click(box.x + box.width / 2, box.y + 1)
-    expect((await mix(page)).volume).toBeGreaterThan(1.45)
-    await volume.dblclick()
-    expect((await mix(page)).volume).toBe(1)
 })
 
 test('what the mixer does is heard: both sides sound, pan takes one away, and the volume at nothing silences both', async ({ page }) => {

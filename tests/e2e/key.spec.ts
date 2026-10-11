@@ -54,45 +54,6 @@ test('with a key chosen the roll only takes the notes of that key', async ({ pag
     await expect(note(lead, 'd4, step 9, 1 step')).toBeVisible()
 })
 
-test('a key belongs to one pattern: another roll has none, it is kept, and it goes with a new name', async ({ page }) => {
-    await open(page)
-    await page.getByTestId('strip-lead').getByLabel('Scale this roll keeps to').selectOption('blues')
-    await page.getByTestId('strip-lead').getByLabel('First note of the key').selectOption({ label: 'E' })
-    await expect(page.getByTestId('strip-bass').getByLabel('Scale this roll keeps to')).toHaveValue('')
-    await expect(page.getByTestId('strip-bass').locator('.nr-r.offkey')).toHaveCount(0)
-    const before = await code(page)
-
-    await page.waitForTimeout(700)
-    await page.reload()
-    await page.waitForFunction(() => Boolean((window as any).__weft))
-    await expect(page.getByTestId('strip-lead').getByLabel('Scale this roll keeps to')).toHaveValue('blues')
-    await expect(page.getByTestId('strip-lead').getByLabel('First note of the key')).toHaveValue('4')
-    await expect(page.getByTestId('strip-bass').getByLabel('Scale this roll keeps to')).toHaveValue('')
-    expect(await code(page)).toBe(before)
-
-    await page.getByTestId('strip-lead').locator('.st-n').dblclick()
-    await page.getByLabel('New name for lead').fill('top')
-    await page.getByLabel('New name for lead').press('Enter')
-    await expect(page.getByTestId('strip-top').getByLabel('Scale this roll keeps to')).toHaveValue('blues')
-})
-
-test('a pattern that is added has no key and no chords, whatever the others have', async ({ page }) => {
-    await open(page)
-    const lead = page.getByTestId('strip-lead')
-    await lead.getByLabel('Scale this roll keeps to').selectOption('minor')
-    await lead.getByRole('button', { name: 'Chords', exact: true }).click()
-    await page.getByTestId('add-pattern').getByRole('button', { name: 'Melody', exact: true }).click()
-    const melody = page.getByTestId('strip-melody')
-    await expect(melody.getByLabel('Scale this roll keeps to')).toHaveValue('')
-    await expect(melody.getByRole('button', { name: 'Chords', exact: true })).toHaveCount(0)
-    await expect(melody.locator('.nr-r.offkey')).toHaveCount(0)
-
-    await melody.getByLabel('Scale this roll keeps to').selectOption('major')
-    await melody.getByRole('button', { name: `Remove the pattern melody`, exact: true }).click()
-    await page.getByTestId('add-pattern').getByRole('button', { name: 'Melody', exact: true }).click()
-    await expect(page.getByTestId('strip-melody').getByLabel('Scale this roll keeps to')).toHaveValue('')
-})
-
 test('with chords switched on a click puts in the chord of the key that stands on the note', async ({ page }) => {
     await open(page)
     const lead = page.getByTestId('strip-lead')

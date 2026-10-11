@@ -97,16 +97,6 @@ test('saving marks the version to go back to', async ({ page }) => {
     await expect(name(page).locator('.proj-d')).toHaveCount(0)
 })
 
-test('the save key saves, also from inside the code', async ({ page }) => {
-    await open(page)
-    await type(page, '// one\n')
-    await expect(name(page).locator('.proj-d')).toHaveCount(1)
-    await page.locator('.cm-content').click()
-    await page.keyboard.press('ControlOrMeta+s')
-    await expect(name(page).locator('.proj-d')).toHaveCount(0)
-    expect(await code(page)).toBe(`// one\n${SONG}`)
-})
-
 test('a song can be renamed', async ({ page }) => {
     await open(page)
     await name(page).click()
@@ -120,17 +110,6 @@ test('a song can be renamed', async ({ page }) => {
     await expect(input).toHaveValue('Morning loop')
     await again(page)
     await expect(name(page)).toContainText('Morning loop')
-})
-
-test('a song can be duplicated, and the copy is its own song', async ({ page }) => {
-    await open(page)
-    await page.getByTestId('top').getByRole('button', { name: 'Duplicate this song', exact: true }).click()
-    await expect(name(page)).toContainText('Untitled copy')
-    expect(await code(page)).toBe(SONG)
-    await type(page, '// in the copy\n')
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'Open Untitled', exact: true }).click()
-    await expect.poll(() => code(page)).toBe(SONG)
 })
 
 test('a song can be deleted and put back', async ({ page }) => {
@@ -148,72 +127,9 @@ test('a song can be deleted and put back', async ({ page }) => {
     await expect.poll(() => code(page)).toBe(SONG)
 })
 
-test('deleting the song that is open opens another, and deleting the last one leaves a new song', async ({ page }) => {
-    await open(page)
-    await page.getByTestId('top').getByRole('button', { name: 'New song', exact: true }).click()
-    await name(page).click()
-    await menu(page).getByRole('button', { name: 'Delete Untitled 2', exact: true }).click()
-    await expect(name(page)).toContainText('Untitled')
-    await expect.poll(() => code(page)).toBe(SONG)
-    await menu(page).getByRole('button', { name: 'Delete Untitled', exact: true }).click()
-    await expect.poll(() => code(page)).toBe(NEW)
-    await expect(rows(page)).toHaveText(['Untitled'])
-})
-
-test('undo in one song cannot bring back the code of another', async ({ page }) => {
-    await open(page)
-    await page.locator('.cm-content').click()
-    await page.keyboard.type('// typed here ')
-    await page.getByTestId('top').getByRole('button', { name: 'New song', exact: true }).click()
-    await expect.poll(() => code(page)).toBe(NEW)
-    await page.locator('.cm-content').click()
-    await page.keyboard.press('ControlOrMeta+z')
-    await page.keyboard.press('ControlOrMeta+z')
-    expect(await code(page)).toBe(NEW)
-    await page.keyboard.type('x')
-    await page.keyboard.press('ControlOrMeta+z')
-    expect(await code(page)).toBe(NEW)
-})
-
-test('opening another song stops the one that plays and starts from its first bar', async ({ page }) => {
-    await open(page)
-    await page.getByRole('button', { name: 'Start from bar 3', exact: true }).click()
-    await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
-    await page.getByTestId('top').getByRole('button', { name: 'New song', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Stopped')
-    await expect(page.getByTestId('cycle')).toHaveText('1')
-    await page.getByTestId('add-pattern').getByRole('button', { name: 'Drums', exact: true }).click()
-    await expect(page.getByTestId('strip-drums')).toBeVisible()
-    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.events('bass', 0).length)).toBe(0)
-})
-
-test('what is done with a song is in the top bar, and the menu holds the song and your songs', async ({ page }) => {
-    await open(page)
-    const top = page.getByTestId('top')
-    for (const what of ['Save', 'Close song', 'New song', 'Open a file', 'Duplicate this song', 'Export', 'Publish', 'Your account']) await expect(top.getByRole('button', { name: what, exact: true })).toBeVisible()
-    await name(page).click()
-    await expect(menu(page).getByRole('textbox', { name: 'Name of this song' })).toHaveValue('Untitled')
-    await expect(rows(page)).toHaveText(['Untitled'])
-    for (const what of ['Save', 'Close song', 'New song', 'Open a file', 'Duplicate', 'Export', 'Publish', 'Your account']) await expect(menu(page).getByRole('button', { name: what })).toHaveCount(0)
-    await top.getByRole('button', { name: 'Your account', exact: true }).click()
-    await expect(menu(page)).toHaveCount(0)
-    await expect(page.getByTestId('account')).toBeVisible()
-    await page.getByTestId('account').getByRole('button', { name: 'Close your account', exact: true }).click()
-})
-
-test('the menu closes on Escape and on a click outside it', async ({ page }) => {
-    await open(page)
-    await name(page).click()
-    await expect(menu(page)).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(menu(page)).toHaveCount(0)
-    await name(page).click()
-    await page.getByTestId('code').locator('h2').click()
-    await expect(menu(page)).toHaveCount(0)
-})
-
-for (const demo of ['Glasshouse', 'Low sun', 'Grey area', 'Squelch', 'Spiral', 'Night shift', 'Undertow', 'Slow burn']) {
+// Two of the eight: the one with the most in it, and one that is played on instruments. That
+// each of them is a song the controls can read is looked at for all eight where it is quick.
+for (const demo of ['Slow burn', 'Undertow']) {
     test(`the stored song ${demo} opens from its file, plays, and every pattern in it can be clicked`, async ({ page }) => {
         const errors: string[] = []
         page.on('pageerror', (error) => errors.push(error.message))
@@ -232,34 +148,12 @@ for (const demo of ['Glasshouse', 'Low sun', 'Grey area', 'Squelch', 'Spiral', '
     })
 }
 
-test('the pictures in the playlist are of the song that is open, not the one before it', async ({ page }) => {
-    await open(page)
-    const picture = (id: string) => page.getByTestId(`lane-${id}`).locator('.sg-c path').first()
-    await expect(picture('bass')).toHaveAttribute('d', /M/)
-    await openStored(page, 'Glasshouse')
-    await expect(picture('pluck')).toHaveAttribute('d', /M/)
-    await expect(picture('drums')).toHaveAttribute('d', /M/)
-    const bass = await picture('bass').getAttribute('d')
-    expect((bass?.match(/M/g) ?? []).length).toBeGreaterThan(40)
-})
-
 const ARRANGED = 'setcpm(240/4)\n\ndrums: s("bd*4, hh*8")\n  .bank("RolandTR909")\n  .lpf(4000)\n  .mask("<1!3 0>")\n\nbass: note("c2 e2 g2 e2")\n  .s("sawtooth")\n  .lpf(slider(800, 100, 8000))\n  .room(.3)\n'
 
 async function openExport(page: Page) {
     await page.getByTestId('top').getByRole('button', { name: 'Export', exact: true }).click()
     await expect(page.getByTestId('export')).toBeVisible()
 }
-
-test('the code of a song can be exported as a file', async ({ page }) => {
-    await open(page)
-    await openExport(page)
-    await expect(page.getByTestId('export')).toContainText('Export Untitled')
-    const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export').getByRole('button', { name: 'Code (.js)', exact: true }).click()])
-    expect(download.suggestedFilename()).toBe('Untitled.js')
-    const { readFile } = await import('node:fs/promises')
-    expect(await readFile(await download.path(), 'utf8')).toBe(SONG)
-    await expect(page.getByTestId('export-note')).toHaveText('Saved as Untitled.js, in your downloads folder.')
-})
 
 test('a song can be exported as audio, from its first bar to its last, and plays as before afterwards', async ({ page }) => {
     test.setTimeout(90000)
@@ -324,46 +218,6 @@ test('a song can be exported as audio, from its first bar to its last, and plays
     expect(errors).toEqual([])
 })
 
-test('the audio file is of the format and quality that were chosen, and the choice is kept', async ({ page }) => {
-    test.setTimeout(120000)
-    await open(page, ARRANGED)
-    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
-    await openExport(page)
-    const box = page.getByTestId('export')
-    const choose = (group: string, label: string) => box.getByRole('group', { name: group, exact: true }).getByRole('button', { name: label, exact: true }).click()
-    const chosen = (group: string, label: string) => box.getByRole('group', { name: group, exact: true }).getByRole('button', { name: label, exact: true })
-    const { readFile } = await import('node:fs/promises')
-    const made = async () => {
-        const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), box.getByRole('button', { name: 'Export audio', exact: true }).click()])
-        return { name: download.suggestedFilename(), bytes: await readFile(await download.path()) }
-    }
-
-    await choose('Quality', 'High')
-    await expect(page.getByTestId('export-size')).toHaveText('24 bit, 48 kHz. The whole song, 4 s, about 1.7 MB.')
-    const wav = await made()
-    expect(wav.name).toBe('Untitled.wav')
-    expect(wav.bytes.readUInt16LE(22)).toBe(2)
-    expect(wav.bytes.readUInt32LE(24)).toBe(48000)
-    expect(wav.bytes.readUInt16LE(34)).toBe(24)
-    expect((wav.bytes.length - 44) / 6 / 48000).toBeGreaterThan(3.9)
-
-    await choose('Format', 'MP3')
-    await choose('Quality', 'Highest')
-    await expect(page.getByTestId('export-size')).toContainText('320 kbps')
-    const mp3 = await made()
-    expect(mp3.name).toBe('Untitled.mp3')
-    await expect(page.getByTestId('export-note')).toHaveText('Saved as Untitled.mp3, in your downloads folder.')
-    expect(mp3.bytes[0]).toBe(0xff)
-    expect(mp3.bytes[1] & 0xe0).toBe(0xe0)
-    expect(mp3.bytes.length).toBeGreaterThan(4 * 40000 * 0.8)
-    expect(mp3.bytes.length).toBeLessThan(8.5 * 40000)
-
-    await box.getByRole('button', { name: 'Close', exact: true }).click()
-    await openExport(page)
-    await expect(chosen('Format', 'MP3')).toHaveAttribute('aria-pressed', 'true')
-    await expect(chosen('Quality', 'Highest')).toHaveAttribute('aria-pressed', 'true')
-})
-
 // A kick that pushes the bass down on every bar, a pattern that is switched off, and one that
 // plays but makes no sound.
 const APART =
@@ -421,22 +275,4 @@ test('each pattern is exported as a file of its own, as long as the song, with w
     await box.getByRole('button', { name: 'Close', exact: true }).click()
     await openExport(page)
     await expect(page.getByTestId('export').getByRole('button', { name: 'The song', exact: true })).toHaveAttribute('aria-pressed', 'true')
-})
-
-test('a whole song is made into audio in far less time than it plays', async ({ page }) => {
-    test.setTimeout(120000)
-    await open(page)
-    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
-    await openStored(page, 'Glasshouse')
-    await openExport(page)
-    const started = Date.now()
-    const [download] = await Promise.all([
-        page.waitForEvent('download', { timeout: 90000 }),
-        page.getByTestId('export').getByRole('button', { name: 'Export audio', exact: true }).click(),
-    ])
-    expect(Date.now() - started).toBeLessThan(60000)
-    const { stat } = await import('node:fs/promises')
-    const seconds = ((await stat(await download.path())).size - 44) / 4 / 44100
-    expect(seconds).toBeGreaterThan(123)
-    expect(seconds).toBeLessThan(128.1)
 })

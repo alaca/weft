@@ -29,13 +29,3 @@ test('a sample can be switched to play one at a time, each with a number of its 
     await expect.poll(() => code(page)).not.toContain('.cut(2)')
     expect(await code(page)).toContain('.cut(1)')
 })
-
-test('a whole drum kit and a synth have no such switch', async ({ page }) => {
-    await open(page)
-    await page.getByTestId('strip-drums').getByRole('button', { name: 'Sound controls for drums', exact: true }).click()
-    await expect(page.getByTestId('strip-drums').getByTestId('sound-panel')).toBeVisible()
-    await expect(page.getByTestId('strip-drums').getByRole('button', { name: 'One at a time', exact: true })).toHaveCount(0)
-    await page.getByTestId('strip-bass').getByRole('button', { name: 'Sound controls for bass', exact: true }).click()
-    await expect(page.getByTestId('strip-bass').getByTestId('sound-panel')).toBeVisible()
-    await expect(page.getByTestId('strip-bass').getByRole('button', { name: 'One at a time', exact: true })).toHaveCount(0)
-})

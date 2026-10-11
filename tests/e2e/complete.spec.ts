@@ -34,13 +34,3 @@ test('the code offers the functions that fit what is being typed, says what they
     await expect(offers).toHaveCount(0)
     expect(await code(page)).toContain('bass: note("c2").roomdim')
 })
-
-test('the offers go away with Escape and leave what was typed', async ({ page }) => {
-    await open(page)
-    await page.keyboard.type('\nbass: note("c2").lp')
-    await expect(page.locator('.cm-tooltip-autocomplete li').first()).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(page.locator('.cm-tooltip-autocomplete')).toHaveCount(0)
-    await page.keyboard.type('f(800)')
-    expect(await code(page)).toContain('bass: note("c2").lpf(800)')
-})

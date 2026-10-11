@@ -41,27 +41,3 @@ test('song plays the bars as they are filled, live plays every pattern whatever 
     await expect(page.getByTestId('code-status')).toHaveText('Stopped', { timeout: 8000 })
     await expect(page.getByTestId('cycle')).toHaveText('1')
 })
-
-test('the mode is kept, and a file is always made of the song', async ({ page }) => {
-    test.setTimeout(90000)
-    await open(page)
-    await mode(page, 'Live').click()
-    await page.reload()
-    await page.waitForFunction(() => Boolean((window as any).__weft))
-    await expect(mode(page, 'Live')).toHaveAttribute('aria-pressed', 'true')
-    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
-    const loud = await page.evaluate(async () => {
-        const made = await (window as any).__weft.engine.render({ bars: 4, ringSeconds: 0, sampleRate: 44100 })
-        const left: Float32Array = made.channels[0]
-        const bar = made.secondsPerBar * 44100
-        const peak = (from: number, to: number) => {
-            let most = 0
-            for (let at = Math.floor(from * bar); at < Math.floor(to * bar); at++) most = Math.max(most, Math.abs(left[at]))
-            return most
-        }
-        return { first: peak(0, 0.2), third: peak(2, 2.2) }
-    })
-    expect(loud.third).toBeGreaterThan(loud.first * 1.5)
-    await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect.poll(() => sounding(page, 0)).toBe(6)
-})

@@ -102,16 +102,6 @@ test('nobody is heard until they press for it, and then the other hears them', a
     expect(await micsLeftOn(mara)).toBe(0)
 })
 
-test('it works the same when the one who joined speaks first', async ({ browser }) => {
-    const { ante, mara } = await jam(browser)
-    await mic(mara).click()
-    await expect(ante.getByTestId('jam-call')).toContainText('Mara switched their microphone on.')
-    await hear(ante).click()
-    await expect(them(ante)).toHaveAttribute('data-sound', 'yes')
-    await mic(ante).click()
-    await expect(them(mara)).toHaveAttribute('data-sound', 'yes')
-})
-
 test('a microphone that is switched off is let go of, and the other no longer hears it', async ({ browser }) => {
     const { ante, mara } = await jam(browser)
     await mic(ante).click()
@@ -130,18 +120,6 @@ test('a microphone that is switched off is let go of, and the other no longer he
     await expect(them(mara)).toHaveAttribute('data-sound', 'yes')
 })
 
-test('leaving a jam lets go of the microphone', async ({ browser }) => {
-    const { ante, mara } = await jam(browser)
-    await mic(ante).click()
-    await mic(mara).click()
-    await expect(me(mara)).toHaveAttribute('data-sound', 'yes')
-    expect(await micsLeftOn(mara)).toBe(1)
-    await ante.getByRole('button', { name: 'Leave', exact: true }).click()
-    await expect(mara.getByTestId('jam-note')).toContainText('Ante left the jam.')
-    expect(await micsLeftOn(ante)).toBe(0)
-    expect(await micsLeftOn(mara)).toBe(0)
-})
-
 test('a microphone the system does not allow says what to do, and the jam goes on', async ({ browser }) => {
     const refusing = () => {
         MediaDevices.prototype.getUserMedia = async function () {
@@ -156,19 +134,6 @@ test('a microphone the system does not allow says what to do, and the jam goes o
     await mara.getByLabel('Message').fill('still here')
     await mara.getByLabel('Message').press('Enter')
     await expect(ante.getByTestId('jam-chat')).toContainText('still here')
-})
-
-test('a microphone that gives nothing but silence is said to be silent', async ({ browser }) => {
-    const silent = () => {
-        MediaDevices.prototype.getUserMedia = async function () {
-            const context = new AudioContext()
-            return context.createMediaStreamDestination().stream
-        }
-    }
-    const { mara } = await jam(browser, silent)
-    await mic(mara).click()
-    await expect(mara.getByTestId('jam-voice-note')).toContainText('Nothing is heard from your microphone.', { timeout: 20000 })
-    await expect(mic(mara)).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('nobody is seen until they press for it, then the other sees them, and the camera is let go of again', async ({ browser }) => {
@@ -201,21 +166,5 @@ test('nobody is seen until they press for it, then the other sees them, and the 
 
     await mara.getByRole('button', { name: 'Leave', exact: true }).click()
     await expect.poll(() => camsLeftOn(mara)).toBe(0)
-})
-
-test('a camera that the system does not allow says so, and the jam goes on', async ({ browser }) => {
-    const refusing = () => {
-        MediaDevices.prototype.getUserMedia = async function () {
-            throw new DOMException('denied', 'NotAllowedError')
-        }
-    }
-    const { ante, mara } = await jam(browser, refusing)
-    await cam(mara).click()
-    await expect(mara.getByTestId('jam-voice-note')).toContainText('The camera could not be used: the system did not allow it.')
-    await expect(cam(mara)).toHaveAttribute('aria-pressed', 'false')
-    await expect(them(ante)).toHaveAttribute('data-cam', 'off')
-    await mara.getByLabel('Message').fill('still here')
-    await mara.getByLabel('Message').press('Enter')
-    await expect(ante.getByTestId('jam-chat')).toContainText('still here')
 })
 

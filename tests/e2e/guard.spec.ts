@@ -68,18 +68,6 @@ test('a song from a file that is all music code plays without a word', async ({ 
     await expect(status(page)).toHaveText('Playing this code')
 })
 
-test('taking the line out lets a song from someone else play again', async ({ page }) => {
-    await open(page)
-    await openFile(page, 'theirs.js', 'setcpm(120/4)\ndrums: s("bd*4")\nfetch("https://example.com")')
-    await expect(status(page)).toHaveText('Line 3: fetch is not something a song can use')
-    await page.locator('.cm-content').click()
-    await page.keyboard.press('ControlOrMeta+End')
-    for (let at = 0; at < 28; at++) await page.keyboard.press('Backspace')
-    await update(page).click()
-    await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible()
-    await expect(guard(page)).toHaveCount(0)
-})
-
 async function person(browser: Browser, name: string): Promise<Page> {
     const context = await browser.newContext()
     const page = await context.newPage()

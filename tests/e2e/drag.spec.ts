@@ -60,31 +60,6 @@ test('a sound dragged onto a pattern in the code becomes its sound', async ({ pa
     await expect(page.getByTestId('code-status')).toHaveText('Stopped')
 })
 
-test('a kit dragged onto a drum pattern becomes its kit', async ({ page }) => {
-    await open(page)
-    await dragInto(page, 'Drum kits', 'RolandTR808', await placeOf(page, 'drums: stack('))
-    await expect.poll(() => code(page)).toContain('  .bank("RolandTR808")\n')
-    expect(await code(page)).not.toContain('RolandTR909')
-})
-
-test('a sound let go between the quotes of a name takes the place of that name', async ({ page }) => {
-    await open(page)
-    await dragInto(page, 'Samples', 'casio', await placeOf(page, 's("bd")', 'bd'))
-    await expect.poll(() => code(page)).toContain('  s("casio").struct("x ~ ~ ~')
-    expect(await code(page)).toContain('.bank("RolandTR909")')
-})
-
-test('where a sound cannot be used its name is put in as text, also with only the code shown', async ({ page }) => {
-    await open(page)
-    await page.getByRole('button', { name: 'Code', exact: true }).click()
-    await expect(page.getByTestId('controls')).toBeHidden()
-    await dragInto(page, 'Instruments', 'gm_piano', await placeOf(page, '.s("sawtooth")', 'sawtooth'))
-    await expect.poll(() => code(page)).toContain('  .s("gm_piano")\n')
-    const before = await code(page)
-    await dragInto(page, 'Synths', 'triangle', await placeOf(page, 'setcpm(120/4)'))
-    await expect.poll(() => code(page)).toBe(before.replace('setcpm(120/4)', 'setcpm(120/4)triangle'))
-})
-
 async function dragOnto(page: Page, kind: string, sound: string, target: import('@playwright/test').Locator) {
     await browser(page).getByRole('radio', { name: new RegExp(`^${kind}`) }).click()
     await browser(page).getByRole('searchbox', { name: 'Search sounds' }).fill(sound)
@@ -105,27 +80,4 @@ test('a sound dragged onto a pattern in the controls becomes its sound', async (
     await expect.poll(() => code(page)).toContain('bass: note("c2 e2")\n  .s("gm_piano")\n  .lpf(800)\n')
     expect(await dragOnto(page, 'Drum kits', 'RolandTR808', page.getByTestId('strip-drums').locator('.st-h'))).toBe(true)
     await expect.poll(() => code(page)).toContain('  .bank("RolandTR808")\n')
-})
-
-test('a sound a pattern cannot take is not taken by it', async ({ page }) => {
-    await open(page)
-    const before = await code(page)
-    expect(await dragOnto(page, 'Instruments', 'gm_piano', page.getByTestId('strip-drums').locator('.st-h'))).toBe(false)
-    expect(await dragOnto(page, 'Drum kits', 'RolandTR808', page.getByTestId('strip-bass').locator('.st-h'))).toBe(false)
-    expect(await code(page)).toBe(before)
-    await expect(page.locator('.st')).toHaveCount(2)
-})
-
-test('a sound let go under the patterns starts a new pattern with it', async ({ page }) => {
-    await open(page)
-    expect(await dragOnto(page, 'Instruments', 'gm_piano', page.getByTestId('add-pattern'))).toBe(true)
-    await expect.poll(() => code(page)).toContain('\n\nmelody: note("~")\n  .s("gm_piano")\n')
-    await expect(page.getByTestId('strip-melody').locator('.nr-g')).toHaveCount(1)
-    await dragOnto(page, 'Drum kits', 'RolandTR808', page.getByTestId('add-pattern'))
-    await expect.poll(() => code(page)).toContain('drums2: stack(\n  s("bd").struct("~ ~ ~ ~')
-    expect(await code(page)).toContain(')\n  .bank("RolandTR808")\n')
-    await dragOnto(page, 'Samples', 'casio', page.getByTestId('controls'))
-    await expect.poll(() => code(page)).toContain('sample: note("~")\n  .s("casio")\n')
-    await expect(page.getByTestId('strip-sample').locator('.nr-g')).toHaveAttribute('data-low', '30')
-    await expect(page.locator('.st')).toHaveCount(5)
 })

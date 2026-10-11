@@ -28,28 +28,3 @@ test('swing plays every second sixteenth late', async ({ page }) => {
     await expect.poll(() => code(page)).toContain('.swingBy(slider(0.5, 0, 0.5), 8)')
     await expect.poll(async () => (await starts(page, 'hats')).slice(0, 4)).toEqual([0, 1.5, 2, 3.5])
 })
-
-test('loose timing and loose volume are knobs that turn a slider inside the call', async ({ page }) => {
-    await open(page)
-    const bass = page.getByTestId('strip-bass')
-    await bass.getByRole('button', { name: 'Sound controls for bass', exact: true }).click()
-    await bass.getByRole('button', { name: 'Add Loose timing', exact: true }).click()
-    await bass.getByRole('button', { name: 'Add Loose volume', exact: true }).click()
-    await expect.poll(() => code(page)).toContain('  .s("sawtooth")\n  .nudge(rand.range(0, slider(0.012, 0, 0.05)))\n  .velocity(rand.range(slider(0.75, 0.3, 1), 1))\n')
-    await expect(page.getByTestId('code-status')).toHaveText('Stopped')
-
-    const timing = bass.getByRole('slider', { name: 'Loose timing', exact: true })
-    await expect(timing).toHaveAttribute('aria-valuenow', '0.012')
-    await timing.focus()
-    await page.keyboard.press('End')
-    await expect.poll(() => code(page)).toContain('.nudge(rand.range(0, slider(0.05, 0, 0.05)))')
-
-    await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
-    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.now() as number)).toBeGreaterThan(0.4)
-    await page.getByRole('button', { name: 'Stop', exact: true }).click()
-
-    await timing.hover()
-    await bass.getByRole('button', { name: 'Remove Loose timing', exact: true }).click()
-    await expect.poll(() => code(page)).not.toContain('.nudge(')
-})

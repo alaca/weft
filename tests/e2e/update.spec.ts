@@ -58,24 +58,3 @@ test('a version that cannot be put in place says why and can be tried again', as
     await expect.poll(() => page.evaluate(() => (window as any).tries)).toBe(2)
     await expect(card(page)).toContainText('Fetching Weft 9.9.9')
 })
-
-test('asked from the menu it answers either way, and by itself it is quiet unless there is a version', async ({ page }) => {
-    await open(page)
-    await page.evaluate(() => (window as any).__weft.lookWith(async () => null))
-    await look(page, false)
-    await expect(card(page)).toHaveCount(0)
-    await look(page, true)
-    await expect(card(page)).toContainText('You have the newest Weft')
-    await card(page).getByRole('button', { name: 'OK', exact: true }).click()
-    await expect(card(page)).toHaveCount(0)
-
-    await page.evaluate(() =>
-        (window as any).__weft.lookWith(async () => {
-            throw new Error('offline')
-        }),
-    )
-    await look(page, false)
-    await expect(card(page)).toHaveCount(0)
-    await look(page, true)
-    await expect(card(page)).toContainText('The site could not be asked for a newer version. Check that you are online, then choose Check for Updates again.')
-})

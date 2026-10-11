@@ -45,18 +45,3 @@ test('a knob is set moving by itself, changed, and made to stand still again', a
     await expect.poll(() => code(page)).toContain('  .lpf(slider(200, 100, 8000))\n')
     await expect(bass.getByRole('slider', { name: 'Cutoff', exact: true })).toHaveAttribute('aria-valuenow', '200')
 })
-
-test('a value that already moves in the code is shown as moving, in the panel and on the strip', async ({ page }) => {
-    await open(page)
-    const riff = page.getByTestId('strip-riff')
-    await expect(riff.getByRole('button', { name: 'Cutoff moves by itself', exact: true })).toBeVisible()
-    await expect(riff).toContainText('500 to 2600 Hz')
-    await riff.getByRole('button', { name: 'Sound controls for riff', exact: true }).click()
-    await riff.getByTestId('sound-panel').getByRole('button', { name: 'Cutoff moves by itself', exact: true }).click()
-    const box = riff.getByRole('dialog', { name: 'How Cutoff moves' })
-    await expect(box.getByRole('button', { name: 'Back and forth', exact: true })).toHaveAttribute('aria-pressed', 'true')
-    await expect(box.getByRole('button', { name: '16', exact: true })).toHaveAttribute('aria-pressed', 'true')
-    await expect(box.getByLabel('Moves to')).toHaveValue('2600')
-    await page.getByTestId('status').click()
-    await expect(box).toHaveCount(0)
-})

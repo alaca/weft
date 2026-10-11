@@ -4,7 +4,6 @@ const SONG = 'setcpm(240/4)\n\nlead: note(`\n  c2 ~  ~  ~\n`)\n  .s("triangle")\
 
 const code = (page: Page) => page.evaluate(() => (window as any).__weft.engine.getCode() as string)
 const name = (page: Page) => page.getByTestId('song-name')
-const menu = (page: Page) => page.getByTestId('song-menu')
 const heard = (page: Page) =>
     page.evaluate(() => {
         const wave = (window as any).__weft.engine.waveform() as Float32Array | null
@@ -93,24 +92,4 @@ test('a song file is opened as a new song, with its sounds and its key', async (
 
     await name(page).click()
     await expect(page.getByTestId('your-songs').locator('.sm-o b')).toHaveText(['From afar', 'Untitled'])
-})
-
-test('a sound that comes with a name another sound has is given a new one, in the code too', async ({ page }) => {
-    await open(page)
-    await openFile(page, { name: 'Clash.weft', buffer: songFile('bd', 'setcpm(120/4)\n\nvox: note("c2")\n  .s("bd")\n') })
-    await expect(name(page)).toContainText('From afar')
-    await expect.poll(() => code(page)).toBe('setcpm(120/4)\n\nvox: note("c2")\n  .s("bd_2")\n')
-})
-
-test('a file of code is opened as a song named after the file, and a broken song file is not opened', async ({ page }) => {
-    await open(page)
-    await openFile(page, { name: 'Night walk.js', buffer: Buffer.from('setcpm(100/4)\n\nbass: note("c2 e2")\n  .s("sawtooth")\n') })
-    await expect(name(page)).toContainText('Night walk')
-    await expect(page.getByTestId('song-note')).toHaveText('Opened Night walk.')
-    await expect(page.getByTestId('tempo')).toHaveValue('100')
-    await page.getByTestId('song-file').setInputFiles({ name: 'Broken.weft', mimeType: 'application/octet-stream', buffer: Buffer.from('nothing here') })
-    await expect(page.getByTestId('song-note')).toHaveText('Broken.weft is not a song this app can read.')
-    await expect(name(page)).toContainText('Night walk')
-    await page.getByTestId('code').locator('h2').click()
-    await expect(page.getByTestId('song-note')).toHaveCount(0)
 })

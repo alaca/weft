@@ -28,7 +28,7 @@ The dev server also starts the relay that jams go through and the site that song
 ## Test it
 
     npm test             # unit tests
-    npm run test:e2e     # browser tests, in Chromium and in WebKit (what the macOS window uses)
+    npm run test:e2e     # browser tests, in WebKit (what the macOS window uses)
     npm run typecheck
 
 ## The site and the relay

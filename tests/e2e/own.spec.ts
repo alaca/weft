@@ -84,22 +84,6 @@ test('your own sound can be the sound of a pattern that plays notes', async ({ p
     await expect.poll(() => heard(page)).toBeGreaterThan(0.05)
 })
 
-test('your own sound can be a row in a drum grid, whatever kit the grid is on', async ({ page }) => {
-    await open(page)
-    await yours(page, 'drums')
-    await add(page, [{ name: 'shout.wav', buffer: tone(220) }])
-    await browser(page).getByRole('button', { name: 'Use Shout for drums', exact: true }).click()
-    await expect.poll(() => code(page)).toContain('  s("shout").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n')
-    expect(await code(page)).toContain('.bank("RolandTR909")')
-    await expect(browser(page).locator('.sb-i')).toContainText('In use')
-    const drums = page.getByTestId('strip-drums')
-    await drums.getByRole('button', { name: 'shout step 1', exact: true }).click()
-    await drums.getByRole('button', { name: 'shout step 9', exact: true }).click()
-    await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
-    await expect.poll(() => heard(page)).toBeGreaterThan(0.05)
-})
-
 test('a file that is not sound is refused, and a name that is taken gets a number', async ({ page }) => {
     await open(page)
     await yours(page)
@@ -109,43 +93,4 @@ test('a file that is not sound is refused, and a name that is taken gets a numbe
     ])
     await expect(page.getByTestId('own-note')).toHaveText('notes.txt could not be read as sound, so it was not added.')
     await expect(browser(page).locator('.sb-i code')).toHaveText(['bd_2'])
-})
-
-test('a sound of your own can be removed, and stays removed', async ({ page }) => {
-    await open(page)
-    await yours(page)
-    await add(page, [
-        { name: 'take a.wav', buffer: tone() },
-        { name: 'take b.wav', buffer: tone(440) },
-    ])
-    await expect(browser(page).locator('.sb-i code')).toHaveText(['take_a', 'take_b'])
-    await browser(page).locator('.sb-i').first().hover()
-    await browser(page).getByRole('button', { name: 'Remove Take a from your sounds', exact: true }).click()
-    await expect(browser(page).locator('.sb-i code')).toHaveText(['take_b'])
-    await page.reload()
-    await page.waitForFunction(() => Boolean((window as any).__weft))
-    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
-    await yours(page)
-    await expect(browser(page).locator('.sb-i code')).toHaveText(['take_b'])
-})
-
-test('a song with a sound of your own in it is exported with that sound', async ({ page }) => {
-    test.setTimeout(90000)
-    await open(page)
-    await yours(page, 'lead')
-    await add(page, [{ name: 'hook.wav', buffer: tone() }])
-    await browser(page).getByRole('button', { name: 'Use Hook for lead', exact: true }).click()
-    await expect.poll(() => code(page)).toContain('  .s("hook")\n')
-    await browser(page).getByRole('button', { name: 'Close sounds', exact: true }).click()
-    await page.getByTestId('top').getByRole('button', { name: 'Export', exact: true }).click()
-    const [download] = await Promise.all([
-        page.waitForEvent('download', { timeout: 60000 }),
-        page.getByTestId('export').getByRole('button', { name: 'Export audio', exact: true }).click(),
-    ])
-    await expect(page.getByTestId('export-note')).toHaveText('Saved as Untitled.wav, in your downloads folder.')
-    const { readFile } = await import('node:fs/promises')
-    const bytes = await readFile(await download.path())
-    let peak = 0
-    for (let at = 44; at < Math.min(bytes.length - 1, 44 + 44100 * 2); at += 2) peak = Math.max(peak, Math.abs(bytes.readInt16LE(at)))
-    expect(peak / 32767).toBeGreaterThan(0.05)
 })

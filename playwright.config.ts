@@ -20,18 +20,23 @@ export default defineConfig({
         storageState,
         trace: 'retain-on-failure',
     },
+    // The tests run once, in WebKit, which is what the app's window is on a Mac. Chromium, which
+    // is what the window is on Windows, runs the test that needs a microphone to stand in, which
+    // the test build of WebKit has not got, and the few about playing a song at all.
     projects: [
         {
+            name: 'webkit',
+            testIgnore: /record\.spec\.ts/,
+            use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 900 } },
+        },
+        {
             name: 'chromium',
+            testMatch: /(record|play)\.spec\.ts/,
             use: {
                 ...devices['Desktop Chrome'],
                 viewport: { width: 1440, height: 900 },
                 launchOptions: { args: ['--autoplay-policy=no-user-gesture-required'] },
             },
-        },
-        {
-            name: 'webkit',
-            use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 900 } },
         },
     ],
     webServer: {

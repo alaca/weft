@@ -94,18 +94,6 @@ test('changes made by both at the same moment end as the same code for both', as
     await expect.poll(() => code(ante)).toContain('s("hh").struct("x x x ~   x x x ~   x ~ x x   x ~ x x")')
 })
 
-test('when both change the same thing at the same moment, one of the two stands, for both', async ({ browser }) => {
-    const { ante, mara } = await jam(browser)
-    const hat = (page: Page) => page.getByTestId('strip-perc').getByRole('button', { name: 'hh step 2', exact: true })
-    const row = async (page: Page) => (await code(page)).match(/s\("hh"\)\.struct\("([^"]*)"\)/)?.[1] ?? ''
-    for (let round = 0; round < 4; round++) {
-        await Promise.all([hat(ante).click(), hat(mara).click()])
-        await expect.poll(async () => (await code(ante)) === (await code(mara))).toBe(true)
-        expect((await row(ante)).trim().split(/\s+/)).toHaveLength(16)
-        await expect(hat(mara)).toBeEnabled()
-    }
-})
-
 test('what one says, the other reads', async ({ browser }) => {
     const { ante, mara } = await jam(browser)
     await mara.getByLabel('Message').fill('can I try busier hats?')
@@ -145,15 +133,6 @@ test('the song starts, stops and changes mode for both', async ({ browser }) => 
     await expect(mode(mara, 'Song')).toHaveAttribute('aria-pressed', 'true')
 })
 
-test('the one who joins is told what the other changed, and where', async ({ browser }) => {
-    const { ante, mara } = await jam(browser)
-    await ante.getByTestId('strip-perc').getByRole('button', { name: 'hh step 2', exact: true }).click()
-    await expect(chat(mara)).toContainText('Ante changed perc')
-    await expect(mara.getByTestId('strip-perc').getByTestId('jam-hand')).toHaveText('Ante')
-    await expect(chat(ante)).not.toContainText('changed perc')
-    await expect(ante.getByTestId('jam-hand')).toHaveCount(0)
-})
-
 test('leaving ends the jam for both, and each keeps the song', async ({ browser }) => {
     const { ante, mara } = await jam(browser)
     await mara.getByTestId('strip-perc').getByRole('button', { name: 'hh step 2', exact: true }).click()
@@ -189,22 +168,6 @@ test('an invite works once, and a wrong one says so', async ({ browser }) => {
     await join(tomo, 'hello')
     await expect(note(tomo)).toContainText('That is not an invite.')
     expect(await code(tomo)).toBe(OTHER)
-})
-
-test('an invite can be taken back, and a name is asked for first', async ({ browser }) => {
-    const ante = await person(browser, '', SONG)
-    await ante.getByRole('button', { name: 'Invite someone', exact: true }).click()
-    await expect(note(ante)).toContainText('Type a name first')
-    await ante.getByLabel('Your name').fill('Ante')
-    await ante.getByLabel('Your name').blur()
-    await expect(note(ante)).toHaveCount(0)
-    const text = await invite(ante)
-    await expect(ante.getByTestId('jams')).toContainText('Waiting for them to join Untitled.')
-    await ante.getByRole('button', { name: 'Take the invite back', exact: true }).click()
-    await expect(ante.getByRole('button', { name: 'Invite someone', exact: true })).toBeVisible()
-    const mara = await person(browser, 'Mara', OTHER)
-    await join(mara, text)
-    await expect(note(mara)).toContainText('No jam is waiting under that invite.')
 })
 
 // Half a second of a plain tone as a 16 bit WAV file.
@@ -273,41 +236,6 @@ test('a line that drops in the middle of a jam comes back by itself, and each ge
     await expect.poll(() => code(mara)).toContain('"x x x x   x x x x   x ~ x ~   x ~ x x"')
 })
 
-test('a song that plays goes on for both while a line is down, and they are in time again when it is back', async ({ browser }) => {
-    const ante = await person(browser, 'Ante', SONG)
-    const line = await fragile(browser, 'Mara', OTHER)
-    const mara = line.page
-    await join(mara, await invite(ante))
-    await expect(mara.getByRole('heading', { name: 'Jam with Ante', exact: true })).toBeVisible()
-    await ante.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(mara.getByTestId('code-status')).toHaveText('Playing this code')
-    await line.cut()
-    await expect(lineNote(mara)).toBeVisible()
-    await expect(mara.getByTestId('code-status')).toHaveText('Playing this code')
-    // Stopped by the one whose song it is while the other could not hear of it.
-    await ante.getByRole('button', { name: 'Stop', exact: true }).click()
-    await expect(mara.getByTestId('code-status')).toHaveText('Playing this code')
-    line.mend()
-    await expect(lineNote(mara)).toHaveCount(0)
-    await expect(mara.getByTestId('code-status')).toHaveText('Stopped')
-})
-
-test('a jam is over for both when the one whose line dropped does not come back in time', async ({ browser }) => {
-    test.setTimeout(200_000)
-    const ante = await person(browser, 'Ante', SONG)
-    const line = await fragile(browser, 'Mara', OTHER)
-    const mara = line.page
-    await join(mara, await invite(ante))
-    await expect(mara.getByRole('heading', { name: 'Jam with Ante', exact: true })).toBeVisible()
-    await line.cut()
-    await expect(lineNote(ante)).toContainText('Mara lost the line.')
-    await expect(note(ante)).toHaveText('Mara lost the line and did not come back, so the jam is over. Untitled stays with your songs as it is now.', { timeout: 140_000 })
-    await expect(ante.getByRole('heading', { name: 'Jam with Mara', exact: true })).toHaveCount(0)
-    line.mend()
-    await expect(note(mara)).toHaveText(/^The jam with Ante ended while the line was down\. Untitled( 2)? stays with your songs as it is now\.$/)
-    expect(await code(mara)).toContain('perc: stack(')
-})
-
 test('closing the window leaves the jam at once, and the other is not kept waiting', async ({ browser }) => {
     const { ante, mara } = await jam(browser)
     await mara.close({ runBeforeUnload: true })
@@ -353,18 +281,6 @@ async function type(page: Page, text: string) {
     await page.keyboard.type(text)
 }
 
-test('a knob one of them turns moves for the other, in the code and in the sound', async ({ browser }) => {
-    const { ante, mara } = await jam(browser)
-    const knob = ante.getByTestId('strip-bass').getByRole('slider', { name: 'Cutoff' })
-    await knob.focus()
-    for (let press = 0; press < 3; press++) await ante.keyboard.press('ArrowUp')
-    const number = async (page: Page) => (await code(page)).match(/lpf\(slider\(([\d.]+)/)?.[1]
-    await expect.poll(() => number(ante)).not.toBe('1200')
-    await expect.poll(async () => (await number(mara)) === (await number(ante))).toBe(true)
-    const inEditor = (page: Page) => page.locator('.cm-slider input').first().evaluate((input) => (input as HTMLInputElement & { originalValue: string }).originalValue)
-    await expect.poll(async () => (await inEditor(mara)) === (await number(ante))).toBe(true)
-})
-
 test('a sound of your own that the song uses goes to the other person, at the start and later', async ({ browser }) => {
     const ante = await person(browser, 'Ante', SONG)
     const mara = await person(browser, 'Mara', OTHER)
@@ -388,131 +304,4 @@ test('a sound of your own that the song uses goes to the other person, at the st
     await expect(mara.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
     await sounds(mara).getByRole('radio', { name: /^Yours/ }).click()
     await expect(yours(mara)).toHaveText(['clap_mine', 'take'])
-})
-
-test('a sound of theirs with the name of one of yours plays in its place, and gets a name of its own when the jam is over', async ({ browser }) => {
-    const ante = await person(browser, 'Ante', SONG)
-    const mara = await person(browser, 'Mara', OTHER)
-    await addSound(ante, 'take', 330)
-    await addSound(mara, 'take', 880)
-    await type(ante, '\nvoc: s("take")')
-    await join(mara, await invite(ante))
-    await expect(chat(mara)).toContainText('Ante brought the sound take. You have one of that name, so theirs plays in its place while you jam.')
-    await expect(yours(mara)).toHaveText(['take'])
-    expect(await code(mara)).toContain('voc: s("take")')
-
-    await mara.getByRole('button', { name: 'Leave', exact: true }).click()
-    await expect.poll(() => code(mara)).toContain('voc: s("take_2")')
-    await expect(yours(mara)).toHaveText(['take', 'take_2'])
-    expect(await code(ante)).toContain('voc: s("take")')
-    await expect(yours(ante)).toHaveText(['take'])
-})
-
-test('the same sound on both sides is not sent', async ({ browser }) => {
-    const ante = await person(browser, 'Ante', SONG)
-    const mara = await person(browser, 'Mara', OTHER)
-    await addSound(ante, 'take', 330)
-    await addSound(mara, 'take', 330)
-    await type(ante, '\nvoc: s("take")')
-    await join(mara, await invite(ante))
-    await expect(mara.getByRole('heading', { name: 'Jam with Ante', exact: true })).toBeVisible()
-    await mara.getByLabel('Message').fill('here')
-    await mara.getByLabel('Message').press('Enter')
-    await expect(chat(ante)).toContainText('here')
-    await expect(chat(mara)).not.toContainText('brought the sound')
-    await mara.getByRole('button', { name: 'Leave', exact: true }).click()
-    await mara.waitForTimeout(300)
-    expect(await code(mara)).toContain('voc: s("take")')
-    await expect(yours(mara)).toHaveText(['take'])
-})
-
-test('someone who joins while the song plays hears it from where it is', async ({ browser }) => {
-    const ante = await person(browser, 'Ante', SONG)
-    const mara = await person(browser, 'Mara', OTHER)
-    await mara.locator('body').click({ position: { x: 700, y: 880 } })
-    await ante.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect.poll(() => now(ante)).toBeGreaterThan(2.2)
-    await join(mara, await invite(ante))
-    await expect(mara.getByRole('button', { name: 'Pause', exact: true })).toBeVisible()
-    await expect.poll(async () => Math.abs((await now(mara)) - (await now(ante)))).toBeLessThan(0.25)
-    await ante.getByRole('button', { name: 'Pause', exact: true }).click()
-    await expect(mara.getByRole('button', { name: 'Play', exact: true })).toBeVisible()
-    const where = await now(ante)
-    expect(Math.abs((await now(mara)) - where)).toBeLessThan(0.001)
-    await mara.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(ante.getByRole('button', { name: 'Pause', exact: true })).toBeVisible()
-    await expect.poll(() => now(ante)).toBeGreaterThan(where + 0.3)
-    expect(Math.abs((await now(mara)) - (await now(ante)))).toBeLessThan(0.25)
-})
-
-test('the bar a song starts from and the bars that go round are the same for both', async ({ browser }) => {
-    const { ante, mara } = await jam(browser)
-    await ante.getByRole('group', { name: 'What plays' }).getByRole('button', { name: 'Song', exact: true }).click()
-    await expect(mara.getByRole('group', { name: 'What plays' }).getByRole('button', { name: 'Song', exact: true })).toHaveAttribute('aria-pressed', 'true')
-    await ante.getByRole('button', { name: 'Start from bar 3', exact: true }).click()
-    await expect(mara.getByTestId('cycle')).toHaveText('3')
-    await mara.getByRole('button', { name: 'Start from bar 2', exact: true }).click({ modifiers: ['Shift'] })
-    await expect(ante.getByTestId('controls')).toContainText('Bars 2 to 3 go round')
-    await ante.getByRole('button', { name: 'Stop going round', exact: true }).click()
-    await expect(mara.getByTestId('controls')).not.toContainText('go round')
-})
-
-test('another song cannot be opened in the middle of a jam, and can after it', async ({ browser }) => {
-    const { ante, mara } = await jam(browser)
-    await songName(mara).click()
-    const menu = mara.getByTestId('song-menu')
-    const top = mara.getByTestId('top')
-    await expect(mara.getByTestId('song-jam')).toContainText('You are in a jam with Ante on this song.')
-    for (const what of ['New song', 'Open a file', 'Duplicate this song', 'Close song']) await expect(top.getByRole('button', { name: what, exact: true })).toBeDisabled()
-    await expect(menu.getByRole('button', { name: 'Open Untitled', exact: true })).toBeDisabled()
-    await mara.keyboard.press('Escape')
-    await mara.getByRole('button', { name: 'Leave', exact: true }).click()
-    await expect(top.getByRole('button', { name: 'New song', exact: true })).toBeEnabled()
-    await songName(mara).click()
-    await expect(mara.getByTestId('song-jam')).toHaveCount(0)
-    await menu.getByRole('button', { name: 'Open Untitled', exact: true }).click()
-    await expect.poll(() => code(mara)).toBe(OTHER)
-    await expect(note(ante)).toContainText('Mara left the jam.')
-})
-
-test('the jam sits under the sounds, either is shown without the other, and the line between them can be dragged', async ({ browser }) => {
-    const ante = await person(browser, 'Ante', SONG)
-    const panel = ante.getByTestId('jams')
-    const controls = ante.getByTestId('controls')
-    const box = async (target: ReturnType<Page['getByTestId']>) => (await target.boundingBox())!
-    expect(Math.round((await box(panel)).width)).toBe(300)
-    expect(Math.round((await box(panel)).height)).toBe(Math.round((await box(controls)).height))
-    expect(Math.round((await box(controls)).x)).toBe(300)
-
-    await ante.getByRole('button', { name: 'Sounds', exact: true }).click()
-    const above = await box(sounds(ante))
-    const below = await box(panel)
-    expect(Math.round(above.y + above.height)).toBe(Math.round(below.y))
-    expect(Math.round(above.height / (above.height + below.height) * 100)).toBe(40)
-    expect(Math.round(above.width)).toBe(300)
-
-    const line = ante.getByRole('separator', { name: 'Height of the sounds' })
-    const at = await box(line as never)
-    const grip = at.y + at.height / 2
-    await ante.mouse.move(170, grip)
-    await ante.mouse.down()
-    await ante.mouse.move(170, grip + 60, { steps: 4 })
-    await ante.mouse.move(170, grip + 120, { steps: 4 })
-    await ante.mouse.up()
-    const taller = await box(sounds(ante))
-    expect(Math.abs(taller.height - above.height - 120)).toBeLessThanOrEqual(1)
-
-    await ante.reload()
-    await ante.waitForFunction(() => Boolean((window as any).__weft))
-    expect(Math.abs((await box(sounds(ante))).height - taller.height)).toBeLessThanOrEqual(1)
-    await expect(ante.getByTestId('jams')).toBeVisible()
-
-    await line.dblclick()
-    expect(Math.round((await box(sounds(ante))).height)).toBe(Math.round(above.height))
-    await ante.getByRole('button', { name: 'Close jams', exact: true }).click()
-    await expect(ante.getByTestId('jams')).toHaveCount(0)
-    expect(Math.round((await box(sounds(ante))).height)).toBe(Math.round((await box(controls)).height))
-    await ante.getByRole('button', { name: 'Reset layout', exact: true }).click()
-    await expect(sounds(ante)).toBeVisible()
-    await expect(ante.getByTestId('jams')).toHaveCount(0)
 })

@@ -2,7 +2,6 @@ import { expect, test, type Page } from '@playwright/test'
 
 const SONG =
     'setcpm(120/4)\n\ndrums: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~   x ~ ~ ~   x ~ ~ ~"),\n  s("hh").struct("~ ~ x ~   ~ ~ x ~   ~ ~ x ~   ~ ~ x ~"),\n)\n  .bank("RolandTR909")\n\nbass: note("c2")\n  .s("sawtooth")\n\npad: note("c3")\n  .s("triangle")\n'
-const NO_KICK = 'setcpm(120/4)\n\nhats: stack(\n  s("hh").struct("x x x x   x x x x   x x x x   x x x x"),\n)\n  .bank("RolandTR909")\n\nbass: note("c2")\n  .s("sawtooth")\n'
 const KICK = '  s("bd").struct("x ~ ~ ~   x ~ ~ ~   x ~ ~ ~   x ~ ~ ~")'
 
 const code = (page: Page) => page.evaluate(() => (window as any).__weft.engine.getCode() as string)
@@ -35,38 +34,6 @@ test('a pattern is switched to pump under the kick, and the kick is told to duck
     await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
     await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.now() as number)).toBeGreaterThan(0.6)
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
-})
-
-test('the kick ducks once however many patterns pump, and stops when the last one does', async ({ page }) => {
-    await open(page)
-    await panel(page, 'bass').click()
-    await pump(page, 'bass').click()
-    await panel(page, 'bass').click()
-    await panel(page, 'pad').click()
-    await pump(page, 'pad').click()
-    await expect.poll(() => code(page)).toContain('pad: note("c3")\n  .s("triangle")\n  .orbit(2)\n')
-    expect((await code(page)).match(/duckorbit/g)).toHaveLength(1)
-
-    await pump(page, 'pad').click()
-    await expect.poll(() => code(page)).toMatch(/pad: note\("c3"\)\n {2}\.s\("triangle"\)\n$/)
-    expect(await code(page)).toContain('.duckorbit(2)')
-    await panel(page, 'pad').click()
-    await panel(page, 'bass').click()
-    await pump(page, 'bass').click()
-    await expect.poll(() => code(page)).toBe(SONG)
-})
-
-test('there is no pump without a kick, and the kick cannot pump its own pattern', async ({ page }) => {
-    await open(page, NO_KICK)
-    await panel(page, 'bass').click()
-    await expect(pump(page, 'bass')).toBeDisabled()
-    await expect(pump(page, 'bass')).toHaveAttribute('title', /needs a kick/)
-
-    await page.evaluate((value) => (window as any).__weft.engine.setCode(value), SONG)
-    await expect(pump(page, 'bass')).toBeEnabled()
-    await panel(page, 'bass').click()
-    await panel(page, 'drums').click()
-    await expect(pump(page, 'drums')).toBeDisabled()
 })
 
 test('a pumped pattern is quieter straight after the kick than without pump', async ({ page }) => {

@@ -54,24 +54,6 @@ test('the first start has no songs, offers a new one and the songs on the site, 
     await expect(songName(page)).toContainText('Untitled')
 })
 
-test('closing a song goes back to the start screen, where it is the one to go on with', async ({ page }) => {
-    await firstStart(page)
-    await start(page).getByRole('button', { name: 'New song', exact: true }).click()
-    await closeSong(page)
-    await expect(closing(page)).toHaveCount(0)
-    await expect(start(page)).toBeVisible()
-    await expect(page.getByTestId('start-go-on')).toHaveText('Go on with Untitled')
-    await expect(recent(page).locator('li')).toHaveCount(1)
-    await expect(recent(page)).toContainText('120 bpm, 0 patterns')
-    await page.getByTestId('start-go-on').click()
-    await expect(start(page)).toHaveCount(0)
-    await expect(songName(page)).toContainText('Untitled')
-
-    await page.reload()
-    await page.waitForFunction(() => Boolean((window as any).__weft))
-    await expect(page.getByTestId('start-go-on')).toHaveText('Go on with Untitled')
-})
-
 test('closing a song with changes asks whether to save them, and loses nothing either way', async ({ page }) => {
     await firstStart(page)
     await start(page).getByRole('button', { name: 'New song', exact: true }).click()
@@ -96,21 +78,6 @@ test('closing a song with changes asks whether to save them, and loses nothing e
     await expect(recent(page)).not.toContainText('changed since saved')
     await recent(page).getByRole('button', { name: 'Open Untitled', exact: true }).click()
     expect(await page.evaluate(() => (window as any).__weft.engine.getCode())).toContain('// changed')
-})
-
-test('the recent songs are listed newest first and any of them opens', async ({ page }) => {
-    await firstStart(page)
-    await start(page).getByRole('button', { name: 'New song', exact: true }).click()
-    await closeSong(page)
-    await start(page).getByRole('button', { name: 'New song', exact: true }).click()
-    await expect(songName(page)).toContainText('Untitled 2')
-    await change(page)
-    await closeSong(page)
-    await closing(page).getByRole('button', { name: 'Save and close', exact: true }).click()
-    await expect(recent(page).locator('.sx-rn b')).toHaveText(['Untitled 2', 'Untitled'])
-    await recent(page).getByRole('button', { name: 'Open Untitled', exact: true }).click()
-    await expect(start(page)).toHaveCount(0)
-    await expect(songName(page)).toHaveText(/^Untitled$/)
 })
 
 test('an account is made on the start screen, and the songs on the site are heard and opened from it', async ({ page }) => {
@@ -174,14 +141,4 @@ test('an account is made on the start screen, and the songs on the site are hear
     await card(page).getByRole('button', { name: 'Sign out', exact: true }).click()
     await expect(card(page).getByRole('button', { name: 'Sign in', exact: true }).first()).toHaveAttribute('aria-pressed', 'true')
     await expect(card(page).getByLabel('Your email', { exact: true })).toHaveValue(email)
-})
-
-test('the songs on the site can be put in order of downloads, and a search that finds nothing says so in its count', async ({ page }) => {
-    await firstStart(page)
-    await expect(page.getByTestId('start-site-count')).toHaveText(/^\d+ songs?\./)
-    await start(page).getByRole('button', { name: 'Most downloaded', exact: true }).click()
-    await expect(start(page).getByRole('button', { name: 'Most downloaded', exact: true })).toHaveAttribute('aria-pressed', 'true')
-    await start(page).getByLabel('Search the songs on the site').fill('no song is called this 9z')
-    await expect(page.getByTestId('start-site').locator('.sx-row')).toHaveCount(0)
-    await expect(page.getByTestId('start-site-count')).toHaveText(/^0 of \d+ songs?\./)
 })

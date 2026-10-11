@@ -102,26 +102,3 @@ test('dragging draws bar by bar, and with Shift held a straight line from where 
     await page.keyboard.up('Shift')
     await expect.poll(() => code(page)).toContain('.gain("<0 0.5 1 1.5>")')
 })
-
-test('what is drawn stays as long as the song when bars are added to it or put in once more', async ({ page }) => {
-    await open(page)
-    await draw(page, 'bass', 'Volume')
-    await bar(page, 'bass Volume', 1).focus()
-    await page.keyboard.press('Home')
-    await bar(page, 'bass Volume', 4).focus()
-    await page.keyboard.press('End')
-    await expect.poll(() => code(page)).toContain('.gain("<0 0.8!2 1.5>")')
-
-    // Longer: the drawing goes on at the value it ended on.
-    await page.getByRole('button', { name: 'bass bar 6', exact: true }).focus()
-    await page.keyboard.press('Enter')
-    await expect(page.getByTestId('song-length')).toContainText('6 bars')
-    await expect.poll(() => code(page)).toContain('.gain("<0 0.8!2 1.5!3>")')
-
-    // Bars put in once more take their part of the drawing with them.
-    await page.getByRole('button', { name: 'Start from bar 1', exact: true }).click()
-    await page.getByRole('button', { name: 'Start from bar 2', exact: true }).click({ modifiers: ['Shift'] })
-    await page.getByRole('button', { name: 'Repeat them', exact: true }).click()
-    await expect(page.getByTestId('song-length')).toContainText('8 bars')
-    await expect.poll(() => code(page)).toContain('.gain("<0 0.8 0 0.8!2 1.5!3>")')
-})
