@@ -1,11 +1,12 @@
 import { batch, createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { clearLoop, colorAt, drawControl, eventsOf, inStep, loopBetween, patternText, removeLoop, repeatLoop, select, setBars, setCurve, setMix, setMotion, songLengthNow, spaceLoop, startFrom, takeKnobs, toggleBar, toggleMute, toggleSolo } from '../app/controller'
+import { chooseScene, clearLoop, codeNow, colorAt, drawControl, eventsOf, inStep, keepSceneNow, loopBetween, nameScene, patternText, removeLoop, removeScene, repeatLoop, scenesOf, select, setBars, setCurve, setMix, setMotion, songLengthNow, spaceLoop, startFrom, takeKnobs, toggleBar, toggleMute, toggleSolo } from '../app/controller'
 import { fromUnit, toUnit } from '../controls/catalog'
 import { drawableIn, drawnIn, panOf, volumeOf, type ControlView } from '../controls/views'
 import { barsOf, clips, paint, type Clip } from '../song/arrange'
 import { MAX_BARS } from '../song/bars'
 import type { PatternEvent } from '../song/types'
-import { bpm, cycle, engineState, loopBars, playMode, position, revision, soloIds, song, stale, startBar, takingKnobs } from '../stores/song'
+import { sceneIsOn, SCENE_NAME_LIMIT } from '../song/scenes'
+import { bpm, cycle, engineState, loopBars, playMode, position, revision, sceneWaiting, soloIds, song, stale, startBar, takingKnobs } from '../stores/song'
 import { Knob } from './Knob'
 
 // A clip shows what its pattern plays, bar by bar. The pattern is asked for no more bars than
@@ -453,6 +454,73 @@ function Lanes(props: { id: string; index: number; view: View }) {
     )
 }
 
+// The scenes of the song as a row of switches, for playing it live: one press and the patterns
+// of that scene are the ones that play, from the next bar on. A double click on a name changes it.
+function Scenes() {
+    const scenes = createMemo(() => {
+        song()
+        return scenesOf(codeNow())
+    })
+    const [naming, setNaming] = createSignal<string | null>(null)
+    return (
+        <div class="sg-sc" data-testid="scenes">
+            <span class="cap">Scenes</span>
+            <For each={scenes().map((scene) => scene.name)}>
+                {(name) => {
+                    const scene = () => scenes().find((one) => one.name === name)
+                    const on = () => {
+                        const now = scene()
+                        return now ? sceneIsOn(song().patterns, now) : false
+                    }
+                    return (
+                        <Show
+                            when={naming() !== name}
+                            fallback={
+                                <input
+                                    class="sg-si"
+                                    aria-label={`Name of the scene ${name}`}
+                                    value={name}
+                                    maxLength={SCENE_NAME_LIMIT}
+                                    ref={(input) => queueMicrotask(() => input.select())}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Escape') setNaming(null)
+                                        if (event.key !== 'Enter') return
+                                        nameScene(name, event.currentTarget.value)
+                                        setNaming(null)
+                                    }}
+                                    onBlur={() => setNaming(null)}
+                                />
+                            }
+                        >
+                            <span class="sg-sn">
+                                <button
+                                    class="chip tgl"
+                                    classList={{ on: on(), wait: sceneWaiting() === name }}
+                                    aria-pressed={on()}
+                                    disabled={stale()}
+                                    title={sceneWaiting() === name ? 'Comes in with the next bar' : `Plays ${scene()?.on.join(', ') || 'nothing'}. Double click to change the name.`}
+                                    onClick={() => chooseScene(name)}
+                                    onDblClick={() => !stale() && setNaming(name)}
+                                >
+                                    {name}
+                                </button>
+                                <button class="rx" aria-label={`Remove the scene ${name}`} disabled={stale()} onClick={() => removeScene(name)}>
+                                    <svg viewBox="0 0 8 8">
+                                        <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
+                                    </svg>
+                                </button>
+                            </span>
+                        </Show>
+                    )
+                }}
+            </For>
+            <button class="addb" disabled={stale()} title="Keeps the patterns that play now as a scene, to come back to with one press" onClick={keepSceneNow}>
+                + Keep what plays now
+            </button>
+        </div>
+    )
+}
+
 export function SongPanel() {
     let scroller!: HTMLDivElement
     const ids = createMemo(() => [...new Set(song().patterns.map((p) => p.id))], [] as string[], { equals: sameList })
@@ -582,6 +650,9 @@ export function SongPanel() {
                     </button>
                 </div>
             </div>
+            <Show when={playMode() === 'live' && song().patterns.length > 0}>
+                <Scenes />
+            </Show>
             <div class="sg-g">
                 <div class="sg-names">
                     <div class="sg-nh" aria-hidden="true">

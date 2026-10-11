@@ -60,6 +60,8 @@ export const [patternKeys, setPatternKeys] = createSignal<Record<string, Key>>({
 export const [pianoFor, setPianoFor] = createSignal<string | null>(null)
 export const [pianoOctave, setPianoOctave] = createSignal(3)
 export const [pianoWrites, setPianoWrites] = createSignal(true)
+// The scene that was chosen while the song plays and waits for the next bar to begin.
+export const [sceneWaiting, setSceneWaiting] = createSignal<string | null>(null)
 // Whether a knob that is turned while the song plays is taken down, to be drawn over the song.
 export const [takingKnobs, setTakingKnobs] = createSignal(false)
 // Bars that go round while the song plays: from `from` up to, not including, `to`.

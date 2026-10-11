@@ -41,3 +41,50 @@ test('song plays the bars as they are filled, live plays every pattern whatever 
     await expect(page.getByTestId('code-status')).toHaveText('Stopped', { timeout: 8000 })
     await expect(page.getByTestId('cycle')).toHaveText('1')
 })
+
+test('scenes keep which patterns play, are written into the song, and one that is chosen while it plays comes in with the next bar', async ({ page }) => {
+    await page.addInitScript((value) => localStorage.setItem('weft.song', value), 'setcpm(60/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n\nbass: note("c2 e2")\n  .s("sawtooth")\n')
+    await page.goto('/')
+    await page.waitForFunction(() => Boolean((window as any).__weft))
+    const code = () => page.evaluate(() => (window as any).__weft.engine.getCode() as string)
+    await mode(page, 'Live').click()
+    const scenes = page.getByTestId('scenes')
+
+    // Everything plays: that is the first scene. Without the bass: the second.
+    await scenes.getByRole('button', { name: '+ Keep what plays now', exact: true }).click()
+    await expect.poll(code).toContain('// scene Scene 1: drums bass\n')
+    await page.getByTestId('song').getByRole('button', { name: 'Mute bass', exact: true }).click()
+    await scenes.getByRole('button', { name: '+ Keep what plays now', exact: true }).click()
+    await expect.poll(code).toContain('// scene Scene 1: drums bass\n// scene Scene 2: drums\n')
+    await expect(scenes.getByRole('button', { name: 'Scene 2', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(scenes.getByRole('button', { name: 'Scene 1', exact: true })).toHaveAttribute('aria-pressed', 'false')
+
+    // Stopped, a scene is there at once.
+    await scenes.getByRole('button', { name: 'Scene 1', exact: true }).click()
+    await expect.poll(code).toContain('\nbass: note(')
+    await expect(scenes.getByRole('button', { name: 'Scene 1', exact: true })).toHaveAttribute('aria-pressed', 'true')
+
+    // Playing, it waits for the bar to end: a bar is four seconds here.
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect.poll(async () => (await now(page)) % 1).toBeGreaterThan(0.1)
+    await expect.poll(async () => (await now(page)) % 1).toBeLessThan(0.5)
+    const bar = Math.floor(await now(page))
+    await scenes.getByRole('button', { name: 'Scene 2', exact: true }).click()
+    await expect(scenes.getByRole('button', { name: 'Scene 2', exact: true })).toHaveClass(/wait/)
+    expect(await code()).toContain('\nbass: note(')
+    await expect.poll(code, { timeout: 8000 }).toContain('\n_bass: note(')
+    expect(await now(page)).toBeGreaterThan(bar + 0.8)
+    await expect(scenes.getByRole('button', { name: 'Scene 2', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('button', { name: 'Stop', exact: true }).click()
+
+    // A scene gets a name of its own, and is taken out again.
+    await scenes.getByRole('button', { name: 'Scene 2', exact: true }).dblclick()
+    await scenes.getByLabel('Name of the scene Scene 2').fill('break')
+    await scenes.getByLabel('Name of the scene Scene 2').press('Enter')
+    await expect.poll(code).toContain('// scene break: drums\n')
+    await scenes.getByRole('button', { name: 'Scene 1', exact: true }).hover()
+    await scenes.getByRole('button', { name: 'Remove the scene Scene 1', exact: true }).click()
+    await expect.poll(code).not.toContain('Scene 1')
+    await expect(scenes.getByRole('button', { name: 'break', exact: true })).toBeVisible()
+})
+
