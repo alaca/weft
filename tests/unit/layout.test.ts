@@ -8,7 +8,7 @@ describe('readLayout', () => {
     })
 
     it('keeps what can be a layout and replaces the rest', () => {
-        expect(readLayout(JSON.stringify({ view: 'code', sounds: true, wave: false, song: 'no', soundsWidth: 301.6, codeWidth: -5 }))).toEqual({
+        expect(readLayout(JSON.stringify({ view: 'code', sounds: true, mixer: false, wave: false, song: 'no', soundsWidth: 301.6, codeWidth: -5 }))).toEqual({
             view: 'code',
             sounds: true,
             jams: false,
@@ -21,7 +21,7 @@ describe('readLayout', () => {
         })
         expect(readLayout(JSON.stringify({ jams: true, soundsShare: 0.95 }))).toMatchObject({ jams: true, soundsShare: 0.75 })
         expect(readLayout(JSON.stringify({ jams: 'yes', soundsShare: 'half' }))).toMatchObject({ jams: false, soundsShare: null })
-        expect([readLayout(JSON.stringify({ mixer: true })).mixer, readLayout(JSON.stringify({ mixer: 1 })).mixer]).toEqual([true, false])
+        expect([readLayout(JSON.stringify({ mixer: false })).mixer, readLayout(JSON.stringify({ mixer: 1 })).mixer, readLayout(JSON.stringify({ sounds: 0 })).sounds]).toEqual([false, true, true])
         expect(readLayout(JSON.stringify({ view: 'sideways' })).view).toBe('both')
     })
 })

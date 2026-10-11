@@ -175,6 +175,17 @@ export function TopBar() {
             </div>
             <div class="grow" />
             <div class="shows">
+                <button class="ib" classList={{ on: mixerOpen() }} aria-pressed={mixerOpen()} aria-label="Mixer" title={mixerOpen() ? 'Hide the mixer' : 'Show the mixer: volume, pan, tone and the meters'} onClick={toggleMixer}>
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <path class="ln" d="M4 2.5v11M8 2.5v11M12 2.5v11" />
+                        <path d="M2.4 8.6h3.2v2.4H2.4zM6.4 4.2h3.2v2.4H6.4zM10.4 9.8h3.2v2.4h-3.2z" />
+                    </svg>
+                </button>
+                <button class="ib" classList={{ on: soundsOpen() }} aria-pressed={soundsOpen()} aria-label="Sounds" title={soundsOpen() ? 'Hide the sounds' : 'Show the sounds'} onClick={toggleSounds}>
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <path class="ln" d="M2.5 8h1.4M6 4.5v7M8.6 2.5v11M11.2 5.5v5M13.6 8h.4" />
+                    </svg>
+                </button>
                 <button
                     class="ib"
                     classList={{ on: jamsOpen(), open: jamListed() }}
@@ -187,17 +198,6 @@ export function TopBar() {
                         <circle cx="5.6" cy="6" r="2.5" />
                         <circle cx="11" cy="6.6" r="2" />
                         <path d="M1.4 13c.5-2.6 2.2-3.7 4.2-3.7s3.7 1.1 4.2 3.7zM10.6 13c-.1-1.2-.5-2.2-1.2-3 2.3-.9 4.7.2 5.2 3z" />
-                    </svg>
-                </button>
-                <button class="ib" classList={{ on: soundsOpen() }} aria-pressed={soundsOpen()} aria-label="Sounds" title={soundsOpen() ? 'Hide the sounds' : 'Show the sounds'} onClick={toggleSounds}>
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                        <path class="ln" d="M2.5 8h1.4M6 4.5v7M8.6 2.5v11M11.2 5.5v5M13.6 8h.4" />
-                    </svg>
-                </button>
-                <button class="ib" classList={{ on: mixerOpen() }} aria-pressed={mixerOpen()} aria-label="Mixer" title={mixerOpen() ? 'Hide the mixer' : 'Show the mixer: volume, pan, tone and the meters'} onClick={toggleMixer}>
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                        <path class="ln" d="M4 2.5v11M8 2.5v11M12 2.5v11" />
-                        <path d="M2.4 8.6h3.2v2.4H2.4zM6.4 4.2h3.2v2.4H6.4zM10.4 9.8h3.2v2.4h-3.2z" />
                     </svg>
                 </button>
                 <button class="ib" classList={{ on: waveShown() }} aria-pressed={waveShown()} aria-label="Waveform" title={waveShown() ? 'Hide the waveform' : 'Show the waveform'} onClick={toggleWaveform}>

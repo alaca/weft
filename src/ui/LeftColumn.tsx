@@ -10,7 +10,7 @@ import { SoundBrowser } from './SoundBrowser'
 
 const STEP = 0.04
 
-// The column on the left: the sounds, the jam under them and the mixer at its foot, or any of
+// The column on the left: the mixer at its head, the sounds and the jam under it, or any of
 // them alone. With sounds and jam, the line between them is dragged up and down, the arrow keys do the same a little at a time, and a
 // double click gives the usual share back.
 export function LeftColumn() {
@@ -25,6 +25,7 @@ export function LeftColumn() {
         <Show when={soundsOpen() || jamsOpen() || mixerOpen()}>
             <div class="lc" classList={{ both: soundsOpen() && jamsOpen() }} style={{ '--sounds-share': `${share() * 100}%` }} ref={column}>
                 <Divider side="right" label="Width of the sounds" width={() => soundsWidth() ?? SOUNDS_WIDTH} onDrag={dragSounds} onUsual={() => usualWidth('sounds')} />
+                <MixerPanel />
                 <SoundBrowser />
                 <Show when={soundsOpen() && jamsOpen()}>
                     <div
@@ -60,7 +61,6 @@ export function LeftColumn() {
                     />
                 </Show>
                 <JamPanel />
-                <MixerPanel />
             </div>
         </Show>
     )

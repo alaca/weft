@@ -406,6 +406,6 @@ test('the jam sits under the sounds, either is shown without the other, and the 
     await expect(ante.getByTestId('jams')).toHaveCount(0)
     expect(Math.round((await box(sounds(ante))).height)).toBe(Math.round((await box(controls)).height))
     await ante.getByRole('button', { name: 'Reset layout', exact: true }).click()
-    await expect(sounds(ante)).toHaveCount(0)
-    expect(Math.round((await box(controls)).x)).toBe(0)
+    await expect(sounds(ante)).toBeVisible()
+    await expect(ante.getByTestId('jams')).toHaveCount(0)
 })

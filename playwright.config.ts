@@ -4,8 +4,9 @@ import { STARTER } from './tests/songs'
 // The app opens with its start screen and comes with no songs. Nearly every test is about the
 // editor, so they start as a person does who has one song and has chosen to skip the start
 // screen: the song that used to come with the app. The tests of the start screen undo this.
+// They also start with the left column put away, so that each test shows what it is about.
 const origin = 'http://localhost:5180'
-const storageState = { cookies: [], origins: [{ origin, localStorage: [{ name: 'weft.start', value: 'skip' }, { name: 'weft.song', value: STARTER }] }] }
+const storageState = { cookies: [], origins: [{ origin, localStorage: [{ name: 'weft.start', value: 'skip' }, { name: 'weft.song', value: STARTER }, { name: 'weft.layout', value: JSON.stringify({ sounds: false, mixer: false, jams: false }) }] }] }
 
 export default defineConfig({
     testDir: './tests/e2e',

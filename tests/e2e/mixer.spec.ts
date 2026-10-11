@@ -21,7 +21,7 @@ async function open(page: Page) {
     await expect(mixer(page)).toBeVisible()
 }
 
-test('the mixer is shown from the top bar, by itself or under the sounds and the jam, and is remembered', async ({ page }) => {
+test('the mixer is shown from the top bar, by itself or with the sounds, and is remembered', async ({ page }) => {
     await open(page)
     await expect(page.getByTestId('sound-browser')).toHaveCount(0)
     await page.getByTestId('top').getByRole('button', { name: 'Sounds', exact: true }).click()

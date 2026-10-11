@@ -88,12 +88,21 @@ test('a double click on a divider gives the usual width back, and the keyboard m
     expect(await width(codePane(page))).toBe(usual - 16)
 })
 
-test('reset layout puts everything back, and is only offered when something was changed', async ({ page }) => {
+test('the first start shows the mixer and the sounds, and reset layout goes back to that and is only offered when something was changed', async ({ page }) => {
+    await page.addInitScript(() => {
+        if (sessionStorage.getItem('as-new')) return
+        localStorage.removeItem('weft.layout')
+        sessionStorage.setItem('as-new', '1')
+    })
     await open(page)
     const reset = page.getByRole('button', { name: 'Reset layout', exact: true })
     await expect(reset).toHaveCount(0)
+    await expect(page.getByTestId('mixer')).toBeVisible()
+    await expect(sounds(page)).toBeVisible()
+    await expect(page.getByTestId('jams')).toHaveCount(0)
     const usual = await width(codePane(page))
-    await page.getByRole('button', { name: 'Sounds', exact: true }).click()
+    await page.getByRole('button', { name: 'Mixer', exact: true }).click()
+    await page.getByRole('button', { name: 'Jams', exact: true }).click()
     await drag(page, page.getByRole('separator', { name: 'Width of the sounds' }), 60)
     await drag(page, page.getByRole('separator', { name: 'Width of the code' }), -90)
     await page.getByRole('button', { name: 'Waveform', exact: true }).click()
@@ -106,11 +115,12 @@ test('reset layout puts everything back, and is only offered when something was 
 
     await reset.click()
     await expect(reset).toHaveCount(0)
-    await expect(sounds(page)).toHaveCount(0)
+    await expect(page.getByTestId('mixer')).toBeVisible()
+    await expect(sounds(page)).toBeVisible()
+    await expect(page.getByTestId('jams')).toHaveCount(0)
     await expect(page.getByTestId('output')).toBeVisible()
     await expect(codePane(page)).toBeVisible()
     expect(await width(codePane(page))).toBe(usual)
-    await page.getByRole('button', { name: 'Sounds', exact: true }).click()
     expect(await width(sounds(page))).toBe(340)
 })
 

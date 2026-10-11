@@ -300,7 +300,7 @@ svg.mini rect { fill: var(--h); }
 .lc { background: var(--cloth); box-shadow: inset -1px 0 0 var(--seam); }
 .lc > .sb, .lc > .jm { flex: 1 1 0; }
 .lc > .mx { flex: none; }
-.lc > .sb ~ .mx, .lc > .jm ~ .mx { border-top: 1px solid var(--seam); }
+.lc > .mx ~ .sb, .lc > .mx ~ .jm { border-top: 1px solid var(--seam); }
 .mx { position: relative; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--seam); }
 .mx .jm-h { gap: 8px; }
 .mx .chip:disabled { opacity: 0.4; cursor: default; }

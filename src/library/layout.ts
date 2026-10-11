@@ -1,11 +1,11 @@
 // How the window is laid out: which parts are shown and how wide the two side columns are.
-// Sounds are on the left with the jam and the mixer under them, the controls in the middle, the
-// code on the right. A width of null means the usual one; a width that was dragged is kept in pixels. How
+// The mixer is on the left with the sounds and the jam under it, the controls in the middle, the
+// code on the right. The mixer and the sounds are shown from the first start; the jam is not. A width of null means the usual one; a width that was dragged is kept in pixels. How
 // the left column is shared between the sounds and the jam is kept as the part the sounds take.
 export type ViewMode = 'controls' | 'both' | 'code'
 export type Layout = { view: ViewMode; sounds: boolean; jams: boolean; mixer: boolean; wave: boolean; song: boolean; soundsWidth: number | null; codeWidth: number | null; soundsShare: number | null }
 
-export const DEFAULT_LAYOUT: Layout = { view: 'both', sounds: false, jams: false, mixer: false, wave: true, song: true, soundsWidth: null, codeWidth: null, soundsShare: null }
+export const DEFAULT_LAYOUT: Layout = { view: 'both', sounds: true, jams: false, mixer: true, wave: true, song: true, soundsWidth: null, codeWidth: null, soundsShare: null }
 export const SOUNDS_SHARE = 0.4
 export const SHARE_LEAST = 0.2
 export const SHARE_MOST = 0.75
