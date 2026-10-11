@@ -1,6 +1,34 @@
-// A take from the microphone, as a file like any other audio file. The machine's own way of
-// tidying up a voice for a phone call is switched off, because it thins out singing and claps.
+// A take from the microphone, as a file like any other audio file. In the desktop app it is made
+// by the app itself, on the machine's own audio system, because what a window is let to do with a
+// microphone differs from system to system. In a browser the window's own way is used, with the
+// machine's tidying up of a voice for a phone call switched off, which thins out singing and claps.
 export type Take = { stop(): Promise<File | null>; cancel(): void }
+
+const inDesktop = () => '__TAURI_INTERNALS__' in window
+
+// What the app's own recorder says when it fails, as one of the ways a take can fail.
+function fromApp(err: unknown): TakeRefused {
+    const said = String((err as Error)?.message ?? err)
+    if (said === 'missing') return new TakeRefused('missing', said)
+    if (said === 'silent') return new TakeRefused('silent', said)
+    return new TakeRefused('other', said)
+}
+
+async function appTake(): Promise<Take> {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('start_take').catch((err) => {
+        throw fromApp(err)
+    })
+    return {
+        async stop() {
+            const bytes = await invoke<ArrayBuffer>('stop_take').catch((err) => {
+                throw fromApp(err)
+            })
+            return new File([bytes], 'recording.wav', { type: 'audio/wav' })
+        },
+        cancel: () => void invoke('stop_take').catch(() => undefined),
+    }
+}
 
 const ENDINGS: [type: string, ending: string][] = [
     ['webm', 'webm'],
@@ -12,7 +40,7 @@ const ENDINGS: [type: string, ending: string][] = [
 const endingOf = (type: string) => ENDINGS.find(([part]) => type.includes(part))?.[1] ?? 'webm'
 
 // Why a take could not be started, said so that there is something to do about it.
-export type NoTake = 'unreachable' | 'refused' | 'missing' | 'other'
+export type NoTake = 'unreachable' | 'refused' | 'silent' | 'missing' | 'other'
 
 export class TakeRefused extends Error {
     constructor(
@@ -33,6 +61,7 @@ export function whyNot(err: unknown): TakeRefused {
 }
 
 export async function startTake(): Promise<Take> {
+    if (inDesktop()) return appTake()
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new TakeRefused('unreachable', 'no way to record in this window')
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }).catch((err) => {
         throw whyNot(err)
