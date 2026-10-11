@@ -1,5 +1,6 @@
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { colorAt, dropOnPattern, duplicatePattern, eventsOf, movePattern, openSounds, removePattern, renamePattern, restsNow, select, setControl, setMix, toggleMute, togglePanel, toggleSolo } from '../app/controller'
+import { createMemo, createSignal, For, Index, onCleanup, onMount, Show } from 'solid-js'
+import { addVariantOf, colorAt, dropOnPattern, duplicatePattern, eventsOf, movePattern, openSounds, removePattern, removeVariantOf, renamePattern, restsNow, select, setControl, setMix, showVariant, songLengthNow, toggleMute, togglePanel, toggleSolo } from '../app/controller'
+import { MOST_VARIANTS, variantBars, variantName } from '../song/variants'
 import { favourites, panOf, volumeOf, type ControlView } from '../controls/views'
 import { isDrums, readKit } from '../song/kit'
 import { noteText } from '../song/notes'
@@ -175,6 +176,28 @@ export function Strip(props: { id: string }) {
                         >
                             {current().soundName ?? (takesKit(current()) ? 'Pick a kit' : 'Pick a sound')}
                         </button>
+                        <Show when={current().variants}>
+                            {(variants) => (
+                                <span class="vr" role="group" aria-label={`Versions of ${props.id}`} onClick={(event) => event.stopPropagation()}>
+                                    <Index each={variants().items}>
+                                        {(_, at) => (
+                                            <button
+                                                classList={{ on: variants().shown === at, now: engineState().playing && variantBars(current(), songLengthNow())[cycle() % songLengthNow()] === at }}
+                                                aria-label={`Version ${variantName(at)} of ${props.id}`}
+                                                aria-pressed={variants().shown === at}
+                                                title={`Version ${variantName(at)}: shown here, and what bars are filled with in the Song panel`}
+                                                onClick={() => showVariant(props.id, at)}
+                                            >
+                                                {variantName(at)}
+                                            </button>
+                                        )}
+                                    </Index>
+                                    <button aria-label={`Add a version of ${props.id}`} title="One more version, a copy of the one shown" disabled={stale() || variants().items.length >= MOST_VARIANTS} onClick={() => addVariantOf(props.id)}>
+                                        +
+                                    </button>
+                                </span>
+                            )}
+                        </Show>
                         <Show when={folded()}>
                             <MiniView view={view()} />
                         </Show>
@@ -261,6 +284,33 @@ export function Strip(props: { id: string }) {
                                     >
                                         Duplicate
                                     </button>
+                                    <Show
+                                        when={current().variants}
+                                        fallback={
+                                            <button
+                                                role="menuitem"
+                                                title="A second version of what this pattern plays, with the same sound and knobs, for another part of the song"
+                                                onClick={() => {
+                                                    setMenu(false)
+                                                    addVariantOf(props.id)
+                                                }}
+                                            >
+                                                Add a version
+                                            </button>
+                                        }
+                                    >
+                                        {(variants) => (
+                                            <button
+                                                role="menuitem"
+                                                onClick={() => {
+                                                    setMenu(false)
+                                                    removeVariantOf(props.id, variants().shown)
+                                                }}
+                                            >
+                                                Remove version {variantName(variants().shown)}
+                                            </button>
+                                        )}
+                                    </Show>
                                     <button
                                         role="menuitem"
                                         disabled={place() <= 0}

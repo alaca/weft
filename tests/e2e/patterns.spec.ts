@@ -62,3 +62,38 @@ test('a pattern is moved up and down, in the strips, the playlist and the code',
     await page.keyboard.press(`${process.platform === 'darwin' ? 'Meta' : 'Control'}+z`)
     await expect(names(page)).toHaveText(['drums', 'lead', 'bass'])
 })
+
+test('a pattern gets a second version that is changed by itself, chosen for bars in the Song panel, and plays there', async ({ page }) => {
+    await open(page)
+    const strip = page.getByTestId('strip-drums')
+    const events = (bar: number) => page.evaluate((at) => (window as any).__weft.engine.events('drums', at).length as number, bar)
+    await page.getByRole('group', { name: 'What plays' }).getByRole('button', { name: 'Song', exact: true }).click()
+    await more(page, 'drums', 'Add a version')
+    await expect.poll(() => code(page)).toContain('drums: "<0!16>".pick([\n  stack(')
+    const versions = strip.getByRole('group', { name: 'Versions of drums' })
+    await expect(versions.getByRole('button', { name: 'Version B of drums', exact: true })).toHaveAttribute('aria-pressed', 'true')
+
+    // What is clicked into the one in sight goes into that one alone.
+    await strip.getByRole('button', { name: 'bd step 9', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('  s("bd").struct("x ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n),\n  stack(\n  s("bd").struct("x ~ ~ ~   ~ ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~"),\n),\n])\n  .bank("RolandTR909")')
+    await versions.getByRole('button', { name: 'Version A of drums', exact: true }).click()
+    await expect(strip.getByRole('button', { name: 'bd step 9', exact: true })).toHaveAttribute('aria-pressed', 'false')
+    await versions.getByRole('button', { name: 'Version B of drums', exact: true }).click()
+    await expect(strip.getByRole('button', { name: 'bd step 9', exact: true })).toHaveAttribute('aria-pressed', 'true')
+
+    // A bar that is filled while B is in sight takes B, and plays what B plays.
+    const bar = (await page.getByTestId('lane-drums').getByRole('button', { name: 'drums bar 3', exact: true }).boundingBox())!
+    await page.mouse.click(bar.x + bar.width / 2, bar.y + bar.height / 2)
+    await expect.poll(() => code(page)).toContain('drums: "<0!2 1 0!13>".pick([')
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await page.getByRole('button', { name: 'Stop', exact: true }).click()
+    expect(await events(0)).toBe(1)
+    expect(await events(2)).toBe(2)
+
+    // Taken away again, the pattern is written the plain way, with what the first one plays.
+    await more(page, 'drums', 'Remove version B')
+    await expect.poll(() => code(page)).toBe(SONG)
+    await expect(versions).toHaveCount(0)
+})
+

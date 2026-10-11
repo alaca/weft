@@ -1,5 +1,5 @@
 import { parse } from 'acorn'
-import type { Arg, Call, PatternBlock, Song, Tempo } from './types'
+import type { Arg, Call, PatternBlock, Song, Tempo, Variants } from './types'
 
 type Node = { type: string; start: number; end: number; loc: { start: { line: number }; end: { line: number } }; [key: string]: any }
 
@@ -69,6 +69,40 @@ function callChain(expression: Node): Call[] {
     return calls
 }
 
+// A pattern with versions is written as a list of them, with a row in front that says which
+// version each bar takes:
+//
+//   bass: "<0!8 1!8>".pick([
+//     note(`c2 ~ c2 ~`),
+//     note(`c2 e2 g2 e2`),
+//   ])
+//     .s("sawtooth")
+//
+// Read as one, its calls are those of the version that is shown and then the ones they all
+// share, so that everything that reads and changes a pattern works on the version in sight.
+const CHOICES = /^\s*<(\s*\d+(!\d+)?)+\s*>\s*$/
+
+function versions(expression: Node, shown: number): { variants: Variants; calls: Call[] } | null {
+    let node: Node = expression
+    while (node.type === 'CallExpression' && node.callee.type === 'MemberExpression') {
+        const callee: Node = node.callee
+        const list: Node | undefined = node.arguments[0]
+        if (callee.property.type === 'Identifier' && callee.property.name === 'pick' && callee.object.type === 'Literal' && typeof callee.object.value === 'string') {
+            if (node.arguments.length !== 1 || !list || list.type !== 'ArrayExpression' || !list.elements.length || !CHOICES.test(callee.object.value)) return null
+            const items = list.elements as (Node | null)[]
+            if (items.some((item) => !item || item.type !== 'CallExpression')) return null
+            const at = Math.min(Math.max(0, shown), items.length - 1)
+            const inner = callChain(items[at] as Node)
+            if (!inner.length) return null
+            const chooser = { kind: 'string' as const, value: callee.object.value as string, from: callee.object.start, to: callee.object.end }
+            const shared = callChain(expression).slice(1)
+            return { variants: { chooser, items: (items as Node[]).map((item) => ({ from: item.start, to: item.end })), shown: at, from: callee.object.start, to: node.end }, calls: [...inner, ...shared] }
+        }
+        node = callee.object
+    }
+    return null
+}
+
 function stringArg(call: Call): string | null {
     const first = call.args[0]
     return first && first.kind === 'string' ? first.value : null
@@ -115,7 +149,8 @@ function tempoOf(body: Node[]): { tempo: Tempo | null; locked: boolean } {
     return { tempo: null, locked: false }
 }
 
-export function analyze(code: string): Song {
+// `shown` says, for the patterns that have versions, which one is in sight.
+export function analyze(code: string, shown: Record<string, number> = {}): Song {
     let ast: Node
     try {
         ast = parse(code, { ecmaVersion: 2022, allowAwaitOutsideFunction: true, locations: true }) as unknown as Node
@@ -136,9 +171,11 @@ export function analyze(code: string): Song {
         if (node.type !== 'LabeledStatement' || node.body.type !== 'ExpressionStatement') continue
         const label: string = node.label.name
         const bare = label.replace(/^_+|_+$/g, '')
-        const calls = callChain(node.body.expression)
+        const id = bare.includes('$') ? `pattern ${++anonymous}` : bare
+        const versioned = versions(node.body.expression, shown[id] ?? 0)
+        const calls = versioned?.calls ?? callChain(node.body.expression)
         patterns.push({
-            id: bare.includes('$') ? `pattern ${++anonymous}` : bare,
+            id,
             label,
             muted: label.startsWith('_') || label.endsWith('_'),
             labelFrom: node.label.start,
@@ -149,6 +186,7 @@ export function analyze(code: string): Song {
             lineTo: node.loc.end.line,
             soundName: soundName(calls),
             calls,
+            ...(versioned ? { variants: versioned.variants } : {}),
         })
     }
     const body = ast.body as Node[]

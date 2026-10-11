@@ -466,6 +466,13 @@ svg.mini rect { fill: var(--h); }
 .sg-c { z-index: 2; position: absolute; top: 3px; bottom: 3px; border-radius: 5px; overflow: hidden; pointer-events: none; background-color: color-mix(in srgb, var(--h) 90%, var(--vat)); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); background-image: repeating-linear-gradient(to right, transparent 0 calc(var(--bar) - 1px), rgba(0, 0, 0, 0.28) calc(var(--bar) - 1px) var(--bar)); background-position: -2px 0; }
 .sg-t.dense .sg-c { background-image: none; }
 .sg-c svg { position: absolute; top: 0; height: 100%; }
+.sg-vl { position: absolute; top: 2px; margin-left: 4px; z-index: 1; font: 700 8.5px/1 var(--mono); color: rgba(22, 22, 24, 0.75); pointer-events: none; }
+.vr { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 8px; background: var(--vat); border: 1px solid var(--seam); flex: none; }
+.vr button { min-width: 20px; height: 19px; padding: 0 5px; border-radius: 5px; font: 600 10.5px/1 var(--mono); color: var(--linen-3); }
+.vr button:hover:not(:disabled) { color: var(--linen); }
+.vr button.on { background: var(--linen); color: var(--vat); }
+.vr button.now:not(.on) { box-shadow: inset 0 0 0 1px var(--h); color: var(--linen); }
+.vr button:disabled { opacity: 0.4; cursor: default; }
 .sg-ph { position: absolute; top: 0; bottom: 0; width: 1.5px; background: var(--linen); z-index: 3; pointer-events: none; }
 .sg-ph::before { content: ''; position: absolute; top: 0; left: -4px; border: 4.5px solid transparent; border-top: 6px solid var(--linen); }
 .sg-ph.idle { opacity: 0.55; }

@@ -5,6 +5,7 @@ import { firstMotion, motionText, readMotion, type Motion } from '../controls/mo
 import { callFor, controlOf, valueArg, type ControlView } from '../controls/views'
 import { curveOver, curveText, followSong, readCurve, stretched } from '../song/curves'
 import { dropScene, freeSceneName, keepScene, readScenes, renameScene, sceneEdits, type Scene } from '../song/scenes'
+import { addVariant, chooseEdit, followChoices, removeVariant, variantBars } from '../song/variants'
 import { onSongLink } from '../desktop/links'
 import { installMenus } from '../desktop/menu'
 import { chooseFile } from '../desktop/open'
@@ -85,6 +86,8 @@ import {
     engineState,
     sceneWaiting,
     setSceneWaiting,
+    setShownVariants,
+    shownVariants,
     setTakingKnobs,
     setTrim,
     takingKnobs,
@@ -242,7 +245,7 @@ function firstSong(): SongRecord | null {
 
 function onCode(code: string) {
     if (removed() && code !== removed()?.after) setRemoved(null)
-    const next = analyze(code)
+    const next = analyze(code, shownVariants())
     if (next.error) {
         setStale(true)
     } else {
@@ -1547,12 +1550,23 @@ const lanes = (): PatternBlock[] => {
     return song().patterns.filter((block) => !seen.has(block.id) && Boolean(seen.add(block.id)))
 }
 
-export function setBars(id: string, bars: boolean[]) {
-    if (!find(id) || stale()) return
+// `painted` are the bars that were filled with the version of the pattern that is in sight,
+// when the pattern has versions: those bars take that version.
+export function setBars(id: string, bars: boolean[], painted?: { from: number; to: number }) {
+    const block = find(id)
+    if (!block || stale()) return
     const before = songLengthNow()
     const { edits, length } = arrangeSong(engine.getCode(), lanes(), id, bars, before)
     // What is drawn over the song is as long as the song, and stays so.
-    if (length !== before) edits.push(...followSong(lanes(), before, (values) => stretched(values, length)))
+    if (length !== before) edits.push(...followSong(lanes(), before, (values) => stretched(values, length)), ...followChoices(lanes(), before, (kinds) => stretched(kinds.map(String), length).map(Number), painted ? id : undefined))
+    if (painted && block.variants) {
+        const kinds = stretched(variantBars(block, before).map(String), length).map(Number)
+        const choice = chooseEdit(
+            block,
+            kinds.map((kind, bar) => (bar >= painted.from && bar <= painted.to ? block.variants!.shown : kind)),
+        )
+        if (choice) edits.push(choice)
+    }
     setSongBars(length)
     if (startBar() >= length) startFrom(0)
     if (!edits.length) return
@@ -1613,7 +1627,8 @@ export function repeatLoop() {
     if (!range || stale()) return
     const before = songLengthNow()
     const { edits, length } = repeatEdits(engine.getCode(), lanes(), range.from, range.to, before)
-    edits.push(...followSong(lanes(), before, (values) => [...values.slice(0, range.to), ...values.slice(range.from, range.to), ...values.slice(range.to)].slice(0, length)))
+    const again = <T,>(values: T[]) => [...values.slice(0, range.to), ...values.slice(range.from, range.to), ...values.slice(range.to)].slice(0, length)
+    edits.push(...followSong(lanes(), before, again), ...followChoices(lanes(), before, again))
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
     const moved = { from: range.to, to: Math.min(length, range.to + (range.to - range.from)) }
@@ -1631,7 +1646,8 @@ export function removeLoop() {
     const before = songLengthNow()
     if (!range || stale() || range.to - range.from >= before) return
     const { edits, length } = removeEdits(engine.getCode(), lanes(), range.from, range.to, before)
-    edits.push(...followSong(lanes(), before, (values) => [...values.slice(0, range.from), ...values.slice(range.to)]))
+    const without = <T,>(values: T[]) => [...values.slice(0, range.from), ...values.slice(range.to)]
+    edits.push(...followSong(lanes(), before, without), ...followChoices(lanes(), before, without))
     clearLoop()
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
@@ -1647,9 +1663,39 @@ export function spaceLoop() {
     const before = songLengthNow()
     if (!range || stale()) return
     const { edits, length } = spaceEdits(engine.getCode(), lanes(), range.from, range.to, before)
-    edits.push(...followSong(lanes(), before, (values) => [...values.slice(0, range.from), ...Array.from({ length: range.to - range.from }, () => values[range.from]), ...values.slice(range.from)].slice(0, length)))
+    const spaced = <T,>(values: T[]) => [...values.slice(0, range.from), ...Array.from({ length: range.to - range.from }, () => values[range.from]), ...values.slice(range.from)].slice(0, length)
+    edits.push(...followSong(lanes(), before, spaced), ...followChoices(lanes(), before, spaced))
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
+    replay()
+}
+
+// ---- the versions of a pattern: the same sound and knobs playing one thing in one part of
+// the song and another in the next. The one in sight is the one the grid or the roll shows
+// and changes, and the one that bars are filled with in the Song panel.
+export function showVariant(id: string, index: number) {
+    if (shownVariants()[id] === index) return
+    setShownVariants({ ...shownVariants(), [id]: index })
+    const next = analyze(engine.getCode(), shownVariants())
+    if (!next.error) setSong(next)
+}
+
+export function addVariantOf(id: string) {
+    const block = find(id)
+    const made = block && !stale() ? addVariant(engine.getCode(), block, songLengthNow()) : null
+    if (!made) return
+    setShownVariants({ ...shownVariants(), [id]: made.index })
+    engine.applyEdit(made.edit)
+    replay()
+}
+
+export function removeVariantOf(id: string, index: number) {
+    const block = find(id)
+    const edits = block && !stale() ? removeVariant(engine.getCode(), block, index, songLengthNow()) : null
+    if (!edits) return
+    const shown = block?.variants?.shown ?? 0
+    setShownVariants({ ...shownVariants(), [id]: Math.max(0, shown > index || shown === index ? shown - 1 : shown) })
+    engine.applyEdit(edits)
     replay()
 }
 

@@ -60,6 +60,8 @@ export const [patternKeys, setPatternKeys] = createSignal<Record<string, Key>>({
 export const [pianoFor, setPianoFor] = createSignal<string | null>(null)
 export const [pianoOctave, setPianoOctave] = createSignal(3)
 export const [pianoWrites, setPianoWrites] = createSignal(true)
+// For the patterns that have versions, which one is in sight. The first when nothing is said.
+export const [shownVariants, setShownVariants] = createSignal<Record<string, number>>({})
 // The scene that was chosen while the song plays and waits for the next bar to begin.
 export const [sceneWaiting, setSceneWaiting] = createSignal<string | null>(null)
 // Whether a knob that is turned while the song plays is taken down, to be drawn over the song.

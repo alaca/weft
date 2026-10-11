@@ -6,6 +6,7 @@ import { barsOf, clips, paint, type Clip } from '../song/arrange'
 import { MAX_BARS } from '../song/bars'
 import type { PatternEvent } from '../song/types'
 import { sceneIsOn, SCENE_NAME_LIMIT } from '../song/scenes'
+import { variantBars, variantName } from '../song/variants'
 import { bpm, cycle, engineState, loopBars, playMode, position, revision, sceneWaiting, soloIds, song, stale, startBar, takingKnobs } from '../stores/song'
 import { Knob } from './Knob'
 
@@ -26,6 +27,17 @@ const EDGE = 28
 const AFTER = 16
 const IN_SIGHT = 20
 
+// A pattern with versions plays differently from bar to bar, so its picture is drawn from
+// more of its bars before it is taken to repeat.
+const VERSION_BARS = 256
+
+// The stretches of bars, from `from` up to `to`, that take the same version.
+function runsOf(kinds: number[], from: number, to: number): { from: number; kind: number }[] {
+    const runs: { from: number; kind: number }[] = []
+    for (let bar = from; bar < to; bar++) if (bar === from || kinds[bar] !== kinds[bar - 1]) runs.push({ from: bar, kind: kinds[bar] ?? 0 })
+    return runs
+}
+
 const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((id, i) => id === b[i])
 
 function duration(bars: number, tempo: number): string {
@@ -38,9 +50,15 @@ type View = { length: number; shown: number; barWidth: number; first: number; la
 
 function Lane(props: { id: string; index: number; view: View }) {
     let track!: HTMLDivElement
-    let drag: { from: number; on: boolean; x: number } | null = null
+    let drag: { from: number; on: boolean; x: number; low: number; high: number } | null = null
     let creep = 0
     const block = () => song().patterns.find((p) => p.id === props.id)
+    // For a pattern with versions: which one each bar takes, and the one that bars are filled with.
+    const kinds = createMemo(() => {
+        const current = block()
+        return current?.variants ? variantBars(current, props.view.shown) : null
+    })
+    const brush = () => block()?.variants?.shown ?? 0
     const written = createMemo(() => {
         const current = block()
         const inSong = current ? barsOf(current, props.view.length) : []
@@ -72,7 +90,7 @@ function Lane(props: { id: string; index: number; view: View }) {
     type Played = { perBar: PatternEvent[][]; low: number; high: number; sounds: (string | null)[] }
     const played = createMemo((before: Played | undefined): Played => {
         revision()
-        const count = Math.min(props.view.length, DRAWN_BARS)
+        const count = Math.min(props.view.length, untrack(block)?.variants ? VERSION_BARS : DRAWN_BARS)
         const text = untrack(() => patternText(props.id))
         if (before && text === drawnFrom && before.perBar.length === count) return before
         // Until the code has been evaluated the patterns still answer for the code before it,
@@ -118,7 +136,11 @@ function Lane(props: { id: string; index: number; view: View }) {
 
     const barAt = (x: number) => Math.min(props.view.shown - 1, Math.max(0, Math.floor((x - track.getBoundingClientRect().left) / props.view.barWidth)))
     const sweep = () => {
-        if (drag) setDraft(paint(written(), drag.from, barAt(drag.x), drag.on))
+        if (!drag) return
+        const to = barAt(drag.x)
+        drag.low = Math.min(drag.from, to)
+        drag.high = Math.max(drag.from, to)
+        setDraft(paint(written(), drag.from, to, drag.on))
     }
     // Holding the pointer at either end of the lanes scrolls on, so a run can be longer than
     // what is in sight.
@@ -134,7 +156,9 @@ function Lane(props: { id: string; index: number; view: View }) {
     const onPointerDown = (event: PointerEvent) => {
         if (stale() || event.button !== 0) return
         const bar = barAt(event.clientX)
-        drag = { from: bar, on: !written()[bar], x: event.clientX }
+        // A bar that plays another version than the one in sight is not emptied: it takes this one.
+        const other = kinds() !== null && kinds()![bar] !== brush()
+        drag = { from: bar, on: !written()[bar] || other, x: event.clientX, low: bar, high: bar }
         setDraft(paint(written(), bar, bar, drag.on))
         track.setPointerCapture(event.pointerId)
         creep = window.setInterval(scrollOn, 60)
@@ -148,9 +172,10 @@ function Lane(props: { id: string; index: number; view: View }) {
         const next = draft()
         window.clearInterval(creep)
         if (!drag) return
+        const painted = drag.on && kinds() ? { from: drag.low, to: drag.high } : undefined
         drag = null
         batch(() => {
-            if (keep && next) setBars(props.id, next)
+            if (keep && next) setBars(props.id, next, painted)
             setDraft(null)
         })
     }
@@ -189,6 +214,15 @@ function Lane(props: { id: string; index: number; view: View }) {
                     const picture = createMemo(() => drawn(clip))
                     return (
                         <div class="sg-c" style={{ left: `${clip.from * props.view.barWidth + 2}px`, width: `${Math.max(2, clip.length * props.view.barWidth - 3)}px` }}>
+                            <Show when={kinds() && props.view.barWidth >= 12}>
+                                <For each={runsOf(kinds() ?? [], Math.max(clip.from, props.view.first), Math.min(clip.from + clip.length, props.view.last))}>
+                                    {(run) => (
+                                        <b class="sg-vl" style={{ left: `${(run.from - clip.from) * props.view.barWidth}px` }}>
+                                            {variantName(run.kind)}
+                                        </b>
+                                    )}
+                                </For>
+                            </Show>
                             <Show when={props.view.barWidth >= 12}>
                                 <svg
                                     viewBox={`0 0 ${Math.max(1, picture().bars) * UNIT} ${UNIT}`}

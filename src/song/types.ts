@@ -29,7 +29,14 @@ export type PatternBlock = {
     soundName: string | null
     calls: Call[]
     inline?: boolean
+    // A pattern that holds more than one version of what it plays. `calls` then begin with the
+    // version that is shown, followed by what all of them share.
+    variants?: Variants
 }
+
+// The versions of a pattern: the list that says which of them each bar takes, where each is in
+// the code, which one is shown, and where the whole of it stands.
+export type Variants = { chooser: Extract<Arg, { kind: 'string' }>; items: { from: number; to: number }[]; shown: number; from: number; to: number }
 
 export type Tempo = { bpm: number; from: number; to: number; unit: 'cpm' | 'cps' }
 
