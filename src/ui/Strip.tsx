@@ -372,9 +372,9 @@ export function Strip(props: { id: string }) {
                             <Show when={showKnobs()}>
                                 <div class="st-r" onClick={(event) => event.stopPropagation()}>
                                     <For each={knobs().map((knob) => knob.fn)}>
-                                        {(fn, at) => (
+                                        {(fn) => (
                                             <Show when={knobs().find((knob) => knob.fn === fn)}>
-                                                {(knob) => <Knob view={knob()} big={at() < 2} disabled={stale()} onChange={(value) => setControl(props.id, fn, value)} />}
+                                                {(knob) => <Knob view={knob()} disabled={stale()} onChange={(value) => setControl(props.id, fn, value)} />}
                                             </Show>
                                         )}
                                     </For>
