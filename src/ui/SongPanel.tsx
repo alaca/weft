@@ -496,6 +496,9 @@ function Scenes() {
         return scenesOf(codeNow())
     })
     const [naming, setNaming] = createSignal<string | null>(null)
+    // The scene that already keeps exactly what plays now, when there is one: keeping it again
+    // would make a second scene that does nothing the first does not.
+    const same = () => scenes().find((scene) => sceneIsOn(song().patterns, scene))?.name
     return (
         <div class="sg-sc" data-testid="scenes">
             <span class="cap">Scenes</span>
@@ -548,9 +551,12 @@ function Scenes() {
                     )
                 }}
             </For>
-            <button class="addb" disabled={stale()} title="Keeps the patterns that play now as a scene, to come back to with one press" onClick={keepSceneNow}>
+            <button class="addb" disabled={stale() || same() !== undefined} title="Keeps the patterns that play now as a scene, to come back to with one press" onClick={keepSceneNow}>
                 + Keep what plays now
             </button>
+            <Show when={same()} fallback={<Show when={!scenes().length}>{<span class="sg-lp">Mute the patterns that should rest with M, then keep that as a scene.</span>}</Show>}>
+                <span class="sg-lp">This is {same()}. Mute or unmute a pattern with M to keep another.</span>
+            </Show>
         </div>
     )
 }
