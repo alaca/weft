@@ -6,6 +6,7 @@ import { noteText } from '../song/notes'
 import type { PatternBlock, PatternView } from '../song/types'
 import { describe, STEPS } from '../song/view'
 import { fits, takesKit } from '../sounds/apply'
+import { jamHand, jamPeer } from '../stores/jam'
 import { cycle, draggedSound, engineState, openPanel, position, revision, selected, soloIds, song, stale, unfolded } from '../stores/song'
 import { Knob } from './Knob'
 import { MiniView } from './MiniView'
@@ -131,6 +132,11 @@ export function Strip(props: { id: string }) {
                         dropOnPattern(props.id, item)
                     }}
                 >
+                    <Show when={jamHand() === props.id}>
+                        <span class="jm-hand" data-testid="jam-hand">
+                            {jamPeer()}
+                        </span>
+                    </Show>
                     <div class="st-h">
                         <i class="bead-h" />
                         <Show

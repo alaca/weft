@@ -8,7 +8,7 @@ import { saveFile, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
 import { DEMOS } from '../library/demos'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongRecord } from '../library/shelf'
-import { CODE_LEAST, DEFAULT_LAYOUT, fitWidth, isUsual, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type ViewMode } from '../library/layout'
+import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type ViewMode } from '../library/layout'
 import { readSongFile, renameSound, SONG_FILE, soundsUsed, writeSongFile } from '../library/songfile'
 import { startTake, whyNot, type NoTake, type Take } from '../library/recorder'
 import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
@@ -66,6 +66,9 @@ import { STARTER } from '../song/starter'
 import type { PatternBlock, PatternEvent } from '../song/types'
 import { fits, isRow, soundEdit, soundTextAt } from '../sounds/apply'
 import { catalogue, type SoundItem } from '../sounds/catalog'
+import type { Bars } from '../jam/protocol'
+import { jamsOpen, jamStage, setJamsOpen, setJamUnread, setSoundsShare, soundsShare } from '../stores/jam'
+import { attachJam, leaveJam, tellJam } from './jam'
 import {
     cycle,
     deletedSong,
@@ -295,6 +298,23 @@ export async function mount(root: HTMLElement): Promise<void> {
         }
     })
     engine.onCodeChange(onCode)
+    attachJam({
+        engine,
+        songName: () => current?.name ?? '',
+        songKeys: () => current?.keys ?? {},
+        openAs,
+        startFrom,
+        setLoop: followLoop,
+        setMode: setPlayMode,
+        ownSound: (name) => ownSoundStore.get(name),
+        keepSound,
+        lendSound: register,
+        restoreSound: async (name) => {
+            const mine = await ownSoundStore.get(name)
+            if (mine) await register(mine)
+        },
+        replay,
+    })
     engine.onSoundDrop(dropSound)
     engine.onCursor((offset) => {
         if (stale()) return
@@ -315,6 +335,7 @@ export async function mount(root: HTMLElement): Promise<void> {
         { id: 'weft-view-code', text: 'Code Only', checked: () => viewMode() === 'code', action: () => setView('code') },
         'line',
         { id: 'weft-view-sounds', text: 'Sounds', checked: soundsOpen, action: toggleSounds },
+        { id: 'weft-view-jams', text: 'Jams', checked: jamsOpen, action: toggleJams },
         { id: 'weft-view-wave', text: 'Waveform', checked: waveShown, action: toggleWaveform },
         { id: 'weft-view-song', text: 'Song Panel', checked: songShown, action: toggleSongPanel },
         'line',
@@ -354,6 +375,7 @@ function applyMode(mode: PlayMode) {
 export function setPlayMode(mode: PlayMode) {
     if (playMode() === mode) return
     applyMode(mode)
+    tellJam({ k: 'mode', mode })
     if (!current) return
     current = { ...current, mode }
     flush()
@@ -648,12 +670,23 @@ export function setMasterVolume(value: number) {
 
 export const waveformOf = () => engine.waveform()
 
-const layoutNow = (): Layout => ({ view: viewMode(), sounds: soundsOpen(), wave: waveShown(), song: songShown(), soundsWidth: soundsWidth(), codeWidth: codeWidth() })
+const layoutNow = (): Layout => ({
+    view: viewMode(),
+    sounds: soundsOpen(),
+    jams: jamsOpen(),
+    wave: waveShown(),
+    song: songShown(),
+    soundsWidth: soundsWidth(),
+    codeWidth: codeWidth(),
+    soundsShare: soundsShare(),
+})
 
 function applyLayout(layout: Layout) {
     batch(() => {
         setViewMode(layout.view)
         setSoundsOpen(layout.sounds)
+        setJamsOpen(layout.jams)
+        setSoundsShare(layout.soundsShare)
         setWaveShown(layout.wave)
         setSongShown(layout.song)
         setSoundsWidth(layout.soundsWidth)
@@ -691,7 +724,7 @@ export function toggleSongPanel() {
 const beside = (column: 'sounds' | 'code') => {
     const middle = viewMode() === 'code' ? 0 : MIDDLE_LEAST
     if (column === 'sounds') return middle + (viewMode() === 'controls' ? 0 : viewMode() === 'code' ? CODE_LEAST : (codeWidth() ?? usualCode(window.innerWidth)))
-    return middle + (soundsOpen() ? (soundsWidth() ?? SOUNDS_WIDTH) : 0)
+    return middle + (soundsOpen() || jamsOpen() ? (soundsWidth() ?? SOUNDS_WIDTH) : 0)
 }
 
 // While a divider is dragged the width follows the pointer; it is kept when it is let go.
@@ -702,6 +735,26 @@ export function dragSounds(wanted: number, done: boolean) {
 
 export function dragCode(wanted: number, done: boolean) {
     setCodeWidth(fitWidth(wanted, CODE_LEAST, window.innerWidth, beside('code')))
+    if (done) keepLayout()
+}
+
+// The jam sits under the sounds in the left column, so a sound can be picked while a jam is
+// open. Either is shown without the other; with both, the line between them can be dragged.
+export function toggleJams() {
+    setJamsOpen(!jamsOpen())
+    setJamUnread(0)
+    keepLayout()
+}
+
+export function openJams() {
+    if (jamsOpen()) return
+    setJamsOpen(true)
+    setJamUnread(0)
+    keepLayout()
+}
+
+export function dragShare(wanted: number | null, done: boolean) {
+    setSoundsShare(wanted === null ? null : fitShare(wanted))
     if (done) keepLayout()
 }
 
@@ -1095,9 +1148,19 @@ const infoOfSound = ({ name, file, seconds }: OwnSound) => ({ name, file, second
 const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)
 
 async function register(sound: OwnSound) {
+    const before = ownUrls.get(sound.name)
     const url = URL.createObjectURL(new Blob([sound.data], { type: sound.type }))
     ownUrls.set(sound.name, url)
     await engine.addSound(sound.name, url)
+    if (before) URL.revokeObjectURL(before)
+}
+
+// A sound that came from somewhere else, a song file or the other person in a jam, kept among
+// yours from then on.
+async function keepSound(sound: OwnSound) {
+    await ownSoundStore.put(sound)
+    await register(sound)
+    setOwnSounds([...ownSounds().filter((other) => other.name !== sound.name), infoOfSound(sound)].sort(byName))
 }
 
 // The drum kits have to be known first: a sound of your own is made known in every one of them.
@@ -1278,6 +1341,7 @@ export function startFrom(bar: number) {
     setStartBar(bar)
     engine.setStart(bar)
     if (!engineState().playing) setCycle(bar)
+    tellJam({ k: 'start', bar })
 }
 
 // Bars that go round, to work on one part of the song while hearing it. Both ends are part of
@@ -1290,6 +1354,15 @@ export function loopBetween(first: number, last: number) {
     setLoopBars({ from, to })
     engine.setLoop({ from, to })
     if (!engineState().playing) setCycle(from)
+    tellJam({ k: 'loop', range: { from, to } })
+}
+
+// The bars the other person in a jam set to go round, or took away. They are taken as they
+// come: the song they belong to may have grown on the way, by changes that arrive apart.
+function followLoop(range: Bars | null) {
+    setLoopBars(range)
+    engine.setLoop(range)
+    if (!engineState().playing) setCycle(range ? range.from : startBar())
 }
 
 export function clearLoop() {
@@ -1297,6 +1370,7 @@ export function clearLoop() {
     setLoopBars(null)
     engine.setLoop(null)
     if (!engineState().playing) setCycle(startBar())
+    tellJam({ k: 'loop', range: null })
 }
 
 // The bars that go round once more, straight after themselves, in every pattern.
@@ -1310,6 +1384,7 @@ export function repeatLoop() {
     setLoopBars(moved)
     engine.setLoop(moved)
     if (!engineState().playing) setCycle(moved.from)
+    tellJam({ k: 'loop', range: moved })
     replay()
 }
 
@@ -1319,7 +1394,9 @@ export const restsNow = (id: string): boolean => {
     return Boolean(written && playMode() === 'song' && engineState().playing && !written[cycle() % written.length])
 }
 
+// A jam is on one song. Opening another is leaving it.
 function show(record: SongRecord, demo: string | null = null) {
+    if (jamStage() === 'jamming') leaveJam()
     engine.stop()
     current = record
     setPatternKeys(keysOf(record))
@@ -1346,6 +1423,15 @@ function show(record: SongRecord, demo: string | null = null) {
     engine.setCode(record.draft)
     refreshSongs()
     replay()
+}
+
+// The song of the person who invited you to a jam, as a song of your own from the moment you join.
+function openAs(name: string, code: string, keys: Record<string, string>, mode: PlayMode) {
+    flush()
+    const kept = Object.fromEntries(Object.entries(keys).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+    const record: SongRecord = { id: newId(), name: freeTitle(cleanName(name) || UNTITLED, titles()), saved: code, draft: code, changedAt: Date.now(), mode, ...(Object.keys(kept).length ? { keys: kept } : {}) }
+    shelf.write(record)
+    show(record)
 }
 
 export function newSong() {

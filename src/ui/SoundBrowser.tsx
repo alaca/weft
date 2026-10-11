@@ -1,11 +1,9 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js'
-import { addOwnSounds, closeSounds, colorAt, dragSounds, hearSound, keepTake, recordTake, removeOwnSound, soundCatalogue, usualWidth, useSound } from '../app/controller'
-import { SOUNDS_WIDTH } from '../library/layout'
+import { addOwnSounds, closeSounds, colorAt, hearSound, keepTake, recordTake, removeOwnSound, soundCatalogue, useSound } from '../app/controller'
 import { lengthText } from '../library/sounds'
 import { fits, inUse, takesKit } from '../sounds/apply'
 import { countSounds, findSounds, SOUND_DRAG, SOUND_GROUPS, type SoundGroup, type SoundItem } from '../sounds/catalog'
-import { engineState, ownSoundNote, ownSounds, selected, setDraggedSound, song, soundsOpen, soundsWidth, stale, takeSince } from '../stores/song'
-import { Divider } from './Divider'
+import { engineState, ownSoundNote, ownSounds, selected, setDraggedSound, song, soundsOpen, stale, takeSince } from '../stores/song'
 
 export function SoundBrowser() {
     let search: HTMLInputElement | undefined
@@ -59,7 +57,6 @@ export function SoundBrowser() {
     return (
         <Show when={soundsOpen()}>
             <aside class="sb" aria-label="Sounds" data-testid="sound-browser">
-                <Divider side="right" label="Width of the sounds" width={() => soundsWidth() ?? SOUNDS_WIDTH} onDrag={dragSounds} onUsual={() => usualWidth('sounds')} />
                 <div class="sb-h">
                     <h2>Sounds</h2>
                     <span class="grow" />

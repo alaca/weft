@@ -1,7 +1,8 @@
-import { For } from 'solid-js'
-import { setMasterVolume, setPlayMode, setTempo, setView, stop, togglePlay, toggleSongPanel, toggleSounds, toggleWaveform } from '../app/controller'
+import { For, Show } from 'solid-js'
+import { openJams, setMasterVolume, setPlayMode, setTempo, setView, stop, toggleJams, togglePlay, toggleSongPanel, toggleSounds, toggleWaveform } from '../app/controller'
 import type { ControlView } from '../controls/views'
 import { beat, bpm, cycle, engineState, masterVolume, playMode, song, songShown, soundsOpen, stale, viewMode, waveShown, type PlayMode, type ViewMode } from '../stores/song'
+import { jamming, jamPeer, jamsOpen, jamUnread } from '../stores/jam'
 import { Knob } from './Knob'
 import { SongMenu } from './SongMenu'
 
@@ -34,6 +35,15 @@ export function TopBar() {
         <header class="top" data-testid="top">
             <div class="word">Weft</div>
             <SongMenu />
+            <Show when={jamming()}>
+                <button class="jm-with" title="Show the jam" data-testid="jam-with" onClick={openJams}>
+                    <u />
+                    With {jamPeer()}
+                    <Show when={jamUnread() > 0}>
+                        <b aria-label={`${jamUnread()} not read`}>{jamUnread()}</b>
+                    </Show>
+                </button>
+            </Show>
             <div class="grow" />
             <div class="tp">
                 <button class="play" aria-label={engineState().playing ? 'Pause' : 'Play'} onClick={togglePlay}>
@@ -91,6 +101,13 @@ export function TopBar() {
             </span>
             <div class="grow" />
             <div class="shows">
+                <button class="ib" classList={{ on: jamsOpen() }} aria-pressed={jamsOpen()} aria-label="Jams" title={jamsOpen() ? 'Hide the jam' : 'Play with someone else on one song'} onClick={toggleJams}>
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <circle cx="5.6" cy="6" r="2.5" />
+                        <circle cx="11" cy="6.6" r="2" />
+                        <path d="M1.4 13c.5-2.6 2.2-3.7 4.2-3.7s3.7 1.1 4.2 3.7zM10.6 13c-.1-1.2-.5-2.2-1.2-3 2.3-.9 4.7.2 5.2 3z" />
+                    </svg>
+                </button>
                 <button class="ib" classList={{ on: soundsOpen() }} aria-pressed={soundsOpen()} aria-label="Sounds" title={soundsOpen() ? 'Hide the sounds' : 'Show the sounds'} onClick={toggleSounds}>
                     <svg viewBox="0 0 16 16" aria-hidden="true">
                         <path class="ln" d="M2.5 8h1.4M6 4.5v7M8.6 2.5v11M11.2 5.5v5M13.6 8h.4" />

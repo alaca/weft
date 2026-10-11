@@ -17,6 +17,7 @@
     },
     "dependencies": {
         "@breezystack/lamejs": "^1.2.7",
+        "@codemirror/collab": "^6.1.1",
         "@codemirror/commands": "^6.11.1",
         "@codemirror/language": "^6.13.1",
         "@codemirror/state": "^6.7.6",
@@ -43,9 +44,11 @@
         "@playwright/test": "^1.59.1",
         "@tauri-apps/cli": "^2.12.1",
         "@types/node": "^26.6.5",
+        "@types/ws": "^8.18.2",
         "typescript": "^5.9.3",
         "vite": "^8.3.4",
         "vite-plugin-solid": "^2.11.14",
-        "vitest": "^5.0.3"
+        "vitest": "^5.0.3",
+        "ws": "^8.22.0"
     }
 }

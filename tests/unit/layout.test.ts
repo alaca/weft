@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_LAYOUT, fitWidth, isUsual, readLayout, usualCode } from '../../src/library/layout'
+import { DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, readLayout, usualCode } from '../../src/library/layout'
 
 describe('readLayout', () => {
     it('gives the usual layout when nothing was kept, or what was kept cannot be read', () => {
@@ -11,11 +11,15 @@ describe('readLayout', () => {
         expect(readLayout(JSON.stringify({ view: 'code', sounds: true, wave: false, song: 'no', soundsWidth: 301.6, codeWidth: -5 }))).toEqual({
             view: 'code',
             sounds: true,
+            jams: false,
             wave: false,
             song: true,
             soundsWidth: 302,
             codeWidth: null,
+            soundsShare: null,
         })
+        expect(readLayout(JSON.stringify({ jams: true, soundsShare: 0.95 }))).toMatchObject({ jams: true, soundsShare: 0.75 })
+        expect(readLayout(JSON.stringify({ jams: 'yes', soundsShare: 'half' }))).toMatchObject({ jams: false, soundsShare: null })
         expect(readLayout(JSON.stringify({ view: 'sideways' })).view).toBe('both')
     })
 })
@@ -25,6 +29,15 @@ describe('isUsual', () => {
         expect(isUsual(DEFAULT_LAYOUT)).toBe(true)
         expect(isUsual({ ...DEFAULT_LAYOUT, codeWidth: 500 })).toBe(false)
         expect(isUsual({ ...DEFAULT_LAYOUT, wave: false })).toBe(false)
+    })
+})
+
+describe('fitShare', () => {
+    it('keeps the sounds between a fifth and three quarters of the left column', () => {
+        expect(fitShare(0.5)).toBe(0.5)
+        expect(fitShare(0.05)).toBe(0.2)
+        expect(fitShare(0.9)).toBe(0.75)
+        expect(fitShare(0.33333)).toBe(0.333)
     })
 })
 

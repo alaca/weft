@@ -68,5 +68,9 @@ const word = (name: string) => new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9
 // The sounds of your own that a song's code names.
 export const soundsUsed = (code: string, names: string[]): string[] => names.filter((name) => word(name).test(code))
 
+// The changes that give one sound another name in the code, wherever it stands as a whole word.
+export const soundRenames = (code: string, from: string, to: string): { from: number; to: number; insert: string }[] =>
+    [...code.matchAll(word(from))].map((found) => ({ from: found.index, to: found.index + from.length, insert: to }))
+
 // The code with one sound's name changed, wherever it stands as a whole word.
 export const renameSound = (code: string, from: string, to: string): string => code.replace(word(from), to)

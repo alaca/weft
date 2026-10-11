@@ -7,10 +7,11 @@
         "jsxImportSource": "solid-js",
         "strict": true,
         "noEmit": true,
+        "allowImportingTsExtensions": true,
         "skipLibCheck": true,
         "isolatedModules": true,
         "types": ["vite/client", "node"],
         "lib": ["ES2022", "DOM", "DOM.Iterable"]
     },
-    "include": ["src", "tests", "vite.config.ts", "playwright.config.ts"]
+    "include": ["src", "tests", "server", "vite.config.ts", "playwright.config.ts"]
 }

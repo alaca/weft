@@ -17,12 +17,14 @@ import {
     superdough,
     webaudioOutput,
 } from '@strudel/webaudio'
+import type { SentUpdate } from '../jam/protocol'
 import type { PatternEvent, TextEdit } from '../song/types'
 import { toEvents } from './events'
 import { marksField, setMarks, type BlockMark } from './marks'
 import { maskSliders } from './mask'
 import { SOUND_DRAG, type RawSound } from '../sounds/catalog'
 import { addOwnSound, kitNames, loadModules, loadSamples, removeOwnSound, soundTaken } from './prebake'
+import { createSync, heard, syncSlot, type Sync } from './sync'
 import { registerTheme } from './theme'
 
 export type { BlockMark } from './marks'
@@ -30,6 +32,7 @@ export type { BlockMark } from './marks'
 export type EvalError = { message: string; line: number | null }
 export type Rendered = { channels: Float32Array[]; sampleRate: number; secondsPerBar: number; missed: number }
 export type RenderRequest = { bars: number; ringSeconds: number; sampleRate: number }
+export type Moved = { k: 'play'; at: number } | { k: 'pause'; at: number } | { k: 'stop' }
 
 export type EngineState = {
     playing: boolean
@@ -74,12 +77,18 @@ export interface Engine {
     audioLength(bytes: ArrayBuffer): Promise<number | null>
     decodeAudio(bytes: ArrayBuffer): Promise<{ channels: Float32Array[]; sampleRate: number } | null>
     setLive(on: boolean): void
+    playAt(position: number): void
+    pauseAt(position: number): void
+    startSync(version: number, by: string, send: (version: number, updates: SentUpdate[]) => void): void
+    stopSync(): void
+    receive(updates: SentUpdate[]): void
     previewNote(midi: number, sound: string | null, seconds?: number): void
     sounds(): RawSound[]
     kitNames(): string[]
     markBlocks(marks: BlockMark[]): void
     reveal(offset: number): void
-    onCodeChange(fn: (code: string) => void): void
+    onCodeChange(fn: (code: string, remote: boolean) => void): void
+    onMoved(fn: (event: Moved) => void): void
     onState(fn: (state: EngineState) => void): void
     onCursor(fn: (offset: number) => void): void
     onSoundDrop(fn: (offset: number, name: string) => void): void
@@ -159,7 +168,13 @@ export function createEngine(): Engine {
         }
     }
     const stateFns = new Set<(state: EngineState) => void>()
-    const codeFns = new Set<(code: string) => void>()
+    const codeFns = new Set<(code: string, remote: boolean) => void>()
+    const movedFns = new Set<(event: Moved) => void>()
+    const moved = (event: Moved) => movedFns.forEach((fn) => fn(event))
+    // In a jam the code is shared with one other person. `receiving` is true for as long as a
+    // change of theirs is being put into the code.
+    let sync: Sync | null = null
+    let receiving = false
     const cursorFns = new Set<(offset: number) => void>()
     const dropFns = new Set<(offset: number, name: string) => void>()
     const evaluatedFns = new Set<() => void>()
@@ -193,8 +208,8 @@ export function createEngine(): Engine {
             // started to sound by the time the song is stopped at its end. Nothing that starts
             // at or after the end is let through. The end is read as it is now, not as it was
             // when the code was evaluated, because the song grows and shrinks as it is arranged.
-            if (liveMode) return original.call(this[BEFORE_MASK] ?? this, id)
             const shift = offset
+            if (liveMode) return original.call(shift ? (this[BEFORE_MASK] ?? this).early(shift) : (this[BEFORE_MASK] ?? this), id)
             if (loop) return original.call(this.ribbon(loop.from, loop.to - loop.from).early(shift), id)
             const within = (hap: any) => endBar === null || (hap.whole ?? hap.part).begin.valueOf() + shift < endBar
             return original.call((shift ? this.early(shift) : this).filterHaps(within), id)
@@ -300,6 +315,47 @@ export function createEngine(): Engine {
         announce()
     }
 
+    // A slider in the code changes the sound as it is dragged, without the code being evaluated
+    // again, because Strudel is told the new number directly. When the other person drags one,
+    // only the number in the code arrives, so Strudel is told here.
+    const followSliders = () => {
+        type Widget = HTMLInputElement & { from: number; originalFrom: number; originalValue: string }
+        const doc = mirror.editor.state.doc
+        for (const input of mirror.root.querySelectorAll('.cm-slider input') as NodeListOf<Widget>) {
+            const text = doc.sliceString(input.from, Math.min(doc.length, input.from + 24)).match(/^-?\d*\.?\d+/)?.[0]
+            if (text === undefined || text === input.originalValue) continue
+            input.originalValue = text
+            input.value = text
+            window.postMessage({ type: 'cm-slider', value: Number(text), id: `slider_${input.originalFrom}` })
+        }
+    }
+
+    // The song made to sound as its code now reads, because the other person did so on theirs.
+    const reevaluate = async () => {
+        if (!mirror) return
+        if (blank()) return silence()
+        if (!state.playing) offset = startingAt()
+        await mirror.repl.evaluate(mirror.code, false)
+    }
+
+    // A control writes a whole value again: all the steps of a row, all the notes of a roll. Only
+    // what differs from what stands there is changed in the code, so that two people who change
+    // different steps of the same row at once both get their step.
+    const tighten = (edit: TextEdit): TextEdit | null => {
+        const old: string = mirror.editor.state.doc.sliceString(edit.from, edit.to)
+        const most = Math.min(old.length, edit.insert.length)
+        let head = 0
+        while (head < most && old[head] === edit.insert[head]) head++
+        let tail = 0
+        while (tail < most - head && old[old.length - 1 - tail] === edit.insert[edit.insert.length - 1 - tail]) tail++
+        if (head === old.length && head === edit.insert.length) return null
+        return { from: edit.from + head, to: edit.to - tail, insert: edit.insert.slice(head, edit.insert.length - tail) }
+    }
+
+    const sayHeard = () => {
+        if (sync && evaluatedCode !== mirror.code) mirror.editor.dispatch({ effects: heard.of(null) })
+    }
+
     const query = (pattern: any, cycle: number): PatternEvent[] => {
         if (!pattern) return []
         try {
@@ -339,7 +395,7 @@ export function createEngine(): Engine {
                 const code: string = mirror?.code ?? lastCode
                 if (code !== lastCode) {
                     lastCode = code
-                    codeFns.forEach((fn) => fn(code))
+                    codeFns.forEach((fn) => fn(code, receiving))
                 }
                 const playing = Boolean(s.started)
                 const dirty = evaluated && maskSliders(code) !== maskSliders(s.activeCode ?? '')
@@ -391,6 +447,7 @@ export function createEngine(): Engine {
                     effects: StateEffect.appendConfig.of([
                         history({ joinToEvent: (tr) => tr.annotation(sameGesture) === true }),
                         marksField,
+                        syncSlot.of([]),
                         Prec.highest(
                             keymap.of([
                                 { key: 'Mod-Enter', run: () => (void engine.evaluate(), true) },
@@ -443,14 +500,14 @@ export function createEngine(): Engine {
             mirror.code = code
             mirror.repl.setCode?.(code)
             lastCode = code
-            codeFns.forEach((fn) => fn(code))
+            codeFns.forEach((fn) => fn(code, false))
         },
         // What one press of the pointer or of a key changes is one step to undo, however many
         // changes it makes: a knob that is dragged, a note that is moved, bars that are painted.
         // The next press starts a new step, also when it follows at once.
         applyEdit(edit) {
-            const changes = Array.isArray(edit) ? [...edit].sort((a, b) => a.from - b.from) : edit
-            mirror.editor.dispatch({ changes, annotations: step() })
+            const changes = (Array.isArray(edit) ? [...edit].sort((a, b) => a.from - b.from) : [edit]).flatMap((one) => tighten(one) ?? [])
+            if (changes.length) mirror.editor.dispatch({ changes, annotations: step() })
         },
         selectAll() {
             mirror.editor.dispatch({ selection: { anchor: 0, head: mirror.editor.state.doc.length } })
@@ -465,7 +522,8 @@ export function createEngine(): Engine {
             const inputs = mirror.root.querySelectorAll('.cm-slider input') as NodeListOf<Widget>
             for (const input of inputs) {
                 if (input.from !== from) continue
-                mirror.editor.dispatch({ changes: { from, to: from + input.originalValue.length, insert: text }, annotations: step() })
+                const changes = tighten({ from, to: from + input.originalValue.length, insert: text })
+                if (changes) mirror.editor.dispatch({ changes, annotations: step() })
                 input.originalValue = text
                 input.value = text
                 window.postMessage({ type: 'cm-slider', value: Number(text), id: `slider_${input.originalFrom}` })
@@ -476,21 +534,65 @@ export function createEngine(): Engine {
         async evaluate() {
             wakeAudio()
             if (blank()) return silence()
-            if (!state.playing) offset = startingAt()
+            if (!state.playing) {
+                offset = startingAt()
+                moved({ k: 'play', at: liveMode ? 0 : loop ? loop.from + offset : offset })
+            }
             resumeAt = null
             if (state.paused) setState({ paused: false })
+            sayHeard()
             await mirror.evaluate(true)
         },
         async refresh() {
             if (blank()) return silence()
             if (!state.playing) offset = startingAt()
+            sayHeard()
             await mirror.repl.evaluate(mirror.code, false)
         },
         pause() {
             if (!state.playing) return
-            resumeAt = engine.now()
+            const at = engine.now()
+            resumeAt = at
             setState({ paused: true })
             mirror.stop()
+            moved({ k: 'pause', at })
+        },
+        // In a jam the other's song is already somewhere when yours starts, or is found to have
+        // run a little ahead while both play. Either way yours is put where theirs is.
+        playAt(position) {
+            wakeAudio()
+            if (!mirror || blank()) return
+            resumeAt = null
+            if (state.paused) setState({ paused: false })
+            const counted = state.playing ? mirror.repl.scheduler.now() : 0
+            offset = (loop && !liveMode ? position - loop.from : position) - counted
+            void mirror.evaluate(true)
+        },
+        pauseAt(position) {
+            resumeAt = position
+            if (!state.paused) setState({ paused: true })
+            if (state.playing) mirror.stop()
+        },
+        startSync(version, by, send) {
+            sync = createSync(mirror.editor.state.doc, version, by, send, {
+                changed: followSliders,
+                heard: () => void window.setTimeout(() => void reevaluate(), 0),
+            })
+            mirror.editor.dispatch({ effects: syncSlot.reconfigure(sync.extension) })
+        },
+        stopSync() {
+            if (!sync) return
+            sync = null
+            mirror.editor.dispatch({ effects: syncSlot.reconfigure([]) })
+        },
+        receive(updates) {
+            if (!sync) return
+            receiving = true
+            try {
+                sync.receive(mirror.editor, updates)
+            } finally {
+                receiving = false
+            }
         },
         // Strudel always starts counting cycles at nought, so playing from another bar is done
         // by moving every pattern earlier. While it plays, the same move makes the song jump.
@@ -498,7 +600,7 @@ export function createEngine(): Engine {
             startBar = bar
             resumeAt = null
             if (state.paused) setState({ paused: false })
-            if (!state.playing || blank()) return
+            if (!state.playing || blank() || liveMode) return
             offset = bar - Math.floor(mirror.repl.scheduler.now())
             void mirror.evaluate(true)
         },
@@ -512,7 +614,7 @@ export function createEngine(): Engine {
             loop = range
             resumeAt = null
             if (state.paused) setState({ paused: false })
-            if (!state.playing || blank()) return
+            if (!state.playing || blank() || liveMode) return
             const counted = mirror.repl.scheduler.now()
             offset = range ? -Math.floor(counted) : Math.floor(at) - Math.floor(counted)
             void mirror.evaluate(true)
@@ -598,16 +700,18 @@ export function createEngine(): Engine {
             }
         },
         stop() {
+            const was = state.playing || state.paused
             resumeAt = null
             if (state.paused) setState({ paused: false })
             mirror.stop()
+            if (was) moved({ k: 'stop' })
         },
         setSolo(ids) {
             soloIds = ids
             if (state.playing) void mirror.evaluate(true)
         },
         now: () => {
-            if (liveMode) return mirror?.repl.scheduler.started ? mirror.repl.scheduler.now() : (resumeAt ?? 0)
+            if (liveMode) return mirror?.repl.scheduler.started ? mirror.repl.scheduler.now() + offset : (resumeAt ?? 0)
             if (!mirror?.repl.scheduler.started) return resumeAt ?? (loop ? loop.from : startBar)
             const counted = mirror.repl.scheduler.now() + offset
             return loop ? loop.from + around(counted) : counted
@@ -709,6 +813,7 @@ export function createEngine(): Engine {
             mirror.editor.dispatch({ effects: EditorView.scrollIntoView(position, { y: 'nearest' }) })
         },
         onCodeChange: (fn) => void codeFns.add(fn),
+        onMoved: (fn) => void movedFns.add(fn),
         onState: (fn) => void stateFns.add(fn),
         onCursor: (fn) => void cursorFns.add(fn),
         onSoundDrop: (fn) => void dropFns.add(fn),

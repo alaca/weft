@@ -2,6 +2,7 @@ import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-j
 import { deleteSong, duplicateSong, listSongs, newSong, openDemo, openExport, openSong, openSongFile, renameSong, restoreSong, revertSong, saveSong } from '../app/controller'
 import { DEMOS } from '../library/demos'
 import { whenText } from '../library/shelf'
+import { jamming, jamPeer } from '../stores/jam'
 import { currentSong, deletedSong, openDemoId, songNote, songs } from '../stores/song'
 import { MOD } from './keys'
 
@@ -80,9 +81,15 @@ export function SongMenu() {
                                 {song().changed ? 'Changed since it was saved.' : 'Saved.'} Your work is kept as you go, also when you do not save. Saving marks the version you can go back to.
                             </Show>
                         </p>
+                        <Show when={jamming()}>
+                            <p class="sm-note" role="status" data-testid="song-jam">
+                                You are in a jam with {jamPeer()} on this song. To open another song, press Leave in the Jams panel first.
+                            </p>
+                        </Show>
                         <div class="sm-row">
                             <button
                                 class="addb"
+                                disabled={jamming()}
                                 onClick={() => {
                                     newSong()
                                     setOpen(false)
@@ -92,6 +99,7 @@ export function SongMenu() {
                             </button>
                             <button
                                 class="addb"
+                                disabled={jamming()}
                                 onClick={() => {
                                     duplicateSong()
                                     setOpen(false)
@@ -108,7 +116,7 @@ export function SongMenu() {
                             >
                                 Export
                             </button>
-                            <button class="addb" onClick={() => picker?.click()}>
+                            <button class="addb" disabled={jamming()} onClick={() => picker?.click()}>
                                 Open a file
                             </button>
                             <input
@@ -138,6 +146,7 @@ export function SongMenu() {
                                             class="sm-o"
                                             aria-label={`Open ${entry.name}`}
                                             aria-current={entry.id === song().id}
+                                            disabled={jamming() && entry.id !== song().id}
                                             onClick={() => {
                                                 openSong(entry.id)
                                                 setOpen(false)
@@ -149,7 +158,7 @@ export function SongMenu() {
                                                 {entry.changed ? ', not saved' : ''}
                                             </span>
                                         </button>
-                                        <button class="rx" aria-label={`Delete ${entry.name}`} onClick={() => deleteSong(entry.id)}>
+                                        <button class="rx" aria-label={`Delete ${entry.name}`} disabled={jamming() && entry.id === song().id} onClick={() => deleteSong(entry.id)}>
                                             <svg viewBox="0 0 8 8">
                                                 <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
                                             </svg>
@@ -179,6 +188,7 @@ export function SongMenu() {
                                             class="sm-o"
                                             aria-label={`Open a copy of ${demo.name}`}
                                             aria-current={demo.id === openDemoId()}
+                                            disabled={jamming()}
                                             onClick={() => {
                                                 openDemo(demo.id)
                                                 setOpen(false)
