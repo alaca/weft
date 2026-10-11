@@ -290,6 +290,35 @@ describe('jams that are open to anyone', () => {
         expect(host.heard).toEqual([])
     })
 
+    it('tells a blocked sender from the others by the address the web server in front noted', async () => {
+        await relay.close()
+        relay = await createRelay({ port: 0, behindProxy: true })
+        const from = async (address: string) => {
+            const socket = new WebSocket(`ws://127.0.0.1:${relay.port}`, { headers: { 'X-Real-IP': address } })
+            const heard: Heard[] = []
+            socket.on('message', (data) => heard.push(JSON.parse(data.toString()) as Heard))
+            await new Promise((resolve, reject) => {
+                socket.once('open', resolve)
+                socket.once('error', reject)
+            })
+            people.push({ socket } as Person)
+            return { socket, heard }
+        }
+        const { host, id } = await open()
+        const pest = await from('203.0.113.7')
+        pest.socket.send(JSON.stringify({ t: 'ask', id, name: 'Pest' }))
+        host.send({ t: 'block', ask: (await host.next('asked')).ask })
+        await quiet()
+        const again = await from('203.0.113.7')
+        again.socket.send(JSON.stringify({ t: 'ask', id, name: 'Somebody else' }))
+        const other = await from('203.0.113.8')
+        other.socket.send(JSON.stringify({ t: 'ask', id, name: 'Tomo' }))
+        expect((await host.next('asked')).name).toBe('Tomo')
+        await quiet()
+        expect(again.heard).toEqual([{ t: 'no', why: 'declined' }])
+        expect(host.heard).toEqual([])
+    })
+
     it('takes the question back when the one who asked says so or goes away', async () => {
         const { host, id } = await open()
         const first = await asks(id, 'Tomo')

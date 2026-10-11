@@ -8,6 +8,7 @@ import { SONG_LIMIT, soundsUsed } from '../src/library/songfile'
 import { analyze } from '../src/song/analyze'
 import { DEFAULT_SONG, songLength } from '../src/song/arrange'
 import { downloadPage, homePage, licencePage, notePage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
+import { senderOf } from './sender'
 
 // The site that songs are published to. It has two sides. The pages are for everyone and know
 // nobody: the songs, each song's own page, the downloads of the app. The API is for the app,
@@ -20,9 +21,14 @@ export type SiteOptions = {
     dataDir: string
     // The address people reach the site at, for the links it hands out.
     origin?: string
-    // Sends the code for choosing a new password. Without one the code is handed straight back
-    // to whoever asked, which is only for trying the site out on one's own machine.
+    // Sends the code for choosing a new password. Without one a forgotten password cannot be
+    // replaced, unless `codesShown` says that the code may be handed straight back to whoever
+    // asked. That is only for trying the site out on one's own machine: anywhere else it would
+    // give every account to anyone who knows its email.
     mail?: (to: string, code: string) => void | Promise<void>
+    codesShown?: boolean
+    // True where a web server stands in front and notes who each request comes from.
+    behindProxy?: boolean
     allow?: string[]
     now?: () => number
     // Where the app's source code can be read. The pages leave that link out until there is
@@ -222,7 +228,9 @@ function fixedFiles(): Map<string, Kind> {
     for (const [family, names] of Object.entries(FONTS)) {
         const dir = packageDir(`@fontsource-variable/${family}`)
         for (const name of names) {
-            const file = dir ? join(dir, 'files', name) : ''
+            // Where the site runs away from the project, the fonts lie beside its other files.
+            const beside = join(HERE, 'assets', 'fonts', name)
+            const file = existsSync(beside) ? beside : dir ? join(dir, 'files', name) : ''
             if (file && existsSync(file)) files.set(`/fonts/${name}`, { bytes: readFileSync(file), type: 'font/woff2', kept: KEPT_A_MONTH })
         }
     }
@@ -459,6 +467,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
     function forgotten(body: any, from: string): Answer {
         const email = emailOf(body?.email)
         if (!email) return refuse(400, 'email', NOT_AN_ADDRESS)
+        if (!options.mail && !options.codesShown) return refuse(503, 'mail', 'This site cannot send mail yet, so it cannot send a code for a new password. Sign in with the password you have.')
         if (tooMany(`forgot from ${from}`) || tooMany(`forgot as ${email}`)) return refuse(429, 'wait', 'Too many codes were asked for. Wait a quarter of an hour and ask again.')
         for (const [to, one] of codes) if (one.until <= now()) codes.delete(to)
         if (!kept.people.some((one) => one.email === email)) return { status: 200, body: {} }
@@ -648,7 +657,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
         const url = new URL(request.url ?? '/', 'http://site')
         const path = url.pathname
         const method = request.method ?? 'GET'
-        const from = request.socket.remoteAddress ?? ''
+        const from = senderOf(request, options.behindProxy)
 
         const same = method === 'GET' ? fixed.get(path) : undefined
         if (same) return { status: 200, fixed: same }

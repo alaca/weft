@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { WebSocketServer, type RawData, type WebSocket } from 'ws'
+import { senderOf } from './sender'
 
 // The meeting point of a jam. Two people who jam do not reach each other directly: each holds
 // one line to this relay, and it hands on what one sends to the other. It knows who is in which
@@ -11,7 +12,7 @@ import { WebSocketServer, type RawData, type WebSocket } from 'ws'
 // anyone to read, with the name the person gave, how fast the song is and how many patterns it
 // has. Nobody is listed who did not ask to be, and nobody needs an account. Someone who reads
 // the list can ask to join; the one who is asked lets them in or not.
-export type RelayOptions = { port: number; host?: string; maxRooms?: number; waitMs?: number; beatMs?: number; askMs?: number }
+export type RelayOptions = { port: number; host?: string; maxRooms?: number; waitMs?: number; beatMs?: number; askMs?: number; behindProxy?: boolean }
 export type Relay = { port: number; rooms: () => number; close: () => Promise<void> }
 
 const LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
@@ -250,7 +251,7 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
     }
 
     server.on('connection', (socket, request) => {
-        const seat: Seat = { room: null, asking: null, asked: 0, wrong: 0, alive: true, sent: 0, from: request.socket.remoteAddress ?? '' }
+        const seat: Seat = { room: null, asking: null, asked: 0, wrong: 0, alive: true, sent: 0, from: senderOf(request, options.behindProxy) }
         seats.set(socket, seat)
         socket.on('pong', () => (seat.alive = true))
         socket.on('message', (data: RawData, binary: boolean) => {

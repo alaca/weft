@@ -8,6 +8,7 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build",
+        "build:server": "node scripts/build-server.mjs",
         "typecheck": "tsc --noEmit",
         "test": "vitest run",
         "test:e2e": "playwright test",

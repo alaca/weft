@@ -28,7 +28,7 @@ const devRelay = (): Plugin => ({
             )
         held.__weftSite = (held.__weftSite ?? Promise.resolve(null))
             .then((before) => before?.close())
-            .then(() => createSite({ port: SITE_PORT, dataDir: process.env.WEFT_SITE_DATA ?? SITE_DATA, asks: 100000 }))
+            .then(() => createSite({ port: SITE_PORT, dataDir: process.env.WEFT_SITE_DATA ?? SITE_DATA, asks: 100000, codesShown: true }))
             .then(
                 (site) => (console.log(`  song site on ${site.origin}`), site),
                 (err) => (console.log(`  song site not started: ${err?.code ?? err}`), null),

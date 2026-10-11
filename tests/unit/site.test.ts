@@ -13,7 +13,7 @@ const PASSWORD = 'a long enough one'
 const OTHER = 'another one entirely'
 const QUARTER = 16 * 60 * 1000
 
-const start = async (more: Partial<SiteOptions> = {}) => (site = await createSite({ port: 0, dataDir, now: () => clock, ...more }))
+const start = async (more: Partial<SiteOptions> = {}) => (site = await createSite({ port: 0, dataDir, now: () => clock, codesShown: true, ...more }))
 const ask = (path: string, init: RequestInit & { token?: string; json?: unknown } = {}) =>
     fetch(site.origin + path, {
         ...init,
@@ -186,6 +186,41 @@ describe('a password', () => {
         expect((await ask('/api/me', { token: second })).status).toBe(401)
         expect((await enter('ante@example.com', PASSWORD)).status).toBe(401)
         expect((await enter('ante@example.com', OTHER)).status).toBe(200)
+    })
+
+    it('that is forgotten cannot be replaced where the site sends no mail and was not told to show codes, for any email alike', async () => {
+        await signIn()
+        await site.close()
+        await start({ codesShown: false })
+        const refused = [503, { why: 'mail', what: 'This site cannot send mail yet, so it cannot send a code for a new password. Sign in with the password you have.' }]
+        expect(await told(ask('/api/password/forgot', { json: { email: 'ante@example.com' } }))).toEqual(refused)
+        expect(await told(ask('/api/password/forgot', { json: { email: 'nobody@example.com' } }))).toEqual(refused)
+        expect((await enter('ante@example.com', PASSWORD)).status).toBe(200)
+    })
+
+    it('that is forgotten is mailed its code where the site has a way to send mail, and the code is not in the answer', async () => {
+        await signIn()
+        await site.close()
+        const sent: string[][] = []
+        await start({ codesShown: false, mail: (to, code) => void sent.push([to, code]) })
+        expect(await told(ask('/api/password/forgot', { json: { email: 'ante@example.com' } }))).toEqual([200, {}])
+        expect(sent).toEqual([['ante@example.com', expect.stringMatching(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/)]])
+        expect((await ask('/api/password/reset', { json: { email: 'ante@example.com', code: sent[0][1], password: OTHER } })).status).toBe(200)
+        expect((await enter('ante@example.com', OTHER)).status).toBe(200)
+    })
+
+    it('counts tries by the address the web server in front noted, and only where it is said that there is one', async () => {
+        await signIn()
+        const tries = async (from: string) => {
+            let last = 0
+            for (let count = 0; count < 11; count++) last = (await ask('/api/sign-in', { json: { email: `p${count}-${from}@example.com`, password: 'not the password' }, headers: { 'X-Real-IP': from } })).status
+            return last
+        }
+        expect(await tries('203.0.113.7')).toBe(429)
+        await site.close()
+        await start({ behindProxy: true })
+        expect(await tries('203.0.113.7')).toBe(429)
+        expect((await ask('/api/sign-in', { json: { email: 'someone@example.com', password: 'not the password' }, headers: { 'X-Real-IP': '203.0.113.8' } })).status).toBe(401)
     })
 
     it('that is forgotten is chosen anew with a code, which this machine hands back because it sends no mail', async () => {
