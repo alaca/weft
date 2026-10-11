@@ -32,7 +32,9 @@ export type { BlockMark } from './marks'
 
 export type EvalError = { message: string; line: number | null; guard?: boolean }
 export type Rendered = { channels: Float32Array[]; sampleRate: number; secondsPerBar: number; missed: number }
-export type RenderRequest = { bars: number; ringSeconds: number; sampleRate: number }
+// `only` names one pattern to make the recording of. The others are left out of it, but what
+// they do to it stays: a pattern that is pushed down by the kick is still pushed down.
+export type RenderRequest = { bars: number; ringSeconds: number; sampleRate: number; only?: string }
 export type Moved = { k: 'play'; at: number } | { k: 'pause'; at: number } | { k: 'stop' }
 
 export type EngineState = {
@@ -761,7 +763,7 @@ export function createEngine(): Engine {
         // handed to an audio clock that is not the one you listen on, and that clock then runs
         // through the song as fast as the machine can. The song is evaluated from its first
         // bar for this, with nothing soloed, and put back as it was afterwards.
-        async render({ bars, ringSeconds, sampleRate }, onProgress) {
+        async render({ bars, ringSeconds, sampleRate, only }, onProgress) {
             if (blank()) throw new Error('There is nothing in this song to play.')
             engine.stop()
             const before = { soloIds, offset, endBar, loop, liveMode }
@@ -794,24 +796,30 @@ export function createEngine(): Engine {
                 setAudioContext(clock)
                 setSuperdoughAudioController(null)
                 await initAudio()
-                const haps = pattern
-                    .queryArc(0, bars, { _cps: cps })
-                    .filter((hap: any) => hap.hasOnset())
-                    .sort((a: any, b: any) => a.whole.begin.valueOf() - b.whole.begin.valueOf())
                 const startOf = (hap: any) => hap.whole.begin.valueOf() / cps
+                const hapsOf = (from: any): any[] => (from ? from.queryArc(0, bars, { _cps: cps }).filter((hap: any) => hap.hasOnset()) : [])
+                const everything = hapsOf(pattern)
+                const ducks = (hap: any) => hap.value?.duckorbit !== undefined && hap.value?.duckorbit !== null
+                everything.forEach((hap: any) => hap.ensureObjectValue())
+                // With one pattern asked for, the others are only there for what they do to it.
+                const haps: { hap: any; heard: boolean }[] = (
+                    only === undefined
+                        ? everything.map((hap) => ({ hap, heard: true }))
+                        : [...hapsOf(pending.get(only)).map((hap) => ({ hap, heard: true })), ...everything.filter(ducks).map((hap) => ({ hap, heard: false }))]
+                ).sort((a, b) => startOf(a.hap) - startOf(b.hap))
                 // The sounds are handed over a stretch at a time, a little before they are
                 // due, with the clock standing still meanwhile, the way they arrive when the
                 // song plays. Handing over the whole song at once makes the clock carry every
                 // sound of it from the first moment, and it then runs slower than the song.
                 let next = 0
                 const handOver = async (until: number) => {
-                    for (; next < haps.length && startOf(haps[next]) < until; next++) {
-                        const hap = haps[next]
+                    for (; next < haps.length && startOf(haps[next].hap) < until; next++) {
+                        const { hap, heard } = haps[next]
                         hap.ensureObjectValue()
                         if (guarded && carriesCode(hap.value)) continue
                         const { duckorbit, ...value } = hap.value
-                        if (duckorbit !== undefined && duckorbit !== null) duckAt(hap.value, startOf(hap))
-                        await superdough(value, startOf(hap), hap.duration.valueOf() / cps, cps, hap.whole.begin.valueOf()).catch(() => void missed++)
+                        if (duckorbit !== undefined && duckorbit !== null && (only === undefined || !heard)) duckAt(hap.value, startOf(hap))
+                        if (heard) await superdough(value, startOf(hap), hap.duration.valueOf() / cps, cps, hap.whole.begin.valueOf()).catch(() => void missed++)
                     }
                 }
                 await handOver(STRETCH)

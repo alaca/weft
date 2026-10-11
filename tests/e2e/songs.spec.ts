@@ -364,6 +364,65 @@ test('the audio file is of the format and quality that were chosen, and the choi
     await expect(chosen('Quality', 'Highest')).toHaveAttribute('aria-pressed', 'true')
 })
 
+// A kick that pushes the bass down on every bar, a pattern that is switched off, and one that
+// plays but makes no sound.
+const APART =
+    'setcpm(120/4)\n\ndrums: stack(\n  s("bd").struct("x ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~").duckorbit(2).duckattack(0.4).duckdepth(1),\n)\n  .bank("RolandTR909")\n  .mask("<1!2>")\n\nbass: note("c2")\n  .s("sawtooth")\n  .lpf(600)\n  .orbit(2)\n  .mask("<1!2>")\n\n_lead: note("c4 e4")\n  .s("square")\n\nghost: note("c3")\n  .s("sine")\n  .gain(0)\n'
+
+// The files of a zip, read from the list at its end.
+function unzip(zip: Buffer): { name: string; bytes: Buffer }[] {
+    const end = zip.length - 22
+    expect(zip.readUInt32LE(end)).toBe(0x06054b50)
+    const files = []
+    let at = zip.readUInt32LE(end + 16)
+    for (let n = 0; n < zip.readUInt16LE(end + 10); n++) {
+        const size = zip.readUInt32LE(at + 24)
+        const named = zip.readUInt16LE(at + 28)
+        const from = zip.readUInt32LE(at + 42)
+        const start = from + 30 + zip.readUInt16LE(from + 26) + zip.readUInt16LE(from + 28)
+        files.push({ name: zip.subarray(at + 46, at + 46 + named).toString('utf8'), bytes: zip.subarray(start, start + size) })
+        at += 46 + named
+    }
+    return files
+}
+
+test('each pattern is exported as a file of its own, as long as the song, with what the others do to it left in', async ({ page }) => {
+    test.setTimeout(120000)
+    await open(page, APART)
+    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
+    await openExport(page)
+    const box = page.getByTestId('export')
+    await expect(box.getByRole('button', { name: 'The song', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await box.getByRole('button', { name: 'Each pattern', exact: true }).click()
+    await expect(page.getByTestId('export-size')).toHaveText('16 bit, 44.1 kHz, as on a CD. 3 files in one zip, each 4 s, about 3.2 MB in all.')
+    const [download] = await Promise.all([page.waitForEvent('download', { timeout: 90000 }), box.getByRole('button', { name: 'Export audio', exact: true }).click()])
+    expect(download.suggestedFilename()).toBe('Untitled patterns.zip')
+    await expect(page.getByTestId('export-note')).toHaveText('Saved as Untitled patterns.zip, in your downloads folder. 2 patterns in it. 1 that never sounds was left out.')
+
+    const { readFile } = await import('node:fs/promises')
+    const files = unzip(await readFile(await download.path()))
+    expect(files.map((file) => file.name)).toEqual(['Untitled - drums.wav', 'Untitled - bass.wav'])
+    for (const file of files) expect(file.bytes.subarray(0, 4).toString('latin1')).toBe('RIFF')
+    expect(files[0].bytes.length).toBe(files[1].bytes.length)
+
+    // The kick is not in the bass's file, but the bass still gives way to it: right after the
+    // kick it is far quieter than later in the bar.
+    const bass = files[1].bytes
+    const rate = bass.readUInt32LE(24)
+    const level = (from: number, to: number) => {
+        let sum = 0
+        for (let frame = Math.floor(from * rate); frame < Math.floor(to * rate); frame++) sum += Math.abs(bass.readInt16LE(44 + frame * 4))
+        return sum / (Math.floor(to * rate) - Math.floor(from * rate)) / 32767
+    }
+    expect(level(1.2, 1.8)).toBeGreaterThan(0.02)
+    expect(level(0.01, 0.06)).toBeLessThan(level(1.2, 1.8) * 0.5)
+
+    // Asked again, the dialog is back at the whole song.
+    await box.getByRole('button', { name: 'Close', exact: true }).click()
+    await openExport(page)
+    await expect(page.getByTestId('export').getByRole('button', { name: 'The song', exact: true })).toHaveAttribute('aria-pressed', 'true')
+})
+
 test('a whole song is made into audio in far less time than it plays', async ({ page }) => {
     test.setTimeout(120000)
     await open(page)

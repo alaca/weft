@@ -6,16 +6,13 @@ export type FileKind = { extension: string; label: string; type: string }
 
 const inDesktop = () => '__TAURI_INTERNALS__' in window
 
-export async function saveFile(name: string, data: Uint8Array | string, kind: FileKind): Promise<Saved> {
-    if (inDesktop()) {
-        const { save } = await import('@tauri-apps/plugin-dialog')
-        const { writeFile } = await import('@tauri-apps/plugin-fs')
-        const path = await save({ defaultPath: name, filters: [{ name: kind.label, extensions: [kind.extension] }] })
-        if (!path) return { saved: false }
-        await writeFile(path, typeof data === 'string' ? new TextEncoder().encode(data) : data)
-        return { saved: true, where: path }
-    }
-    const url = URL.createObjectURL(new Blob([data as BlobPart], { type: kind.type }))
+async function askWhere(name: string, kind: FileKind): Promise<string | null> {
+    const { save } = await import('@tauri-apps/plugin-dialog')
+    return save({ defaultPath: name, filters: [{ name: kind.label, extensions: [kind.extension] }] })
+}
+
+function download(name: string, parts: BlobPart[], kind: FileKind): Saved {
+    const url = URL.createObjectURL(new Blob(parts, { type: kind.type }))
     const link = document.createElement('a')
     link.href = url
     link.download = name
@@ -24,4 +21,42 @@ export async function saveFile(name: string, data: Uint8Array | string, kind: Fi
     link.remove()
     window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
     return { saved: true, where: null }
+}
+
+export async function saveFile(name: string, data: Uint8Array | string, kind: FileKind): Promise<Saved> {
+    if (!inDesktop()) return download(name, [data as BlobPart], kind)
+    const { writeFile } = await import('@tauri-apps/plugin-fs')
+    const path = await askWhere(name, kind)
+    if (!path) return { saved: false }
+    await writeFile(path, typeof data === 'string' ? new TextEncoder().encode(data) : data)
+    return { saved: true, where: path }
+}
+
+// A file too big to hold in one piece, written as its pieces are made. In the desktop app the
+// place is asked for first and every piece goes straight to disk. A browser can only hand over
+// a finished file, so there the pieces are kept until the last one. Nothing is given back when
+// no place was chosen.
+export type Pieces = { write(piece: Uint8Array): Promise<void>; done(): Promise<Saved> }
+
+export async function savePieces(name: string, kind: FileKind): Promise<Pieces | null> {
+    if (!inDesktop()) {
+        const kept: BlobPart[] = []
+        return {
+            async write(piece) {
+                kept.push(piece as BlobPart)
+            },
+            done: async () => download(name, kept, kind),
+        }
+    }
+    const { writeFile } = await import('@tauri-apps/plugin-fs')
+    const path = await askWhere(name, kind)
+    if (!path) return null
+    let begun = false
+    return {
+        async write(piece) {
+            await writeFile(path, piece, begun ? { append: true } : undefined)
+            begun = true
+        },
+        done: async () => ({ saved: true, where: path }),
+    }
 }

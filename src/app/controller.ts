@@ -6,7 +6,7 @@ import { callFor, controlOf, valueArg, type ControlView } from '../controls/view
 import { onSongLink } from '../desktop/links'
 import { installMenus } from '../desktop/menu'
 import { chooseFile } from '../desktop/open'
-import { saveFile, type FileKind, type Saved } from '../desktop/save'
+import { saveFile, savePieces, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, LEFT_PANELS, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type LeftPanel, type ViewMode } from '../library/layout'
@@ -17,9 +17,10 @@ import { withoutLead } from '../library/shrink'
 import { startTake, whyNot, type NoTake, type Take } from '../library/recorder'
 import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
 import { readKey, writeKey, type Key } from '../song/scales'
-import { gradeOf, readAudio, RING_SECONDS, type AudioOptions, type Format } from '../library/audio'
+import { gradeOf, readAudio, RING_SECONDS, sizeOf, type AudioOptions, type Format } from '../library/audio'
 import { encodeMp3 } from '../library/mp3'
 import { encodeWav, fileName, levelFor, peakOf, soundingLength } from '../library/wav'
+import { ZIP_LIMIT, zipWriter } from '../library/zip'
 import { analyze } from '../song/analyze'
 import { arrangeEdit, arrangeSong, barsOf, readArrangement, repeatEdits, songLength } from '../song/arrange'
 import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
@@ -1667,6 +1668,7 @@ const AUDIO_FILES: Record<Format, FileKind> = {
     wav: { extension: 'wav', label: 'WAV audio', type: 'audio/wav' },
     mp3: { extension: 'mp3', label: 'MP3 audio', type: 'audio/mpeg' },
 }
+const ZIP_FILE: FileKind = { extension: 'zip', label: 'Zip', type: 'application/zip' }
 const EXPORT_KEY = 'weft.export'
 
 const told = (saved: Saved, name: string) => (!saved.saved ? 'Not saved.' : saved.where ? `Saved to ${saved.where}` : `Saved as ${name}, in your downloads folder.`)
@@ -1905,6 +1907,69 @@ export async function exportAudio(options: AudioOptions) {
         setExportNote(told(saved, name) + (saved.saved ? missing : ''))
     } catch (err) {
         setExportNote(`The audio file could not be made: ${String((err as Error)?.message ?? err)}`)
+    } finally {
+        setExporting(false)
+    }
+}
+
+// The patterns that would each get a file: the ones that are not switched off.
+export const patternsToExport = (): string[] => song().patterns.filter((block) => !block.muted).map((block) => block.id)
+
+// Every pattern of the song as an audio file of its own, in one zip, for finishing the song
+// somewhere else. Each file is as long as the song and as loud as the pattern is in it, with
+// what the other patterns do to it left in, so that laid over each other they are the song
+// again. Only reverb and noise differ, as they do between any two recordings of one song:
+// Strudel makes both anew every time.
+export async function exportPatterns(options: AudioOptions) {
+    if (!current || exporting()) return
+    if (engineState().sounds !== 'ready') return void setExportNote('The sounds are still loading. Try again in a moment.')
+    localStorage.setItem(EXPORT_KEY, JSON.stringify(options))
+    const kind = AUDIO_FILES[options.format]
+    const grade = gradeOf(options)
+    const title = current.name
+    const name = fileName(`${title} patterns`, ZIP_FILE.extension)
+    const bars = songLengthNow()
+    const ids = patternsToExport()
+    if (!ids.length) return void setExportNote('No pattern of this song plays, so there is nothing to save.')
+    if (ids.length * sizeOf(options, (bars * 240) / engine.bpm() + RING_SECONDS) > ZIP_LIMIT) return void setExportNote('That is more than one zip can hold. Choose MP3 or a lower quality, then export again.')
+    setExporting(true)
+    setExportNote('Choose where to save it.')
+    let begun = false
+    try {
+        const pieces = await savePieces(name, ZIP_FILE)
+        if (!pieces) return void setExportNote('Not saved.')
+        // The whole song is made first, only to learn how long it sounds and how far it has
+        // to be turned down to fit. Every pattern is then cut and turned down by the same.
+        setExportNote('Listening to the whole song first, 0%.')
+        const whole = await engine.render({ bars, ringSeconds: RING_SECONDS, sampleRate: grade.sampleRate }, (done) => setExportNote(`Listening to the whole song first, ${percent(done)}.`))
+        const length = soundingLength(whole.channels, whole.sampleRate, Math.min(whole.channels[0].length, Math.round(bars * whole.secondsPerBar * whole.sampleRate)))
+        const peak = peakOf(whole.channels, length)
+        if (!peak) return void setExportNote('Nothing sounds in this song, so there is no audio to save.')
+        const level = levelFor(peak)
+        const zip = zipWriter()
+        let kept = 0
+        for (const [at, id] of ids.entries()) {
+            const said = `Making ${id}, ${at + 1} of ${ids.length}`
+            setExportNote(`${said}, 0%.`)
+            const made = await engine.render({ bars, ringSeconds: RING_SECONDS, sampleRate: grade.sampleRate, only: id }, (done) => setExportNote(`${said}, ${percent(done)}.`))
+            const cut = Math.min(length, made.channels[0].length)
+            if (!peakOf(made.channels, cut)) continue
+            const bytes = grade.kbps ? await encodeMp3(made.channels, made.sampleRate, grade.kbps, { length: cut, level }) : encodeWav(made.channels, made.sampleRate, { length: cut, level, depth: grade.depth })
+            for (const piece of zip.add(fileName(`${title} - ${id}`, kind.extension), bytes)) {
+                await pieces.write(piece)
+                begun = true
+            }
+            kept++
+        }
+        await pieces.write(zip.end())
+        const saved = await pieces.done()
+        const quiet = ids.length - kept
+        const left = quiet ? ` ${quiet} that never ${quiet === 1 ? 'sounds was' : 'sound were'} left out.` : ''
+        const missing = whole.missed ? ` ${whole.missed} ${whole.missed === 1 ? 'sound' : 'sounds'} could not be loaded and ${whole.missed === 1 ? 'is' : 'are'} missing from it.` : ''
+        setExportNote(`${told(saved, name)} ${kept} ${kept === 1 ? 'pattern' : 'patterns'} in it.${left}${missing}`)
+    } catch (err) {
+        const why = String((err as Error)?.message ?? err)
+        setExportNote(begun ? `The patterns could not all be made: ${why} The zip that was begun is not whole. Delete it and export again.` : `The patterns could not be made: ${why}`)
     } finally {
         setExporting(false)
     }

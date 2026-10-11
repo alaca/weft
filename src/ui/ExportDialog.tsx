@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js'
-import { closeExport, exportAudio, exportCode, keptAudio, saveSongFile, songLengthNow } from '../app/controller'
+import { closeExport, exportAudio, exportCode, exportPatterns, keptAudio, patternsToExport, saveSongFile, songLengthNow } from '../app/controller'
 import { durationText, FORMATS, gradeOf, QUALITIES, RING_SECONDS, sizeOf, sizeText, type AudioOptions, type Format, type Quality } from '../library/audio'
 import { bpm, currentSong, engineState, exporting, exportNote, exportOpen } from '../stores/song'
 
@@ -9,17 +9,21 @@ const QUALITY_LABELS: Record<Quality, string> = { standard: 'Standard', high: 'H
 export function ExportDialog() {
     let box: HTMLDivElement | undefined
     const [options, setOptions] = createSignal<AudioOptions>(keptAudio())
+    // Whether each pattern gets a file of its own. Asked for anew every time: it is the rarer wish.
+    const [apart, setApart] = createSignal(false)
 
     createEffect(
         on(exportOpen, (open) => {
             if (!open) return
             setOptions(keptAudio())
+            setApart(false)
             queueMicrotask(() => box?.focus())
         }),
     )
 
     const seconds = () => (songLengthNow() * 240) / bpm()
     const ready = () => !exporting() && !engineState().error
+    const files = () => patternsToExport().length
 
     const escape = (event: KeyboardEvent) => {
         if (exportOpen() && event.key === 'Escape' && !exporting()) closeExport()
@@ -49,6 +53,17 @@ export function ExportDialog() {
                     </div>
 
                     <div class="xp-r">
+                        <span class="xp-l">What</span>
+                        <div class="seg" role="group" aria-label="What">
+                            <button classList={{ on: !apart() }} aria-pressed={!apart()} disabled={exporting()} onClick={() => setApart(false)}>
+                                The song
+                            </button>
+                            <button classList={{ on: apart() }} aria-pressed={apart()} disabled={exporting()} title="A file for every pattern, all as long as the song, to mix somewhere else" onClick={() => setApart(true)}>
+                                Each pattern
+                            </button>
+                        </div>
+                    </div>
+                    <div class="xp-r">
                         <span class="xp-l">Format</span>
                         <div class="seg" role="group" aria-label="Format">
                             <For each={FORMATS}>
@@ -73,7 +88,16 @@ export function ExportDialog() {
                         </div>
                     </div>
                     <p class="xp-s" data-testid="export-size">
-                        {gradeOf(options()).about}. The whole song, {durationText(seconds())}, about {sizeText(sizeOf(options(), seconds() + RING_SECONDS / 2))}.
+                        <Show
+                            when={apart()}
+                            fallback={
+                                <>
+                                    {gradeOf(options()).about}. The whole song, {durationText(seconds())}, about {sizeText(sizeOf(options(), seconds() + RING_SECONDS / 2))}.
+                                </>
+                            }
+                        >
+                            {gradeOf(options()).about}. {files()} {files() === 1 ? 'file' : 'files'} in one zip, each {durationText(seconds())}, about {sizeText(files() * sizeOf(options(), seconds() + RING_SECONDS / 2))} in all.
+                        </Show>
                     </p>
 
                     <p class="xp-n" role="status" data-testid="export-note">
@@ -92,7 +116,7 @@ export function ExportDialog() {
                         <button class="btn" disabled={exporting()} onClick={closeExport}>
                             Close
                         </button>
-                        <button class="btn go" disabled={!ready()} onClick={() => void exportAudio(options())}>
+                        <button class="btn go" disabled={!ready()} onClick={() => void (apart() ? exportPatterns(options()) : exportAudio(options()))}>
                             {exporting() ? 'Working' : 'Export audio'}
                         </button>
                     </div>
