@@ -1,33 +1,36 @@
-import { createEffect, createSignal, For, Match, on, onCleanup, onMount, Show, Switch } from 'solid-js'
+import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, onMount, Show, Switch } from 'solid-js'
+import { openAccount } from '../app/account'
 import { songLengthNow } from '../app/controller'
-import { askForLink, closePublish, publishNow, signOutOfSite, takeDown } from '../app/publish'
+import { closePublish, publishNow, weigh } from '../app/publish'
 import { sizeText } from '../library/audio'
-import { NAME_LIMIT } from '../jam/protocol'
 import { LICENCES } from '../site/api'
-import { jamName } from '../stores/jam'
-import { publishDone, publishFacts, publishFrom, publishMail, publishMe, publishMine, publishNote, publishOpen, publishRefused, publishStage, setPublishFrom } from '../stores/publish'
+import { me } from '../stores/account'
+import { publishDone, publishFacts, publishFrom, publishNote, publishOpen, publishRefused, publishStage, setPublishFrom } from '../stores/publish'
 import { currentSong } from '../stores/song'
+import { AccountForm } from './AccountForm'
 
-// Publishing the open song to the site: signing in with a link sent to an address, then what
-// the song's page should say, and what stands in the way when something does.
+// Publishing the open song to the site: an account made or signed in to here, then what the
+// song's page should say, and what stands in the way when something does.
 export function PublishDialog() {
     let box: HTMLDivElement | undefined
-    const [email, setEmail] = createSignal('')
-    const [name, setName] = createSignal('')
     const [description, setDescription] = createSignal('')
     const [style, setStyle] = createSignal('')
     const [licence, setLicence] = createSignal<string>(LICENCES[0].id)
     const [copied, setCopied] = createSignal(false)
-    const [leaving, setLeaving] = createSignal<string | null>(null)
     const busy = () => publishStage() === 'working'
-    const full = () => (publishMe() ? publishMe()!.used >= publishMe()!.most : false)
+    const full = () => (me() ? me()!.used >= me()!.most : false)
 
     createEffect(
         on(publishOpen, (open) => {
-            if (!open) return
-            setLeaving(null)
-            setName(jamName())
-            queueMicrotask(() => box?.focus())
+            if (open) queueMicrotask(() => box?.focus())
+        }),
+    )
+    // Signing in from inside this window: once it is known who is publishing, the song is
+    // looked at, so that the window can say how large it is or what is wrong with it.
+    const signedInAs = createMemo(() => me()?.email)
+    createEffect(
+        on(signedInAs, (email) => {
+            if (email && publishOpen() && publishStage() === 'form') void weigh()
         }),
     )
     const escape = (event: KeyboardEvent) => {
@@ -71,44 +74,6 @@ export function PublishDialog() {
                         <Match when={publishStage() === 'looking'}>
                             <p class="xp-n">Asking the site who you are.</p>
                         </Match>
-                        <Match when={publishStage() === 'out'}>
-                            <p class="pb-t">Publishing puts this song on the Weft site, where others can hear half a minute of it and download it to work on. You sign in with a link sent to your address; there is no password.</p>
-                            <form
-                                class="pb-row"
-                                onSubmit={(event) => {
-                                    event.preventDefault()
-                                    void askForLink(email(), name())
-                                }}
-                            >
-                                <input class="pb-name" placeholder="Your name" aria-label="Your name, as it stands beside your songs" value={name()} maxLength={NAME_LIMIT} onInput={(event) => setName(event.currentTarget.value)} />
-                                <input type="email" placeholder="you@example.com" aria-label="Your address" value={email()} maxLength={254} onInput={(event) => setEmail(event.currentTarget.value)} />
-                                <button class="btn go">Send me a link</button>
-                            </form>
-                        </Match>
-                        <Match when={publishStage() === 'mail' ? publishMail() : null}>
-                            {(mail) => (
-                                <>
-                                    <p class="pb-t">
-                                        A link is on its way to <b>{mail().email}</b>. Open it, press Sign in on the page it shows, and come back here. This window goes on by itself.
-                                    </p>
-                                    <Show when={mail().link}>
-                                        {(link) => (
-                                            <div class="pb-dev">
-                                                <p>No mail is sent from this machine, so here is the link itself.</p>
-                                                <div class="pb-row">
-                                                    <a class="btn" href={link()} target="_blank" rel="noreferrer" data-testid="publish-link">
-                                                        Open the sign-in page
-                                                    </a>
-                                                    <button class="btn" onClick={() => void copy(link())}>
-                                                        {copied() ? 'Copied' : 'Copy the link'}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </Show>
-                                </>
-                            )}
-                        </Match>
                         <Match when={publishStage() === 'done' ? publishDone() : null}>
                             {(done) => (
                                 <>
@@ -130,17 +95,17 @@ export function PublishDialog() {
                                 </>
                             )}
                         </Match>
-                        <Match when={publishMe()}>
-                            {(me) => (
+                        <Match when={me()}>
+                            {(who) => (
                                 <>
                                     <p class="pb-t" data-testid="publish-count">
-                                        You have used {me().used} of your {me().most} songs.
+                                        You have used {who().used} of your {who().most} songs.
                                     </p>
                                     <Show
                                         when={!full()}
                                         fallback={
                                             <p class="pb-full" role="status">
-                                                <b>All {me().most} are used.</b> Take one down below to make room for this one.
+                                                <b>All {who().most} are used.</b> Delete one in your account to make room for this one.
                                             </p>
                                         }
                                     >
@@ -206,53 +171,26 @@ export function PublishDialog() {
                                             </button>
                                         </div>
                                     </Show>
-                                    <Show when={publishMine().length}>
-                                        <h4 class="pb-h">On the site</h4>
-                                        <div class="pb-list" data-testid="publish-mine">
-                                            <For each={publishMine()}>
-                                                {(song) => (
-                                                    <div class="pb-i">
-                                                        <b>{song.name}</b>
-                                                        <span>{song.hidden ? 'hidden' : 'published'}</span>
-                                                        <Show
-                                                            when={leaving() === song.id}
-                                                            fallback={
-                                                                <button class="chip tgl" disabled={busy()} onClick={() => setLeaving(song.id)}>
-                                                                    Take down
-                                                                </button>
-                                                            }
-                                                        >
-                                                            <button
-                                                                class="chip tgl on"
-                                                                disabled={busy()}
-                                                                onClick={() => {
-                                                                    setLeaving(null)
-                                                                    void takeDown(song.id)
-                                                                }}
-                                                            >
-                                                                Yes, take {song.name} down
-                                                            </button>
-                                                        </Show>
-                                                    </div>
-                                                )}
-                                            </For>
-                                        </div>
-                                    </Show>
                                     <p class="pb-who">
-                                        Signed in as {me().email}.{' '}
-                                        <button disabled={busy()} onClick={() => void signOutOfSite()}>
-                                            Sign out
+                                        Signed in as {who().email}.{' '}
+                                        <button
+                                            disabled={busy()}
+                                            onClick={() => {
+                                                closePublish()
+                                                openAccount()
+                                            }}
+                                        >
+                                            Your account and your songs
                                         </button>
                                     </p>
                                 </>
                             )}
                         </Match>
+                        <Match when={true}>
+                            <p class="pb-t">Publishing puts this song on the Weft site, where others can hear half a minute of it and download it to work on. It needs an account: your email and a password. You make it here, once, and the app stays signed in.</p>
+                            <AccountForm />
+                        </Match>
                     </Switch>
-                    <Show when={publishStage() === 'out' || publishStage() === 'mail'}>
-                        <p class="xp-n" role="status" data-testid="publish-note">
-                            {publishNote()}
-                        </p>
-                    </Show>
                 </div>
             </div>
         </Show>

@@ -6,6 +6,7 @@ import { codeWidth, soundsOpen, soundsWidth, viewMode } from './stores/song'
 import { CodePane } from './ui/CodePane'
 import { ExportDialog } from './ui/ExportDialog'
 import { LeftColumn } from './ui/LeftColumn'
+import { AccountDialog } from './ui/AccountDialog'
 import { PublishDialog } from './ui/PublishDialog'
 import { StatusBar } from './ui/StatusBar'
 import { StripList } from './ui/StripList'
@@ -50,6 +51,7 @@ export function App() {
             <StatusBar />
             <ExportDialog />
             <PublishDialog />
+            <AccountDialog />
         </div>
     )
 }

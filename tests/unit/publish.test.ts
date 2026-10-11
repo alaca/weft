@@ -82,6 +82,14 @@ describe('checkSongFile', () => {
         expect(checkSongFile(changed((made) => made.sounds.push(made.sounds[0])))?.why).toBe('sound')
     })
 
+    it('lets a file say which published song it came from, and nothing else beside that', () => {
+        expect(checkSongFile(file({ source: { id: 'ab12cd', name: 'Low sun', by: 'Mara' } }))).toBeNull()
+        expect(checkSongFile(changed((made) => (made.source = { id: 'AB 12', name: 'Low sun', by: 'Mara' })))?.why).toBe('file')
+        expect(checkSongFile(changed((made) => (made.source = { id: 'ab12cd', name: 'Low sun', by: 'Mara', run: 'x' })))?.why).toBe('file')
+        expect(checkSongFile(changed((made) => (made.source = 'ab12cd')))?.why).toBe('file')
+        expect(checkSongFile(changed((made) => (made.source = { id: 'ab12cd', name: 'x'.repeat(61), by: 'Mara' })))?.why).toBe('file')
+    })
+
     it('refuses a sound the song does not use', () => {
         expect(checkSongFile(file({ sounds: [take(), take('hidden')] }))).toEqual({ why: 'sound', what: 'The file holds the sound hidden, which the song does not use.' })
     })

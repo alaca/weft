@@ -3,6 +3,7 @@ import { FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '..
 import { drumChoices } from '../controls/drums'
 import { firstMotion, motionText, readMotion, type Motion } from '../controls/motion'
 import { callFor, controlOf, valueArg, type ControlView } from '../controls/views'
+import { onSongLink } from '../desktop/links'
 import { installViewMenu } from '../desktop/menu'
 import { saveFile, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
@@ -72,6 +73,7 @@ import type { Bars } from '../jam/protocol'
 import { jamsOpen, jamStage, setJamsOpen, setJamUnread, setSoundsShare, soundsShare } from '../stores/jam'
 import { attachJam, leaveJam, tellJam } from './jam'
 import { attachPublish } from './publish'
+import { SITE } from '../site/api'
 import {
     cycle,
     deletedSong,
@@ -321,7 +323,7 @@ export async function mount(root: HTMLElement): Promise<void> {
         },
         replay,
     })
-    attachPublish({ prepare: prepareToPublish, preview: previewToPublish, busiestBar })
+    attachPublish({ prepare: prepareToPublish, preview: previewToPublish, busiestBar, cameFrom: () => current?.source?.id ?? null })
     engine.onSoundDrop(dropSound)
     engine.onCursor((offset) => {
         if (stale()) return
@@ -363,7 +365,8 @@ export async function mount(root: HTMLElement): Promise<void> {
             )
         })
     })
-    if (import.meta.env.DEV) (window as any).__weft = { engine, prepareToPublish }
+    void onSongLink((id) => void openFromSite(id))
+    if (import.meta.env.DEV) (window as any).__weft = { engine, prepareToPublish, openFromSite }
 }
 
 export const play = () => void engine.evaluate()
@@ -1602,7 +1605,7 @@ export async function saveSongFile() {
     const name = fileName(current.name, SONG_KIND.extension)
     try {
         const code = engine.getCode()
-        setExportNote(told(await saveFile(name, writeSongFile({ name: current.name, code, keys: current.keys ?? {}, sounds: await soundsOfSong(code) }), SONG_KIND), name))
+        setExportNote(told(await saveFile(name, writeSongFile({ name: current.name, code, keys: current.keys ?? {}, sounds: await soundsOfSong(code), ...(current.source ? { source: current.source } : {}) }), SONG_KIND), name))
     } catch (err) {
         setExportNote(`The file could not be saved: ${String((err as Error)?.message ?? err)}`)
     }
@@ -1614,7 +1617,7 @@ async function prepareToPublish(): Promise<Prepared | null> {
     if (!current) return null
     const code = engine.getCode()
     return prepareForPublishing(
-        { name: current.name, code, keys: current.keys ?? {}, sounds: await soundsOfSong(code) },
+        { name: current.name, code, keys: current.keys ?? {}, sounds: await soundsOfSong(code), ...(current.source ? { source: current.source } : {}) },
         (bytes) => engine.decodeAudio(bytes.slice().buffer),
         (sound, kbps) => encodeMp3(sound.channels, sound.sampleRate, kbps),
     )
@@ -1641,9 +1644,11 @@ function busiestBar(): number {
 const PREVIEW_KBPS = 128
 const PREVIEW_RATE = 44100
 
-// Half a minute of the song from a bar on, as an MP3, for the site to play. Null when nothing
-// sounds in it.
-async function previewToPublish(from: number, onProgress: (done: number) => void): Promise<Uint8Array | null> {
+const PREVIEW_PEAKS = 160
+
+// Half a minute of the song from a bar on, as an MP3, for the site to play, with how loud it is
+// along its length, for the site to draw. Null when nothing sounds in it.
+async function previewToPublish(from: number, onProgress: (done: number) => void): Promise<{ mp3: Uint8Array; peaks: number[]; seconds: number } | null> {
     const perBar = 240 / engine.bpm()
     const bars = Math.max(from + 1, Math.min(songLengthNow(), from + Math.ceil(PREVIEW_SECONDS / perBar)))
     const made = await engine.render({ bars, ringSeconds: 0, sampleRate: PREVIEW_RATE }, onProgress)
@@ -1654,7 +1659,31 @@ async function previewToPublish(from: number, onProgress: (done: number) => void
     if (!peak || length <= 0) return null
     const fade = Math.min(length, Math.round(made.sampleRate * 0.3))
     for (const channel of part) for (let at = 0; at < fade; at++) channel[length - 1 - at] *= at / fade
-    return encodeMp3(part, made.sampleRate, PREVIEW_KBPS, { length, level: levelFor(peak) })
+    const level = levelFor(peak)
+    const each = Math.max(1, Math.floor(length / PREVIEW_PEAKS))
+    const peaks = Array.from({ length: Math.min(PREVIEW_PEAKS, Math.ceil(length / each)) }, (_, at) => {
+        let loudest = 0
+        for (const channel of part) for (let sample = at * each; sample < Math.min(length, (at + 1) * each); sample++) loudest = Math.max(loudest, Math.abs(channel[sample]))
+        return Math.round(Math.min(1, loudest * level) * 100) / 100
+    })
+    return { mp3: await encodeMp3(part, made.sampleRate, PREVIEW_KBPS, { length, level }), peaks, seconds: Math.round((length / made.sampleRate) * 10) / 10 }
+}
+
+// A published song, fetched from the site and opened like a song file. It is the site's own
+// address that is asked, whatever the link said, and the song is from someone else like any
+// other file, so it is only played while it is music code.
+async function openFromSite(id: string) {
+    if (!/^[a-z0-9]{1,16}$/.test(id)) return
+    if (jamStage() === 'jamming') return void setSongNote('A song from the site cannot be opened in the middle of a jam. Press Leave in the Jams panel first.')
+    try {
+        const answer = await fetch(`${SITE}/songs/${id}.weft`)
+        if (!answer.ok) return void setSongNote('That song is no longer on the site.')
+        const text = await answer.text()
+        const name = (JSON.parse(text) as { name?: unknown }).name
+        await openSongFile(new File([text], `${typeof name === 'string' && name.trim() ? name.trim() : 'Song'}.${SONG_FILE}`, { type: 'application/json' }))
+    } catch {
+        setSongNote('The song could not be fetched from the site. Check that you are online, then try the link again.')
+    }
 }
 
 // A sound that was made into an MP3 for a small song file starts a little late, by the silence
@@ -1690,7 +1719,7 @@ export async function openSongFile(file: File) {
             added++
         }
         flush()
-        const record: SongRecord = { id: newId(), name: freeTitle(cleanName(read.name) || UNTITLED, titles()), saved: code, draft: code, changedAt: Date.now(), guarded: true, ...(Object.keys(read.keys).length ? { keys: read.keys } : {}) }
+        const record: SongRecord = { id: newId(), name: freeTitle(cleanName(read.name) || UNTITLED, titles()), saved: code, draft: code, changedAt: Date.now(), guarded: true, ...(Object.keys(read.keys).length ? { keys: read.keys } : {}), ...(read.source ? { source: read.source } : {}) }
         shelf.write(record)
         show(record)
         setSongNote(added ? `Opened ${record.name}, with ${added} ${added === 1 ? 'sound' : 'sounds'} of its own, now among yours.` : `Opened ${record.name}.`)

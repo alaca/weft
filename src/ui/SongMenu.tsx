@@ -1,5 +1,6 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
 import { deleteSong, duplicateSong, listSongs, newSong, openDemo, openExport, openSong, openSongFile, renameSong, restoreSong, revertSong, saveSong } from '../app/controller'
+import { openAccount } from '../app/account'
 import { openPublish } from '../app/publish'
 import { DEMOS } from '../library/demos'
 import { whenText } from '../library/shelf'
@@ -126,6 +127,16 @@ export function SongMenu() {
                                 }}
                             >
                                 Publish
+                            </button>
+                            <button
+                                class="addb"
+                                title="Your account on the Weft site: the songs you published, your name, your password"
+                                onClick={() => {
+                                    openAccount()
+                                    setOpen(false)
+                                }}
+                            >
+                                Your account
                             </button>
                             <button class="addb" disabled={jamming()} onClick={() => picker?.click()}>
                                 Open a file

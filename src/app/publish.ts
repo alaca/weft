@@ -2,47 +2,34 @@ import { batch } from 'solid-js'
 import type { Prepared } from '../library/publish'
 import { sizeText } from '../library/audio'
 import { session, site, SiteRefused, type Refusal } from '../site/api'
-import { jamName } from '../stores/jam'
-import { nameYourself } from './jam'
-import {
-    publishOpen,
-    publishStage,
-    setPublishDone,
-    setPublishFacts,
-    setPublishFrom,
-    setPublishMail,
-    setPublishMe,
-    setPublishMine,
-    setPublishNote,
-    setPublishOpen,
-    setPublishRefused,
-    setPublishStage,
-} from '../stores/publish'
+import { setAccountNote } from '../stores/account'
+import { publishOpen, publishStage, setPublishDone, setPublishFacts, setPublishFrom, setPublishNote, setPublishOpen, setPublishRefused, setPublishStage } from '../stores/publish'
+import { refreshAccount, signOutOfSite } from './account'
 
 // Publishing the open song to the site. The song is checked and made to fit here first, so
 // that what is wrong with it is said before anything is sent; the site checks it again.
 export type PublishDeps = {
     prepare(): Promise<Prepared | null>
-    preview(from: number, onProgress: (done: number) => void): Promise<Uint8Array | null>
+    preview(from: number, onProgress: (done: number) => void): Promise<{ mp3: Uint8Array; peaks: number[]; seconds: number } | null>
     busiestBar(): number
+    // The published song the open one was downloaded as, when it was.
+    cameFrom(): string | null
 }
 export type PublishForm = { description: string; style: string; licence: string; previewFrom: number }
 
-const POLL_EVERY = 1500
 let deps: PublishDeps
-let polling = 0
 
 export const attachPublish = (given: PublishDeps) => void (deps = given)
 
 const said = (err: unknown): Refusal => (err instanceof SiteRefused ? err.refusal : { why: 'app', what: String((err as Error)?.message ?? err) })
 
-function signedOut(note: string | null = null) {
-    session.clear()
+// Signed out in the middle of something: the window goes back to asking who you are.
+async function signedOut(note: string) {
+    await signOutOfSite()
     batch(() => {
-        setPublishMe(null)
-        setPublishMine([])
-        setPublishNote(note)
-        setPublishStage('out')
+        setAccountNote(note)
+        setPublishNote(null)
+        setPublishStage('form')
     })
 }
 
@@ -54,28 +41,14 @@ export function refusalText(refused: Refusal, largest?: { name: string; bytes: n
 }
 
 async function look() {
-    const token = session.get()
-    if (!token) return signedOut()
-    try {
-        const [me, mine] = await Promise.all([site.me(token), site.mine(token)])
-        batch(() => {
-            setPublishMe(me)
-            setPublishMine(mine.songs)
-            setPublishStage('form')
-        })
-        void weigh()
-    } catch (err) {
-        if (err instanceof SiteRefused && err.status === 401) return signedOut()
-        batch(() => {
-            setPublishNote(said(err).what)
-            setPublishStage('out')
-        })
-    }
+    await refreshAccount()
+    setPublishStage('form')
+    void weigh()
 }
 
 // The song as it would be sent, so that the window can say how large it is or what is wrong
 // with it before Publish is pressed.
-async function weigh() {
+export async function weigh() {
     const made = await deps.prepare().catch(() => null)
     if (!made || !publishOpen()) return
     batch(() => {
@@ -85,7 +58,6 @@ async function weigh() {
 }
 
 export function openPublish() {
-    window.clearInterval(polling)
     batch(() => {
         setPublishOpen(true)
         setPublishStage('looking')
@@ -93,7 +65,6 @@ export function openPublish() {
         setPublishRefused(null)
         setPublishFacts(null)
         setPublishDone(null)
-        setPublishMail(null)
         setPublishFrom(deps.busiestBar())
     })
     void look()
@@ -101,52 +72,7 @@ export function openPublish() {
 
 export function closePublish() {
     if (publishStage() === 'working') return
-    window.clearInterval(polling)
     setPublishOpen(false)
-}
-
-export async function askForLink(address: string, name: string) {
-    const email = address.trim()
-    if (!name.trim()) return void setPublishNote('Type the name that should stand beside your songs.')
-    if (!email) return void setPublishNote('Type the address the link should be sent to.')
-    nameYourself(name)
-    setPublishNote(null)
-    try {
-        const asked = await site.askLink(email, jamName())
-        batch(() => {
-            setPublishMail({ email, link: asked.link ?? null })
-            setPublishStage('mail')
-        })
-        window.clearInterval(polling)
-        polling = window.setInterval(async () => {
-            const polled = await site.poll(asked.id, asked.secret).catch(() => null)
-            if (!polled || polled.state === 'waiting' || !publishOpen()) return
-            window.clearInterval(polling)
-            if (polled.state === 'gone') return signedOut('The link ran out before it was used. Ask for a new one.')
-            session.set(polled.token)
-            void look()
-        }, POLL_EVERY)
-    } catch (err) {
-        setPublishNote(said(err).what)
-    }
-}
-
-export async function signOutOfSite() {
-    const token = session.get()
-    window.clearInterval(polling)
-    if (token) await site.signOut(token).catch(() => undefined)
-    signedOut()
-}
-
-export async function takeDown(id: string) {
-    const token = session.get()
-    if (!token) return signedOut()
-    try {
-        await site.remove(token, id)
-        await look()
-    } catch (err) {
-        setPublishNote(said(err).what)
-    }
 }
 
 const base64 = (bytes: Uint8Array): string => {
@@ -157,7 +83,7 @@ const base64 = (bytes: Uint8Array): string => {
 
 export async function publishNow(form: PublishForm) {
     const token = session.get()
-    if (!token) return signedOut()
+    if (!token) return void (await signedOut('Sign in first.'))
     if (publishStage() !== 'form') return
     batch(() => {
         setPublishStage('working')
@@ -178,17 +104,28 @@ export async function publishNow(form: PublishForm) {
         const preview = await deps.preview(form.previewFrom, (done) => setPublishNote(`Making the preview, ${Math.round(done * 100)}%.`))
         if (!preview) return back(null, 'Nothing sounds in the 30 seconds from that bar, so there is no preview. Choose a bar where the song plays.')
         setPublishNote('Sending the song.')
-        const done = await site.publish(token, { file: made.text, preview: base64(preview), description: form.description, style: form.style, licence: form.licence, previewFrom: form.previewFrom })
+        const done = await site.publish(token, {
+            file: made.text,
+            preview: base64(preview.mp3),
+            peaks: preview.peaks,
+            seconds: preview.seconds,
+            description: form.description,
+            style: form.style,
+            licence: form.licence,
+            previewFrom: form.previewFrom,
+            ...(deps.cameFrom() ? { from: deps.cameFrom()! } : {}),
+        })
         batch(() => {
             setPublishDone(done)
             setPublishNote(null)
             setPublishStage('done')
         })
+        void refreshAccount()
     } catch (err) {
-        if (err instanceof SiteRefused && err.status === 401) return signedOut('You were signed out. Sign in again to publish.')
+        if (err instanceof SiteRefused && err.status === 401) return void (await signedOut('You were signed out. Sign in again to publish.'))
         const refused = said(err)
         if (refused.why === 'code' || refused.why === 'size' || refused.why === 'sound' || refused.why === 'file') return back({ ...refused, what: refusalText(refused) }, null)
         back(null, refused.what)
-        if (refused.why === 'full') void look()
+        if (refused.why === 'full') void refreshAccount()
     }
 }

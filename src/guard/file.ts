@@ -1,4 +1,4 @@
-import { fromBase64, SONG_LIMIT, soundsUsed } from '../library/songfile'
+import { fromBase64, readSource, SONG_LIMIT, soundsUsed } from '../library/songfile'
 import { checkSong } from './check'
 
 // What a song file has to be to be published. A song file holds code, and code runs on the
@@ -9,7 +9,7 @@ import { checkSong } from './check'
 export type FileRefused = { why: 'size' | 'file' | 'code' | 'sound'; what: string; line?: number }
 
 const VERSION = 1
-const PARTS = ['weft', 'name', 'keys', 'code', 'sounds']
+const PARTS = ['weft', 'name', 'keys', 'code', 'sounds', 'source']
 const SOUND_PARTS = ['name', 'file', 'type', 'seconds', 'data', 'onset']
 const SOUND_NAME = /^[a-z][a-z0-9_]{0,59}$/
 const NAME_LIMIT = 60
@@ -54,6 +54,7 @@ export function checkSongFile(text: string, limit = SONG_LIMIT): FileRefused | n
     if (typeof file.code !== 'string') return notASong('The file has no song in it.')
     if (!isRecord(file.keys) || Object.keys(file.keys).length > MOST_KEYS || !Object.entries(file.keys).every(([id, key]) => id.length <= NAME_LIMIT && isText(key, NAME_LIMIT))) return notASong('What the file says about the keys of its patterns cannot be read.')
     if (!Array.isArray(file.sounds) || file.sounds.length > MOST_SOUNDS) return notASong(`A song file can hold ${MOST_SOUNDS} sounds at most.`)
+    if (file.source !== undefined && (!isRecord(file.source) || Object.keys(file.source).some((part) => !['id', 'name', 'by'].includes(part)) || !readSource(file.source))) return notASong('What the file says about where it came from cannot be read.')
 
     const refused = checkSong(file.code)
     if (refused) return { why: 'code', what: refused.what, line: refused.line }

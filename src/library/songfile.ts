@@ -3,7 +3,18 @@
 // `onset` is only there for a sound that was made smaller for the file: where the sound it was
 // made from started, in seconds.
 export type PackedSound = { name: string; file: string; type: string; seconds: number; data: Uint8Array; onset?: number }
-export type SongFile = { name: string; code: string; keys: Record<string, string>; sounds: PackedSound[] }
+// `source` is the published song a file was downloaded as, so that a song made from it can say
+// what it was reworked from.
+export type SongSource = { id: string; name: string; by: string }
+export type SongFile = { name: string; code: string; keys: Record<string, string>; sounds: PackedSound[]; source?: SongSource }
+
+// What a file says about where it came from, when it says it in a way that can be kept.
+export function readSource(value: unknown): SongSource | null {
+    const given = value as Partial<SongSource> | null
+    if (!given || typeof given !== 'object' || typeof given.id !== 'string' || typeof given.name !== 'string' || typeof given.by !== 'string') return null
+    if (!/^[a-z0-9]{1,16}$/.test(given.id) || !given.name || given.name.length > 60 || given.by.length > 24) return null
+    return { id: given.id, name: given.name, by: given.by }
+}
 
 export const SONG_FILE = 'weft'
 // The most a song file may be to be published, the owner's rule.
@@ -31,6 +42,7 @@ export function writeSongFile(song: SongFile): string {
         keys: song.keys,
         code: song.code,
         sounds: song.sounds.map(({ data, ...rest }) => ({ ...rest, data: toBase64(data) })),
+        ...(song.source ? { source: song.source } : {}),
     })
 }
 
@@ -41,7 +53,7 @@ const baseName = (file: string) => file.replace(/\.[a-z0-9]{1,8}$/i, '').trim() 
 export function readSongFile(text: string, file: string): SongFile | null {
     if (!file.toLowerCase().endsWith(`.${SONG_FILE}`)) return { name: baseName(file), code: text, keys: {}, sounds: [] }
     try {
-        const kept = JSON.parse(text) as { weft?: unknown; name?: unknown; keys?: unknown; code?: unknown; sounds?: unknown }
+        const kept = JSON.parse(text) as { weft?: unknown; name?: unknown; keys?: unknown; code?: unknown; sounds?: unknown; source?: unknown }
         if (typeof kept.weft !== 'number' || typeof kept.code !== 'string') return null
         const sounds = Array.isArray(kept.sounds) ? kept.sounds : []
         return {
@@ -62,6 +74,7 @@ export function readSongFile(text: string, file: string): SongFile | null {
                       ]
                     : [],
             ),
+            ...(readSource(kept.source) ? { source: readSource(kept.source)! } : {}),
         }
     } catch {
         return null

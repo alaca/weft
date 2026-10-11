@@ -114,6 +114,7 @@ test('a song with code that is more than music is not made ready for publishing'
 
 const SYNTHS = 'setcpm(120/4)\n\nbass: note("c2 c3 c2 e2").s("sawtooth").lpf(600)\n\nlead: note("c4 e4 g4 e4").s("triangle")\n'
 const dialog = (page: Page) => page.getByTestId('publish')
+const account = (page: Page) => page.getByTestId('account')
 const someone = () => `ante+${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}@example.com`
 
 async function openPublish(page: Page) {
@@ -122,28 +123,24 @@ async function openPublish(page: Page) {
     await expect(dialog(page)).toBeVisible()
 }
 
-// Signing in the way it goes on one's own machine: the link is handed back, opened in another
-// page, and its button pressed there.
-async function signIn(page: Page, email = someone()) {
-    await dialog(page).getByLabel('Your name, as it stands beside your songs').fill('Ante')
-    await dialog(page).getByLabel('Your address').fill(email)
-    await dialog(page).getByRole('button', { name: 'Send me a link', exact: true }).click()
-    await expect(dialog(page)).toContainText(`A link is on its way to ${email}`)
-    const link = await page.getByTestId('publish-link').getAttribute('href')
-    const other = await page.context().newPage()
-    await other.goto(link!)
-    await expect(other.getByRole('heading', { name: 'Sign in to Weft' })).toBeVisible()
-    await other.getByRole('button', { name: 'Sign in', exact: true }).click()
-    await expect(other.getByRole('heading', { name: 'You are signed in' })).toBeVisible()
-    await other.close()
+const PASSWORD = 'a test password 42'
+
+// A new person each time: an account is made in the publish window, which signs it in.
+async function signIn(page: Page, email = someone()): Promise<string> {
+    await expect(dialog(page).getByRole('button', { name: 'Make an account', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await dialog(page).getByLabel('Your name', { exact: true }).fill('Ante')
+    await dialog(page).getByLabel('Your email', { exact: true }).fill(email)
+    await dialog(page).getByLabel('Your password', { exact: true }).fill(PASSWORD)
+    await dialog(page).getByRole('button', { name: 'Make my account', exact: true }).click()
     await expect(page.getByTestId('publish-count')).toHaveText('You have used 0 of your 10 songs.')
+    return email
 }
 
-test('a song is published from the app: sign in with a link, say what it is, and it is on the site', async ({ page }) => {
+test('a song is published from the app: make an account, say what the song is, and it is on the site', async ({ page }) => {
     await open(page, SYNTHS)
     await openPublish(page)
-    await expect(dialog(page)).toContainText('You sign in with a link sent to your address')
-    await signIn(page)
+    await expect(dialog(page)).toContainText('It needs an account: your email and a password.')
+    const email = await signIn(page)
     await expect(page.getByTestId('publish-note')).toContainText('The song file is')
 
     await dialog(page).getByPlaceholder("What people read on the song's page").fill('Two synths going round.')
@@ -163,24 +160,42 @@ test('a song is published from the app: sign in with a link, say what it is, and
     expect(bytes).toBeLessThan(700 * 1024)
     const songPage = await page.context().newPage()
     await songPage.goto(address)
-    await expect(songPage.getByRole('heading', { name: 'Untitled' })).toBeVisible()
-    await expect(songPage.locator('body')).toContainText('by Ante')
-    await expect(songPage.locator('body')).toContainText('Two synths going round.')
-    await expect(songPage.locator('body')).toContainText('test tone, 120 bpm, 2 patterns, CC0')
+    await expect(songPage.getByRole('heading', { name: 'Untitled', level: 1 })).toBeVisible()
+    for (const said of ['Ante', 'Two synths going round.', 'test tone', '120 bpm', 'bass', 'lead', 'CC0', 'Download .weft', 'Open in Weft']) await expect(songPage.locator('body')).toContainText(said)
     await songPage.close()
 
     await dialog(page).getByRole('button', { name: 'Close', exact: true }).click()
     await openPublish(page)
     await expect(page.getByTestId('publish-count')).toHaveText('You have used 1 of your 10 songs.')
-    const mine = page.getByTestId('publish-mine')
+    await dialog(page).getByRole('button', { name: 'Your account and your songs', exact: true }).click()
+    const mine = page.getByTestId('account-songs')
     await expect(mine).toContainText('Untitled')
-    await mine.getByRole('button', { name: 'Take down', exact: true }).click()
-    await mine.getByRole('button', { name: 'Yes, take Untitled down', exact: true }).click()
-    await expect(page.getByTestId('publish-count')).toHaveText('You have used 0 of your 10 songs.')
+    await expect(page.getByTestId('account-count')).toContainText('You have used 1 of your 10 songs. 1 is published and 0 hidden.')
+    await mine.getByRole('button', { name: 'Delete', exact: true }).click()
+    await mine.getByRole('button', { name: 'Yes, delete Untitled', exact: true }).click()
+    await expect(page.getByTestId('account-count')).toHaveText('You have used 0 of your 10 songs.')
     expect((await page.request.get(address)).status()).toBe(404)
 
-    await dialog(page).getByRole('button', { name: 'Sign out', exact: true }).click()
-    await expect(dialog(page).getByLabel('Your address')).toBeVisible()
+    await account(page).getByRole('tab', { name: 'Account', exact: true }).click()
+    await account(page).getByRole('button', { name: 'Sign out', exact: true }).click()
+    await expect(account(page).getByRole('button', { name: 'Sign in', exact: true }).first()).toHaveAttribute('aria-pressed', 'true')
+    await expect(account(page).getByLabel('Your email', { exact: true })).toHaveValue(email)
+    await account(page).getByLabel('Your password', { exact: true }).fill('not the password')
+    await account(page).getByLabel('Your password', { exact: true }).press('Enter')
+    await expect(page.getByTestId('account-note')).toHaveText('The email or the password is not right.')
+    await account(page).getByLabel('Your password', { exact: true }).fill(PASSWORD)
+    await account(page).getByLabel('Your password', { exact: true }).press('Enter')
+    await expect(page.getByTestId('account-count')).toHaveText('You have used 0 of your 10 songs.')
+})
+
+test('the app stays signed in after a restart', async ({ page }) => {
+    await open(page, SYNTHS)
+    await openPublish(page)
+    await signIn(page)
+    await page.reload()
+    await page.waitForFunction(() => Boolean((window as any).__weft))
+    await openPublish(page)
+    await expect(page.getByTestId('publish-count')).toHaveText('You have used 0 of your 10 songs.')
 })
 
 test('a song with code that is more than music cannot be published from the app', async ({ page }) => {
@@ -202,11 +217,150 @@ test('the half minute people hear starts where most of the song plays for all of
     await expect(page.getByTestId('publish-from')).toHaveText('8')
 })
 
-test('a name is asked for before a link is sent, and stands beside the song', async ({ page }) => {
+test('an account needs a name, an address and a password of some length, and an address can have one account', async ({ page }) => {
     await open(page, SYNTHS)
     await openPublish(page)
-    await dialog(page).getByLabel('Your address').fill(someone())
-    await dialog(page).getByRole('button', { name: 'Send me a link', exact: true }).click()
-    await expect(page.getByTestId('publish-note')).toHaveText('Type the name that should stand beside your songs.')
-    await expect(dialog(page).getByLabel('Your address')).toBeVisible()
+    const email = someone()
+    const note = page.getByTestId('account-note')
+    const make = dialog(page).getByRole('button', { name: 'Make my account', exact: true })
+    await dialog(page).getByLabel('Your email', { exact: true }).fill(email)
+    await dialog(page).getByLabel('Your password', { exact: true }).fill(PASSWORD)
+    await make.click()
+    await expect(note).toHaveText('Type the name that should stand beside your songs.')
+    await dialog(page).getByLabel('Your name', { exact: true }).fill('Ante')
+    await dialog(page).getByLabel('Your password', { exact: true }).fill('short')
+    await make.click()
+    await expect(note).toHaveText('A password needs at least 8 characters.')
+    await dialog(page).getByLabel('Your password', { exact: true }).fill(PASSWORD)
+    await make.click()
+    await expect(page.getByTestId('publish-count')).toHaveText('You have used 0 of your 10 songs.')
+    await dialog(page).getByRole('button', { name: 'Close', exact: true }).click()
+
+    await openAccount(page)
+    await account(page).getByRole('tab', { name: 'Account', exact: true }).click()
+    await account(page).getByRole('button', { name: 'Sign out', exact: true }).click()
+    await account(page).getByRole('button', { name: 'Make an account', exact: true }).click()
+    await account(page).getByLabel('Your name', { exact: true }).fill('Someone else')
+    await account(page).getByLabel('Your password', { exact: true }).fill('another password')
+    await account(page).getByRole('button', { name: 'Make my account', exact: true }).click()
+    await expect(note).toHaveText('There is already an account with this email. Sign in instead.')
+})
+
+async function openAccount(page: Page) {
+    await page.getByTestId('song-name').click()
+    await page.getByTestId('song-menu').getByRole('button', { name: 'Your account', exact: true }).click()
+    await expect(account(page)).toBeVisible()
+}
+
+// An account with one published song, with the account window open on its songs.
+async function withASong(page: Page): Promise<{ email: string; address: string }> {
+    await open(page, SYNTHS)
+    await openPublish(page)
+    const email = await signIn(page)
+    await dialog(page).getByRole('button', { name: 'Publish', exact: true }).click()
+    await expect(dialog(page)).toContainText('Untitled is published.', { timeout: 40000 })
+    const address = (await dialog(page).locator('.pb-url').textContent())!.trim()
+    await dialog(page).getByRole('button', { name: 'Close', exact: true }).click()
+    await openAccount(page)
+    await expect(page.getByTestId('account-songs')).toContainText('Untitled')
+    return { email, address }
+}
+
+test('your songs are kept from the app: what a song says, whether it is shown, and that it is there at all', async ({ page }) => {
+    const { address } = await withASong(page)
+    const mine = page.getByTestId('account-songs')
+    await mine.getByRole('button', { name: 'Edit', exact: true }).click()
+    await mine.getByLabel('Description of Untitled').fill('Changed in the app.')
+    await mine.getByLabel('Style of Untitled').fill('drone')
+    await mine.getByRole('radio', { name: 'CC0', exact: true }).click()
+    await mine.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(page.getByTestId('account-note')).toHaveText('The song is changed.')
+    const shown = await page.context().newPage()
+    await shown.goto(address)
+    await expect(shown.locator('body')).toContainText('Changed in the app.')
+    await expect(shown.locator('body')).toContainText('drone')
+    await expect(shown.locator('body')).toContainText('CC0')
+
+    await mine.getByRole('button', { name: 'Hide', exact: true }).click()
+    await expect(page.getByTestId('account-count')).toContainText('0 are published and 1 hidden. A hidden song counts.')
+    expect((await page.request.get(address)).status()).toBe(404)
+    await mine.getByRole('button', { name: 'Show', exact: true }).click()
+    await expect(page.getByTestId('account-count')).toContainText('1 is published and 0 hidden.')
+    expect((await page.request.get(address)).status()).toBe(200)
+    await shown.close()
+})
+
+test('your name, your jam switch and your password are changed in the app', async ({ page }) => {
+    const { email, address } = await withASong(page)
+    const note = page.getByTestId('account-note')
+    await account(page).getByRole('tab', { name: 'Profile', exact: true }).click()
+    await account(page).getByLabel('Your name', { exact: true }).fill('Ante L')
+    await account(page).getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(note).toHaveText('Your name is changed.')
+    const shown = await page.context().newPage()
+    await shown.goto(address)
+    await expect(shown.locator('body')).toContainText('Ante L')
+    await shown.close()
+
+    await account(page).getByRole('tab', { name: 'Jams', exact: true }).click()
+    const open = account(page).getByRole('switch', { name: /Open to jam/ })
+    await expect(open).toHaveAttribute('aria-checked', 'false')
+    await open.click()
+    await expect(open).toHaveAttribute('aria-checked', 'true')
+    await expect(account(page)).toContainText('The list of people open to jam is not open yet.')
+    await expect(account(page)).toContainText('Nobody is blocked.')
+
+    await account(page).getByRole('tab', { name: 'Account', exact: true }).click()
+    await account(page).getByLabel('Your password now').fill('not it')
+    await account(page).getByLabel('Your new password').fill('a new password 43')
+    await account(page).getByRole('button', { name: 'Change it', exact: true }).click()
+    await expect(note).toHaveText('The password you have now is not right.')
+    await account(page).getByLabel('Your password now').fill(PASSWORD)
+    await account(page).getByRole('button', { name: 'Change it', exact: true }).click()
+    await expect(note).toHaveText('Your password is changed.')
+    await account(page).getByRole('button', { name: 'Sign out', exact: true }).click()
+    await account(page).getByLabel('Your password', { exact: true }).fill(PASSWORD)
+    await account(page).getByLabel('Your password', { exact: true }).press('Enter')
+    await expect(note).toHaveText('The email or the password is not right.')
+    await account(page).getByLabel('Your password', { exact: true }).fill('a new password 43')
+    await account(page).getByLabel('Your password', { exact: true }).press('Enter')
+    await expect(page.getByTestId('account-count')).toContainText('You have used 1 of your 10 songs.')
+    await account(page).getByRole('tab', { name: 'Jams', exact: true }).click()
+    await expect(account(page).getByRole('switch', { name: /Open to jam/ })).toHaveAttribute('aria-checked', 'true')
+    expect(email).toContain('@')
+})
+
+test('a forgotten password is replaced with a code typed into the app', async ({ page }) => {
+    const { email } = await withASong(page)
+    const note = page.getByTestId('account-note')
+    await account(page).getByRole('tab', { name: 'Account', exact: true }).click()
+    await account(page).getByRole('button', { name: 'Sign out', exact: true }).click()
+    await account(page).getByRole('button', { name: 'Forgot your password?', exact: true }).click()
+    await expect(note).toContainText('a code is on its way')
+    const code = (await page.getByTestId('account-code').locator('b').textContent())!.trim()
+    await account(page).getByLabel('The code that was sent to you').fill('WRONG123')
+    await account(page).getByLabel('Your new password').fill('the third password')
+    await account(page).getByRole('button', { name: 'Set the new password', exact: true }).click()
+    await expect(note).toHaveText('That code is not right, or it has run out. Ask for a new one.')
+    await account(page).getByLabel('The code that was sent to you').fill(code.toLowerCase())
+    await account(page).getByRole('button', { name: 'Set the new password', exact: true }).click()
+    await expect(page.getByTestId('account-count')).toContainText('You have used 1 of your 10 songs.')
+
+    await account(page).getByRole('tab', { name: 'Account', exact: true }).click()
+    await account(page).getByRole('button', { name: 'Sign out', exact: true }).click()
+    await expect(account(page).getByLabel('Your email', { exact: true })).toHaveValue(email)
+    await account(page).getByLabel('Your password', { exact: true }).fill(PASSWORD)
+    await account(page).getByLabel('Your password', { exact: true }).press('Enter')
+    await expect(note).toHaveText('The email or the password is not right.')
+})
+
+test('an account is deleted from the app, with its songs', async ({ page }) => {
+    const { address } = await withASong(page)
+    await account(page).getByRole('tab', { name: 'Account', exact: true }).click()
+    await account(page).getByLabel('Your password, to delete the account').fill(PASSWORD)
+    await account(page).getByRole('button', { name: 'Delete my account', exact: true }).click()
+    await account(page).getByRole('button', { name: 'Yes, delete my account and its songs', exact: true }).click()
+    await expect(page.getByTestId('account-note')).toHaveText('Your account and its songs are deleted.')
+    await expect(account(page).getByLabel('Your email', { exact: true })).toBeVisible()
+    expect((await page.request.get(address)).status()).toBe(404)
 })

@@ -1,26 +1,38 @@
-import { createHash, randomBytes } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash, randomBytes, randomInt, scrypt, timingSafeEqual } from 'node:crypto'
+import { createReadStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { checkSongFile, looksLikeAudio } from '../src/guard/file'
-import { SONG_LIMIT } from '../src/library/songfile'
+import { SONG_LIMIT, soundsUsed } from '../src/library/songfile'
 import { analyze } from '../src/song/analyze'
+import { DEFAULT_SONG, songLength } from '../src/song/arrange'
+import { downloadPage, homePage, licencePage, notePage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
 
-// The part of the site that songs are published to: who is signed in, the songs each person has
-// published, and the files themselves. A person signs in with a link sent to their address, and
-// the app holds what it is given in return. Every file that arrives is checked here, whoever
-// sends it: a song file can be made by hand, so what the app checked counts for nothing.
+// The site that songs are published to. It has two sides. The pages are for everyone and know
+// nobody: the songs, each song's own page, the downloads of the app. The API is for the app,
+// which is where a person has an account, signs in and looks after their songs. Every file
+// that arrives is checked here, whoever sends it: a song file can be made by hand, so what the
+// app checked counts for nothing. What the pages look like is in pages.ts.
 export type SiteOptions = {
     port: number
     host?: string
     dataDir: string
     // The address people reach the site at, for the links it hands out.
     origin?: string
-    // Sends the sign-in link. Without one the link is handed straight back to whoever asked,
-    // which is only for trying the site out on one's own machine.
-    mail?: (to: string, link: string) => void | Promise<void>
+    // Sends the code for choosing a new password. Without one the code is handed straight back
+    // to whoever asked, which is only for trying the site out on one's own machine.
+    mail?: (to: string, code: string) => void | Promise<void>
     allow?: string[]
     now?: () => number
+    // Where the app's source code can be read. The pages leave that link out until there is
+    // such a place.
+    source?: string
+    // The installers that are built. A platform without one is said to be not out yet.
+    downloads?: { platform: Platform; file: string; version: string }[]
+    // How often one sender, or one email, may ask for an account, a sign-in or a code within a
+    // quarter of an hour. Only raised where the site is tried out on one's own machine.
+    asks?: number
 }
 export type Site = { port: number; origin: string; close: () => Promise<void> }
 
@@ -30,16 +42,44 @@ type Licence = (typeof LICENCES)[number]
 
 const PREVIEW_LIMIT = 700 * 1024
 const BODY_LIMIT = 3 * 1024 * 1024
-const SIGN_IN_FOR = 15 * 60 * 1000
 const SESSION_FOR = 90 * 24 * 60 * 60 * 1000
 const ASKS = 10
 const ASKS_WITHIN = 15 * 60 * 1000
 const DESCRIPTION_LIMIT = 500
 const STYLE_LIMIT = 30
 const NAME_LIMIT = 24
+const MOST_PEAKS = 200
+const MOST_SECONDS = 31
+const MOST_REPORTS = 5000
+const A_PAGE = 24
 const APP_ORIGINS = ['http://localhost:5180', 'tauri://localhost', 'https://tauri.localhost', 'http://tauri.localhost']
+const PLATFORM_NAMES: Record<Platform, string> = { macos: 'macOS', windows: 'Windows', linux: 'Linux' }
+// A page may load only what this site serves itself, and may run nothing written into it.
+const PAGE_RULES = "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; media-src 'self'; font-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+const KEPT_AN_HOUR = 'public, max-age=3600'
+const KEPT_A_MONTH = 'public, max-age=2592000'
 
-type Person = { id: string; email: string; name: string; since: number }
+const PASSWORD_LEAST = 8
+const PASSWORD_MOST = 200
+// What a password is made into before it is kept. The numbers are kept with it, so they can be
+// raised one day and a password made with the old ones still be checked.
+const SCRYPT = { N: 32768, r: 8, p: 1 }
+const SALT_BYTES = 16
+const KEY_BYTES = 32
+// The code for choosing a new password: letters and digits that are not mistaken for each
+// other, typed into the app by whoever got it.
+const CODE_LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+const CODE_LENGTH = 8
+const CODE_FOR = 15 * 60 * 1000
+const CODE_TRIES = 5
+const WRONG = 'The email or the password is not right.'
+const WAIT = 'Too many tries. Wait a quarter of an hour and try again.'
+const NOT_AN_ADDRESS = 'That is not an email address.'
+
+type Jams = { open: boolean; blocked: { id: string; name: string }[] }
+// `password` is what scrypt made of it, never the password. An account from before there were
+// passwords has none, and gets one with a code, as for a forgotten one.
+type Person = { id: string; email: string; name: string; since: number; password?: string; jams?: Jams }
 type Session = { hash: string; person: string; until: number }
 type Song = {
     id: string
@@ -56,10 +96,19 @@ type Song = {
     hidden: boolean
     plays: number
     downloads: number
+    // How loud the preview is along its length, and how long it is, for the pages to draw.
+    peaks?: number[]
+    seconds?: number
+    // The published song this one was reworked from.
+    from?: string
 }
-type Kept = { people: Person[]; sessions: Session[]; songs: Song[] }
-type Asking = { email: string; name: string; secret: string; link: string; until: number; approved: boolean }
-type Answer = { status: number; body?: unknown; html?: string; file?: { bytes: Buffer; type: string; name?: string } }
+type Report = { song: string; reason: string; at: number }
+type Kept = { people: Person[]; sessions: Session[]; songs: Song[]; reports: Report[] }
+type Code = { hash: string; until: number; wrong: number }
+type Kind = { bytes: Buffer; type: string; kept: string }
+type Answer = { status: number; body?: unknown; html?: string; file?: { bytes: Buffer; type: string; name?: string }; fixed?: Kind; build?: { file: string; bytes: number } }
+// What a song file says about its song once it is read.
+type Facts = { bars: number; parts: Part[]; sounds: OwnSound[] }
 
 const hashOf = (text: string) => createHash('sha256').update(text).digest('hex')
 const token = (bytes = 32) => randomBytes(bytes).toString('base64url')
@@ -69,24 +118,123 @@ const emailOf = (value: unknown): string | null => {
     const email = String(value ?? '').trim().toLowerCase()
     return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null
 }
-const escaped = (text: string) => text.replace(/[&<>"']/g, (sign) => `&#${sign.charCodeAt(0)};`)
+const sameText = (one: string, other: string) => one.length === other.length && timingSafeEqual(Buffer.from(one), Buffer.from(other))
+const fileNameOf = (name: string) => name.replace(/[^\w .-]+/g, '_')
+const newestFirst = (a: Song, b: Song) => b.published - a.published
+// Which of the six colours stands for a person, always the same one.
+const tintOf = (id: string) => [...id].reduce((sum, letter) => sum + letter.charCodeAt(0), 0) % 6
+const newCode = () => Array.from({ length: CODE_LENGTH }, () => CODE_LETTERS[randomInt(CODE_LETTERS.length)]).join('')
+// A code as it was typed: in either case, with whatever was put between its letters.
+const codeOf = (value: unknown) => String(value ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, CODE_LENGTH + 1)
 
-const page = (title: string, body: string) => `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escaped(title)}</title>
-<style>
-body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #18181a; color: #ece6d6; font: 15px/1.5 system-ui, sans-serif; }
-main { width: min(440px, calc(100vw - 48px)); padding: 28px; border: 1px solid #3a3a40; border-radius: 14px; background: #1f1f22; }
-h1 { margin: 0 0 8px; font: 600 24px/1.2 Georgia, serif; } p { margin: 0 0 14px; color: #b9b6af; } small { color: #8d8b86; }
-button, a.b { display: inline-block; height: 38px; padding: 0 16px; border-radius: 9px; border: 0; background: #ece6d6; color: #18181a; font: 600 14px/38px system-ui, sans-serif; text-decoration: none; cursor: pointer; }
-audio { width: 100%; margin: 6px 0 16px; }
-</style></head><body><main>${body}</main></body></html>`
+// How many characters a password has, as a person counts them. Text far past the most a
+// password may be is not counted out.
+const lettersOf = (value: unknown): number => (typeof value !== 'string' ? 0 : value.length > 2 * PASSWORD_MOST ? Infinity : [...value].length)
+const passwordRefused = (value: unknown): string | null => {
+    const letters = lettersOf(value)
+    if (letters < PASSWORD_LEAST) return `A password needs at least ${PASSWORD_LEAST} characters.`
+    return letters > PASSWORD_MOST ? `A password can have ${PASSWORD_MOST} characters at most.` : null
+}
+
+const derived = (password: string, salt: Buffer, cost: { N: number; r: number; p: number }, bytes: number): Promise<Buffer> =>
+    new Promise((resolve, reject) => scrypt(password.normalize('NFKC'), salt, bytes, { ...cost, maxmem: 256 * cost.N * cost.r }, (err, key) => (err ? reject(err) : resolve(key))))
+
+async function hashed(password: string): Promise<string> {
+    const salt = randomBytes(SALT_BYTES)
+    const key = await derived(password, salt, SCRYPT, KEY_BYTES)
+    return ['scrypt', SCRYPT.N, SCRYPT.r, SCRYPT.p, salt.toString('base64url'), key.toString('base64url')].join('$')
+}
+
+async function matches(password: string, stored: string): Promise<boolean> {
+    const [kind, N, r, p, salt, key] = stored.split('$')
+    if (kind !== 'scrypt' || !salt || !key) return false
+    const wanted = Buffer.from(key, 'base64url')
+    try {
+        const made = await derived(password, Buffer.from(salt, 'base64url'), { N: Number(N), r: Number(r), p: Number(p) }, wanted.length)
+        return made.length === wanted.length && timingSafeEqual(made, wanted)
+    } catch {
+        return false
+    }
+}
+// What a password is checked against when there is no such account, so that the answer takes
+// as long as it does when there is one and the time does not tell which it was.
+const NOBODY = ['scrypt', SCRYPT.N, SCRYPT.r, SCRYPT.p, Buffer.alloc(SALT_BYTES).toString('base64url'), Buffer.alloc(KEY_BYTES).toString('base64url')].join('$')
+
+const peaksOf = (value: unknown): number[] | undefined =>
+    Array.isArray(value) && value.length > 0 && value.length <= MOST_PEAKS && value.every((peak) => typeof peak === 'number' && peak >= 0 && peak <= 1) ? value.map((peak: number) => Math.round(peak * 100) / 100) : undefined
+const secondsOf = (value: unknown): number | undefined => (typeof value === 'number' && value > 0 && value <= MOST_SECONDS ? Math.round(value * 10) / 10 : undefined)
+
+const KINDS: Record<string, string> = { mpeg: 'MP3', mp3: 'MP3', wav: 'WAV', wave: 'WAV', 'x-wav': 'WAV', ogg: 'Ogg', flac: 'FLAC', 'x-flac': 'FLAC', aiff: 'AIFF', aif: 'AIFF', 'x-aiff': 'AIFF', mp4: 'MP4', m4a: 'MP4', 'x-m4a': 'MP4', aac: 'AAC', webm: 'WebM' }
+const kindOf = (type: string, file: string) => KINDS[type.replace(/^audio\//, '').toLowerCase()] ?? KINDS[/\.([a-z0-9]+)$/i.exec(file)?.[1]?.toLowerCase() ?? ''] ?? 'Audio'
+
+// A song file that passed the check, read for what its page tells: the patterns with the sound
+// each plays, the maker's own sounds with the patterns that use them, and the bars it lasts.
+function readFacts(text: string): Facts | null {
+    try {
+        const file = JSON.parse(text) as { code: string; sounds: { name: string; file: string; type: string; seconds: number; data: string }[] }
+        const read = analyze(file.code)
+        const names = file.sounds.map((sound) => sound.name)
+        const blocks = read.patterns.slice(0, 64)
+        const used = blocks.map((block) => soundsUsed(file.code.slice(block.from, block.to), names))
+        return {
+            bars: songLength(read.patterns, DEFAULT_SONG),
+            parts: blocks.map((block, at) => ({ name: block.id, sound: block.soundName ?? used[at][0] ?? '', own: used[at].length > 0 })),
+            sounds: file.sounds.map((sound) => ({
+                name: sound.name,
+                kind: kindOf(sound.type, sound.file),
+                seconds: sound.seconds,
+                bytes: Math.floor((sound.data.length * 3) / 4),
+                usedBy: used.flatMap((own, at) => (own.includes(sound.name) ? [at] : [])),
+            })),
+        }
+    } catch {
+        return null
+    }
+}
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const SETS = ['cyrillic-ext', 'cyrillic', 'greek-ext', 'greek', 'vietnamese', 'latin-ext', 'latin']
+// The font files the pages use, by the package each comes in. Nothing else is served from
+// those packages, and no name is ever taken from a request.
+const FONTS: Record<string, string[]> = {
+    archivo: ['vietnamese', 'latin-ext', 'latin'].map((set) => `archivo-${set}-wdth-normal.woff2`),
+    'martian-mono': ['cyrillic-ext', 'cyrillic', 'latin-ext', 'latin'].map((set) => `martian-mono-${set}-wdth-normal.woff2`),
+    piazzolla: SETS.flatMap((set) => [`piazzolla-${set}-opsz-normal.woff2`, `piazzolla-${set}-opsz-italic.woff2`]),
+}
+
+// Where a package of this project lies: in the nearest node_modules above this file that has it.
+function packageDir(name: string): string | null {
+    for (let dir = HERE; ; dir = dirname(dir)) {
+        const there = join(dir, 'node_modules', name)
+        if (existsSync(there)) return there
+        if (dirname(dir) === dir) return null
+    }
+}
+
+// Everything the site serves that is the same for everyone, read once, by the address it is
+// served at. A font that is not there is left out, and the pages fall back to the system's.
+function fixedFiles(): Map<string, Kind> {
+    const files = new Map<string, Kind>()
+    const own = (path: string, type: string) => files.set(path, { bytes: readFileSync(join(HERE, 'assets', path.slice(1))), type, kept: KEPT_AN_HOUR })
+    own('/site.css', 'text/css; charset=utf-8')
+    own('/site.js', 'text/javascript; charset=utf-8')
+    own('/app.png', 'image/png')
+    for (const [family, names] of Object.entries(FONTS)) {
+        const dir = packageDir(`@fontsource-variable/${family}`)
+        for (const name of names) {
+            const file = dir ? join(dir, 'files', name) : ''
+            if (file && existsSync(file)) files.set(`/fonts/${name}`, { bytes: readFileSync(file), type: 'font/woff2', kept: KEPT_A_MONTH })
+        }
+    }
+    return files
+}
 
 export function createSite(options: SiteOptions): Promise<Site> {
     const now = options.now ?? Date.now
     const songsDir = join(options.dataDir, 'songs')
     const keptFile = join(options.dataDir, 'site.json')
     mkdirSync(songsDir, { recursive: true })
-    let kept: Kept = { people: [], sessions: [], songs: [] }
+    let kept: Kept = { people: [], sessions: [], songs: [], reports: [] }
     if (existsSync(keptFile)) {
         try {
             kept = { ...kept, ...(JSON.parse(readFileSync(keptFile, 'utf8')) as Partial<Kept>) }
@@ -98,8 +246,17 @@ export function createSite(options: SiteOptions): Promise<Site> {
         writeFileSync(`${keptFile}.new`, JSON.stringify(kept))
         renameSync(`${keptFile}.new`, keptFile)
     }
-    const asking = new Map<string, Asking>()
+    const fixed = fixedFiles()
+    const around: Around = { source: /^https?:\/\//.test(options.source ?? '') ? options.source : undefined }
+    const builds = new Map<Platform, { file: string; version: string; bytes: number }>()
+    for (const build of options.downloads ?? []) {
+        if (Object.hasOwn(PLATFORM_NAMES, build.platform) && existsSync(build.file) && statSync(build.file).isFile()) builds.set(build.platform, { file: build.file, version: clean(build.version, 40), bytes: statSync(build.file).size })
+    }
+    const built = (): Build[] => [...builds].map(([platform, build]) => ({ platform, version: build.version, bytes: build.bytes }))
+    // The codes for choosing a new password that are out, by the address each was sent to.
+    const codes = new Map<string, Code>()
     const asked = new Map<string, number[]>()
+    const facts = new Map<string, Facts | null>()
     const allowed = new Set(options.allow ?? APP_ORIGINS)
     let origin = options.origin ?? ''
 
@@ -108,68 +265,258 @@ export function createSite(options: SiteOptions): Promise<Site> {
         const times = (asked.get(who) ?? []).filter((at) => at > since)
         times.push(now())
         asked.set(who, times)
-        return times.length > ASKS
+        return times.length > (options.asks ?? ASKS)
     }
 
+    const bearerOf = (request: IncomingMessage) => /^Bearer (.+)$/.exec(request.headers.authorization ?? '')?.[1]
     const personOf = (request: IncomingMessage): Person | null => {
-        const given = /^Bearer (.+)$/.exec(request.headers.authorization ?? '')?.[1]
+        const given = bearerOf(request)
         if (!given) return null
         const session = kept.sessions.find((one) => one.hash === hashOf(given) && one.until > now())
         return session ? (kept.people.find((person) => person.id === session.person) ?? null) : null
     }
-    const mine = (person: Person) => kept.songs.filter((song) => song.by === person.id)
-    const shown = (song: Song) => {
-        const by = kept.people.find((person) => person.id === song.by)
-        return { ...song, by: by?.name ?? 'Someone', url: `${origin}/songs/${song.id}`, file: `${origin}/songs/${song.id}.weft`, preview: `${origin}/songs/${song.id}.mp3` }
+    // A browser says where a request that changes something comes from, and one that comes
+    // from another site is not taken. The pages ask browsers to send no referrer, and a
+    // browser then gives the origin of this site's own forms as "null" too, so that word
+    // settles nothing: what the browser says of the two sites does, where it says it.
+    const fromElsewhere = (request: IncomingMessage): boolean => {
+        const sites = request.headers['sec-fetch-site']
+        if (sites) return sites !== 'same-origin' && sites !== 'none'
+        const said = request.headers.origin
+        if (!said || said === 'null' || said === origin) return false
+        try {
+            return new URL(said).host !== request.headers.host
+        } catch {
+            return true
+        }
     }
+
+    const mine = (person: Person) => kept.songs.filter((song) => song.by === person.id)
+    const nameOf = (id: string) => kept.people.find((person) => person.id === id)?.name ?? 'Someone'
+    const makerOf = (id: string): Maker => ({ name: nameOf(id), tint: tintOf(id) })
+    const jamsOf = (person: Person): Jams => ({ open: person.jams?.open === true, blocked: (person.jams?.blocked ?? []).map(({ id, name }) => ({ id, name })) })
+    const shown = (song: Song) => ({ ...song, by: nameOf(song.by), url: `${origin}/songs/${song.id}`, file: `${origin}/songs/${song.id}.weft`, preview: `${origin}/songs/${song.id}.mp3` })
+    const meOf = (person: Person): Answer => ({ status: 200, body: { name: person.name, email: person.email, used: mine(person).length, most: MOST_SONGS, jams: jamsOf(person) } })
     const refuse = (status: number, why: string, what: string, more: object = {}): Answer => ({ status, body: { why, what, ...more } })
     const signIn: Answer = refuse(401, 'signin', 'Sign in first.')
 
-    async function signInAsked(body: any, from: string): Promise<Answer> {
-        const email = emailOf(body?.email)
-        if (!email) return refuse(400, 'email', 'That is not an address a link can be sent to.')
-        if (tooMany(`ip ${from}`) || tooMany(`to ${email}`)) return refuse(429, 'wait', 'Too many links were asked for. Wait a quarter of an hour and ask again.')
-        const id = token(12)
-        const secret = token()
-        const link = `${origin}/sign-in/confirm?token=${token()}`
-        asking.set(id, { email, name: clean(body?.name, NAME_LIMIT), secret: hashOf(secret), link, until: now() + SIGN_IN_FOR, approved: false })
-        if (!options.mail) return { status: 200, body: { id, secret, link } }
-        await options.mail(email, link)
-        return { status: 200, body: { id, secret } }
-    }
-
-    const askedBy = (link: string) => [...asking.values()].find((one) => one.link === link && one.until > now())
-
-    // The link in the mail only shows a button. Signing in happens when the button is pressed,
-    // so that a mail program that opens every link to look at it signs nobody in.
-    function confirmPage(given: string | null, press: boolean): Answer {
-        const found = given ? askedBy(`${origin}/sign-in/confirm?token=${given}`) : undefined
-        if (!found) return { status: 410, html: page('Weft', '<h1>This link is used up</h1><p>A sign-in link works once, for a quarter of an hour. Ask for a new one in Weft.</p>') }
-        if (!press) {
-            return {
-                status: 200,
-                html: page('Sign in to Weft', `<h1>Sign in to Weft</h1><p>As ${escaped(found.email)}. Press the button, then go back to the app.</p><form method="post" action="/sign-in/confirm"><input type="hidden" name="token" value="${escaped(given!)}"><button>Sign in</button></form>`),
-            }
+    // What the file of a song says, read the first time a page needs it and kept from then on:
+    // a published file never changes.
+    const factsOf = (song: Song): Facts | null => {
+        if (!facts.has(song.id)) {
+            const stored = join(songsDir, `${song.id}.weft`)
+            facts.set(song.id, existsSync(stored) ? readFacts(readFileSync(stored, 'utf8')) : null)
         }
-        found.approved = true
-        return { status: 200, html: page('Signed in', '<h1>You are signed in</h1><p>Go back to Weft. This page can be closed.</p>') }
+        return facts.get(song.id) ?? null
+    }
+    const listed = (song: Song): Listed => {
+        const read = factsOf(song)
+        return {
+            id: song.id,
+            name: song.name,
+            by: makerOf(song.by),
+            style: song.style,
+            tempo: song.tempo,
+            patterns: song.patterns.length,
+            length: read && song.tempo ? (read.bars * 240) / Math.max(1, song.tempo) : null,
+            bytes: song.bytes,
+            published: song.published,
+            plays: song.plays,
+            downloads: song.downloads,
+            preview: { seconds: song.seconds ?? null, peaks: song.peaks ?? [] },
+        }
+    }
+    // A song as its own page shows it. What it was reworked from is only named while that song
+    // is there to be opened, so the line never leads nowhere.
+    const shownOnPage = (song: Song): Shown => {
+        const read = factsOf(song)
+        const from = kept.songs.find((one) => one.id === song.from && !one.hidden)
+        return {
+            ...listed(song),
+            description: song.description,
+            licence: song.licence,
+            previewFrom: song.previewFrom,
+            bars: read?.bars ?? null,
+            parts: read?.parts ?? song.patterns.map((name) => ({ name, sound: '', own: false })),
+            sounds: read?.sounds ?? [],
+            fileName: `${fileNameOf(song.name)}.weft`,
+            origin: from ? { id: from.id, name: from.name, by: nameOf(from.by) } : null,
+        }
     }
 
-    function polled(body: any): Answer {
-        const found = asking.get(String(body?.id ?? ''))
-        if (!found || found.until <= now() || found.secret !== hashOf(String(body?.secret ?? ''))) return { status: 200, body: { state: 'gone' } }
-        if (!found.approved) return { status: 200, body: { state: 'waiting' } }
-        asking.delete(String(body.id))
-        let person = kept.people.find((one) => one.email === found.email)
-        if (!person) {
-            person = { id: shortId(), email: found.email, name: found.name || 'Someone', since: now() }
-            kept.people.push(person)
-        } else if (found.name) person.name = found.name
+    function searchOf(url: URL): Search {
+        const tempo = (name: string) => {
+            const given = Math.floor(Number(url.searchParams.get(name)))
+            return url.searchParams.get(name) && given >= 1 && given <= 999 ? given : null
+        }
+        const page = Math.floor(Number(url.searchParams.get('page')))
+        return { q: clean(url.searchParams.get('q'), 60), sort: url.searchParams.get('sort') === 'downloads' ? 'downloads' : 'newest', from: tempo('from'), to: tempo('to'), page: page >= 1 && page <= 100000 ? page : 1 }
+    }
+
+    function found(search: Search): Found {
+        const out = kept.songs.filter((song) => !song.hidden)
+        const tempos = out.flatMap((song) => (song.tempo ? [Math.round(song.tempo)] : []))
+        const q = search.q.toLowerCase()
+        const within = (song: Song) => {
+            if (search.from === null && search.to === null) return true
+            if (!song.tempo) return false
+            return Math.round(song.tempo) >= (search.from ?? 0) && Math.round(song.tempo) <= (search.to ?? Infinity)
+        }
+        const matching = out.filter((song) => within(song) && (!q || [song.name, song.style, nameOf(song.by)].some((text) => text.toLowerCase().includes(q))))
+        matching.sort(search.sort === 'downloads' ? (a, b) => b.downloads - a.downloads || newestFirst(a, b) : newestFirst)
+        return {
+            songs: matching.slice((search.page - 1) * A_PAGE, search.page * A_PAGE).map(listed),
+            total: matching.length,
+            pages: Math.max(1, Math.ceil(matching.length / A_PAGE)),
+            slowest: tempos.length ? tempos.reduce((low, tempo) => Math.min(low, tempo)) : null,
+            fastest: tempos.length ? tempos.reduce((high, tempo) => Math.max(high, tempo)) : null,
+        }
+    }
+
+    function removeSong(song: Song) {
+        kept.songs = kept.songs.filter((one) => one !== song)
+        facts.delete(song.id)
+        for (const ending of ['weft', 'mp3']) rmSync(join(songsDir, `${song.id}.${ending}`), { force: true })
+    }
+
+    // A new session for a person, for the app to hold from now on.
+    function sessionFor(person: Person): string {
         const session = token()
         kept.sessions = kept.sessions.filter((one) => one.until > now())
         kept.sessions.push({ hash: hashOf(session), person: person.id, until: now() + SESSION_FOR })
         keep()
-        return { status: 200, body: { state: 'done', token: session, name: person.name, email: person.email } }
+        return session
+    }
+
+    // Null when this can be the name that stands beside a person's songs.
+    const nameRefused = (name: string): Answer | null => {
+        if (!name) return refuse(400, 'name', 'Type the name that should stand beside your songs.')
+        return name.length > NAME_LIMIT ? refuse(400, 'name', `A name can have ${NAME_LIMIT} characters at most.`) : null
+    }
+
+    async function registered(body: any, from: string): Promise<Answer> {
+        const email = emailOf(body?.email)
+        if (!email) return refuse(400, 'email', NOT_AN_ADDRESS)
+        const weak = passwordRefused(body?.password)
+        if (weak) return refuse(400, 'password', weak)
+        const name = clean(body?.name, NAME_LIMIT + 1)
+        const unnamed = nameRefused(name)
+        if (unnamed) return unnamed
+        if (tooMany(`join from ${from}`)) return refuse(429, 'wait', WAIT)
+        const taken = () => kept.people.some((one) => one.email === email)
+        const password = taken() ? '' : await hashed(body.password)
+        // Looked at again once the password is made: someone else may have taken the address
+        // in the time that took.
+        if (taken()) return refuse(409, 'taken', 'There is already an account with this email. Sign in instead.')
+        let id = shortId()
+        while (kept.people.some((one) => one.id === id)) id = shortId()
+        const person: Person = { id, email, name, since: now(), password }
+        kept.people.push(person)
+        return { status: 201, body: { token: sessionFor(person), name, email } }
+    }
+
+    // The person an address and a password belong to, or null when the two are not right
+    // together. Which of them was wrong is never said, and one scrypt is run whichever it was.
+    async function holderBy(givenEmail: unknown, givenPassword: unknown): Promise<Person | null> {
+        const email = emailOf(givenEmail)
+        const typed = typeof givenPassword === 'string' && lettersOf(givenPassword) <= PASSWORD_MOST ? givenPassword : ''
+        const person = email ? kept.people.find((one) => one.email === email) : undefined
+        const right = await matches(typed, person?.password ?? NOBODY)
+        return person?.password && typed && right ? person : null
+    }
+
+    async function signedIn(body: any, from: string): Promise<Answer> {
+        if (tooMany(`try from ${from}`) || tooMany(`try as ${emailOf(body?.email) ?? ''}`)) return refuse(429, 'wait', WAIT)
+        const person = await holderBy(body?.email, body?.password)
+        if (!person) return refuse(401, 'wrong', WRONG)
+        return { status: 200, body: { token: sessionFor(person), name: person.name, email: person.email } }
+    }
+
+    // A new password in place of the one a person has. The session it was asked from stays;
+    // every other one of that person ends, so whoever else held the old password is out.
+    async function passwordChanged(person: Person, session: string, body: any): Promise<Answer> {
+        const weak = passwordRefused(body?.new)
+        if (weak) return refuse(400, 'password', weak)
+        if (tooMany(`old of ${person.id}`)) return refuse(429, 'wait', WAIT)
+        if (!(await holderBy(person.email, body?.old))) return refuse(401, 'wrong', 'The password you have now is not right.')
+        person.password = await hashed(body.new)
+        kept.sessions = kept.sessions.filter((one) => one.person !== person.id || one.hash === hashOf(session))
+        keep()
+        return { status: 200, body: {} }
+    }
+
+    // The code is sent and nothing is said of how that went: the answer is the same whether or
+    // not there is such an account, and must not differ by whether a mail could be sent.
+    function mailed(to: string, code: string) {
+        try {
+            void Promise.resolve(options.mail?.(to, code)).catch(() => undefined)
+        } catch {
+            return
+        }
+    }
+
+    // A code to choose a new password with, for the account with this address when there is
+    // one. The code is only handed back by a site that sends no mail.
+    function forgotten(body: any, from: string): Answer {
+        const email = emailOf(body?.email)
+        if (!email) return refuse(400, 'email', NOT_AN_ADDRESS)
+        if (tooMany(`forgot from ${from}`) || tooMany(`forgot as ${email}`)) return refuse(429, 'wait', 'Too many codes were asked for. Wait a quarter of an hour and ask again.')
+        for (const [to, one] of codes) if (one.until <= now()) codes.delete(to)
+        if (!kept.people.some((one) => one.email === email)) return { status: 200, body: {} }
+        const code = newCode()
+        codes.set(email, { hash: hashOf(`${email} ${code}`), until: now() + CODE_FOR, wrong: 0 })
+        if (!options.mail) return { status: 200, body: { code } }
+        mailed(email, code)
+        return { status: 200, body: {} }
+    }
+
+    // A new password for whoever types the code that was sent to their address. A code works
+    // once and not for long, and a few wrong tries are the end of it, so it cannot be guessed.
+    async function passwordReset(body: any, from: string): Promise<Answer> {
+        const weak = passwordRefused(body?.password)
+        if (weak) return refuse(400, 'password', weak)
+        const email = emailOf(body?.email)
+        if (tooMany(`reset from ${from}`) || tooMany(`reset as ${email ?? ''}`)) return refuse(429, 'wait', WAIT)
+        const sent = email ? codes.get(email) : undefined
+        const person = email ? kept.people.find((one) => one.email === email) : undefined
+        const right = Boolean(sent && sent.until > now() && sameText(sent.hash, hashOf(`${email} ${codeOf(body?.code)}`)))
+        if (!email || !sent || !person || !right) {
+            if (email && sent && (sent.until <= now() || ++sent.wrong >= CODE_TRIES)) codes.delete(email)
+            return refuse(400, 'code', 'That code is not right, or it has run out. Ask for a new one.')
+        }
+        codes.delete(email)
+        person.password = await hashed(body.password)
+        kept.sessions = kept.sessions.filter((one) => one.person !== person.id)
+        return { status: 200, body: { token: sessionFor(person), name: person.name, email: person.email } }
+    }
+
+    async function accountDeleted(person: Person, body: any): Promise<Answer> {
+        if (tooMany(`old of ${person.id}`)) return refuse(429, 'wait', WAIT)
+        if (!(await holderBy(person.email, body?.password))) return refuse(401, 'wrong', 'The password is not right.')
+        for (const song of mine(person)) removeSong(song)
+        kept.sessions = kept.sessions.filter((one) => one.person !== person.id)
+        kept.people = kept.people.filter((one) => one !== person)
+        codes.delete(person.email)
+        keep()
+        return { status: 200, body: {} }
+    }
+
+    function renamed(person: Person, body: any): Answer {
+        const name = clean(body?.name, NAME_LIMIT + 1)
+        const unnamed = nameRefused(name)
+        if (unnamed) return unnamed
+        person.name = name
+        keep()
+        return meOf(person)
+    }
+
+    // What a person chose about jams: whether they are open to one, and one person fewer among
+    // those they blocked. Either may be sent alone.
+    function jamsSet(person: Person, body: any): Answer {
+        const jams = jamsOf(person)
+        person.jams = { open: typeof body?.open === 'boolean' ? body.open : jams.open, blocked: typeof body?.unblock === 'string' ? jams.blocked.filter((one) => one.id !== body.unblock) : jams.blocked }
+        keep()
+        return meOf(person)
     }
 
     function published(person: Person, body: any): Answer {
@@ -188,8 +535,15 @@ export function createSite(options: SiteOptions): Promise<Site> {
         if (!preview.length || preview.length > PREVIEW_LIMIT || !looksLikeAudio(preview)) return refuse(400, 'preview', 'The preview is missing, too long, or not sound.')
         const file = JSON.parse(text) as { name: string; code: string }
         const read = analyze(file.code)
+        const peaks = peaksOf(body?.peaks)
+        const seconds = secondsOf(body?.seconds)
+        // A song says what it was reworked from only when that song is there to be opened, by
+        // everyone or at least by its own maker.
+        const from = kept.songs.find((one) => one.id === body?.from && (!one.hidden || one.by === person.id))
+        let id = shortId()
+        while (kept.songs.some((one) => one.id === id)) id = shortId()
         const song: Song = {
-            id: shortId(),
+            id,
             by: person.id,
             name: clean(file.name, 60),
             description: clean(body?.description, DESCRIPTION_LIMIT),
@@ -203,6 +557,9 @@ export function createSite(options: SiteOptions): Promise<Site> {
             hidden: false,
             plays: 0,
             downloads: 0,
+            ...(peaks ? { peaks } : {}),
+            ...(seconds ? { seconds } : {}),
+            ...(from ? { from: from.id } : {}),
         }
         writeFileSync(join(songsDir, `${song.id}.weft`), text)
         writeFileSync(join(songsDir, `${song.id}.mp3`), preview)
@@ -211,16 +568,90 @@ export function createSite(options: SiteOptions): Promise<Site> {
         return { status: 201, body: shown(song) }
     }
 
-    function songPage(song: Song): Answer {
-        const made = shown(song)
-        const facts = [made.style, made.tempo ? `${Math.round(made.tempo)} bpm` : '', `${made.patterns.length} patterns`, made.licence].filter(Boolean).map(escaped).join(', ')
-        return {
-            status: 200,
-            html: page(
-                made.name,
-                `<h1>${escaped(made.name)}</h1><p>by ${escaped(made.by)}<br><small>${facts}</small></p>${made.description ? `<p>${escaped(made.description)}</p>` : ''}<audio controls preload="none" src="/songs/${made.id}.mp3"></audio><a class="b" href="/songs/${made.id}.weft">Download .weft</a>`,
-            ),
+    // What its maker says about a song, changed after it was published. Whatever is not sent
+    // stays as it is; the name, the code and the sounds are the file's and cannot be changed.
+    function edited(song: Song, body: any): Answer {
+        const licence = body?.licence === undefined ? song.licence : LICENCES.find((one) => one === body.licence)
+        if (!licence) return refuse(400, 'licence', 'Choose what people may do with the song.')
+        if (body?.description !== undefined) song.description = clean(body.description, DESCRIPTION_LIMIT)
+        if (body?.style !== undefined) song.style = clean(body.style, STYLE_LIMIT)
+        song.licence = licence
+        keep()
+        return { status: 200, body: shown(song) }
+    }
+
+    // The file as it is handed out: as it came, and saying which published song it is, so that
+    // a song made from it can say what it was reworked from. The stored file is not touched.
+    function handedOut(song: Song, text: string): string {
+        try {
+            return JSON.stringify({ ...JSON.parse(text), source: { id: song.id, name: song.name, by: nameOf(song.by) } })
+        } catch {
+            return text
         }
+    }
+
+    const note = (status: number, heading: string, lines: string[], go?: { href: string; label: string }): Answer => ({ status, html: notePage(around, `${heading}, Weft`, heading, lines, go) })
+    const nothing = () => note(404, 'There is nothing at this address', ['The page may have moved, or the address may be mistyped.'], { href: '/', label: 'Go to the first page' })
+    const noSong = () => note(404, 'No such song', ['It may have been hidden or deleted by whoever made it.'], { href: '/songs', label: 'See all songs' })
+
+    // Anyone may say that something is wrong with a song. What they say is kept with the song
+    // and the time; nothing shows it yet.
+    function reported(song: Song, body: any, from: string): Answer {
+        const back = { href: `/songs/${song.id}`, label: 'Back to the song' }
+        const reason = clean(body?.reason, REASON_LIMIT)
+        if (!reason) return note(400, 'The report says nothing', ['Say what is wrong with the song, then send it again.'], back)
+        if (tooMany(`report from ${from}`)) return note(429, 'Too many reports', ['Too many reports came from here. Wait a quarter of an hour and send it again.'], back)
+        if (kept.reports.length >= MOST_REPORTS) return note(503, 'The report was not kept', ['The site cannot take more reports just now.'], back)
+        kept.reports.push({ song: song.id, reason, at: now() })
+        keep()
+        return note(200, 'The report is kept', ['It is kept with the song and the time it was sent.'], back)
+    }
+
+    // The pages, which are for everyone and know nobody. One form changes something, the
+    // report of a song.
+    function pageAnswer(request: IncomingMessage, url: URL, body: any, from: string): Answer {
+        const path = url.pathname
+        const get = request.method === 'GET'
+        const post = request.method === 'POST'
+        if (post && fromElsewhere(request)) return note(403, 'That did not come from this site', ['What is sent to this site from another site is not taken.'])
+
+        if (get && path === '/') return { status: 200, html: homePage(around, kept.songs.filter((song) => !song.hidden).sort(newestFirst).slice(0, 4).map(listed), built()) }
+        if (get && path === '/songs') {
+            const search = searchOf(url)
+            return { status: 200, html: songsPage(around, search, found(search)) }
+        }
+        if (get && path === '/licence') return { status: 200, html: licencePage(around, LICENCES) }
+        if (get && path === '/download') return { status: 200, html: downloadPage(around, built()) }
+        const wanted = /^\/download\/(macos|windows|linux)$/.exec(path)
+        if (wanted && get) {
+            const build = builds.get(wanted[1] as Platform)
+            if (!build || !existsSync(build.file)) return note(404, 'Not out yet', [`Weft for ${PLATFORM_NAMES[wanted[1] as Platform]} is not out yet.`], { href: '/download', label: 'See what is out' })
+            return { status: 200, build: { file: build.file, bytes: statSync(build.file).size } }
+        }
+
+        const told = /^\/songs\/([a-z0-9]+)\/report$/.exec(path)
+        if (told && post) {
+            const song = kept.songs.find((one) => one.id === told[1] && !one.hidden)
+            return song ? reported(song, body, from) : noSong()
+        }
+
+        const asset = /^\/songs\/([a-z0-9]+)(?:\.(weft|mp3))?$/.exec(path)
+        if (asset && get) {
+            const song = kept.songs.find((one) => one.id === asset[1] && !one.hidden)
+            if (!song) return noSong()
+            if (!asset[2]) {
+                const more = kept.songs.filter((one) => one.by === song.by && one !== song && !one.hidden).sort(newestFirst)
+                return { status: 200, html: songPage(around, shownOnPage(song), more.map(listed)) }
+            }
+            const stored = join(songsDir, `${song.id}.${asset[2]}`)
+            if (!existsSync(stored)) return refuse(404, 'missing', 'The file is gone.')
+            if (asset[2] === 'weft') song.downloads++
+            else if (!request.headers.range || /^bytes=0-/.test(request.headers.range)) song.plays++
+            keep()
+            if (asset[2] === 'mp3') return { status: 200, file: { bytes: readFileSync(stored), type: 'audio/mpeg' } }
+            return { status: 200, file: { bytes: Buffer.from(handedOut(song, readFileSync(stored, 'utf8'))), type: 'application/json', name: `${fileNameOf(song.name)}.weft` } }
+        }
+        return nothing()
     }
 
     async function answer(request: IncomingMessage, body: any): Promise<Answer> {
@@ -229,15 +660,23 @@ export function createSite(options: SiteOptions): Promise<Site> {
         const method = request.method ?? 'GET'
         const from = request.socket.remoteAddress ?? ''
 
-        if (method === 'POST' && path === '/api/sign-in') return signInAsked(body, from)
-        if (method === 'POST' && path === '/api/sign-in/poll') return polled(body)
-        if (method === 'GET' && path === '/sign-in/confirm') return confirmPage(url.searchParams.get('token'), false)
-        if (method === 'POST' && path === '/sign-in/confirm') return confirmPage(typeof body?.token === 'string' ? body.token : null, true)
+        const same = method === 'GET' ? fixed.get(path) : undefined
+        if (same) return { status: 200, fixed: same }
+        if (!path.startsWith('/api/')) return pageAnswer(request, url, body, from)
+
+        if (method === 'POST' && path === '/api/register') return registered(body, from)
+        if (method === 'POST' && path === '/api/sign-in') return signedIn(body, from)
+        if (method === 'POST' && path === '/api/password/forgot') return forgotten(body, from)
+        if (method === 'POST' && path === '/api/password/reset') return passwordReset(body, from)
 
         const person = personOf(request)
-        if (path === '/api/me' && method === 'GET') return person ? { status: 200, body: { name: person.name, email: person.email, used: mine(person).length, most: MOST_SONGS } } : signIn
+        if (path === '/api/me' && method === 'GET') return person ? meOf(person) : signIn
+        if (path === '/api/me' && method === 'POST') return person ? renamed(person, body) : signIn
+        if (path === '/api/me' && method === 'DELETE') return person ? accountDeleted(person, body) : signIn
+        if (path === '/api/me/jams' && method === 'POST') return person ? jamsSet(person, body) : signIn
+        if (path === '/api/password' && method === 'POST') return person ? passwordChanged(person, bearerOf(request) ?? '', body) : signIn
         if (path === '/api/sign-out' && method === 'POST') {
-            const given = /^Bearer (.+)$/.exec(request.headers.authorization ?? '')?.[1]
+            const given = bearerOf(request)
             if (given) kept.sessions = kept.sessions.filter((one) => one.hash !== hashOf(given))
             keep()
             return { status: 200, body: {} }
@@ -245,33 +684,19 @@ export function createSite(options: SiteOptions): Promise<Site> {
         if (path === '/api/songs' && method === 'POST') return person ? published(person, body) : signIn
         if (path === '/api/songs' && method === 'GET') {
             if (url.searchParams.has('mine')) return person ? { status: 200, body: { songs: mine(person).map(shown), used: mine(person).length, most: MOST_SONGS } } : signIn
-            return { status: 200, body: { songs: kept.songs.filter((song) => !song.hidden).sort((a, b) => b.published - a.published).slice(0, 100).map(shown) } }
+            return { status: 200, body: { songs: kept.songs.filter((song) => !song.hidden).sort(newestFirst).slice(0, 100).map(shown) } }
         }
         const change = /^\/api\/songs\/([a-z0-9]+)(?:\/(hide|show))?$/.exec(path)
         if (change && (method === 'DELETE' || method === 'POST')) {
             if (!person) return signIn
             const song = kept.songs.find((one) => one.id === change[1] && one.by === person.id)
             if (!song) return refuse(404, 'missing', 'There is no such song of yours.')
-            if (method === 'DELETE' && !change[2]) {
-                kept.songs = kept.songs.filter((one) => one !== song)
-                for (const ending of ['weft', 'mp3']) rmSync(join(songsDir, `${song.id}.${ending}`), { force: true })
-            } else if (method === 'POST' && change[2]) song.hidden = change[2] === 'hide'
+            if (method === 'POST' && !change[2]) return edited(song, body)
+            if (method === 'DELETE' && !change[2]) removeSong(song)
+            else if (method === 'POST' && change[2]) song.hidden = change[2] === 'hide'
             else return refuse(405, 'method', 'That cannot be done to a song.')
             keep()
             return { status: 200, body: { used: mine(person).length, most: MOST_SONGS } }
-        }
-
-        const asset = /^\/songs\/([a-z0-9]+)(?:\.(weft|mp3))?$/.exec(path)
-        if (asset && method === 'GET') {
-            const song = kept.songs.find((one) => one.id === asset[1] && !one.hidden)
-            if (!song) return { status: 404, html: page('Weft', '<h1>No such song</h1><p>It may have been hidden or deleted by whoever made it.</p>') }
-            if (!asset[2]) return songPage(song)
-            const stored = join(songsDir, `${song.id}.${asset[2]}`)
-            if (!existsSync(stored)) return refuse(404, 'missing', 'The file is gone.')
-            if (asset[2] === 'weft') song.downloads++
-            else if (!request.headers.range || /^bytes=0-/.test(request.headers.range)) song.plays++
-            keep()
-            return { status: 200, file: { bytes: readFileSync(stored), type: asset[2] === 'weft' ? 'application/json' : 'audio/mpeg', ...(asset[2] === 'weft' ? { name: `${song.name.replace(/[^\w .-]+/g, '_')}.weft` } : {}) } }
         }
         return refuse(404, 'missing', 'There is nothing at this address.')
     }
@@ -303,16 +728,33 @@ export function createSite(options: SiteOptions): Promise<Site> {
         const from = request.headers.origin
         const headers: Record<string, string> = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' }
         if (from && allowed.has(from)) Object.assign(headers, { 'Access-Control-Allow-Origin': from, 'Access-Control-Allow-Headers': 'authorization, content-type', 'Access-Control-Allow-Methods': 'GET, POST, DELETE', Vary: 'Origin' })
+        if (given.fixed) {
+            response.writeHead(given.status, { ...headers, 'Cache-Control': given.fixed.kept, 'Content-Type': given.fixed.type, 'Content-Length': String(given.fixed.bytes.length) })
+            return response.end(given.fixed.bytes)
+        }
+        if (given.build) {
+            response.writeHead(given.status, { ...headers, 'Content-Type': 'application/octet-stream', 'Content-Length': String(given.build.bytes), 'Content-Disposition': `attachment; filename="${fileNameOf(basename(given.build.file))}"` })
+            return createReadStream(given.build.file)
+                .on('error', () => response.destroy())
+                .pipe(response)
+        }
         if (given.file) {
             response.writeHead(given.status, { ...headers, 'Content-Type': given.file.type, 'Content-Length': String(given.file.bytes.length), ...(given.file.name ? { 'Content-Disposition': `attachment; filename="${given.file.name}"` } : {}) })
             return response.end(given.file.bytes)
         }
         if (given.html !== undefined) {
-            response.writeHead(given.status, { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; media-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'" })
+            response.writeHead(given.status, { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': PAGE_RULES })
             return response.end(given.html)
         }
         response.writeHead(given.status, { ...headers, 'Content-Type': 'application/json' })
         response.end(JSON.stringify(given.body ?? {}))
+    }
+
+    // What could not be done is said the way it was asked: to the app as before, to a browser
+    // as a page.
+    function failed(request: IncomingMessage, err: Error): Answer {
+        const refused = err.message === 'large' ? refuse(413, 'size', 'That is more than the site takes at once.') : err.message === 'unreadable' ? refuse(400, 'file', 'What was sent cannot be read.') : refuse(500, 'site', 'The site could not do that just now.')
+        return (request.url ?? '').startsWith('/api/') ? refused : note(refused.status, 'That did not work', [(refused.body as { what: string }).what])
     }
 
     const server = createServer((request, response) => {
@@ -321,7 +763,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
             .then((body) => answer(request, body))
             .then(
                 (given) => send(request, response, given),
-                (err: Error) => send(request, response, err.message === 'large' ? refuse(413, 'size', 'That is more than the site takes at once.') : err.message === 'unreadable' ? refuse(400, 'file', 'What was sent cannot be read.') : refuse(500, 'site', 'The site could not do that just now.')),
+                (err: Error) => send(request, response, failed(request, err)),
             )
     })
 
