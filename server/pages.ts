@@ -20,10 +20,11 @@ const safe = (text: string) => new Markup(text)
 export type Platform = 'macos' | 'windows' | 'linux'
 export type Build = { platform: Platform; version: string; bytes: number }
 // What stands around every page. `source` is where the app's source code can be read; the
-// link to it is left out until there is such a place.
-export type Around = { source?: string }
+// link to it is left out until there is such a place. `origin` is the address people reach the
+// site at, for the few places where a page has to give an address in full.
+export type Around = { source?: string; origin?: string }
 // `tint` picks the colour of the disc that stands for a person, 0 to 5.
-export type Maker = { name: string; tint: number }
+export type Maker = { id: string; name: string; tint: number }
 export type Part = { name: string; sound: string; own: boolean }
 export type OwnSound = { name: string; kind: string; seconds: number; bytes: number; usedBy: number[] }
 export type Preview = { seconds: number | null; peaks: number[] }
@@ -42,6 +43,8 @@ export type Listed = {
     downloads: number
     preview: Preview
 }
+// A song as a line of another song's page names it.
+export type Named = { id: string; name: string; by: Maker }
 export type Shown = Listed & {
     description: string
     licence: string
@@ -50,12 +53,17 @@ export type Shown = Listed & {
     parts: Part[]
     sounds: OwnSound[]
     fileName: string
-    origin: { id: string; name: string; by: string } | null
+    // The song this one was made from, or `gone` when that song is no longer shown.
+    from: Named | 'gone' | null
+    // The songs that were made from this one.
+    made: Named[]
 }
 export type Search = { q: string; sort: 'newest' | 'downloads'; from: number | null; to: number | null; page: number }
 export type Found = { songs: Listed[]; total: number; pages: number; slowest: number | null; fastest: number | null }
 
 export const REASON_LIMIT = 500
+// How large the picture of a song is, which its page says along with where the picture is.
+export const PICTURE = { width: 1200, height: 630 }
 
 const PLATFORMS: { id: Platform; name: string }[] = [
     { id: 'macos', name: 'macOS' },
@@ -94,6 +102,8 @@ const ofSeconds = (seconds: number) => {
 // The length of a song the way the app says it beside the song's bars.
 const lasting = (seconds: number) => (seconds < 100 ? many(Math.round(seconds), 'second') : `${Math.floor(Math.round(seconds) / 60)} min ${Math.round(seconds) % 60} s`)
 const initial = (name: string) => ([...name.trim()][0] ?? '?').toUpperCase()
+// The start of a text that is longer than so many letters, up to a whole word, marked as cut.
+const startOf = (text: string, most: number) => ([...text].length <= most ? text : `${[...text].slice(0, most).join('').replace(/ \S*$/, '')}…`)
 const hue = (at: number) => `c${at % 5}`
 
 const DOWN = safe('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.5 7.5 8 11l3.5-3.5M3 13.5h10" /></svg>')
@@ -107,16 +117,27 @@ const MARK = safe('<svg class="mark" viewBox="222 300 580 424" aria-hidden="true
 const SOUND = safe('<svg viewBox="0 0 20 14"><path d="M1 6v2M4.6 3.5v7M8.2 1v12M11.8 4v6M15.4 2.5v9M19 6v2" /></svg>')
 
 const disc = (who: Maker, small = false) => html`<i class="av${small ? ' xs' : ''}${who.tint ? ` w${who.tint}` : ''}">${initial(who.name)}</i>`
+// A maker's name, which leads to the page of their songs.
+const nameLink = (who: Maker) => html`<a href="/by/${who.id}">${who.name}</a>`
 const sourceLink = (around: Around, more = '') => (around.source ? html`<a${safe(more)} href="${around.source}" rel="noopener">Source code</a>` : '')
 
-function layout(around: Around, page: string, title: string, main: Markup, defs: Markup | '' = ''): string {
+// What a page says of itself for wherever its address is pasted, so that it is shown there with
+// a name, a line about it and a picture. An address in it has to be given in full, so the
+// picture is left out where the site was not told its own address.
+const pasted = (around: Around, title: string, about: string, picture = '/app-1.png') => html`<meta property="og:title" content="${title}">
+<meta property="og:description" content="${about}">
+<meta property="og:site_name" content="Weft">
+${around.origin ? html`<meta property="og:image" content="${around.origin}${picture}">
+` : ''}`
+
+function layout(around: Around, page: string, title: string, main: Markup, defs: Markup | '' = '', head: Markup | '' = ''): string {
     return html`<!doctype html>
 <html lang="en" data-page="${page}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
-<link rel="icon" type="image/svg+xml" href="/icon.svg">
+${head}<link rel="icon" type="image/svg+xml" href="/icon.svg">
 <link rel="stylesheet" href="/site.css">
 <script src="/site.js" defer></script>
 </head>
@@ -152,17 +173,20 @@ ${main}
 `.text
 }
 
-// The preview as a row of upright strokes, one every four units as in the drawings, each as
-// tall as the preview is loud there. A song whose loudness was never sent gets an even row of
-// low strokes.
-function strokes(peaks: number[], count: number): string {
-    const tenth = (value: number) => Math.round(value * 10) / 10
-    return Array.from({ length: count }, (_, at) => {
+// How far each of a row of strokes reaches up and down from the middle, of the twenty units
+// there are to either side: as far as the preview is loud there. A song whose loudness was
+// never sent gets an even row of low strokes.
+export const reach = (peaks: number[], count: number): number[] =>
+    Array.from({ length: count }, (_, at) => {
         const from = Math.floor((at * peaks.length) / count)
         const to = Math.max(from + 1, Math.floor(((at + 1) * peaks.length) / count))
-        const half = peaks.length ? 2.2 + Math.max(...peaks.slice(from, to)) * 14.8 : 3
-        return `M${at * 4 + 2} ${tenth(20 - half)}V${tenth(20 + half)}`
-    }).join('')
+        return peaks.length ? 2.2 + Math.max(...peaks.slice(from, to)) * 14.8 : 3
+    })
+
+// The preview as a row of upright strokes, one every four units as in the drawings.
+function strokes(peaks: number[], count: number): string {
+    const tenth = (value: number) => Math.round(value * 10) / 10
+    return reach(peaks, count).map((half, at) => `M${at * 4 + 2} ${tenth(20 - half)}V${tenth(20 + half)}`).join('')
 }
 const waveDef = (id: string, peaks: number[], count: number) => html`<path id="${id}" vector-effect="non-scaling-stroke" d="${strokes(peaks, count)}" />`
 const waveUse = (id: string, count: number, kind = '') => html`<svg${kind ? html` class="${kind}"` : ''} viewBox="0 0 ${count * 4} 40" preserveAspectRatio="none"><use href="#${id}" /></svg>`
@@ -182,7 +206,7 @@ function row(song: Listed, whole = false): Markup {
                 ${playLink(song)}
                 <div class="row-t">
                     <h3><a href="/songs/${song.id}">${song.name}</a></h3>
-                    <span class="by">${disc(song.by, true)}${song.by.name}<span class="num at"><span data-now>0:00</span>${seconds ? ` of ${clock(seconds)}` : ''}</span></span>
+                    <span class="by">${disc(song.by, true)}${nameLink(song.by)}<span class="num at"><span data-now>0:00</span>${seconds ? ` of ${clock(seconds)}` : ''}</span></span>
                 </div>
                 <div class="row-m">
                     <span>${song.style ? html`<a class="chip" href="/songs?q=${encodeURIComponent(song.style)}" title="Songs tagged ${song.style}">${song.style}</a>` : ''}</span>
@@ -201,7 +225,7 @@ function pick(song: Listed): Markup {
                     ${playLink(song)}
                     <div>
                         <h3><a href="/songs/${song.id}">${song.name}</a></h3>
-                        <span class="by">${disc(song.by, true)}${song.by.name}</span>
+                        <span class="by">${disc(song.by, true)}${nameLink(song.by)}</span>
                     </div>
                 </div>
                 <div class="wave" aria-hidden="true">
@@ -218,12 +242,14 @@ function pick(song: Listed): Markup {
 }
 
 export function homePage(around: Around, songs: Listed[], builds: Build[]): string {
+    const title = 'Weft, build songs from patterns'
+    const about = 'Weft is a free desktop app for pattern music, built on Strudel. Click drums into a grid, draw notes in a piano roll, turn a knob, and the code follows.'
     const get = (platform: Platform) => (builds.some((build) => build.platform === platform) ? `/download/${platform}` : '/download')
     const defs = defsOf(songs.map((song) => waveDef(`w-${song.id}`, song.preview.peaks, 44)))
     const main = html`<main>
     <section class="hero wrap">
         <h1>Weave songs from patterns.</h1>
-        <p class="lede">Weft is a free desktop app for pattern music, built on Strudel. Click drums into a grid, draw notes in a piano roll, turn a knob, and the code follows. Change the code, and the controls follow. Play alone, or jam on one song with someone else.</p>
+        <p class="lede">${about} Change the code, and the controls follow. Play alone, or jam on one song with someone else.</p>
         <div class="dl" id="download">
             <a class="btn go" href="${get('macos')}">${DOWN}Download for macOS</a>
             <a class="btn" href="${get('windows')}">Windows</a>
@@ -327,10 +353,11 @@ export function homePage(around: Around, songs: Listed[], builds: Build[]): stri
         </div>
     </section>
 </main>`
-    return layout(around, 'home', 'Weft, build songs from patterns', main, defs)
+    return layout(around, 'home', title, main, defs, pasted(around, title, about))
 }
 
 export function downloadPage(around: Around, builds: Build[]): string {
+    const about = 'Weft is a desktop app. It is free, and it needs no account to make music.'
     const one = (platform: { id: Platform; name: string }) => {
         const build = builds.find((made) => made.platform === platform.id)
         if (!build) return html`<li><div><b>${platform.name}</b><p>Not out yet.</p></div></li>`
@@ -348,7 +375,7 @@ export function downloadPage(around: Around, builds: Build[]): string {
     <div class="ph">
         <div>
             <h1>Download</h1>
-            <p>Weft is a desktop app. It is free, and it needs no account to make music.</p>
+            <p>${about}</p>
         </div>
     </div>
     <ul class="card plats">
@@ -356,7 +383,7 @@ export function downloadPage(around: Around, builds: Build[]): string {
     </ul>
     ${builds.length ? '' : html`<p class="tail">Weft is not released yet, so there is nothing to download.</p>`}
 </main>`
-    return layout(around, 'download', 'Download, Weft', main)
+    return layout(around, 'download', 'Download, Weft', main, '', pasted(around, 'Download Weft', about))
 }
 
 export function licencePage(around: Around, licences: readonly string[]): string {
@@ -399,6 +426,18 @@ export function privacyPage(around: Around): string {
     return layout(around, 'privacy', 'Privacy, Weft', main)
 }
 
+// What stands over a list of songs: the names of its columns.
+const COLUMNS = safe(`<div class="list-h" aria-hidden="true">
+            <span></span>
+            <span class="cap">Song</span>
+            <span class="cap">Style</span>
+            <span class="cap">Tempo</span>
+            <span class="cap">Patterns</span>
+            <span class="cap">Length</span>
+            <span class="cap">Downloads</span>
+            <span></span>
+        </div>`)
+
 function songsAddress(search: Search): string {
     const query = new URLSearchParams()
     if (search.q) query.set('q', search.q)
@@ -411,6 +450,7 @@ function songsAddress(search: Search): string {
 }
 
 export function songsPage(around: Around, search: Search, found: Found): string {
+    const about = 'Listen to a preview, then download the song and open it in Weft.'
     const order = (sort: Search['sort'], label: string) => html`<a href="${songsAddress({ ...search, sort, page: 1 })}"${search.sort === sort ? safe(' aria-current="true"') : ''}>${label}</a>`
     const turn = (page: number, label: string) => html`<a class="btn sm" href="${songsAddress({ ...search, page })}">${label}</a>`
     const pages = html`<nav class="pages" aria-label="Pages">
@@ -422,7 +462,7 @@ export function songsPage(around: Around, search: Search, found: Found): string 
     <div class="ph">
         <div>
             <h1>Songs</h1>
-            <p>Listen to a preview, then download the song and open it in Weft.</p>
+            <p>${about}</p>
         </div>
     </div>
 
@@ -448,16 +488,7 @@ export function songsPage(around: Around, search: Search, found: Found): string 
     </form>
 
     <div class="card list">
-        <div class="list-h" aria-hidden="true">
-            <span></span>
-            <span class="cap">Song</span>
-            <span class="cap">Style</span>
-            <span class="cap">Tempo</span>
-            <span class="cap">Patterns</span>
-            <span class="cap">Length</span>
-            <span class="cap">Downloads</span>
-            <span></span>
-        </div>
+        ${COLUMNS}
         ${found.songs.length ? html`<ul>
             ${found.songs.map((song) => row(song))}
         </ul>` : html`<p class="none">${found.total ? 'There is no such page.' : search.q || search.from !== null || search.to !== null ? 'No song matches that.' : 'Nothing is published yet.'}</p>`}
@@ -465,7 +496,33 @@ export function songsPage(around: Around, search: Search, found: Found): string 
     ${found.pages > 1 ? pages : ''}
     <p class="tail">A style is whatever its maker typed. Press one to see the songs that share it.</p>
 </main>`
-    return layout(around, 'songs', 'Songs, Weft', main)
+    return layout(around, 'songs', 'Songs, Weft', main, '', pasted(around, 'Songs made in Weft', about))
+}
+
+// The songs of one person that are shown, newest first. There is always at least one: the site
+// has no such page for someone with nothing to show.
+export function makerPage(around: Around, who: Maker, songs: Listed[]): string {
+    const about = `${many(songs.length, 'song')} made in Weft.`
+    const main = html`<main class="wrap page">
+    <div class="ph">
+        <div>
+            <nav class="crumb" aria-label="You are here">
+                <a href="/songs">Songs</a>
+                <span aria-hidden="true">/</span>
+                <span>${who.name}</span>
+            </nav>
+            <h1>${who.name}</h1>
+            <p>${about}</p>
+        </div>
+    </div>
+    <div class="card list">
+        ${COLUMNS}
+        <ul>
+            ${songs.map((song) => row(song))}
+        </ul>
+    </div>
+</main>`
+    return layout(around, 'maker', `Songs by ${who.name}, Weft`, main, '', pasted(around, `Songs by ${who.name}`, about))
 }
 
 function player(song: Shown): Markup {
@@ -502,6 +559,17 @@ function report(song: Shown): Markup {
 
 export function songPage(around: Around, song: Shown, more: Listed[]): string {
     const by = song.by.name
+    const address = around.origin ? `${around.origin}/songs/${song.id}` : ''
+    const whose = [`By ${by}`, song.style, song.tempo ? bpm(song.tempo) : ''].filter(Boolean).join(', ')
+    const about = [whose.endsWith('.') ? whose : `${whose}.`, startOf(song.description, 160)].filter(Boolean).join(' ')
+    // The size of the picture has to stand right after where the picture is, which is said last.
+    const head = html`<meta property="og:type" content="music.song">
+${pasted(around, song.name, about, `/songs/${song.id}.png`)}${address ? html`<meta property="og:image:width" content="${PICTURE.width}">
+<meta property="og:image:height" content="${PICTURE.height}">
+<meta property="og:url" content="${address}">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="${address}">
+` : ''}`
     const ownBytes = song.sounds.reduce((sum, sound) => sum + sound.bytes, 0)
     const length = song.bars === null ? '' : `${many(song.bars, 'bar')}${song.length ? `, ${lasting(song.length)}` : ''}`
     const defs = defsOf([waveDef('w-preview', song.preview.peaks, 150), waveDef('w-preview-s', song.preview.peaks, 64)])
@@ -532,6 +600,15 @@ export function songPage(around: Around, song: Shown, more: Listed[]): string {
                     </li>`)}
                 </ul>
             </section>`
+    const from = song.from === 'gone' ? 'Made from a song that is no longer on the site' : song.from ? html`Made from <a href="/songs/${song.from.id}"><b>${song.from.name}</b></a> by ${nameLink(song.from.by)}` : ''
+    const made = html`<section class="part" aria-labelledby="h-made">
+                <div class="part-h">
+                    <h2 id="h-made">Made from this</h2>
+                </div>
+                <ul class="made">
+                    ${song.made.map((one) => html`<li><a href="/songs/${one.id}">${one.name}</a><span class="by">${disc(one.by, true)}${nameLink(one.by)}</span></li>`)}
+                </ul>
+            </section>`
     const main = html`<main class="wrap page">
     <article class="song">
         <div class="song-a">
@@ -542,7 +619,7 @@ export function songPage(around: Around, song: Shown, more: Listed[]): string {
             </nav>
             <h1>${song.name}</h1>
             <div class="meta">
-                <span class="by">${disc(song.by)}${by}</span>
+                <span class="by">${disc(song.by)}${nameLink(song.by)}</span>
                 ${song.style ? html`<a class="chip" href="/songs?q=${encodeURIComponent(song.style)}" title="Songs tagged ${song.style}">${song.style}</a>` : ''}
                 <span>Published ${day(song.published)}</span>
             </div>
@@ -550,7 +627,7 @@ export function songPage(around: Around, song: Shown, more: Listed[]): string {
             ${player(song)}
 
             ${song.description ? html`<p class="about">${song.description}</p>` : ''}
-            ${song.origin ? html`<a class="from" href="/songs/${song.origin.id}">${TURN}<span>Reworked from <b>${song.origin.name}</b> by ${song.origin.by}</span></a>` : ''}
+            ${from ? html`<p class="from">${TURN}<span>${from}</span></p>` : ''}
         </div>
 
         <aside class="get" aria-label="Get this song">
@@ -582,6 +659,7 @@ export function songPage(around: Around, song: Shown, more: Listed[]): string {
         <div class="song-b">
             ${song.parts.length ? patterns : ''}
             ${song.sounds.length ? sounds : ''}
+            ${song.made.length ? made : ''}
         </div>
     </article>
 
@@ -594,7 +672,7 @@ export function songPage(around: Around, song: Shown, more: Listed[]): string {
         </ul>
     </section>` : ''}
 </main>`
-    return layout(around, 'song', `${song.name} by ${by}, Weft`, main, defs)
+    return layout(around, 'song', `${song.name} by ${by}, Weft`, main, defs, head)
 }
 
 // A small page with one thing on it: a refusal, what happened, or what is not there.

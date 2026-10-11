@@ -229,25 +229,109 @@ describe('the page of a song', () => {
         expect((await fetch(`${site.origin}/songs/nosuchsong`)).status).toBe(404)
     })
 
-    it('says what it was reworked from with a link, and drops the line when that song is hidden or gone', async () => {
+    it('says what it was made from with links to that song and its maker, and only that there was one once that song is hidden or gone', async () => {
         const mara = await signIn('mara@example.com', 'Mara')
         const first = await publish(mara, { file: plain('Low sun', 122) })
         const made = await publish(await signIn(), { from: first.id })
-        const line = `<a class="from" href="/songs/${first.id}">`
-        const html = await page(`/songs/${made.id}`)
-        expect(html).toContain(line)
-        expect(html).toContain('<span>Reworked from <b>Low sun</b> by Mara</span>')
-        expect(await page(`/songs/${first.id}`)).not.toContain('Reworked from')
+        const line = `<span>Made from <a href="/songs/${first.id}"><b>Low sun</b></a> by <a href="/by/${kept().people[0].id}">Mara</a></span>`
+        const lost = '<span>Made from a song that is no longer on the site</span>'
+        expect(await page(`/songs/${made.id}`)).toContain(line)
+        expect(await page(`/songs/${first.id}`)).not.toContain('class="from"')
         await ask(`/api/songs/${first.id}/hide`, { token: mara, method: 'POST' })
         const hidden = await page(`/songs/${made.id}`)
-        expect(hidden).not.toContain('Reworked from')
+        expect(hidden).toContain(lost)
         expect(hidden).not.toContain(first.id)
         await ask(`/api/songs/${first.id}/show`, { token: mara, method: 'POST' })
         expect(await page(`/songs/${made.id}`)).toContain(line)
         await ask(`/api/songs/${first.id}`, { token: mara, method: 'DELETE' })
         const gone = await page(`/songs/${made.id}`)
-        expect(gone).not.toContain('Reworked from')
+        expect(gone).toContain(lost)
         expect(gone).not.toContain(first.id)
+    })
+
+    it('lists the songs made from it with their makers, newest first, twelve at most and no hidden one', async () => {
+        const mara = await signIn('mara@example.com', 'Mara')
+        const first = await publish(mara, { file: plain('Low sun', 122) })
+        expect(await page(`/songs/${first.id}`)).not.toContain('Made from this')
+        const ante = await signIn()
+        const tomo = await signIn('tomo@example.com', 'Tomo')
+        for (let count = 1; count <= 10; count++) await publish(ante, { file: plain(`Take ${count}`), from: first.id })
+        const late = []
+        for (let count = 11; count <= 14; count++) late.push(await publish(tomo, { file: plain(`Take ${count}`), from: first.id }))
+        await ask(`/api/songs/${late[3].id}/hide`, { token: tomo, method: 'POST' })
+        const html = await page(`/songs/${first.id}`)
+        expect(html).toContain('<h2 id="h-made">Made from this</h2>')
+        const listed = [...html.matchAll(/<li><a href="\/songs\/[a-z0-9]+">(Take \d+)<\/a><span class="by">/g)].map((found) => found[1])
+        expect(listed).toEqual(Array.from({ length: 12 }, (_, at) => `Take ${13 - at}`))
+        expect(html).toContain(`<a href="/by/${kept().people[2].id}">Tomo</a></span></li>`)
+    })
+
+    it('tells wherever its address is pasted its name, who made it and where its picture is, in whole addresses or not at all', async () => {
+        const made = await publish(await signIn())
+        const bare = await page(`/songs/${made.id}`)
+        expect(bare).toContain('<meta property="og:title" content="Slow burn">')
+        expect(bare).toContain('<meta property="og:description" content="By Ante, trip hop, 84 bpm. Slow.">')
+        expect(bare).not.toMatch(/og:image|og:url|og:audio|twitter:card|rel="canonical"/)
+        await site.close()
+        await start({ origin: 'https://weft.example' })
+        const here = `http://127.0.0.1:${site.port}`
+        const html = await (await fetch(`${here}/songs/${made.id}`)).text()
+        const whole = `https://weft.example/songs/${made.id}`
+        expect(html).toContain('<meta property="og:type" content="music.song">')
+        expect(html).toContain('<meta property="og:site_name" content="Weft">')
+        expect(html).toContain(`<meta property="og:url" content="${whole}">`)
+        expect(html).toContain(`<meta property="og:image" content="${whole}.png">\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">`)
+        // The sound is not named: whatever fetched it to look at the address would count as a listener.
+        expect(html).not.toContain('og:audio')
+        expect(html).toContain('<meta name="twitter:card" content="summary_large_image">')
+        expect(html).toContain(`<link rel="canonical" href="${whole}">`)
+        expect(await (await fetch(`${here}/songs`)).text()).toContain('<meta property="og:image" content="https://weft.example/app-1.png">')
+    })
+
+    it('has a picture of its preview, 1200 dots wide and 630 high, and none while it is hidden', async () => {
+        const token = await signIn()
+        const made = await publish(token, { peaks: [0.2, 0.8] })
+        const answer = await fetch(`${site.origin}/songs/${made.id}.png`)
+        expect([answer.status, answer.headers.get('content-type')]).toEqual([200, 'image/png'])
+        const picture = Buffer.from(await answer.arrayBuffer())
+        expect(picture.subarray(1, 4).toString()).toBe('PNG')
+        expect([picture.readUInt32BE(16), picture.readUInt32BE(20)]).toEqual([1200, 630])
+        await ask(`/api/songs/${made.id}/hide`, { token, method: 'POST' })
+        expect((await fetch(`${site.origin}/songs/${made.id}.png`)).status).toBe(404)
+        expect((await fetch(`${site.origin}/songs/nosuchsong.png`)).status).toBe(404)
+    })
+})
+
+describe('the page of a maker', () => {
+    it('has their name, how many of their songs are shown and those songs, newest first, and is where their name leads from every song', async () => {
+        const ante = await signIn()
+        const first = await publish(ante, { file: plain('Undertow', 80) })
+        await publish(await signIn('mara@example.com', 'Mara'), { file: plain('Low sun', 122) })
+        const hidden = await publish(ante, { file: plain('Glasshouse', 124) })
+        await publish(ante, { file: plain('Stillness', 60) })
+        await ask(`/api/songs/${hidden.id}/hide`, { token: ante, method: 'POST' })
+        const at = /<a href="(\/by\/[a-z0-9]+)">Ante<\/a>/.exec(await page(`/songs/${first.id}`))?.[1] ?? ''
+        const html = await page(at)
+        expect(html).toContain('<title>Songs by Ante, Weft</title>')
+        expect(html).toContain('<h1>Ante</h1>')
+        expect(html).toContain('<p>2 songs made in Weft.</p>')
+        expect(names(html)).toEqual(['Stillness', 'Undertow'])
+        expect(html).not.toContain('ante@example.com')
+        for (const path of ['/', '/songs']) expect(await page(path)).toContain(`<a href="${at}">Ante</a>`)
+    })
+
+    it('is not there for someone whose songs are all hidden, for someone who published nothing, or for nobody, and says the same to each', async () => {
+        const ante = await signIn()
+        await signIn('mara@example.com', 'Mara')
+        const made = await publish(ante)
+        const [first, second] = kept().people.map((one: { id: string }) => one.id)
+        expect((await fetch(`${site.origin}/by/${first}`)).status).toBe(200)
+        await ask(`/api/songs/${made.id}/hide`, { token: ante, method: 'POST' })
+        const answers = await Promise.all([first, second, 'nobody'].map((id) => fetch(`${site.origin}/by/${id}`)))
+        expect(answers.map((answer) => answer.status)).toEqual([404, 404, 404])
+        const said = await Promise.all(answers.map((answer) => answer.text()))
+        expect(said[0]).toContain('No songs here')
+        expect([said[0] === said[2], said[1] === said[2]]).toEqual([true, true])
     })
 })
 
@@ -397,7 +481,7 @@ describe('every page', () => {
         const token = await signIn('ante@example.com', '<b>')
         const first = await publish(token, { file: plain('Low <i>sun</i>') })
         const made = await publish(token, { file: song({ name: '<img src=x onerror=alert(1)>' }), description: '<script>alert(2)</script>', style: '"><i>', from: first.id })
-        const paths = ['/', '/songs', '/songs?q="><i>', `/songs/${made.id}`, `/songs/${first.id}`]
+        const paths = ['/', '/songs', '/songs?q="><i>', `/songs/${made.id}`, `/songs/${first.id}`, `/by/${kept().people[0].id}`]
         const bold: number[] = []
         for (const path of paths) {
             const html = await page(path)
@@ -413,7 +497,7 @@ describe('every page', () => {
         expect(html).toContain('title="Songs tagged &#34;&#62;&#60;i&#62;"')
         expect(html).toContain('aria-label="Play the preview of &#60;img src=x onerror=alert(1)&#62;"')
         expect(html).toContain('<p class="about">&#60;script&#62;alert(2)&#60;/script&#62;</p>')
-        expect(html).toContain('Reworked from <b>Low &#60;i&#62;sun&#60;/i&#62;</b> by &#60;b&#62;')
+        expect(html).toContain(`Made from <a href="/songs/${first.id}"><b>Low &#60;i&#62;sun&#60;/i&#62;</b></a> by <a href="/by/${kept().people[0].id}">&#60;b&#62;</a>`)
         expect(await page('/songs?q="><i>')).toContain('name="q" value="&#34;&#62;&#60;i&#62;"')
         const file = await fetch(`${site.origin}/songs/${made.id}.weft`)
         expect(file.headers.get('content-disposition')).toBe('attachment; filename="_img src_x onerror_alert_1_.weft"')

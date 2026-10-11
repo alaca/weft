@@ -7,7 +7,8 @@ import { checkSongFile, looksLikeAudio } from '../src/guard/file'
 import { SONG_LIMIT, soundsUsed } from '../src/library/songfile'
 import { analyze } from '../src/song/analyze'
 import { DEFAULT_SONG, songLength } from '../src/song/arrange'
-import { downloadPage, homePage, licencePage, notePage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
+import { downloadPage, homePage, licencePage, makerPage, notePage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type Named, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
+import { songPicture } from './picture'
 import { senderOf } from './sender'
 
 // The site that songs are published to. It has two sides. The pages are for everyone and know
@@ -72,6 +73,10 @@ const MOST_PEAKS = 200
 const MOST_SECONDS = 31
 const MOST_REPORTS = 5000
 const A_PAGE = 24
+// How many of the songs that were made from a song its page names.
+const MOST_MADE = 12
+// How many songs' pictures are held ready at a time. One is about nine kilobytes.
+const MOST_PICTURES = 400
 const APP_ORIGINS = ['http://localhost:5180', 'tauri://localhost', 'https://tauri.localhost', 'http://tauri.localhost']
 const PLATFORM_NAMES: Record<Platform, string> = { macos: 'macOS', windows: 'Windows', linux: 'Linux' }
 // A page may load only what this site serves itself, and may run nothing written into it.
@@ -118,7 +123,7 @@ type Song = {
     // How loud the preview is along its length, and how long it is, for the pages to draw.
     peaks?: number[]
     seconds?: number
-    // The published song this one was reworked from.
+    // The published song this one was made from.
     from?: string
 }
 type Report = { song: string; reason: string; at: number }
@@ -270,7 +275,9 @@ export function createSite(options: SiteOptions): Promise<Site> {
         renameSync(`${keptFile}.new`, keptFile)
     }
     const fixed = fixedFiles()
-    const around: Around = { source: /^https?:\/\//.test(options.source ?? '') ? options.source : undefined }
+    // An address is only written into a page when it begins the way a web address does.
+    const webAddress = (given: string | undefined) => (/^https?:\/\//.test(given ?? '') ? given : undefined)
+    const around: Around = { source: webAddress(options.source), origin: webAddress(options.origin) }
     type Installer = { file: string; version: string; bytes: number }
     const installers = (list: { platform: Platform; file: string; version: string }[]) => {
         const there = new Map<Platform, Installer>()
@@ -307,6 +314,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
     const codes = new Map<string, Code>()
     const asked = new Map<string, number[]>()
     const facts = new Map<string, Facts | null>()
+    const pictures = new Map<string, Buffer>()
     const allowed = new Set(options.allow ?? APP_ORIGINS)
     let origin = options.origin ?? ''
 
@@ -343,7 +351,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
 
     const mine = (person: Person) => kept.songs.filter((song) => song.by === person.id)
     const nameOf = (id: string) => kept.people.find((person) => person.id === id)?.name ?? 'Someone'
-    const makerOf = (id: string): Maker => ({ name: nameOf(id), tint: tintOf(id) })
+    const makerOf = (id: string): Maker => ({ id, name: nameOf(id), tint: tintOf(id) })
     const shown = (song: Song) => ({ ...song, by: nameOf(song.by), url: `${origin}/songs/${song.id}`, file: `${origin}/songs/${song.id}.weft`, preview: `${origin}/songs/${song.id}.mp3` })
     const meOf = (person: Person): Answer => ({ status: 200, body: { name: person.name, email: person.email, used: mine(person).length, most: MOST_SONGS } })
     const refuse = (status: number, why: string, what: string, more: object = {}): Answer => ({ status, body: { why, what, ...more } })
@@ -357,6 +365,16 @@ export function createSite(options: SiteOptions): Promise<Site> {
             facts.set(song.id, existsSync(stored) ? readFacts(readFileSync(stored, 'utf8')) : null)
         }
         return facts.get(song.id) ?? null
+    }
+    // The picture a song is shown with wherever its address is pasted, drawn the first time it
+    // is asked for and kept until the song is hidden or deleted.
+    const pictureOf = (song: Song): Buffer => {
+        const drawn = pictures.get(song.id) ?? songPicture(song.peaks ?? [])
+        // The one asked for last is kept longest, and no more are kept than is worth the room.
+        pictures.delete(song.id)
+        pictures.set(song.id, drawn)
+        if (pictures.size > MOST_PICTURES) pictures.delete(pictures.keys().next().value as string)
+        return drawn
     }
     const listed = (song: Song): Listed => {
         const read = factsOf(song)
@@ -375,8 +393,10 @@ export function createSite(options: SiteOptions): Promise<Site> {
             preview: { seconds: song.seconds ?? null, peaks: song.peaks ?? [] },
         }
     }
-    // A song as its own page shows it. What it was reworked from is only named while that song
-    // is there to be opened, so the line never leads nowhere.
+    const named = (song: Song): Named => ({ id: song.id, name: song.name, by: makerOf(song.by) })
+    // A song as its own page shows it. What it was made from is named while that song is shown.
+    // Once it is hidden or deleted the page only says that there was one, so no line leads
+    // nowhere and nothing of a hidden song is told.
     const shownOnPage = (song: Song): Shown => {
         const read = factsOf(song)
         const from = kept.songs.find((one) => one.id === song.from && !one.hidden)
@@ -389,7 +409,8 @@ export function createSite(options: SiteOptions): Promise<Site> {
             parts: read?.parts ?? song.patterns.map((name) => ({ name, sound: '', own: false })),
             sounds: read?.sounds ?? [],
             fileName: `${fileNameOf(song.name)}.weft`,
-            origin: from ? { id: from.id, name: from.name, by: nameOf(from.by) } : null,
+            from: from ? named(from) : song.from ? 'gone' : null,
+            made: kept.songs.filter((one) => one.from === song.id && !one.hidden).sort(newestFirst).slice(0, MOST_MADE).map(named),
         }
     }
 
@@ -425,6 +446,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
     function removeSong(song: Song) {
         kept.songs = kept.songs.filter((one) => one !== song)
         facts.delete(song.id)
+        pictures.delete(song.id)
         for (const ending of ['weft', 'mp3']) rmSync(join(songsDir, `${song.id}.${ending}`), { force: true })
     }
 
@@ -592,9 +614,9 @@ export function createSite(options: SiteOptions): Promise<Site> {
         const read = analyze(file.code)
         const peaks = peaksOf(body?.peaks)
         const seconds = secondsOf(body?.seconds)
-        // A song says what it was reworked from only when that song is there to be opened, by
-        // everyone or at least by its own maker.
-        const from = kept.songs.find((one) => one.id === body?.from && (!one.hidden || one.by === person.id))
+        // A song says what it was made from only when that is a song on the site that everyone
+        // can open. Whatever else is sent in its place is left out.
+        const from = kept.songs.find((one) => one.id === body?.from && !one.hidden)
         let id = shortId()
         while (kept.songs.some((one) => one.id === id)) id = shortId()
         const song: Song = {
@@ -636,7 +658,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
     }
 
     // The file as it is handed out: as it came, and saying which published song it is, so that
-    // a song made from it can say what it was reworked from. The stored file is not touched.
+    // a song made from it can say so. The stored file is not touched.
     function handedOut(song: Song, text: string): string {
         try {
             return JSON.stringify({ ...JSON.parse(text), source: { id: song.id, name: song.name, by: nameOf(song.by) } })
@@ -648,6 +670,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
     const note = (status: number, heading: string, lines: string[], go?: { href: string; label: string }): Answer => ({ status, html: notePage(around, `${heading}, Weft`, heading, lines, go) })
     const nothing = () => note(404, 'There is nothing at this address', ['The page may have moved, or the address may be mistyped.'], { href: '/', label: 'Go to the first page' })
     const noSong = () => note(404, 'No such song', ['It may have been hidden or deleted by whoever made it.'], { href: '/songs', label: 'See all songs' })
+    const noMaker = () => note(404, 'No songs here', ['Whoever made them may have hidden or deleted them, or the address may be mistyped.'], { href: '/songs', label: 'See all songs' })
 
     // Anyone may say that something is wrong with a song. What they say is kept with the song
     // and the time, and handed on to whoever runs the site where the site was told how.
@@ -705,7 +728,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
             return song ? reported(song, body, from) : noSong()
         }
 
-        const asset = /^\/songs\/([a-z0-9]+)(?:\.(weft|mp3))?$/.exec(path)
+        const asset = /^\/songs\/([a-z0-9]+)(?:\.(weft|mp3|png))?$/.exec(path)
         if (asset && get) {
             const song = kept.songs.find((one) => one.id === asset[1] && !one.hidden)
             if (!song) return noSong()
@@ -713,6 +736,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
                 const more = kept.songs.filter((one) => one.by === song.by && one !== song && !one.hidden).sort(newestFirst)
                 return { status: 200, html: songPage(around, shownOnPage(song), more.map(listed)) }
             }
+            if (asset[2] === 'png') return { status: 200, file: { bytes: pictureOf(song), type: 'image/png' } }
             const stored = join(songsDir, `${song.id}.${asset[2]}`)
             if (!existsSync(stored)) return refuse(404, 'missing', 'The file is gone.')
             if (asset[2] === 'weft') song.downloads++
@@ -720,6 +744,14 @@ export function createSite(options: SiteOptions): Promise<Site> {
             keep()
             if (asset[2] === 'mp3') return { status: 200, file: { bytes: readFileSync(stored), type: 'audio/mpeg' } }
             return { status: 200, file: { bytes: Buffer.from(handedOut(song, readFileSync(stored, 'utf8'))), type: 'application/json', name: `${fileNameOf(song.name)}.weft` } }
+        }
+
+        // The page of one person's songs is only there while a song of theirs is shown, and
+        // answers the same for an account with nothing to show as for no account at all.
+        const maker = /^\/by\/([a-z0-9]+)$/.exec(path)
+        if (maker && get) {
+            const songs = kept.songs.filter((song) => song.by === maker[1] && !song.hidden).sort(newestFirst)
+            return songs.length ? { status: 200, html: makerPage(around, makerOf(maker[1]), songs.map(listed)) } : noMaker()
         }
         return nothing()
     }
@@ -763,8 +795,10 @@ export function createSite(options: SiteOptions): Promise<Site> {
             if (!song) return refuse(404, 'missing', 'There is no such song of yours.')
             if (method === 'POST' && !change[2]) return edited(song, body)
             if (method === 'DELETE' && !change[2]) removeSong(song)
-            else if (method === 'POST' && change[2]) song.hidden = change[2] === 'hide'
-            else return refuse(405, 'method', 'That cannot be done to a song.')
+            else if (method === 'POST' && change[2]) {
+                song.hidden = change[2] === 'hide'
+                pictures.delete(song.id)
+            } else return refuse(405, 'method', 'That cannot be done to a song.')
             keep()
             return { status: 200, body: { used: mine(person).length, most: MOST_SONGS } }
         }

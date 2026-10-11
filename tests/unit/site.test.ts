@@ -357,7 +357,7 @@ describe('publishing', () => {
         expect(await kept({ peaks: [0.123, 0.987], seconds: 31 })).toEqual([[0.12, 0.99], 31])
     })
 
-    it('says what a song was reworked from only while that song is there to be opened', async () => {
+    it('keeps what a song was made from only when that is a song on the site that everyone can open', async () => {
         const mara = await signIn('mara@example.com', 'Mara')
         const first = await (await publish(mara)).json()
         const hidden = await (await publish(mara)).json()
@@ -367,7 +367,7 @@ describe('publishing', () => {
         expect((await (await publish(ante, { from: hidden.id })).json()).from).toBeUndefined()
         expect((await (await publish(ante, { from: 'nosuchsong' })).json()).from).toBeUndefined()
         expect((await (await publish(ante, { from: { id: first.id } })).json()).from).toBeUndefined()
-        expect((await (await publish(mara, { from: hidden.id })).json()).from).toBe(hidden.id)
+        expect((await (await publish(mara, { from: hidden.id })).json()).from).toBeUndefined()
     })
 
     it('takes ten songs from a person and no more, until one is deleted', async () => {
