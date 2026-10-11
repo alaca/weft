@@ -2,15 +2,18 @@ import { expect, test, type Page } from '@playwright/test'
 
 const browser = (page: Page) => page.getByTestId('sound-browser')
 
-async function open(page: Page, microphone: 'tone' | 'refused') {
+async function open(page: Page, microphone: 'tone' | 'quiet' | 'silent' | 'refused') {
     await page.addInitScript((kind) => {
         localStorage.setItem('weft.song', 'setcpm(120/4)\n\nlead: note("c2")\n  .s("triangle")\n')
         const standIn = async () => {
             if (kind === 'refused') throw new DOMException('Permission denied', 'NotAllowedError')
             const context = new AudioContext()
             const tone = context.createOscillator()
+            const level = context.createGain()
+            level.gain.value = kind === 'quiet' ? 0.02 : kind === 'silent' ? 0 : 1
             const out = context.createMediaStreamDestination()
-            tone.connect(out)
+            tone.connect(level)
+            level.connect(out)
             tone.start()
             return out.stream
         }
@@ -50,5 +53,32 @@ test('when the microphone cannot be used the browser says so', async ({ page }) 
     await browser(page).getByRole('button', { name: 'Record', exact: true }).click()
     await expect(page.getByTestId('own-note')).toContainText('The microphone could not be used')
     await expect(browser(page).getByRole('button', { name: 'Record', exact: true })).toBeVisible()
+    await expect(browser(page).locator('.sb-i')).toHaveCount(0)
+})
+
+const heard = (page: Page) =>
+    page.evaluate(() => {
+        const wave = (window as any).__weft.engine.waveform() as Float32Array | null
+        return wave ? Math.max(...Array.from(wave, Math.abs)) : 0
+    })
+
+test('a take from a microphone that is set low is brought up to a level that is heard', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit', 'the test build of WebKit has no microphone to stand in for')
+    await open(page, 'quiet')
+    await browser(page).getByRole('button', { name: 'Record', exact: true }).click()
+    await page.waitForTimeout(900)
+    await browser(page).getByRole('button', { name: 'Stop recording', exact: true }).click()
+    await expect(browser(page).locator('.sb-i code')).toHaveText('recording')
+    await browser(page).getByRole('button', { name: 'Hear Recording', exact: true }).click()
+    await expect.poll(() => heard(page)).toBeGreaterThan(0.3)
+})
+
+test('a take with nothing in it is not kept, and the browser says what to look at', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit', 'the test build of WebKit has no microphone to stand in for')
+    await open(page, 'silent')
+    await browser(page).getByRole('button', { name: 'Record', exact: true }).click()
+    await page.waitForTimeout(700)
+    await browser(page).getByRole('button', { name: 'Stop recording', exact: true }).click()
+    await expect(page.getByTestId('own-note')).toContainText('The take is silent')
     await expect(browser(page).locator('.sb-i')).toHaveCount(0)
 })

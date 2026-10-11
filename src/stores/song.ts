@@ -14,6 +14,10 @@ export const [stale, setStale] = createSignal(false)
 export const [engineState, setEngineState] = createSignal<EngineState>({ playing: false, paused: false, dirty: false, error: null, sounds: 'loading' })
 export const [selected, setSelected] = createSignal<string | null>(null)
 export const [viewMode, setViewMode] = createSignal<ViewMode>('both')
+// Song follows the bars filled in the Song panel. Live lets every pattern go round, as if no
+// bars had been written.
+export type PlayMode = 'song' | 'live'
+export const [playMode, setPlayModeValue] = createSignal<PlayMode>('song')
 export const [waveShown, setWaveShown] = createSignal(true)
 export const [songShown, setSongShown] = createSignal(true)
 export const [soundsWidth, setSoundsWidth] = createSignal<number | null>(null)

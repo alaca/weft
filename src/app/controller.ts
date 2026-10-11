@@ -116,6 +116,9 @@ import {
     patternKeys,
     setPatternKeys,
     setSongNote,
+    playMode,
+    setPlayModeValue,
+    type PlayMode,
     setTakeSince,
     takeSince,
     setSongs,
@@ -139,6 +142,7 @@ const DEMO = 'demo:'
 const STARTER_NAME = 'Night bus'
 const VOLUME_KEY = 'weft.volume'
 const LAYOUT_KEY = 'weft.layout'
+const MODE_KEY = 'weft.mode'
 const COLORS = ['var(--madder)', 'var(--saffron)', 'var(--woad)', 'var(--lichen)', 'var(--orchil)']
 
 const engine = createEngine()
@@ -251,7 +255,7 @@ const songEnd = (): number | null => (song().patterns.some((block) => readArrang
 
 function tick() {
     const now = engine.now()
-    const end = songEnd()
+    const end = playMode() === 'live' ? null : songEnd()
     if (end !== null && now >= end) return engine.stop()
     const whole = Math.floor(now)
     batch(() => {
@@ -335,6 +339,22 @@ export async function mount(root: HTMLElement): Promise<void> {
 }
 
 export const play = () => void engine.evaluate()
+
+// Song plays the bars as they are filled in the Song panel. Live plays every pattern round and
+// round, whatever the bars say, which is how a pattern is worked on and how a song is tried out
+// before it is arranged.
+export function setPlayMode(mode: PlayMode) {
+    if (playMode() === mode) return
+    setPlayModeValue(mode)
+    localStorage.setItem(MODE_KEY, mode)
+    engine.setLive(mode === 'live')
+    if (!engineState().playing) setCycle(mode === 'live' ? 0 : (loopBars()?.from ?? startBar()))
+}
+
+if (localStorage.getItem(MODE_KEY) === 'live') {
+    setPlayModeValue('live')
+    engine.setLive(true)
+}
 
 // One step back, or forward again, in everything that changed the song: a click in a grid, a
 // knob, a sound, or typing in the code.
@@ -1105,6 +1125,10 @@ export async function addOwnSounds(files: File[]) {
 // A take from the microphone becomes a sound of your own, called recording, recording_2 and so on.
 let take: Take | null = null
 
+const QUIET_TAKE = 0.001
+const TAKE_LEVEL = 0.9
+const MOST_GAIN = 60
+
 // Each way the microphone can fail, with what can be done about it.
 const NO_TAKE: Record<NoTake, string> = {
     unreachable: 'The microphone could not be used: this window has no way to reach one. In the desktop app, quit and start it again, so that it is built with the microphone allowed.',
@@ -1135,8 +1159,16 @@ export async function keepTake() {
     if (!made) return
     try {
         const file = await made.stop()
-        if (file) await addOwnSounds([file])
-        else setOwnSoundNote('Nothing was recorded.')
+        if (!file) return void setOwnSoundNote('Nothing was recorded.')
+        // A microphone is often set low, so a take is brought up to a level that is heard, and
+        // one with nothing in it is not kept. It is stored as a plain WAV file either way.
+        const heard = await engine.decodeAudio(await file.arrayBuffer())
+        if (!heard) return void (await addOwnSounds([file]))
+        const peak = peakOf(heard.channels)
+        if (peak < QUIET_TAKE) return void setOwnSoundNote(NO_TAKE.silent)
+        const level = Math.min(MOST_GAIN, TAKE_LEVEL / peak)
+        const bytes = encodeWav(heard.channels, heard.sampleRate, { level })
+        await addOwnSounds([new File([bytes.buffer as ArrayBuffer], 'recording.wav', { type: 'audio/wav' })])
     } catch (err) {
         const refused = whyNot(err)
         setOwnSoundNote(`${NO_TAKE[refused.why]}${refused.why === 'other' ? ` (${refused.message})` : ''}`)
@@ -1273,7 +1305,7 @@ export function repeatLoop() {
 export const restsNow = (id: string): boolean => {
     const block = find(id)
     const written = block ? readArrangement(block)?.bars : undefined
-    return Boolean(written && engineState().playing && !written[cycle() % written.length])
+    return Boolean(written && playMode() === 'song' && engineState().playing && !written[cycle() % written.length])
 }
 
 function show(record: SongRecord, demo: string | null = null) {

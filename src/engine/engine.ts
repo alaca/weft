@@ -72,6 +72,8 @@ export interface Engine {
     removeSound(name: string): void
     soundTaken(name: string): boolean
     audioLength(bytes: ArrayBuffer): Promise<number | null>
+    decodeAudio(bytes: ArrayBuffer): Promise<{ channels: Float32Array[]; sampleRate: number } | null>
+    setLive(on: boolean): void
     previewNote(midi: number, sound: string | null, seconds?: number): void
     sounds(): RawSound[]
     kitNames(): string[]
@@ -124,6 +126,7 @@ export function createEngine(): Engine {
     let pendingUnmasked = new Map<string, any>()
     let startBar = 0
     let endBar: number | null = null
+    let liveMode = false
     // Bars that go round: from `from` up to, not including, `to`. While they do, `offset` is how
     // far into them the song was started.
     let loop: { from: number; to: number } | null = null
@@ -168,6 +171,7 @@ export function createEngine(): Engine {
 
     // Where a song that is not playing starts: in the bars that go round when there are some.
     const startingAt = () => {
+        if (liveMode) return 0
         if (!loop) return resumeAt ?? startBar
         const at = resumeAt ?? loop.from
         return at >= loop.from && at < loop.to ? at - loop.from : 0
@@ -189,6 +193,7 @@ export function createEngine(): Engine {
             // started to sound by the time the song is stopped at its end. Nothing that starts
             // at or after the end is let through. The end is read as it is now, not as it was
             // when the code was evaluated, because the song grows and shrinks as it is arranged.
+            if (liveMode) return original.call(this[BEFORE_MASK] ?? this, id)
             const shift = offset
             if (loop) return original.call(this.ribbon(loop.from, loop.to - loop.from).early(shift), id)
             const within = (hap: any) => endBar === null || (hap.whole ?? hap.part).begin.valueOf() + shift < endBar
@@ -519,7 +524,7 @@ export function createEngine(): Engine {
         async render({ bars, ringSeconds, sampleRate }, onProgress) {
             if (blank()) throw new Error('There is nothing in this song to play.')
             engine.stop()
-            const before = { soloIds, offset, endBar, loop }
+            const before = { soloIds, offset, endBar, loop, liveMode }
             const live = getAudioContext()
             const liveController = getSuperdoughAudioController()
             // Strudel tidies up after each sound with a timer that takes for granted there is
@@ -538,6 +543,7 @@ export function createEngine(): Engine {
             offset = 0
             endBar = bars
             loop = null
+            liveMode = false
             try {
                 await mirror.repl.evaluate(mirror.code, false)
                 if (state.error) throw new Error(state.error.message)
@@ -585,6 +591,7 @@ export function createEngine(): Engine {
                 offset = before.offset
                 endBar = before.endBar
                 loop = before.loop
+                liveMode = before.liveMode
                 await mirror.repl.evaluate(mirror.code, false).catch(() => undefined)
                 applyMaster()
                 if (running) void live.resume().catch(() => undefined)
@@ -600,6 +607,7 @@ export function createEngine(): Engine {
             if (state.playing) void mirror.evaluate(true)
         },
         now: () => {
+            if (liveMode) return mirror?.repl.scheduler.started ? mirror.repl.scheduler.now() : (resumeAt ?? 0)
             if (!mirror?.repl.scheduler.started) return resumeAt ?? (loop ? loop.from : startBar)
             const counted = mirror.repl.scheduler.now() + offset
             return loop ? loop.from + around(counted) : counted
@@ -657,6 +665,27 @@ export function createEngine(): Engine {
             } catch {
                 return null
             }
+        },
+        // A file as the sound in it, or null when it is not sound this machine can read.
+        async decodeAudio(bytes) {
+            try {
+                const heard = await getAudioContext().decodeAudioData(bytes)
+                return { channels: Array.from({ length: heard.numberOfChannels }, (_, at) => heard.getChannelData(at)), sampleRate: heard.sampleRate }
+            } catch {
+                return null
+            }
+        },
+        // Live, every pattern goes round as if no bars had been written for it: nothing of the
+        // song's arrangement is followed, and there is no end to stop at. Going back to the
+        // song while it plays starts from the start bar.
+        setLive(on) {
+            if (liveMode === on) return
+            liveMode = on
+            resumeAt = null
+            if (state.paused) setState({ paused: false })
+            if (!mirror || !state.playing || blank()) return
+            offset = on ? 0 : startBar - Math.floor(mirror.repl.scheduler.now())
+            void mirror.evaluate(true)
         },
         previewNote(midi, sound, seconds = 0.3) {
             audition(() => ({ note: midi, s: sound ?? 'triangle', analyze: 'weft' }), seconds)

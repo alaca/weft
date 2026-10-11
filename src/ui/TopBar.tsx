@@ -1,9 +1,14 @@
 import { For } from 'solid-js'
-import { setMasterVolume, setTempo, setView, stop, togglePlay, toggleSongPanel, toggleSounds, toggleWaveform } from '../app/controller'
+import { setMasterVolume, setPlayMode, setTempo, setView, stop, togglePlay, toggleSongPanel, toggleSounds, toggleWaveform } from '../app/controller'
 import type { ControlView } from '../controls/views'
-import { beat, bpm, cycle, engineState, masterVolume, song, songShown, soundsOpen, stale, viewMode, waveShown, type ViewMode } from '../stores/song'
+import { beat, bpm, cycle, engineState, masterVolume, playMode, song, songShown, soundsOpen, stale, viewMode, waveShown, type PlayMode, type ViewMode } from '../stores/song'
 import { Knob } from './Knob'
 import { SongMenu } from './SongMenu'
+
+const MODES: { id: PlayMode; label: string; about: string }[] = [
+    { id: 'song', label: 'Song', about: 'Plays the bars as they are filled in the Song panel' },
+    { id: 'live', label: 'Live', about: 'Plays every pattern round and round, whatever the bars say' },
+]
 
 const VIEWS: { id: ViewMode; label: string }[] = [
     { id: 'controls', label: 'Controls' },
@@ -41,6 +46,15 @@ export function TopBar() {
                         <rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.4" />
                     </svg>
                 </button>
+            </div>
+            <div class="seg" role="group" aria-label="What plays">
+                <For each={MODES}>
+                    {(mode) => (
+                        <button classList={{ on: playMode() === mode.id }} aria-pressed={playMode() === mode.id} title={mode.about} onClick={() => setPlayMode(mode.id)}>
+                            {mode.label}
+                        </button>
+                    )}
+                </For>
             </div>
             <div class="ros">
                 <div class="ro">

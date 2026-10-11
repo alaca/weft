@@ -3,7 +3,7 @@ import { clearLoop, colorAt, eventsOf, inStep, loopBetween, patternText, repeatL
 import { barsOf, clips, paint, type Clip } from '../song/arrange'
 import { MAX_BARS } from '../song/bars'
 import type { PatternEvent } from '../song/types'
-import { bpm, cycle, engineState, loopBars, position, revision, song, stale, startBar } from '../stores/song'
+import { bpm, cycle, engineState, loopBars, playMode, position, revision, song, stale, startBar } from '../stores/song'
 
 // A clip shows what its pattern plays, bar by bar. The pattern is asked for no more bars than
 // this: beyond them the drawing repeats, which is true of every pattern that is not random.
@@ -278,7 +278,12 @@ export function SongPanel() {
                 <span class="lines" data-testid="song-length">
                     {length()} bars, {duration(length(), song().tempo?.bpm ?? bpm())}
                 </span>
-                <Show when={loopBars()}>
+                <Show when={playMode() === 'live'}>
+                    <span class="sg-lp" data-testid="live-note">
+                        Live: every pattern plays, the bars are not followed
+                    </span>
+                </Show>
+                <Show when={playMode() === 'song' ? loopBars() : null}>
                     {(round) => (
                         <span class="sg-lp" data-testid="loop">
                             <span>{round().to - round().from === 1 ? `Bar ${round().from + 1} goes round` : `Bars ${round().from + 1} to ${round().to} go round`}</span>
@@ -325,7 +330,7 @@ export function SongPanel() {
                     </For>
                 </div>
                 <div class="sg-s" ref={scroller} data-testid="song-scroll" onScroll={() => setLeft(scroller.scrollLeft)}>
-                    <div class="sg-t" classList={{ dense: barWidth() < 12 }} style={{ width: `${shown() * barWidth()}px`, '--bar': `${barWidth()}px` }}>
+                    <div class="sg-t" classList={{ dense: barWidth() < 12, aside: playMode() === 'live' }} style={{ width: `${shown() * barWidth()}px`, '--bar': `${barWidth()}px` }}>
                         <Show when={band()}>
                             {(round) => <div class="sg-loop" data-testid="loop-band" style={{ left: `${round().from * barWidth()}px`, width: `${(round().to - round().from) * barWidth()}px` }} />}
                         </Show>
@@ -383,7 +388,7 @@ export function SongPanel() {
                         </div>
                         <For each={ids()}>{(id, index) => <Lane id={id} index={index()} view={view()} />}</For>
                         <div class="sg-end" data-testid="song-end" style={{ left: `${length() * barWidth()}px` }} />
-                        <Show when={playing() || paused() || startBar() > 0 || loopBars()}>
+                        <Show when={playMode() === 'song' && (playing() || paused() || startBar() > 0 || loopBars())}>
                             <div class="sg-ph" classList={{ idle: !playing() }} style={{ left: `${head() * barWidth()}px` }} />
                         </Show>
                     </div>
