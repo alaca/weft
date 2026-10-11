@@ -1,6 +1,6 @@
 import { history, isolateHistory, redo, undo } from '@codemirror/commands'
 import { Annotation, EditorState, Prec, StateEffect } from '@codemirror/state'
-import { EditorView, keymap } from '@codemirror/view'
+import { EditorView, keymap, tooltips } from '@codemirror/view'
 import { BlockWidget, StrudelMirror, codemirrorSettings } from '@strudel/codemirror'
 import { Pattern, silence } from '@strudel/core'
 import { mini } from '@strudel/mini'
@@ -476,7 +476,7 @@ export function createEngine(): Engine {
                     isLineWrappingEnabled: false,
                     isBracketMatchingEnabled: false,
                     isBracketClosingEnabled: true,
-                    isAutoCompletionEnabled: false,
+                    isAutoCompletionEnabled: true,
                     isTooltipEnabled: false,
                     isTabIndentationEnabled: false,
                     isMultiCursorEnabled: false,
@@ -486,6 +486,10 @@ export function createEngine(): Engine {
                         history({ joinToEvent: (tr) => tr.annotation(sameGesture) === true }),
                         marksField,
                         syncSlot.of([]),
+                        // What the editor offers while typing is drawn over the whole window,
+                        // so that the code pane does not cut off the half of it that says what
+                        // an offer does.
+                        tooltips({ parent: document.body }),
                         Prec.highest(
                             keymap.of([
                                 { key: 'Mod-Enter', run: () => (void engine.evaluate(), true) },

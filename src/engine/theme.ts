@@ -32,6 +32,18 @@ export function registerTheme(): void {
                 '&.cm-focused .cm-selectionBackground, & .cm-selectionLayer .cm-selectionBackground, .cm-content ::selection': {
                     background: `${colors.selection} !important`,
                 },
+                // What the editor offers while typing, and what it says about each offer.
+                '.cm-tooltip': { background: 'var(--cloth-2)', border: '1px solid #4c4c54', borderRadius: '9px', boxShadow: '0 14px 36px rgba(0, 0, 0, 0.55)', color: 'var(--linen-2)' },
+                '.cm-tooltip.cm-tooltip-autocomplete > ul': { maxHeight: '233px', minWidth: '190px', maxWidth: '280px', padding: '4px', borderRadius: '9px', font: '500 12px/1 var(--mono)', fontStretch: '87%' },
+                '.cm-tooltip.cm-tooltip-autocomplete > ul > li': { display: 'flex', alignItems: 'center', gap: '8px', height: '25px', padding: '0 9px', borderRadius: '6px', color: 'var(--linen-2)' },
+                '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': { background: 'var(--cloth-3)', color: 'var(--linen)' },
+                '.cm-completionIcon': { display: 'none' },
+                '.cm-completionLabel': { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+                '.cm-completionMatchedText': { textDecoration: 'none', color: 'var(--linen)', fontWeight: '700' },
+                '.cm-completionDetail': { marginLeft: 'auto', fontStyle: 'normal', color: 'var(--linen-3)' },
+                '.cm-tooltip.cm-completionInfo': { width: '300px', maxWidth: '300px', maxHeight: '300px', padding: '0', overflowY: 'auto', whiteSpace: 'normal', font: '400 12px/1.5 var(--ui)' },
+                '.cm-completionInfo.cm-completionInfo-right': { marginLeft: '6px' },
+                '.cm-completionInfo.cm-completionInfo-left': { marginRight: '6px' },
             },
             { dark: true },
         ),
