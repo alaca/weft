@@ -66,6 +66,8 @@ export const site = {
     reset: (email: string, code: string, password: string) => call<Signed>('/api/password/reset', { json: { email, code, password } }),
     password: (token: string, old: string, next: string) => call<object>('/api/password', { token, json: { old, new: next } }),
     me: (token: string) => call<Me>('/api/me', { token }),
+    // What a call needs to find its way between two machines.
+    ice: () => call<{ iceServers?: unknown }>('/api/ice', {}),
     rename: (token: string, name: string) => call<Me>('/api/me', { token, json: { name } }),
     removeAccount: (token: string, password: string) => call<object>('/api/me', { token, method: 'DELETE', json: { password } }),
     songs: () => call<{ songs: SiteSong[] }>('/api/songs'),

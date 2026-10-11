@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomInt, scrypt, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomBytes, randomInt, scrypt, timingSafeEqual } from 'node:crypto'
 import { createReadStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { basename, dirname, join } from 'node:path'
@@ -7,7 +7,7 @@ import { checkSongFile, looksLikeAudio } from '../src/guard/file'
 import { SONG_LIMIT, soundsUsed } from '../src/library/songfile'
 import { analyze } from '../src/song/analyze'
 import { DEFAULT_SONG, songLength } from '../src/song/arrange'
-import { downloadPage, homePage, licencePage, notePage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
+import { downloadPage, homePage, licencePage, notePage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
 import { senderOf } from './sender'
 
 // The site that songs are published to. It has two sides. The pages are for everyone and know
@@ -29,6 +29,13 @@ export type SiteOptions = {
     codesShown?: boolean
     // True where a web server stands in front and notes who each request comes from.
     behindProxy?: boolean
+    // What a call between two machines needs to find its way: who tells a machine its address
+    // from outside (`stun`), and who carries the call for the pairs that cannot reach each
+    // other directly (`turn`). The second costs traffic, so it is only used by whoever was
+    // handed a pass, which is made here from a secret the carrier shares and runs out.
+    ice?: { stun?: string[]; turn?: { urls: string[]; secret: string; hours?: number } }
+    // Told of every report of a song as it is kept, so that somebody reads it.
+    reported?: (report: { id: string; name: string; reason: string }) => void | Promise<void>
     allow?: string[]
     now?: () => number
     // Where the app's source code can be read. The pages leave that link out until there is
@@ -55,6 +62,8 @@ const PREVIEW_LIMIT = 700 * 1024
 const BODY_LIMIT = 3 * 1024 * 1024
 const SESSION_FOR = 90 * 24 * 60 * 60 * 1000
 const ASKS = 10
+// How often one sender is handed a pass for the carrier of calls in that time: once a jam.
+const ICE_ASKS = 40
 const ASKS_WITHIN = 15 * 60 * 1000
 const DESCRIPTION_LIMIT = 500
 const STYLE_LIMIT = 30
@@ -255,8 +264,9 @@ export function createSite(options: SiteOptions): Promise<Site> {
             throw new Error(`${keptFile} cannot be read. It is left as it is; move it away to start afresh.`)
         }
     }
+    // What is kept holds emails, so it is for the site's own user to read and nobody else.
     const keep = () => {
-        writeFileSync(`${keptFile}.new`, JSON.stringify(kept))
+        writeFileSync(`${keptFile}.new`, JSON.stringify(kept), { mode: 0o600 })
         renameSync(`${keptFile}.new`, keptFile)
     }
     const fixed = fixedFiles()
@@ -300,12 +310,12 @@ export function createSite(options: SiteOptions): Promise<Site> {
     const allowed = new Set(options.allow ?? APP_ORIGINS)
     let origin = options.origin ?? ''
 
-    const tooMany = (who: string): boolean => {
+    const tooMany = (who: string, most = options.asks ?? ASKS): boolean => {
         const since = now() - ASKS_WITHIN
         const times = (asked.get(who) ?? []).filter((at) => at > since)
         times.push(now())
         asked.set(who, times)
-        return times.length > (options.asks ?? ASKS)
+        return times.length > most
     }
 
     const bearerOf = (request: IncomingMessage) => /^Bearer (.+)$/.exec(request.headers.authorization ?? '')?.[1]
@@ -494,6 +504,20 @@ export function createSite(options: SiteOptions): Promise<Site> {
         }
     }
 
+    // Asked by the app when a jam begins. A pass for the carrier is good for half a day, which
+    // is longer than a jam, and is of no use after that.
+    function iceFor(from: string): Answer {
+        const given = options.ice ?? {}
+        const servers: { urls: string[]; username?: string; credential?: string }[] = []
+        if (given.stun?.length) servers.push({ urls: given.stun })
+        if (given.turn?.urls.length && given.turn.secret) {
+            if (tooMany(`ice from ${from}`, ICE_ASKS)) return refuse(429, 'wait', WAIT)
+            const username = `${Math.floor(now() / 1000) + (given.turn.hours ?? 12) * 3600}:${token(6)}`
+            servers.push({ urls: given.turn.urls, username, credential: createHmac('sha1', given.turn.secret).update(username).digest('base64') })
+        }
+        return { status: 200, body: { iceServers: servers } }
+    }
+
     // A code to choose a new password with, for the account with this address when there is
     // one. The code is only handed back by a site that sends no mail.
     function forgotten(body: any, from: string): Answer {
@@ -635,6 +659,11 @@ export function createSite(options: SiteOptions): Promise<Site> {
         if (kept.reports.length >= MOST_REPORTS) return note(503, 'The report was not kept', ['The site cannot take more reports just now.'], back)
         kept.reports.push({ song: song.id, reason, at: now() })
         keep()
+        try {
+            void Promise.resolve(options.reported?.({ id: song.id, name: song.name, reason })).catch(() => undefined)
+        } catch {
+            // A report is kept whether or not anyone could be told of it.
+        }
         return note(200, 'The report is kept', ['It is kept with the song and the time it was sent.'], back)
     }
 
@@ -652,6 +681,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
             return { status: 200, html: songsPage(around, search, found(search)) }
         }
         if (get && path === '/licence') return { status: 200, html: licencePage(around, LICENCES) }
+        if (get && path === '/privacy') return { status: 200, html: privacyPage(around) }
         if (get && path === '/download') return { status: 200, html: downloadPage(around, built()) }
         const wanted = /^\/download\/(macos|windows|linux)$/.exec(path)
         if (wanted && get) {
@@ -704,6 +734,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
         if (same) return { status: 200, fixed: same }
         if (!path.startsWith('/api/')) return pageAnswer(request, url, body, from)
 
+        if (method === 'GET' && path === '/api/ice') return iceFor(from)
         if (method === 'POST' && path === '/api/register') return registered(body, from)
         if (method === 'POST' && path === '/api/sign-in') return signedIn(body, from)
         if (method === 'POST' && path === '/api/password/forgot') return forgotten(body, from)

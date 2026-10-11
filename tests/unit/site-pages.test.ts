@@ -327,6 +327,32 @@ describe('the downloads', () => {
     })
 })
 
+describe('the page about privacy', () => {
+    it('says what is kept and is linked from the foot of every page', async () => {
+        const html = await page('/privacy')
+        for (const said of ['Your password is not kept', 'Your email is shown to nobody', 'kept for two weeks', 'The site sets no cookies']) expect(html).toContain(said)
+        for (const path of ['/', '/songs', '/download', '/licence']) expect(await page(path)).toContain('<a href="/privacy">Privacy</a>')
+    })
+})
+
+describe('a report of a song', () => {
+    it('is told to whoever looks after the site as it is kept, and is kept also when telling fails', async () => {
+        await site.close()
+        const told: { id: string; name: string; reason: string }[] = []
+        await start({
+            reported: (report) => {
+                told.push(report)
+                throw new Error('the mail did not leave')
+            },
+        })
+        const made = await publish(await signIn())
+        const answer = await send(`/songs/${made.id}/report`, { reason: 'This is not a song.' })
+        expect(answer.status).toBe(200)
+        expect(told).toEqual([{ id: made.id, name: expect.any(String), reason: 'This is not a song.' }])
+        expect(JSON.parse(readFileSync(join(dataDir, 'site.json'), 'utf8')).reports).toHaveLength(1)
+    })
+})
+
 describe('a folder of releases', () => {
     it('tells an installed app of the newest version, hands it the file, and gives nothing else of the machine away', async () => {
         await site.close()

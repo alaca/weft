@@ -20,6 +20,12 @@ import { createStun } from './stun'
 //   WEFT_RELEASES    folder that releases of the app are put into, when there is one
 //   WEFT_SENDMAIL    a program that sends a mail it is given, like /usr/bin/msmtp
 //   WEFT_MAIL_FROM   the address that mail is sent from
+//   WEFT_STUN        who tells a machine its address from outside, as the app is to be told,
+//                    like stun:weftloom.dev:3478
+//   WEFT_TURN        who carries a call that cannot go directly, like turn:weftloom.dev:3479
+//   WEFT_TURN_SECRET the secret that carrier shares with the site, for the passes it hands out
+//   WEFT_REPORTS_TO  the address that is mailed when a song is reported; reports are kept
+//                    either way, and nobody is mailed unless this is set
 //
 // Without the last two the site sends no mail, and says so to whoever forgot a password.
 const env = process.env
@@ -29,32 +35,20 @@ const port = (value: string | undefined, usual: number): number => {
     return read
 }
 
-// A code for a new password, handed to the program that sends mail. The address was checked to
-// be one address and nothing more before it comes here.
+// A mail, handed to the program that sends mail. The address it goes to was checked to be one
+// address and nothing more before it comes here, and what a stranger wrote is only ever in the
+// body, on lines of its own, never in a line of the head.
+const oneLine = (text: string) => text.replace(/[\r\n]+/g, ' ')
 function mailer(program: string, from: string) {
-    return (to: string, code: string) =>
+    return (to: string, subject: string, lines: string[]) =>
         new Promise<void>((done, failed) => {
             const sending = spawn(program, ['-t', '-f', from], { stdio: ['pipe', 'ignore', 'ignore'] })
             sending.on('error', failed)
             sending.on('close', (status) => (status === 0 ? done() : failed(new Error(`${program} ended with ${status}`))))
-            sending.stdin.end(
-                [
-                    `From: Weft <${from}>`,
-                    `To: ${to}`,
-                    'Subject: Your code for a new Weft password',
-                    'Content-Type: text/plain; charset=utf-8',
-                    '',
-                    `Someone, most likely you, asked for a new password for the Weft account with this email.`,
-                    '',
-                    `The code is ${code}`,
-                    '',
-                    'Type it into the app, with the new password. It works once and for a quarter of an hour.',
-                    'If it was not you, do nothing: the password stays as it is.',
-                    '',
-                ].join('\r\n'),
-            )
+            sending.stdin.end([`From: Weft <${from}>`, `To: ${to}`, `Subject: ${oneLine(subject)}`, 'Content-Type: text/plain; charset=utf-8', '', ...lines.map(oneLine), ''].join('\r\n'))
         })
 }
+const ADDRESS = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/
 
 async function start() {
     const run = env.WEFT_RUN ?? 'both'
@@ -89,7 +83,10 @@ async function start() {
     const from = env.WEFT_MAIL_FROM
     const program = env.WEFT_SENDMAIL
     if (Boolean(from) !== Boolean(program)) throw new Error('WEFT_SENDMAIL and WEFT_MAIL_FROM go together: set both, or neither.')
-    if (from && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(from)) throw new Error('WEFT_MAIL_FROM is not an email address.')
+    if (from && !ADDRESS.test(from)) throw new Error('WEFT_MAIL_FROM is not an email address.')
+    const reportsTo = env.WEFT_REPORTS_TO
+    if (reportsTo && (!ADDRESS.test(reportsTo) || !from)) throw new Error('WEFT_REPORTS_TO needs to be an email address, and needs the two settings for sending mail.')
+    const send = from && program ? mailer(program, from) : null
 
     const site = await createSite({
         port: port(env.WEFT_SITE_PORT, 5191),
@@ -99,7 +96,22 @@ async function start() {
         source: env.WEFT_SOURCE,
         releases: env.WEFT_RELEASES,
         behindProxy: true,
-        mail: from && program ? mailer(program, from) : undefined,
+        ice: {
+            stun: env.WEFT_STUN ? [env.WEFT_STUN] : undefined,
+            turn: env.WEFT_TURN && env.WEFT_TURN_SECRET ? { urls: [`${env.WEFT_TURN}?transport=udp`, `${env.WEFT_TURN}?transport=tcp`], secret: env.WEFT_TURN_SECRET } : undefined,
+        },
+        mail: send
+            ? (to, code) =>
+                  send(to, 'Your code for a new Weft password', [
+                      'Someone, most likely you, asked for a new password for the Weft account with this email.',
+                      '',
+                      `The code is ${code}`,
+                      '',
+                      'Type it into the app, with the new password. It works once and for a quarter of an hour.',
+                      'If it was not you, do nothing: the password stays as it is.',
+                  ])
+            : undefined,
+        reported: send && reportsTo ? (report) => send(reportsTo, `A song on Weft was reported: ${report.name}`, [`The song: ${origin}/songs/${report.id}`, '', 'What was said about it:', report.reason, '', 'It can be hidden or deleted by whoever published it, in the app under Your account.']) : undefined,
     })
     closing.push(site.close)
     console.log(`weft: site on 127.0.0.1:${site.port} as ${origin}, mail ${from ? 'on' : 'off'}`)

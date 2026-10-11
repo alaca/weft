@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto'
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -101,6 +102,26 @@ describe('accounts', () => {
         expect(await told(ask('/api/me', { token, json: { name: 'x'.repeat(25) } }))).toMatchObject([400, { why: 'name' }])
         expect((await ask('/api/me', { json: { name: 'Nobody' } })).status).toBe(401)
         expect(await (await fetch(made.url)).text()).toContain('Ante L.')
+    })
+
+    it('are not needed to be told what a call needs: who says a machine its address, and a pass for the carrier that runs out', async () => {
+        expect(await told(ask('/api/ice'))).toEqual([200, { iceServers: [] }])
+        await site.close()
+        await start({ ice: { stun: ['stun:weftloom.dev:3478'], turn: { urls: ['turn:weftloom.dev:3479?transport=udp'], secret: 'a shared secret', hours: 12 } } })
+        const [status, body] = await told(ask('/api/ice'))
+        expect(status).toBe(200)
+        expect(body.iceServers[0]).toEqual({ urls: ['stun:weftloom.dev:3478'] })
+        const pass = body.iceServers[1]
+        expect(pass.urls).toEqual(['turn:weftloom.dev:3479?transport=udp'])
+        const [until] = pass.username.split(':')
+        expect(Number(until)).toBe(Math.floor(clock / 1000) + 12 * 3600)
+        expect(pass.credential).toBe(createHmac('sha1', 'a shared secret').update(pass.username).digest('base64'))
+        expect(JSON.stringify(body)).not.toContain('a shared secret')
+        const again = (await told(ask('/api/ice')))[1].iceServers[1]
+        expect(again.username).not.toBe(pass.username)
+        let last = 0
+        for (let asks = 0; asks < 40; asks++) last = (await ask('/api/ice')).status
+        expect(last).toBe(429)
     })
 
     it('are deleted with their sessions, songs and files, by whoever knows the password', async () => {

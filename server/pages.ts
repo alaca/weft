@@ -136,6 +136,7 @@ ${main}
             <a href="/download">Download</a>
             ${sourceLink(around)}
             <a href="/licence">Licence</a>
+            <a href="/privacy">Privacy</a>
         </nav>
     </div>
 </footer>
@@ -363,6 +364,31 @@ export function licencePage(around: Around, licences: readonly string[]): string
     </div>
 </main>`
     return layout(around, 'licence', 'Licence, Weft', main)
+}
+
+// What the site and the app keep about a person, in plain words. It says what is so, and has to
+// be changed when what is kept changes.
+export function privacyPage(around: Around): string {
+    const main = html`<main class="wrap page mid">
+    <div class="card note wide">
+        <h1>Privacy</h1>
+        <p>Making music in Weft needs no account and sends nothing about you anywhere. This page says what is kept when you do more than that.</p>
+        <h2>An account</h2>
+        <p>An account is only for publishing songs. Of an account the site keeps your email, the name you chose, and when it was made. Your password is not kept: only a scrambled form of it that cannot be turned back into the password. While you are signed in the site keeps a mark for that, and the app keeps its counterpart on your machine.</p>
+        <p>Your email is shown to nobody. It is used to sign you in, and to send you a code when you have forgotten your password. That mail is sent through a mail service, which sees the address it sends to.</p>
+        <h2>Songs you publish</h2>
+        <p>A song you publish is public: its name, your name, what you wrote about it, the song itself with its sounds, and the half minute that can be listened to. The site counts how often a song is played and downloaded, as numbers only. Deleting a song takes it and its files off the site. Deleting your account, in the app under Your account, takes the account and every song of yours with it.</p>
+        <h2>Jams</h2>
+        <p>What two people do in a jam, the song, the chat and the sounds, passes through the relay to the other person and is not kept. If you switch Open to jam on, the name you typed, the tempo of your song and its number of patterns are shown to anyone until you switch it off or the jam begins. Voice and picture go straight from one machine to the other wherever the two networks let them. Where they do not, the server passes them on between the two, scrambled so that it cannot hear or see them, and keeps nothing. To find each other, each machine asks the server for the address it is reached at from outside; nothing of that is kept.</p>
+        <h2>Reports</h2>
+        <p>A report of a song is kept with the song and the time. It carries no name.</p>
+        <h2>What the server notes</h2>
+        <p>Like every web server it notes each request: the address it came from, the time and what was asked for. Those notes are kept for two weeks and used only to keep the site running. The site sets no cookies and uses no tracking.</p>
+        <h2>Where</h2>
+        <p>All of it is on one server in Germany. A copy of the accounts and the published songs is made every night and kept for two weeks, so what you delete is gone from the copies two weeks later. ${around.source ? html`Questions can be asked where the <a href="${around.source}" rel="noopener">source code</a> is.` : ''}</p>
+    </div>
+</main>`
+    return layout(around, 'privacy', 'Privacy, Weft', main)
 }
 
 function songsAddress(search: Search): string {

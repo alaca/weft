@@ -24,7 +24,8 @@ import {
     type OpenJam,
     type Told,
 } from '../jam/protocol'
-import { openVoice, primeVoice, type Voice } from '../jam/voice'
+import { openVoice, primeVoice, useHelpers, type Voice } from '../jam/voice'
+import { site } from '../site/api'
 import { sizeText } from '../library/audio'
 import { whyNot, type NoTake } from '../library/recorder'
 import { looksLikeAudio } from '../guard/file'
@@ -381,6 +382,9 @@ function begin(who: string, joined: string) {
         setJamStage('jamming')
     })
     event(joined)
+    // What a call will need to find its way is asked for now, so that it is there by the time
+    // someone presses for one. Without an answer the app uses what it was built with.
+    void site.ice().then(useHelpers, () => undefined)
     jamSong = deps.songId()
     texts = patternTexts(deps.engine.getCode())
     window.clearInterval(pinging)

@@ -15,13 +15,29 @@ const PICTURE_BITS = 350_000
 const EVERY = 100
 const LOUD = 4
 
-function iceServers(): RTCIceServer[] {
+// Who helps a call find its way: what the app was built with, until the site has said more.
+function builtWith(): RTCIceServer[] {
     try {
         const given = JSON.parse(import.meta.env.VITE_JAM_ICE ?? '[]')
         return Array.isArray(given) ? given : []
     } catch {
         return []
     }
+}
+let helpers: RTCIceServer[] | null = null
+
+// What the site says a call needs, taken only in the shape such a list has: addresses that
+// begin with stun: or turn:, and for a carrier the pass that goes with them.
+export function useHelpers(said: unknown) {
+    const list = (said as { iceServers?: unknown } | null)?.iceServers
+    if (!Array.isArray(list)) return
+    const read: RTCIceServer[] = []
+    for (const one of list as { urls?: unknown; username?: unknown; credential?: unknown }[]) {
+        const urls = (Array.isArray(one?.urls) ? one.urls : [one?.urls]).filter((url): url is string => typeof url === 'string' && /^(stun|turns?):[A-Za-z0-9.:?=\-[\]]+$/.test(url))
+        if (!urls.length) continue
+        read.push(typeof one.username === 'string' && typeof one.credential === 'string' ? { urls, username: one.username, credential: one.credential } : { urls })
+    }
+    helpers = read.length ? read : null
 }
 
 // A window is only let to make sound after a click or a key, and a jam starts when the other
@@ -39,7 +55,7 @@ export function primeVoice() {
 
 export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
     if (typeof RTCPeerConnection === 'undefined') return null
-    const peer = new RTCPeerConnection({ iceServers: iceServers() })
+    const peer = new RTCPeerConnection({ iceServers: helpers ?? builtWith() })
     // Their voice is played through the same thing that measures it. Some browsers only let a
     // voice from a call flow at all while an audio element holds it, so one does, in silence.
     const ear = document.createElement('audio')
