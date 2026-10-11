@@ -10,7 +10,7 @@ import { saveFile, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, LEFT_PANELS, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type LeftPanel, type ViewMode } from '../library/layout'
-import { readSongFile, renameSound, SONG_FILE, soundsUsed, writeSongFile, type PackedSound } from '../library/songfile'
+import { fitSoundName, readSongFile, renameSound, SONG_FILE, SOUND_NAME, soundsUsed, writeSongFile, type PackedSound } from '../library/songfile'
 import { DEFAULT_MIX, fitMix, readMix, type Mix } from '../library/mix'
 import { prepareForPublishing, type Prepared } from '../library/publish'
 import { withoutLead } from '../library/shrink'
@@ -304,6 +304,7 @@ export async function mount(root: HTMLElement): Promise<void> {
     attachJam({
         engine,
         songName: () => current?.name ?? '',
+        songId: () => current?.id ?? null,
         songKeys: () => current?.keys ?? {},
         openAs,
         guardSong,
@@ -1209,6 +1210,7 @@ async function register(sound: OwnSound) {
 // A sound that came from somewhere else, a song file or the other person in a jam, kept among
 // yours from then on.
 async function keepSound(sound: OwnSound) {
+    if (await ownSoundStore.get(sound.name)) throw new Error(`There is already a sound called ${sound.name}.`)
     await ownSoundStore.put(sound)
     await register(sound)
     setOwnSounds([...ownSounds().filter((other) => other.name !== sound.name), infoOfSound(sound)].sort(byName))
@@ -1218,6 +1220,15 @@ async function keepSound(sound: OwnSound) {
 async function loadOwnSounds() {
     try {
         const kept = await ownSoundStore.all()
+        // A sound of yours never stands in for one that comes with the app. One that got such
+        // a name, from a file opened before the app knew its own sounds, is given another.
+        for (const sound of kept) {
+            if (!engine.soundTaken(sound.name)) continue
+            const name = sound.name
+            sound.name = soundNameFor(name, (wanted) => engine.soundTaken(wanted) || kept.some((other) => other.name === wanted) || !fitSoundName(wanted))
+            await ownSoundStore.put(sound)
+            await ownSoundStore.remove(name)
+        }
         for (const sound of kept) await register(sound)
         setOwnSounds(kept.map(infoOfSound).sort(byName))
         if (kept.length) replay()
@@ -1236,7 +1247,7 @@ export async function addOwnSounds(files: File[]) {
                 refused.push(file.name)
                 continue
             }
-            const sound: OwnSound = { name: soundNameFor(file.name, engine.soundTaken), file: file.name, seconds, addedAt: Date.now(), type: file.type, data }
+            const sound: OwnSound = { name: soundNameFor(file.name, (wanted) => engine.soundTaken(wanted) || !fitSoundName(wanted)), file: file.name, seconds, addedAt: Date.now(), type: file.type, data }
             await ownSoundStore.put(sound)
             await register(sound)
             setOwnSounds([...ownSounds(), infoOfSound(sound)].sort(byName))
@@ -1449,8 +1460,10 @@ export const restsNow = (id: string): boolean => {
 function show(record: SongRecord) {
     if (jamStage() === 'jamming') leaveJam()
     engine.stop()
+    // The song that was open may be from someone else. The guard stays up until its code has
+    // made way for the code of the song that is opened.
+    engine.setGuard(true)
     current = record
-    guardAs(record)
     setPatternKeys(keysOf(record))
     setStartOpen(false)
     shelf.setCurrent(record.id)
@@ -1473,6 +1486,7 @@ function show(record: SongRecord) {
     engine.setSolo([])
     engine.setStart(0)
     engine.setCode(record.draft)
+    guardAs(record)
     refreshSongs()
     replay()
 }
@@ -1807,9 +1821,13 @@ export async function openSongFile(file: File): Promise<boolean> {
         if (!read) return setSongNote(`${file.name} is not a song this app can read.`), false
         let code = read.code
         let added = 0
+        // What is asked is what is kept, not what happens to be loaded at this moment: a file
+        // opened while the app is still starting must not write over a sound of yours.
+        const stored = new Set((await ownSoundStore.all()).map((sound) => sound.name))
         for (const packed of read.sounds) {
-            if (ownSounds().some((sound) => sound.name === packed.name)) continue
-            const name = soundNameFor(packed.name, engine.soundTaken)
+            if (!SOUND_NAME.test(packed.name) || stored.has(packed.name)) continue
+            const name = soundNameFor(packed.name, (wanted) => engine.soundTaken(wanted) || stored.has(wanted) || !fitSoundName(wanted))
+            stored.add(name)
             if (name !== packed.name) code = renameSound(code, packed.name, name)
             const back = await restored(packed)
             const data = back.data.buffer.slice(back.data.byteOffset, back.data.byteOffset + back.data.byteLength) as ArrayBuffer

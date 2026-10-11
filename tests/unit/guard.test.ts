@@ -119,6 +119,33 @@ describe('what is not music code', () => {
         expect(refusedAt('delete s.fast')).toBe(1)
     })
 
+    it('what others found when they tried to get past it', () => {
+        // text that the sound engine would run as code, under a name, and the ways to that name
+        expect(why('s("bytebeat").set({ byteBeatExpression: "t * 2" })')).toBe('byteBeatExpression is not something a song can use')
+        expect(why('seq({ s: "bytebeat", byteBeatStartTime: 0 })')).toBe('byteBeatStartTime is not something a song can use')
+        expect(why('seq("t * 2").as("byteBeatExpression")')).toBe('.as is not something a song can use')
+        // the machine made to speak
+        expect(why('seq("alpha", "bravo").speak("en-GB", 0)')).toBe('.speak is not something a song can use')
+        expect(why('speak("en-GB", 0, seq("alpha"))')).toBe('speak is not something a song can use')
+        // drawings that cover the whole window; those that draw inside the code stay
+        for (const drawing of ['pianoroll', 'scope', 'tscope', 'fscope', 'spectrum', 'spiral', 'pitchwheel', 'punchcard', 'wordfall']) expect([drawing, why(`s("bd*4").${drawing}()`)]).toEqual([drawing, `.${drawing} is not something a song can use`])
+        for (const drawing of ['_pianoroll', '_scope', '_spectrum', '_spiral', '_pitchwheel', '_punchcard']) expect([drawing, why(`s("bd*4").${drawing}()`)]).toEqual([drawing, null])
+        // what every JavaScript function, list and text has, under names that patterns have too
+        expect(why('note.apply(0, [1])')).toBe('.apply is not something a song can use')
+        expect(why('(x => x).bind(0)')).toBe('.bind is not something a song can use')
+        expect(why("'abc'.anchor('x')")).toBe('.anchor can only follow a pattern')
+        expect(why('[1, 2].filter(x => x)')).toBe('.filter can only follow a pattern')
+        expect(why('[s("bd")].slice(0)')).toBe('.slice can only follow a pattern')
+        expect(why('({ a: 1 }).sub(1)')).toBe('.sub can only follow a pattern')
+        expect(why('(x => x).every(2, x => x)')).toBe('.every can only follow a pattern')
+        expect(why('(1).add(2)')).toBe('.add can only follow a pattern')
+        // and what stays: text in double quotes and backticks is a pattern, a list has places
+        expect(why('"c e g".fast(2)')).toBe(null)
+        expect(why('`c e g`.slow(2)')).toBe(null)
+        expect(why('note("c").add([0, 7][1])')).toBe(null)
+        expect(why('s("bd").set({ room: 0.2 })')).toBe(null)
+    })
+
     it('changing things, and code that is more than expressions', () => {
         expect(why('window.x = 1')).toBe('changing a value with = is not music code')
         expect(refusedAt('s = 1')).toBe(1)

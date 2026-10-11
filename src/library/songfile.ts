@@ -81,14 +81,53 @@ export function readSongFile(text: string, file: string): SongFile | null {
     }
 }
 
-const word = (name: string) => new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`, 'g')
+// The name of a sound of your own, as the app writes it.
+export const SOUND_NAME = /^[a-z][a-z0-9_]{0,59}$/
+const NOTE_NAME = /^[a-g][sbf]*\d*$/
+
+// Whether a sound may go by this name without being taken for something else. A note, or a
+// letter or two that patterns are written with, would be found in the text of songs that never
+// meant it, and a sound from someone else could then travel in every song that is saved or
+// shared from here. The words of the code itself are no trouble: a name is only looked for in
+// text.
+export const fitSoundName = (name: string): boolean => SOUND_NAME.test(name) && name.length >= 3 && !NOTE_NAME.test(name)
+
+// Where the text of the code is: what stands between quotes, and not in a comment. A sound is
+// named in text, so only there is a name looked for.
+function textSpans(code: string): [number, number][] {
+    const spans: [number, number][] = []
+    for (let at = 0; at < code.length; at++) {
+        const char = code[at]
+        if (char === '/' && code[at + 1] === '/') {
+            const end = code.indexOf('\n', at)
+            at = end < 0 ? code.length : end
+        } else if (char === '/' && code[at + 1] === '*') {
+            const end = code.indexOf('*/', at + 2)
+            at = end < 0 ? code.length : end + 1
+        } else if (char === '"' || char === "'" || char === '`') {
+            let end = at + 1
+            while (end < code.length && code[end] !== char && (char === '`' || code[end] !== '\n')) end += code[end] === '\\' ? 2 : 1
+            spans.push([at + 1, Math.min(end, code.length)])
+            at = end
+        }
+    }
+    return spans
+}
+
+const word = (name: string) => new RegExp(`(?<![A-Za-z0-9_])${name.replace(/[^A-Za-z0-9_]/g, '\\$&')}(?![A-Za-z0-9_])`, 'g')
+const found = (code: string, name: string): number[] => {
+    const spans = textSpans(code)
+    return [...code.matchAll(word(name))].map((match) => match.index).filter((at) => spans.some(([from, to]) => at >= from && at + name.length <= to))
+}
 
 // The sounds of your own that a song's code names.
-export const soundsUsed = (code: string, names: string[]): string[] => names.filter((name) => word(name).test(code))
+export const soundsUsed = (code: string, names: string[]): string[] => names.filter((name) => found(code, name).length > 0)
 
-// The changes that give one sound another name in the code, wherever it stands as a whole word.
-export const soundRenames = (code: string, from: string, to: string): { from: number; to: number; insert: string }[] =>
-    [...code.matchAll(word(from))].map((found) => ({ from: found.index, to: found.index + from.length, insert: to }))
+// The changes that give one sound another name in the code, wherever the code names it.
+export const soundRenames = (code: string, from: string, to: string): { from: number; to: number; insert: string }[] => found(code, from).map((at) => ({ from: at, to: at + from.length, insert: to }))
 
-// The code with one sound's name changed, wherever it stands as a whole word.
-export const renameSound = (code: string, from: string, to: string): string => code.replace(word(from), to)
+// The code with one sound's name changed, wherever the code names it.
+export const renameSound = (code: string, from: string, to: string): string =>
+    soundRenames(code, from, to)
+        .reverse()
+        .reduce((text, edit) => text.slice(0, edit.from) + edit.insert + text.slice(edit.to), code)

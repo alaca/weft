@@ -3,13 +3,17 @@
 // add to what a song from someone else is allowed to do without this file being looked at.
 //
 // Left out on purpose: everything that reaches outside the song (loading samples from an
-// address, styles, the screen, the engine's own insides, text that is run as code).
+// address, styles, the screen, the engine's own insides, text that is run as code). Also left
+// out, after others tried to get past the check: speech (`speak`); the drawings that cover the
+// whole window (`pianoroll`, `scope` and the like, whose `_` forms draw inside the code and
+// stay); `as`, which makes a value's name out of text; and `apply` and `bind`, which are also
+// the names of what every JavaScript function has.
 const words = (lines: string[]): string[] => lines.join(' ').split(' ')
 
 // What Strudel offers both as a function and as a step in a chain: note("c").fast(2), fast(2, note("c")).
 const BOTH = words([
-    '_mod accelerate ad add adsr almostAlways almostNever always amp anchor and angle apply applyN ar arp arpWith as asym att attack band bandf bandq bank',
-    'beat begin bgain bind binshift bite bjork blshift bmod bor bp bpa bpattack bpd bpdc bpdecay bpdepth bpdepthfreq bpdepthfrequency bpe bpenv bpf bpq bpr',
+    '_mod accelerate ad add adsr almostAlways almostNever always amp anchor and angle applyN ar arp arpWith asym att attack band bandf bandq bank',
+    'beat begin bgain binshift bite bjork blshift bmod bor bp bpa bpattack bpd bpdc bpdecay bpdepth bpdepthfreq bpdepthfrequency bpe bpenv bpf bpq bpr',
     'bprate bprelease bps bpshape bpskew bpsustain bpsync brak brshift bus busgain bxor bypass cat ccn ccv ceil ch channel channels chebyshev choose chop',
     'chord chorus chunk chunkBack chunkBackInto chunkInto chunkback chunkbackinto chunkinto clip coarse color comb compress compressSpan compressor',
     'compressorAttack compressorKnee compressorRatio compressorRelease compressspan contract control cpm cps crush ctf ctlNum ctranspose cubic curve cut',
@@ -31,13 +35,13 @@ const BOTH = words([
     'midibend midichan midicmd midimap midiport miditouch minutes mod mode moveXY mtranspose mul n ne net never noise note nrpnn nrpv nudge oct octave',
     'octaveR octaves octer octersub octersubsub off offset often or orbit outerBind outside overgain overshape pace palindrome pan panchor panorient',
     'panspan pansplay panwidth partials patt pattack pcurve pdec pdecay penv ph phasdp phaser phasercenter phaserdepth phaserrate phasersweep phases phc',
-    'phd phs pianoroll pick pickF pickOut pickReset pickRestart pickSqueeze pickmod pickmodF pickmodOut pickmodReset pickmodRestart pickmodSqueeze',
-    'pitchJump pitchJumpTime pitchwheel ply plyForEach plyWith polyBind polyTouch postgain pow prel prelease press pressBy progNum psus psustain pw pwrate',
+    'phd phs pick pickF pickOut pickReset pickRestart pickSqueeze pickmod pickmodF pickmodOut pickmodReset pickmodRestart pickmodSqueeze',
+    'pitchJump pitchJumpTime ply plyForEach plyWith polyBind polyTouch postgain pow prel prelease press pressBy progNum psus psustain pw pwrate',
     'pwsweep r range range2 rangex rarely ratio rdim real rel release removeUndefineds repeatCycles replicate rescale resonance rev revv rfade rib ribbon',
     'ring ringdf ringf rlp room roomdim roomfade roomlp roomsize rootNotes round rsize s s_add s_contract s_expand s_extend s_polymeter s_sub s_taper',
     's_taperlist s_tour s_zip scale scaleTrans scaleTranspose scram scramble scrub seconds seed seg segment semitone seq sequence set shape shrink',
     'shrinklist shuffle sinefold size slice slide slow slowChunk slowcat slowchunk smear soft someCycles someCyclesBy sometimes sometimesBy sound sparsity',
-    'speak speed splice spread squeeze squeezeBind squiz stack stepBind steps stepsPerOctave strans stretch striate struct stut stutWith stutwith sub',
+    'speed splice spread squeeze squeezeBind squiz stack stepBind steps stepsPerOctave strans stretch striate struct stut stutWith stutwith sub',
     'superimpose sus sustain sustainpedal swing swingBy sysex sysexdata sysexid sz take timeline toBipolar tour trans transient transpose trem tremolo',
     'tremolodepth tremolophase tremoloshape tremoloskew tremolosync triode tsdelay undegrade undegradeBy unison unit v val vel velocity vib vibmod vibrato',
     'vmod voice voicing voicings vowel w warp warpatt warpattack warpdc warpdec warpdecay warpdepth warpenv warpmode warprate warprel warprelease warpshape',
@@ -57,7 +61,7 @@ const CHAINED = words([
     '_opRestart _opSqueeze _opSqueezeOut _or _outside _pace _pianoroll _pick _pickF _pickOut _pickReset _pickRestart _pickSqueeze _pickmod _pickmodF',
     '_pickmodOut _pickmodReset _pickmodRestart _pickmodSqueeze _pitchwheel _ply _plyForEach _plyWith _plyforeach _plywith _pow _pressBy _punchcard _range',
     '_range2 _rangex _rarely _repeatCycles _replicate _rescale _rib _ribbon _rootNotes _scale _scaleTrans _scaleTranspose _scope _scramble _scrub _seed',
-    '_seg _segment _set _shrink _shuffle _slice _slow _slowChunk _slowchunk _someCycles _someCyclesBy _sometimes _sometimesBy _sparsity _speak _spectrum',
+    '_seg _segment _set _shrink _shuffle _slice _slow _slowChunk _slowchunk _someCycles _someCyclesBy _sometimes _sometimesBy _sparsity _spectrum',
     '_spiral _splice _steps _strans _striate _stut _stutWith _stutwith _sub _swing _swingBy _sysex _take _timeline _trans _transpose _undegradeBy _voicings',
     '_when _whenKey _within _zoom _zoomArc _zoomIn _zoomarc appBoth appLeft appRight appWhole asNumber bindWhole choose2 d1 d2 d3 d4 d5 d6 d7 d8 d9 density',
     'discreteOnly disttype distvol duckatt duckons duckorbit filterValues fm00 fm01 fm02 fm03 fm04 fm05 fm06 fm07 fm08 fm10 fm11 fm12 fm13 fm14 fm15 fm16',
@@ -66,10 +70,10 @@ const CHAINED = words([
     'fm84 fm85 fm86 fm87 fm88 fmap fmi00 fmi01 fmi02 fmi03 fmi04 fmi05 fmi06 fmi07 fmi08 fmi10 fmi11 fmi12 fmi13 fmi14 fmi15 fmi16 fmi17 fmi18 fmi20 fmi21',
     'fmi22 fmi23 fmi24 fmi25 fmi26 fmi27 fmi28 fmi30 fmi31 fmi32 fmi33 fmi34 fmi35 fmi36 fmi37 fmi38 fmi40 fmi41 fmi42 fmi43 fmi44 fmi45 fmi46 fmi47 fmi48',
     'fmi50 fmi51 fmi52 fmi53 fmi54 fmi55 fmi56 fmi57 fmi58 fmi60 fmi61 fmi62 fmi63 fmi64 fmi65 fmi66 fmi67 fmi68 fmi70 fmi71 fmi72 fmi73 fmi74 fmi75 fmi76',
-    'fmi77 fmi78 fmi80 fmi81 fmi82 fmi83 fmi84 fmi85 fmi86 fmi87 fmi88 focus fscope hasSteps in innerJoin into join layer log2 maskAll mix modulate',
-    'onsetsOnly out outerJoin p p1 p2 p3 p4 p5 p6 p7 p8 p9 plyforeach plywith poly punchcard q q1 q2 q3 q4 q5 q6 q7 q8 q9 reset resetAll resetJoin restart',
-    'restartAll restartJoin scope setSteps soundfont spectrum spiral squeezeJoin squeezeout stepJoin structAll tremdepth tremphase tremshape tremskew',
-    'tremsync tscope unjoin withSteps wordfall',
+    'fmi77 fmi78 fmi80 fmi81 fmi82 fmi83 fmi84 fmi85 fmi86 fmi87 fmi88 focus hasSteps in innerJoin into join layer log2 maskAll mix modulate',
+    'onsetsOnly out outerJoin p p1 p2 p3 p4 p5 p6 p7 p8 p9 plyforeach plywith poly q q1 q2 q3 q4 q5 q6 q7 q8 q9 reset resetAll resetJoin restart',
+    'restartAll restartJoin setSteps soundfont squeezeJoin squeezeout stepJoin structAll tremdepth tremphase tremshape tremskew',
+    'tremsync unjoin withSteps',
 ])
 
 // What is only a function or a value by itself: stack(...), sine, silence.

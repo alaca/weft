@@ -12,7 +12,7 @@ import { senderOf } from './sender'
 // anyone to read, with the name the person gave, how fast the song is and how many patterns it
 // has. Nobody is listed who did not ask to be, and nobody needs an account. Someone who reads
 // the list can ask to join; the one who is asked lets them in or not.
-export type RelayOptions = { port: number; host?: string; maxRooms?: number; waitMs?: number; beatMs?: number; askMs?: number; behindProxy?: boolean }
+export type RelayOptions = { port: number; host?: string; maxRooms?: number; maxRoomsEach?: number; maxLinesEach?: number; waitMs?: number; beatMs?: number; askMs?: number; behindProxy?: boolean }
 export type Relay = { port: number; rooms: () => number; close: () => Promise<void> }
 
 const LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
@@ -21,6 +21,9 @@ const NAME_LIMIT = 24
 const FRAME_LIMIT = 512 * 1024
 const WRONG_CODES = 5
 const MOST_ROOMS = 500
+// What one sender may hold at a time, so that no one of them fills the relay or the list.
+const MOST_ROOMS_EACH = 5
+const MOST_LINES_EACH = 40
 const WAIT = 30 * 60 * 1000
 const BEAT = 30 * 1000
 const ASK_WAIT = 2 * 60 * 1000
@@ -46,15 +49,18 @@ type Room = {
 }
 type Seat = { room: Room | null; asking: { room: Room; ask: string; name: string; expires: ReturnType<typeof setTimeout> } | null; asked: number; wrong: number; alive: boolean; sent: number; from: string }
 
+// What arrives is text that anyone can write, so a part of it is only taken for what it is
+// when it is of that kind: a value of another kind is as good as none.
+const textOf = (value: unknown): string => (typeof value === 'string' ? value : '')
 const aboutOf = (value: unknown): About => {
-    const given = (value ?? {}) as { bpm?: unknown; patterns?: unknown }
-    const bpm = Number(given.bpm)
-    const patterns = Number(given.patterns)
+    const given = (typeof value === 'object' && value !== null ? value : {}) as { bpm?: unknown; patterns?: unknown }
+    const bpm = typeof given.bpm === 'number' ? given.bpm : NaN
+    const patterns = typeof given.patterns === 'number' ? given.patterns : NaN
     return { bpm: Number.isFinite(bpm) && bpm >= 1 && bpm <= 999 ? Math.round(bpm) : null, patterns: Number.isInteger(patterns) && patterns >= 0 && patterns <= 999 ? patterns : 0 }
 }
 
-const nameOf = (value: unknown): string => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, NAME_LIMIT) || 'Someone'
-const codeOf = (value: unknown): string => String(value ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+const nameOf = (value: unknown): string => textOf(value).replace(/\s+/g, ' ').trim().slice(0, NAME_LIMIT) || 'Someone'
+const codeOf = (value: unknown): string => textOf(value).toUpperCase().replace(/[^A-Z0-9]/g, '')
 
 export function createRelay(options: RelayOptions): Promise<Relay> {
     const rooms = new Map<string, Room>()
@@ -151,7 +157,8 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
 
         if (message.t === 'host') {
             if (room) return
-            if (rooms.size >= most) return say(socket, { t: 'no', why: 'full' })
+            const theirs = [...rooms.values()].filter((one) => seats.get(one.host)?.from === seat.from).length
+            if (rooms.size >= most || theirs >= (options.maxRoomsEach ?? MOST_ROOMS_EACH)) return say(socket, { t: 'no', why: 'full' })
             const made: Room = {
                 code: freeCode(),
                 id: randomBytes(6).toString('hex'),
@@ -177,7 +184,7 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
         if (message.t === 'ask') {
             if (seat.asking || (room && (room.host !== socket || room.guest))) return
             if (++seat.asked > MOST_ASKS) return socket.close(1008)
-            const wanted = [...rooms.values()].find((one) => one.id === String(message.id ?? '') && one.open && !one.guest && one.host !== socket)
+            const wanted = [...rooms.values()].find((one) => one.id === textOf(message.id) && one.open && !one.guest && one.host !== socket)
             if (!wanted) return say(socket, { t: 'no', why: 'gone' })
             if (wanted.blocked.has(seat.from)) return say(socket, { t: 'no', why: 'declined' })
             if (wanted.asks.size >= MOST_ASKING) return say(socket, { t: 'no', why: 'busy' })
@@ -220,7 +227,7 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
             }
             if (message.t === 'about') return void (room.about = aboutOf(room.open ? message.about : null))
             if (message.t === 'let' || message.t === 'deny' || message.t === 'block') {
-                const asker = room.asks.get(String(message.ask ?? ''))
+                const asker = room.asks.get(textOf(message.ask))
                 const theirs = asker ? seats.get(asker) : undefined
                 if (!asker || !theirs?.asking) return
                 if (message.t === 'let') return seatIn(room, asker, theirs, theirs.asking.name)
@@ -252,11 +259,21 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
 
     server.on('connection', (socket, request) => {
         const seat: Seat = { room: null, asking: null, asked: 0, wrong: 0, alive: true, sent: 0, from: senderOf(request, options.behindProxy) }
+        let lines = 0
+        for (const other of seats.values()) if (other.from === seat.from) lines++
+        if (lines >= (options.maxLinesEach ?? MOST_LINES_EACH)) return socket.close(1008)
         seats.set(socket, seat)
         socket.on('pong', () => (seat.alive = true))
         socket.on('message', (data: RawData, binary: boolean) => {
             if (++seat.sent > MOST_A_SECOND) return socket.close(1008)
-            if (!binary) return onText(socket, seat, data.toString())
+            if (!binary) {
+                // Whatever a message does to the code that reads it, it ends at most its own line.
+                try {
+                    return onText(socket, seat, data.toString())
+                } catch {
+                    return socket.close(1003)
+                }
+            }
             // Sounds travel as they are, in pieces, and are only handed on.
             const to = seat.room ? other(seat.room, socket) : null
             if (to && to.readyState === to.OPEN) to.send(data, { binary: true })

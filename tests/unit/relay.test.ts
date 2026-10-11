@@ -196,6 +196,49 @@ describe('the relay of a jam', () => {
         expect(await stranger.closed).toBe(1003)
     })
 
+    it('stays up whatever is written into a message, and closes at most the line it came on', async () => {
+        const odd = { toString: 1, valueOf: 1 }
+        const messages = [
+            { t: 'host', name: odd },
+            { t: 'host', name: 'Ante', open: true, about: { bpm: odd, patterns: odd } },
+            { t: 'join', code: odd, name: odd },
+            { t: 'ask', id: odd, name: odd },
+            { t: odd },
+            { t: 'push', v: odd, updates: odd },
+            { t: 'tell', d: odd },
+            { t: 'let', ask: odd },
+            { t: 'open', open: odd, about: 'x' },
+        ]
+        for (const message of messages) {
+            const stranger = await person()
+            stranger.send(message)
+            stranger.send({ t: 'let', ask: odd })
+            stranger.send({ t: 'about', about: odd })
+        }
+        await quiet()
+        const { host, guest } = await pair()
+        guest.send({ t: 'tell', d: { k: 'say', text: 'still here' } })
+        expect(await host.next('told')).toEqual({ t: 'told', d: { k: 'say', text: 'still here' } })
+        expect(JSON.stringify(await listed())).not.toContain('[object')
+    })
+
+    it('lets one sender hold only so many jams and lines at a time', async () => {
+        await relay.close()
+        relay = await createRelay({ port: 0, maxRoomsEach: 2, maxLinesEach: 4 })
+        for (let count = 0; count < 2; count++) {
+            const host = await person()
+            host.send({ t: 'host', name: `Host ${count}` })
+            await host.next('invite')
+        }
+        const third = await person()
+        third.send({ t: 'host', name: 'One too many' })
+        expect(await third.next('no')).toEqual({ t: 'no', why: 'full' })
+        await person()
+        const fifth = await person()
+        expect(await fifth.closed).toBe(1008)
+        expect(relay.rooms()).toBe(2)
+    })
+
     it('drops a line that no longer answers', async () => {
         await relay.close()
         relay = await createRelay({ port: 0, beatMs: 30 })

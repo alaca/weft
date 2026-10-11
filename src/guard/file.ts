@@ -1,4 +1,4 @@
-import { fromBase64, readSource, SONG_LIMIT, soundsUsed } from '../library/songfile'
+import { fromBase64, readSource, SONG_LIMIT, SOUND_NAME, soundsUsed } from '../library/songfile'
 import { checkSong } from './check'
 
 // What a song file has to be to be published. A song file holds code, and code runs on the
@@ -11,7 +11,6 @@ export type FileRefused = { why: 'size' | 'file' | 'code' | 'sound'; what: strin
 const VERSION = 1
 const PARTS = ['weft', 'name', 'keys', 'code', 'sounds', 'source']
 const SOUND_PARTS = ['name', 'file', 'type', 'seconds', 'data', 'onset']
-const SOUND_NAME = /^[a-z][a-z0-9_]{0,59}$/
 const NAME_LIMIT = 60
 const FILE_NAME_LIMIT = 120
 const MOST_SOUNDS = 32

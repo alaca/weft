@@ -15,6 +15,13 @@ const PLAIN = new Set(['undefined', 'NaN', 'Infinity'])
 const UNARY = new Set(['-', '+', '!', '~', 'typeof', 'void'])
 const BINARY = new Set(['+', '-', '*', '/', '%', '**', '==', '!=', '===', '!==', '<', '<=', '>', '>=', '&', '|', '^', '<<', '>>', '>>>'])
 const HIDDEN = new Set(['__proto__', 'constructor', 'prototype'])
+// Names of values that the sound engine takes as code to run.
+const CODE = new Set(['byteBeatExpression', 'byteBeatStartTime'])
+// What is written as plain JavaScript and stays that when the song runs: a list, a set of named
+// values, a small function, a number, text in single quotes. Text in double quotes and in
+// backticks becomes a pattern.
+const plain = (node: Node): boolean =>
+    node.type === 'ArrayExpression' || node.type === 'ObjectExpression' || node.type === 'ArrowFunctionExpression' || (node.type === 'Literal' && (typeof node.value !== 'string' || String(node.raw ?? '').startsWith("'")))
 
 // What a kind of code is called when it is refused, for the kinds a person is likely to meet.
 const CALLED: Record<string, string> = {
@@ -77,6 +84,9 @@ function member(node: Node, scope: Scope) {
         return
     }
     if (property.type !== 'Identifier' || !METHODS.has(property.name)) refuse(property, `.${property.name ?? ''} is not something a song can use`)
+    // A step in a chain is a step of a pattern. On a plain value the same name would be
+    // whatever JavaScript itself has under it.
+    if (plain(object)) refuse(property, `.${property.name} can only follow a pattern`)
 }
 
 function parameter(node: Node, scope: Scope): string {
@@ -140,6 +150,7 @@ function expression(node: Node | null, scope: Scope): void {
                 }
                 const named = entry.key.type === 'Identifier' ? entry.key.name : entry.key.type === 'Literal' ? String(entry.key.value) : null
                 if (entry.kind !== 'init' || entry.method || entry.computed || named === null || HIDDEN.has(named)) refuse(entry, 'a list of named values may only hold plain names and values')
+                if (CODE.has(named!)) refuse(entry, `${named} is not something a song can use`)
                 expression(entry.value, scope)
             }
             return

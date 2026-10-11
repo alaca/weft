@@ -297,7 +297,13 @@ export function createEngine(): Engine {
     // A song that came from someone else is only played when all of it is music code. Every
     // way of playing code goes through the one step that Strudel is handed to prepare it, so
     // that is where a song is checked.
-    let guarded = false
+    // A song is taken to be from someone else until it is said to be yours.
+    let guarded = true
+    // One sound of Strudel's takes text and runs it as code inside the sound engine. The check
+    // refuses the names that lead there; this is the same refusal at the last step before a
+    // sound is made, whatever road the value took.
+    const carriesCode = (value: any): boolean =>
+        Boolean(value) && typeof value === 'object' && ('byteBeatExpression' in value || 'byteBeatStartTime' in value || String(value.s ?? '').trim().toLowerCase().startsWith('bytebeat'))
     const prepare = (code: string, options: unknown) => {
         const refused = guarded ? checkSong(code) : null
         if (refused) throw Object.assign(new Error(refused.what), { loc: { line: refused.line }, guard: true })
@@ -496,6 +502,7 @@ export function createEngine(): Engine {
     const makeMirror = (root: HTMLElement, initialCode: string) =>
         new StrudelMirror({
             defaultOutput: (hap: any, deadline: number, duration: number, cps: number, time: number) => {
+                if (guarded && carriesCode(hap.value)) return
                 readyToDuck(hap.value)
                 return webaudioOutput(hap, deadline, duration, cps, time)
             },
@@ -801,6 +808,7 @@ export function createEngine(): Engine {
                     for (; next < haps.length && startOf(haps[next]) < until; next++) {
                         const hap = haps[next]
                         hap.ensureObjectValue()
+                        if (guarded && carriesCode(hap.value)) continue
                         const { duckorbit, ...value } = hap.value
                         if (duckorbit !== undefined && duckorbit !== null) duckAt(hap.value, startOf(hap))
                         await superdough(value, startOf(hap), hap.duration.valueOf() / cps, cps, hap.whole.begin.valueOf()).catch(() => void missed++)

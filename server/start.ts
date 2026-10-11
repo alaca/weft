@@ -85,6 +85,11 @@ async function start() {
     process.on('SIGINT', end)
 }
 
+// The site and every jam run in this one program. Something that goes wrong for one request or
+// one message is noted and must not end it for everyone.
+process.on('uncaughtException', (err) => console.error(`weft: ${err?.stack ?? err}`))
+process.on('unhandledRejection', (err) => console.error(`weft: ${err instanceof Error ? (err.stack ?? err.message) : err}`))
+
 start().catch((err) => {
     console.error(`weft: not started. ${err instanceof Error ? err.message : err}`)
     process.exit(1)

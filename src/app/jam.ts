@@ -27,7 +27,8 @@ import {
 import { openVoice, primeVoice, type Voice } from '../jam/voice'
 import { sizeText } from '../library/audio'
 import { whyNot, type NoTake } from '../library/recorder'
-import { soundRenames, soundsUsed } from '../library/songfile'
+import { looksLikeAudio } from '../guard/file'
+import { fitSoundName, soundRenames, soundsUsed } from '../library/songfile'
 import { soundNameFor, type OwnSound } from '../library/sounds'
 import {
     jamAsked,
@@ -71,6 +72,7 @@ import { engineState, loopBars, ownSounds, playMode, song, stale, startBar, type
 export type JamDeps = {
     engine: Engine
     songName(): string
+    songId(): string | null
     songKeys(): Record<string, string>
     openAs(name: string, code: string, keys: Record<string, string>, mode: PlayMode): void
     guardSong(): void
@@ -89,7 +91,9 @@ const NAME_KEY = 'weft.name'
 const PING_EVERY = 4000
 const HAND_FOR = 8000
 const MOST_LINES = 200
-const SOUND_NAME = /^[a-z][a-z0-9_]{0,59}$/
+// How many sounds, and how much of them in all, one jam takes from the other person.
+const MOST_TAKEN = 24
+const MOST_TAKEN_BYTES = 96 * 1024 * 1024
 const UNREACHABLE = 'Jams could not be reached. Check that you are online, then try again.'
 
 let deps: JamDeps
@@ -119,6 +123,9 @@ const theirs = new Set<string>()
 const had = new Set<string>()
 const lent = new Map<string, OwnSound>()
 const incoming = new Map<string, { offer: Offer; parts: Uint8Array[]; got: number; shadow: boolean }>()
+let takenBytes = 0
+// The song the jam is on, so that what is tidied up after a jam is tidied up in that song only.
+let jamSong: string | null = null
 
 // The call: `voice` is there for as long as the jam is, `captured` is your microphone while it is on.
 let voice: Voice | null = null
@@ -328,6 +335,7 @@ function finish(note: string | null) {
     host = false
     placed = false
     roundTrip = 0
+    takenBytes = 0
     pings.clear()
     known = new Set()
     offered.clear()
@@ -367,6 +375,7 @@ function begin(who: string, joined: string) {
         setJamStage('jamming')
     })
     event(joined)
+    jamSong = deps.songId()
     texts = patternTexts(deps.engine.getCode())
     window.clearInterval(pinging)
     ping()
@@ -437,10 +446,14 @@ function told(d: Told) {
     if (!d || typeof d !== 'object') return
     if (d.k === 'song') {
         if (host || jamStage() !== 'joining') return
+        // Everything in the first message is taken the way the later ones are: for what it is
+        // only when it is of that kind.
+        if (typeof d.name !== 'string' || typeof d.code !== 'string') return finish('The jam could not be joined: the song did not arrive as a song. Ask for a new invite.')
+        const loop = d.loop && Number.isInteger(d.loop.from) && Number.isInteger(d.loop.to) && d.loop.from >= 0 && d.loop.to > d.loop.from ? { from: d.loop.from, to: d.loop.to } : null
         follow(() => {
-            deps.openAs(String(d.name), String(d.code), d.keys && typeof d.keys === 'object' ? d.keys : {}, d.mode === 'live' ? 'live' : 'song')
-            deps.startFrom(Number(d.start) || 0)
-            deps.setLoop(d.loop ?? null)
+            deps.openAs(d.name, d.code, d.keys && typeof d.keys === 'object' && !Array.isArray(d.keys) ? d.keys : {}, d.mode === 'live' ? 'live' : 'song')
+            deps.startFrom(Math.max(0, Math.floor(Number(d.start) || 0)))
+            deps.setLoop(loop)
         })
         deps.engine.startSync(0, 'guest', push)
         known = new Set(soundsUsed(deps.engine.getCode(), ownNames()))
@@ -638,9 +651,13 @@ async function offer(name: string) {
 // yours, and is not the same sound, plays in place of yours for as long as the jam lasts. When
 // both bring a sound of the same name at the same moment, the host's is the one that stays.
 async function offeredOne(d: Offer) {
-    const name = String(d.name)
-    if (!SOUND_NAME.test(name) || incoming.has(name) || !(d.bytes > 0) || d.bytes > SOUND_LIMIT) return
+    const name = typeof d.name === 'string' ? d.name : ''
+    // Taken is a sound that the song names, under a name that cannot be mistaken for anything
+    // else, and not more of them than a song has use for.
+    if (!fitSoundName(name) || incoming.has(name) || !(d.bytes > 0) || d.bytes > SOUND_LIMIT) return
     if (had.has(name) || (offered.has(name) && host)) return
+    if (!soundsUsed(deps.engine.getCode(), [name]).length || had.size >= MOST_TAKEN || takenBytes + d.bytes > MOST_TAKEN_BYTES) return
+    takenBytes += d.bytes
     const mine = ownNames().includes(name)
     if (!mine && deps.engine.soundTaken(name)) return
     theirs.add(name)
@@ -698,6 +715,7 @@ function pieceArrived(frame: ArrayBuffer) {
 
 async function arrived(sound: OwnSound, shadow: boolean) {
     if (jamStage() !== 'jamming') return
+    if (!looksLikeAudio(new Uint8Array(sound.data))) return event(`What ${peer()} sent as the sound ${sound.name} is not a sound, so it was not kept.`)
     try {
         if (shadow) {
             lent.set(sound.name, sound)
@@ -717,11 +735,12 @@ async function arrived(sound: OwnSound, shadow: boolean) {
 // name of its own, the song is made to say that name, and yours is yours again.
 async function giveBack() {
     const kept = [...lent]
+    const over = jamSong
     lent.clear()
     for (const [name, sound] of kept) {
         try {
             const code = deps.engine.getCode()
-            if (soundsUsed(code, [name]).length) {
+            if (deps.songId() === over && soundsUsed(code, [name]).length) {
                 const free = soundNameFor(name, (taken) => taken === name || deps.engine.soundTaken(taken))
                 await deps.keepSound({ ...sound, name: free })
                 deps.engine.applyEdit(soundRenames(deps.engine.getCode(), name, free))

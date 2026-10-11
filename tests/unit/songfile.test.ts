@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readSongFile, renameSound, soundsUsed, writeSongFile, type SongFile } from '../../src/library/songfile'
+import { fitSoundName, readSongFile, renameSound, soundRenames, soundsUsed, writeSongFile, type SongFile } from '../../src/library/songfile'
 
 const SONG: SongFile = {
     name: 'Late one',
@@ -44,5 +44,18 @@ describe('the sounds a song names', () => {
 
     it('can be given another name everywhere', () => {
         expect(renameSound('s("take").struct("x"), s("take_2"), s("mistake")', 'take', 'take_3')).toBe('s("take_3").struct("x"), s("take_2"), s("mistake")')
+    })
+
+    it('are looked for in the text of the code only, never among its words or in what is commented out', () => {
+        const code = 'note: note("c2").s("note stack")\n// s("gone")\nlead: stack(s(`gone2`), s(\'take\')) /* s("gone") */\n'
+        expect(soundsUsed(code, ['note', 'stack', 's', 'lead', 'gone', 'gone2', 'take'])).toEqual(['note', 'stack', 'gone2', 'take'])
+        expect(renameSound(code, 'note', 'note_2')).toBe('note: note("c2").s("note_2 stack")\n// s("gone")\nlead: stack(s(`gone2`), s(\'take\')) /* s("gone") */\n')
+        expect(soundRenames(code, 'stack', 'x')).toEqual([{ from: 25, to: 30, insert: 'x' }])
+        expect(soundsUsed('s("a.b")', ['a.b', '.*', '(', 'a+'])).toEqual(['a.b'])
+    })
+
+    it('go by a name that cannot be taken for a note or for a letter that patterns are written with', () => {
+        expect(['kick_2', 'take', 'bass', 'note', 'stack'].map(fitSoundName)).toEqual([true, true, true, true, true])
+        expect(['s', 'c3', 'eb', 'x', 'bd', 'Take', 'a b', '2nd', ''].map(fitSoundName)).toEqual(Array(9).fill(false))
     })
 })
