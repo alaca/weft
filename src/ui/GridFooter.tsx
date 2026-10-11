@@ -1,4 +1,5 @@
 import { For, Show, type JSX } from "solid-js";
+import { Portal } from "solid-js/web";
 
 const LENGTHS = [1, 2, 4];
 
@@ -12,14 +13,19 @@ export function GridFooter(props: {
   onPage: (index: number) => void;
   onLength: (cycles: number) => void;
   onSteps: (perCycle: number) => void;
+  // Where in the head of the strip the length, the steps and the cycle are put, beside the
+  // versions of the pattern: they are what one version is made of.
+  head: HTMLElement;
   children?: JSX.Element;
 }) {
   const blocked = (resolution: number) =>
     resolution !== props.perCycle && !props.canUse(resolution);
   return (
     <>
-      <div class="rk-f">
-        {props.children}
+      <Show when={props.children}>
+        <div class="rk-f">{props.children}</div>
+      </Show>
+      <Portal mount={props.head} ref={(made) => (made.className = "st-gp")}>
         <span class="cap">Length</span>
         <div class="seg s">
           <For each={LENGTHS}>
@@ -57,26 +63,24 @@ export function GridFooter(props: {
             )}
           </For>
         </div>
-      </div>
-      <Show when={props.cycles > 1}>
-        <div class="rk-f rk-c">
-          <span class="cap">Cycle</span>
-          <div class="seg s">
-            <For each={Array.from({ length: props.cycles }, (_, i) => i)}>
-              {(index) => (
-                <button
-                  classList={{ on: props.shown === index }}
-                  aria-label={`Cycle ${index + 1}`}
-                  aria-pressed={props.shown === index}
-                  onClick={() => props.onPage(index)}
-                >
-                  {index + 1}
-                </button>
-              )}
-            </For>
-          </div>
-        </div>
-      </Show>
+        <Show when={props.cycles > 1}>
+            <span class="cap">Cycle</span>
+            <div class="seg s">
+              <For each={Array.from({ length: props.cycles }, (_, i) => i)}>
+                {(index) => (
+                  <button
+                    classList={{ on: props.shown === index }}
+                    aria-label={`Cycle ${index + 1}`}
+                    aria-pressed={props.shown === index}
+                    onClick={() => props.onPage(index)}
+                  >
+                    {index + 1}
+                  </button>
+                )}
+              </For>
+            </div>
+        </Show>
+      </Portal>
     </>
   );
 }

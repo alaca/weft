@@ -42,7 +42,7 @@ function RowControls(props: { id: string; sound: string; block: PatternBlock | u
     )
 }
 
-export function Rack(props: { id: string; block: PatternBlock; played: { name: string; steps: boolean[] }[]; playing: boolean; position: number; cycle: number }) {
+export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement; played: { name: string; steps: boolean[] }[]; playing: boolean; position: number; cycle: number }) {
     const [page, setPage] = createSignal(0)
     const [menu, setMenu] = createSignal(false)
     const kit = createMemo(() => readKit(props.block))
@@ -92,6 +92,7 @@ export function Rack(props: { id: string; block: PatternBlock; played: { name: s
             </Show>
             <Show when={canEdit()}>
                 <GridFooter
+                    head={props.head}
                     cycles={cycles()}
                     perCycle={perCycle()}
                     resolutions={RESOLUTIONS}

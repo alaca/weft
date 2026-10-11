@@ -20,6 +20,7 @@ type Range = { low: number; high: number }
 export function NoteRoll(props: {
     id: string
     block: PatternBlock
+    head: HTMLElement
     played: { start: number; length: number; midi: number }[]
     playing: boolean
     position: number
@@ -242,6 +243,7 @@ export function NoteRoll(props: {
                 </div>
             </div>
             <GridFooter
+                head={props.head}
                 cycles={cycles()}
                 perCycle={perCycle()}
                 resolutions={NOTE_RESOLUTIONS}

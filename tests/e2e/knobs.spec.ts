@@ -39,7 +39,6 @@ test('pressing a faint knob adds its line, and removing it takes the line away',
     await bass.getByRole('button', { name: 'Sound controls for bass' }).click()
     await bass.getByRole('button', { name: 'Add Delay' }).click()
     await expect.poll(() => code(page)).toContain('  .pan(sine.slow(4))\n  .delay(slider(0.25, 0, 1))\n')
-    await expect(bass).toContainText('lines 7 to 12')
     const delay = bass.getByRole('slider', { name: 'Delay' })
     await expect(delay).toHaveAttribute('aria-valuenow', '0.25')
 

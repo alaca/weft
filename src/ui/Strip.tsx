@@ -16,11 +16,6 @@ import { PianoRoll } from './PianoRoll'
 import { SoundPanel } from './SoundPanel'
 import { Rack } from './Rack'
 
-const linesOf = (block: PatternBlock) => {
-    const range = block.lineFrom === block.lineTo ? `line ${block.lineFrom}` : `lines ${block.lineFrom} to ${block.lineTo}`
-    return block.muted ? `${range}, muted` : range
-}
-
 // Every evaluation asks each pattern again what it plays. Most of the time the answer is the
 // same, and saying so here spares the grid or roll below from being worked out again.
 const sameView = (a: PatternView, b: PatternView) => JSON.stringify(a) === JSON.stringify(b)
@@ -71,6 +66,8 @@ export function Strip(props: { id: string }) {
     const isRoll = () => block() !== undefined && noteText(block()) !== null
     const isRack = () => !isRoll() && notes() === null && block() !== undefined && (steps() !== null || isDrums(block()))
 
+    // Where the grid or the roll of this strip puts its length, steps and cycle.
+    let head!: HTMLSpanElement
     const knobs = createMemo(() => (block() ? favourites(block()) : []))
     const mix = createMemo((): { fn: 'gain' | 'pan'; name: string; view: ControlView }[] =>
         block()
@@ -198,11 +195,11 @@ export function Strip(props: { id: string }) {
                                 </span>
                             )}
                         </Show>
+                        <span class="st-g" ref={head} onClick={(event) => event.stopPropagation()} />
                         <Show when={folded()}>
                             <MiniView view={view()} />
                         </Show>
                         <span class="grow" />
-                        <span class="lines">{linesOf(current())}</span>
                         <button
                             class="rs"
                             classList={{ on: open() }}
@@ -353,10 +350,10 @@ export function Strip(props: { id: string }) {
                         <div class="st-b" classList={{ two: showKnobs() }}>
                             <div>
                                 <Show when={isRack()}>
-                                    <Rack id={props.id} block={current()} played={steps()?.rows ?? []} playing={playing()} position={position()} cycle={cycle()} />
+                                    <Rack id={props.id} block={current()} head={head} played={steps()?.rows ?? []} playing={playing()} position={position()} cycle={cycle()} />
                                 </Show>
                                 <Show when={isRoll()}>
-                                    <NoteRoll id={props.id} block={current()} played={notes()?.notes ?? []} playing={playing()} position={position()} cycle={cycle()} />
+                                    <NoteRoll id={props.id} block={current()} head={head} played={notes()?.notes ?? []} playing={playing()} position={position()} cycle={cycle()} />
                                 </Show>
                                 <Show when={!isRoll() && notes()}>
                                     {(roll) => (

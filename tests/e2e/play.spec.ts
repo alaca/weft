@@ -12,11 +12,11 @@ test('plays, counts cycles and stops', async ({ page }) => {
     await expect(page.getByTestId('tempo')).toHaveValue('124')
     await expect(page.getByTestId('code-status')).toHaveText('Stopped')
 
-    await page.getByRole('button', { name: 'Play' }).click()
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
     await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
     await expect.poll(async () => Number(await page.getByTestId('cycle').textContent()), { timeout: 20_000 }).toBeGreaterThanOrEqual(2)
 
-    await page.getByRole('button', { name: 'Stop' }).click()
+    await page.getByRole('button', { name: 'Stop', exact: true }).click()
     await expect(page.getByTestId('code-status')).toHaveText('Stopped')
     await expect(page.getByTestId('cycle')).toHaveText('1')
     expect(errors).toEqual([])
