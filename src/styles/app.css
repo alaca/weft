@@ -173,10 +173,10 @@ button.rn:hover { border-color: var(--linen-3); }
 
 .chip.tgl { cursor: pointer; }
 .chip.tgl.on { background: var(--linen); border-color: var(--linen); color: var(--vat); }
-.chip.rec { gap: 6px; }
-.chip.rec i { width: 7px; height: 7px; border-radius: 50%; background: var(--linen-3); }
-.chip.rec.on { background: var(--vat); border-color: var(--madder); color: var(--linen); }
-.chip.rec.on i { background: var(--madder); }
+.chip.tk { gap: 6px; flex: none; white-space: nowrap; }
+.chip.tk i { width: 7px; height: 7px; border-radius: 50%; background: var(--linen-3); flex: none; }
+.chip.tk.on { background: var(--vat); border-color: var(--madder); color: var(--linen); }
+.chip.tk.on i { background: var(--madder); }
 .st-b.two { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; }
 .st-r { display: flex; align-items: flex-start; gap: 14px; }
 
@@ -410,6 +410,7 @@ svg.mini rect { fill: var(--h); }
 .sp.sub { border-top: 0; padding-top: 11px; }
 .sg { background: var(--cloth); border: 1px solid var(--seam); border-radius: 11px; flex: none; padding-bottom: 10px; }
 .sg-h { height: 46px; display: flex; align-items: center; gap: 11px; padding: 2px 14px 0 17px; }
+.sg-h > h3, .sg-h > .lines, .sg-h > .cap, .sg-h > .seg { flex: none; }
 .sg-h h3 { font: 600 19px/1 var(--voice); padding-bottom: 2px; }
 .sg-h .seg.s button { min-width: 22px; font: 600 12px/1 var(--mono); }
 .sg-h .seg.s button:disabled { opacity: 0.35; cursor: default; }
@@ -534,7 +535,7 @@ svg.mini rect { fill: var(--h); }
 
 /* Bars that go round: a band over their numbers, and what can be done with them in the head. */
 .sg-loop { position: absolute; top: 0; height: 18px; border-radius: 4px; background: color-mix(in srgb, var(--linen) 16%, transparent); box-shadow: inset 0 0 0 1px var(--linen-3); pointer-events: none; }
-.sg-lp { display: flex; align-items: center; gap: 8px; color: var(--linen-2); font-size: 11.5px; white-space: nowrap; }
+.sg-lp { display: flex; align-items: center; gap: 8px; color: var(--linen-2); font-size: 11.5px; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .sg-lp .rx { opacity: 1; }
 
 /* A strip's name being typed over, and its small menu. */

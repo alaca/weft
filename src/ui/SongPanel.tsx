@@ -631,7 +631,7 @@ export function SongPanel() {
                 </Show>
                 <span class="grow" />
                 <button
-                    class="chip tgl rec"
+                    class="chip tgl tk"
                     classList={{ on: takingKnobs() }}
                     aria-pressed={takingKnobs()}
                     title="While this is on, a knob you turn as the song plays is drawn over the song, bar by bar, when the song stops"
