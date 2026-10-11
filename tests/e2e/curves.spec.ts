@@ -102,3 +102,23 @@ test('dragging draws bar by bar, and with Shift held a straight line from where 
     await page.keyboard.up('Shift')
     await expect.poll(() => code(page)).toContain('.gain("<0 0.5 1 1.5>")')
 })
+
+test('a knob that is turned while the song plays is drawn over the song when it stops', async ({ page }) => {
+    await open(page)
+    await page.getByTestId('strip-bass').getByRole('button', { name: 'Sound controls for bass', exact: true }).click()
+    const cutoff = page.getByTestId('strip-bass').getByRole('slider', { name: 'Cutoff', exact: true })
+    await page.getByRole('button', { name: 'Record knobs', exact: true }).click()
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.now() as number)).toBeGreaterThan(0.1)
+    await cutoff.focus()
+    await page.keyboard.press('End')
+    await expect.poll(() => page.evaluate(() => Math.floor((window as any).__weft.engine.now()) % 4)).toBe(2)
+    await page.keyboard.press('Home')
+    await page.getByRole('button', { name: 'Stop', exact: true }).click()
+    // Where it was turned up it is up, from where it was turned down it is down, to the end.
+    await expect.poll(() => code(page)).toMatch(/\.lpf\("<(1200 )?8000(!\d)? 100!2>"\)/)
+    await expect(lane(page, 'bass', 'lpf')).toBeVisible()
+    await expect(bar(page, 'bass Cutoff', 4)).toHaveAttribute('aria-valuenow', '100')
+})
+

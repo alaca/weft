@@ -1,11 +1,11 @@
 import { batch, createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { clearLoop, colorAt, drawControl, eventsOf, inStep, loopBetween, patternText, removeLoop, repeatLoop, select, setBars, setCurve, setMix, setMotion, songLengthNow, spaceLoop, startFrom, toggleBar, toggleMute, toggleSolo } from '../app/controller'
+import { clearLoop, colorAt, drawControl, eventsOf, inStep, loopBetween, patternText, removeLoop, repeatLoop, select, setBars, setCurve, setMix, setMotion, songLengthNow, spaceLoop, startFrom, takeKnobs, toggleBar, toggleMute, toggleSolo } from '../app/controller'
 import { fromUnit, toUnit } from '../controls/catalog'
 import { drawableIn, drawnIn, panOf, volumeOf, type ControlView } from '../controls/views'
 import { barsOf, clips, paint, type Clip } from '../song/arrange'
 import { MAX_BARS } from '../song/bars'
 import type { PatternEvent } from '../song/types'
-import { bpm, cycle, engineState, loopBars, playMode, position, revision, soloIds, song, stale, startBar } from '../stores/song'
+import { bpm, cycle, engineState, loopBars, playMode, position, revision, soloIds, song, stale, startBar, takingKnobs } from '../stores/song'
 import { Knob } from './Knob'
 
 // A clip shows what its pattern plays, bar by bar. The pattern is asked for no more bars than
@@ -562,6 +562,16 @@ export function SongPanel() {
                     )}
                 </Show>
                 <span class="grow" />
+                <button
+                    class="chip tgl rec"
+                    classList={{ on: takingKnobs() }}
+                    aria-pressed={takingKnobs()}
+                    title="While this is on, a knob you turn as the song plays is drawn over the song, bar by bar, when the song stops"
+                    onClick={() => takeKnobs(!takingKnobs())}
+                >
+                    <i />
+                    Record knobs
+                </button>
                 <span class="cap">Zoom</span>
                 <div class="seg s">
                     <button aria-label="Show more bars" disabled={narrower() === undefined} onClick={() => setZoom(narrower() ?? barWidth())}>

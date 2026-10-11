@@ -60,6 +60,8 @@ export const [patternKeys, setPatternKeys] = createSignal<Record<string, Key>>({
 export const [pianoFor, setPianoFor] = createSignal<string | null>(null)
 export const [pianoOctave, setPianoOctave] = createSignal(3)
 export const [pianoWrites, setPianoWrites] = createSignal(true)
+// Whether a knob that is turned while the song plays is taken down, to be drawn over the song.
+export const [takingKnobs, setTakingKnobs] = createSignal(false)
 // Bars that go round while the song plays: from `from` up to, not including, `to`.
 export const [loopBars, setLoopBars] = createSignal<{ from: number; to: number } | null>(null)
 export const [exporting, setExporting] = createSignal(false)

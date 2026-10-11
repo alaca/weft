@@ -82,6 +82,8 @@ import {
     cycle,
     deletedSong,
     engineState,
+    setTakingKnobs,
+    takingKnobs,
     exporting,
     gridNotes,
     openPanel,
@@ -295,6 +297,7 @@ export async function mount(root: HTMLElement): Promise<void> {
             frame = requestAnimationFrame(tick)
         }
         if (!next.playing && before.playing) cancelAnimationFrame(frame)
+        if (!next.playing && !next.paused && before.playing) queueMicrotask(drawTakenDown)
         // A paused song keeps showing where it is. A stopped one goes back to where it starts.
         if (!next.playing && !next.paused && (before.playing || before.paused)) {
             batch(() => {
@@ -505,9 +508,51 @@ export function setControl(id: string, fn: string, value: number) {
     const min = arg.kind === 'slider' ? arg.min : Math.min(def?.min ?? 0, value)
     const max = arg.kind === 'slider' ? arg.max : Math.max(def?.max ?? 1, value)
     const text = writeNumber(Math.min(max, Math.max(min, value)), min, max)
+    if (def && !def.wrap && arg === callFor(block, fn)?.args[0]) takeDown(id, fn, arg.value, Number(text))
     if (arg.kind === 'slider' && engine.moveSlider(arg.valueFrom, text)) return
     engine.applyEdit(setNumber(arg, text))
     scheduleEvaluate()
+}
+
+// A knob that is turned while the song plays, taken down bar by bar. When the song stops, each
+// knob that was turned is drawn over the song: where it stood before for the bars before the
+// first turn, then what it was turned to, held from one turn to the next and on to the end.
+const takenDown = new Map<string, { id: string; fn: string; before: number; bars: Map<number, number> }>()
+
+function takeDown(id: string, fn: string, before: number, value: number) {
+    if (!takingKnobs() || !engineState().playing) return
+    const key = `${id}/${fn}`
+    const taken = takenDown.get(key) ?? { id, fn, before, bars: new Map<number, number>() }
+    taken.bars.set(barNow(), value)
+    takenDown.set(key, taken)
+}
+
+function drawTakenDown() {
+    const all = [...takenDown.values()]
+    takenDown.clear()
+    if (!all.length || stale()) return
+    const length = songLengthNow()
+    const edits = all.flatMap(({ id, fn, before, bars }) => {
+        const block = find(id)
+        const def = findDef(fn)
+        const arg = block ? callFor(block, fn)?.args[0] : undefined
+        if (!block || !def || !arg || valueArg(callFor(block, fn)) !== arg) return []
+        let now = before
+        const values = Array.from({ length }, (_, bar) => {
+            now = bars.get(bar) ?? now
+            return writeNumber(Math.min(def.max, Math.max(def.min, now)), def.min, def.max)
+        })
+        return [{ from: arg.from, to: arg.to, insert: `"${curveText(values)}"` }]
+    })
+    if (!edits.length) return
+    engine.applyEdit(edits)
+    replay()
+}
+
+// Switched off, what was taken down so far is drawn at once.
+export function takeKnobs(on: boolean) {
+    setTakingKnobs(on)
+    if (!on) drawTakenDown()
 }
 
 export function addControl(id: string, fn: string, value?: number) {

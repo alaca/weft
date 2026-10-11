@@ -173,6 +173,10 @@ button.rn:hover { border-color: var(--linen-3); }
 
 .chip.tgl { cursor: pointer; }
 .chip.tgl.on { background: var(--linen); border-color: var(--linen); color: var(--vat); }
+.chip.rec { gap: 6px; }
+.chip.rec i { width: 7px; height: 7px; border-radius: 50%; background: var(--linen-3); }
+.chip.rec.on { background: var(--vat); border-color: var(--madder); color: var(--linen); }
+.chip.rec.on i { background: var(--madder); }
 .st-b.two { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; }
 .st-r { display: flex; align-items: flex-start; gap: 14px; }
 
