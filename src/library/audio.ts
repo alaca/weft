@@ -55,5 +55,6 @@ export function durationText(seconds: number): string {
 
 export function sizeText(bytes: number): string {
     const megabytes = bytes / 1_000_000
+    if (megabytes < 0.1) return `${Math.max(1, Math.round(bytes / 1000))} KB`
     return megabytes < 10 ? `${megabytes.toFixed(1)} MB` : `${Math.round(megabytes)} MB`
 }

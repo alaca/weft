@@ -1,5 +1,6 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
 import { deleteSong, duplicateSong, listSongs, newSong, openDemo, openExport, openSong, openSongFile, renameSong, restoreSong, revertSong, saveSong } from '../app/controller'
+import { openPublish } from '../app/publish'
 import { DEMOS } from '../library/demos'
 import { whenText } from '../library/shelf'
 import { jamming, jamPeer } from '../stores/jam'
@@ -115,6 +116,16 @@ export function SongMenu() {
                                 }}
                             >
                                 Export
+                            </button>
+                            <button
+                                class="addb"
+                                title="Put this song on the Weft site, for others to hear and download"
+                                onClick={() => {
+                                    openPublish()
+                                    setOpen(false)
+                                }}
+                            >
+                                Publish
                             </button>
                             <button class="addb" disabled={jamming()} onClick={() => picker?.click()}>
                                 Open a file

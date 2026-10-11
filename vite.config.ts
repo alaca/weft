@@ -2,13 +2,18 @@ import { defineConfig } from 'vitest/config'
 import type { Plugin } from 'vite'
 import solidPlugin from 'vite-plugin-solid'
 import { createRelay, type Relay } from './server/relay.ts'
+import { createSite, type Site } from './server/site.ts'
 
 const host = process.env.TAURI_DEV_HOST
 
 // While the app is being worked on, the relay of a jam runs beside it on this machine, so two
 // windows here can jam. It is kept across restarts of the dev server, which make a new one.
 const RELAY_PORT = 5190
-const held = globalThis as { __weftRelay?: Promise<Relay | null> }
+// So does the site that songs are published to, keeping what it is given in a folder of this
+// project that is not part of it. No mail is sent from here: a sign-in link is handed back.
+const SITE_PORT = 5191
+const SITE_DATA = new URL('./server/.data', import.meta.url).pathname
+const held = globalThis as { __weftRelay?: Promise<Relay | null>; __weftSite?: Promise<Site | null> }
 const devRelay = (): Plugin => ({
     name: 'weft-jam-relay',
     apply: 'serve',
@@ -20,6 +25,13 @@ const devRelay = (): Plugin => ({
             .then(
                 (relay) => (console.log(`  jam relay on ws://127.0.0.1:${relay.port}`), relay),
                 (err) => (console.log(`  jam relay not started: ${err?.code ?? err}`), null),
+            )
+        held.__weftSite = (held.__weftSite ?? Promise.resolve(null))
+            .then((before) => before?.close())
+            .then(() => createSite({ port: SITE_PORT, dataDir: process.env.WEFT_SITE_DATA ?? SITE_DATA }))
+            .then(
+                (site) => (console.log(`  song site on ${site.origin}`), site),
+                (err) => (console.log(`  song site not started: ${err?.code ?? err}`), null),
             )
     },
 })

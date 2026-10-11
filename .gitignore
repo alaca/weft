@@ -5,3 +5,6 @@ playwright-report
 .DS_Store
 src-tauri/target
 src-tauri/gen/schemas
+
+# What the song site keeps while it runs on this machine
+server/.data

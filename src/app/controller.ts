@@ -71,6 +71,7 @@ import { catalogue, type SoundItem } from '../sounds/catalog'
 import type { Bars } from '../jam/protocol'
 import { jamsOpen, jamStage, setJamsOpen, setJamUnread, setSoundsShare, soundsShare } from '../stores/jam'
 import { attachJam, leaveJam, tellJam } from './jam'
+import { attachPublish } from './publish'
 import {
     cycle,
     deletedSong,
@@ -320,6 +321,7 @@ export async function mount(root: HTMLElement): Promise<void> {
         },
         replay,
     })
+    attachPublish({ prepare: prepareToPublish, preview: previewToPublish, busiestBar })
     engine.onSoundDrop(dropSound)
     engine.onCursor((offset) => {
         if (stale()) return
@@ -1616,6 +1618,43 @@ async function prepareToPublish(): Promise<Prepared | null> {
         (bytes) => engine.decodeAudio(bytes.slice().buffer),
         (sound, kbps) => encodeMp3(sound.channels, sound.sampleRate, kbps),
     )
+}
+
+const PREVIEW_SECONDS = 30
+
+// Where the half minute people hear starts unless another bar is chosen: the first bar from
+// which the most of the song plays for the whole half minute.
+function busiestBar(): number {
+    const length = songLengthNow()
+    const filled = lanes().map((block) => readArrangement(block)?.bars ?? null)
+    const playing = Array.from({ length }, (_, bar) => filled.filter((bars) => bars?.[bar]).length)
+    const span = Math.min(length, Math.ceil(PREVIEW_SECONDS / (240 / (song().tempo?.bpm ?? engine.bpm()))))
+    let best = 0
+    let most = 0
+    for (let from = 0; from + span <= length; from++) {
+        const heard = playing.slice(from, from + span).reduce((sum, count) => sum + count, 0)
+        if (heard > most) [best, most] = [from, heard]
+    }
+    return best
+}
+
+const PREVIEW_KBPS = 128
+const PREVIEW_RATE = 44100
+
+// Half a minute of the song from a bar on, as an MP3, for the site to play. Null when nothing
+// sounds in it.
+async function previewToPublish(from: number, onProgress: (done: number) => void): Promise<Uint8Array | null> {
+    const perBar = 240 / engine.bpm()
+    const bars = Math.max(from + 1, Math.min(songLengthNow(), from + Math.ceil(PREVIEW_SECONDS / perBar)))
+    const made = await engine.render({ bars, ringSeconds: 0, sampleRate: PREVIEW_RATE }, onProgress)
+    const start = Math.min(made.channels[0].length, Math.round(from * made.secondsPerBar * made.sampleRate))
+    const length = Math.min(made.channels[0].length - start, PREVIEW_SECONDS * made.sampleRate)
+    const part = made.channels.map((channel) => channel.slice(start, start + length))
+    const peak = peakOf(part, length)
+    if (!peak || length <= 0) return null
+    const fade = Math.min(length, Math.round(made.sampleRate * 0.3))
+    for (const channel of part) for (let at = 0; at < fade; at++) channel[length - 1 - at] *= at / fade
+    return encodeMp3(part, made.sampleRate, PREVIEW_KBPS, { length, level: levelFor(peak) })
 }
 
 // A sound that was made into an MP3 for a small song file starts a little late, by the silence

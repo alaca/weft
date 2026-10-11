@@ -37,6 +37,9 @@ describe('sizeOf', () => {
         expect(durationText(192)).toBe('3 min 12 s')
         expect(sizeText(3_440_000)).toBe('3.4 MB')
         expect(sizeText(33_900_000)).toBe('34 MB')
+        expect(sizeText(13_400)).toBe('13 KB')
+        expect(sizeText(200)).toBe('1 KB')
+        expect(sizeText(100_000)).toBe('0.1 MB')
     })
 })
 
