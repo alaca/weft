@@ -373,16 +373,16 @@ test('the jam sits under the sounds, either is shown without the other, and the 
     const panel = ante.getByTestId('jams')
     const controls = ante.getByTestId('controls')
     const box = async (target: ReturnType<Page['getByTestId']>) => (await target.boundingBox())!
-    expect(Math.round((await box(panel)).width)).toBe(340)
+    expect(Math.round((await box(panel)).width)).toBe(300)
     expect(Math.round((await box(panel)).height)).toBe(Math.round((await box(controls)).height))
-    expect(Math.round((await box(controls)).x)).toBe(340)
+    expect(Math.round((await box(controls)).x)).toBe(300)
 
     await ante.getByRole('button', { name: 'Sounds', exact: true }).click()
     const above = await box(sounds(ante))
     const below = await box(panel)
     expect(Math.round(above.y + above.height)).toBe(Math.round(below.y))
     expect(Math.round(above.height / (above.height + below.height) * 100)).toBe(40)
-    expect(Math.round(above.width)).toBe(340)
+    expect(Math.round(above.width)).toBe(300)
 
     const line = ante.getByRole('separator', { name: 'Height of the sounds' })
     const at = await box(line as never)
