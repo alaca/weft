@@ -68,7 +68,7 @@ describe('the first page', () => {
         expect(html).toContain(`<path id="w-${made[4].id}" vector-effect="non-scaling-stroke" d="M2 17.8V22.2`)
         expect(html).toContain(`href="/songs/${made[4].id}.weft" aria-label="Download Five as a .weft file"`)
         expect(html).toContain('<span class="num">120 bpm</span>')
-        expect(html).toContain('<img src="/app.png" width="1440" height="900"')
+        expect(html.match(/<img src="\/app-[123]\.png" width="1440" height="900"/g)).toHaveLength(3)
         expect(html).not.toContain(made[3].id)
     })
 
@@ -444,7 +444,9 @@ describe('the files that are the same for everyone', () => {
         const files = [
             ['/site.css', 'text/css; charset=utf-8', 'public, max-age=3600'],
             ['/site.js', 'text/javascript; charset=utf-8', 'public, max-age=3600'],
-            ['/app.png', 'image/png', 'public, max-age=3600'],
+            ['/app-1.png', 'image/png', 'public, max-age=3600'],
+            ['/app-2.png', 'image/png', 'public, max-age=3600'],
+            ['/app-3.png', 'image/png', 'public, max-age=3600'],
             ['/fonts/archivo-latin-wdth-normal.woff2', 'font/woff2', 'public, max-age=2592000'],
             ['/fonts/martian-mono-latin-wdth-normal.woff2', 'font/woff2', 'public, max-age=2592000'],
             ['/fonts/piazzolla-latin-opsz-italic.woff2', 'font/woff2', 'public, max-age=2592000'],
@@ -455,7 +457,7 @@ describe('the files that are the same for everyone', () => {
             expect(answer.headers.get('x-content-type-options')).toBe('nosniff')
             expect((await answer.arrayBuffer()).byteLength).toBeGreaterThan(1000)
         }
-        expect(Buffer.from(await (await fetch(`${site.origin}/app.png`)).arrayBuffer()).subarray(1, 4).toString()).toBe('PNG')
+        expect(Buffer.from(await (await fetch(`${site.origin}/app-1.png`)).arrayBuffer()).subarray(1, 4).toString()).toBe('PNG')
     })
 
     it('ask for every font the style sheet names, and each of them is there', async () => {

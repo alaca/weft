@@ -64,3 +64,39 @@ document.addEventListener('DOMContentLoaded', () => {
         press(play, false)
     }
 })
+
+// The pictures of the app on the first page. Without this file they are three pictures side by
+// side that are swiped through, and the marks under them are plain links to each. With it a
+// mark moves to its picture without the page jumping, the mark of the picture in sight is lit,
+// and the pictures move on by themselves until someone takes them in hand.
+function pictures(box) {
+    const row = box.querySelector('.shots-row')
+    const marks = [...box.querySelectorAll('.shots-nav a')]
+    if (!row || !marks.length) return
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    let touched = false
+    const inSight = () => Math.min(marks.length - 1, Math.max(0, Math.round(row.scrollLeft / row.clientWidth)))
+    const light = () => marks.forEach((mark, at) => (at === inSight() ? mark.setAttribute('aria-current', 'true') : mark.removeAttribute('aria-current')))
+    const go = (at) => row.scrollTo({ left: at * row.clientWidth, behavior: calm ? 'auto' : 'smooth' })
+    row.addEventListener('scroll', light, { passive: true })
+    for (const taking of ['pointerdown', 'keydown', 'wheel', 'touchstart']) box.addEventListener(taking, () => (touched = true), { passive: true })
+    marks.forEach((mark, at) =>
+        mark.addEventListener('click', (event) => {
+            event.preventDefault()
+            go(at)
+        }),
+    )
+    row.addEventListener('keydown', (event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+        event.preventDefault()
+        go(inSight() + (event.key === 'ArrowRight' ? 1 : -1))
+    })
+    if (calm) return
+    setInterval(() => {
+        if (touched || document.hidden || box.matches(':hover')) return
+        go((inSight() + 1) % marks.length)
+    }, 6500)
+}
+
+document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('[data-shots]').forEach(pictures))
+

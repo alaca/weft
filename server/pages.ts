@@ -222,9 +222,27 @@ export function homePage(around: Around, songs: Listed[], builds: Build[]): stri
             <a class="btn" href="${get('linux')}">Linux</a>
         </div>
         <p class="mono">Free. No account needed to make music.</p>
-        <figure class="shot">
-            <img src="/app.png" width="1440" height="900" alt="The Weft window with the song Slow burn open: the bars of its seventeen patterns on the left and its code on the right.">
-        </figure>
+        <div class="shots" data-shots>
+            <div class="shots-row" tabindex="0" aria-label="Pictures of the app, three of them, side by side">
+                <figure id="shot-1">
+                    <img src="/app-1.png" width="1440" height="900" alt="The Weft window while a song plays: the mixer and the sounds on the left, drum grids in the middle, the song's code on the right.">
+                    <figcaption>Grids and knobs in the middle, the code on the right. They are the same song.</figcaption>
+                </figure>
+                <figure id="shot-2">
+                    <img src="/app-2.png" width="1440" height="900" loading="lazy" alt="A melody drawn as notes in a piano roll, with the controls of its sound open under it.">
+                    <figcaption>Draw a melody as notes, and shape its sound with a knob for every number.</figcaption>
+                </figure>
+                <figure id="shot-3">
+                    <img src="/app-3.png" width="1440" height="900" loading="lazy" alt="Two people in a jam on one song: who they are, what they wrote to each other, and which pattern the other one just changed.">
+                    <figcaption>Jam with someone on one song, with chat, voice and a camera.</figcaption>
+                </figure>
+            </div>
+            <nav class="shots-nav" aria-label="Which picture">
+                <a href="#shot-1" aria-current="true" aria-label="First picture: controls and code"></a>
+                <a href="#shot-2" aria-label="Second picture: notes and sound"></a>
+                <a href="#shot-3" aria-label="Third picture: a jam"></a>
+            </nav>
+        </div>
     </section>
 
     <section class="sec wrap" aria-labelledby="h-songs">

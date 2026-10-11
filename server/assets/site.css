@@ -167,6 +167,20 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
 .hero .mono { margin-top: 18px; color: var(--linen-3); }
 .shot { margin-top: 72px; padding: 8px; border-radius: 17px; background: var(--cloth); border: 1px solid var(--seam); box-shadow: inset 0 1px 0 rgba(236, 230, 214, 0.06), 0 60px 110px -30px rgba(0, 0, 0, 0.75), 0 20px 40px -20px rgba(0, 0, 0, 0.5); }
 .shot img { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--seam-soft); }
+/* Three pictures of the app in one frame, side by side. They are moved through by swiping, by
+   the three marks under them, or by the script, which also moves on by itself. */
+.shots { margin-top: 72px; padding: 8px 8px 0; border-radius: 17px; background: var(--cloth); border: 1px solid var(--seam); box-shadow: inset 0 1px 0 rgba(236, 230, 214, 0.06), 0 60px 110px -30px rgba(0, 0, 0, 0.75); }
+.shots-row { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; border-radius: 10px; }
+.shots-row::-webkit-scrollbar { display: none; }
+.shots-row:focus-visible { outline: 2px solid var(--linen); outline-offset: 3px; }
+.shots figure { flex: 0 0 100%; scroll-snap-align: center; margin: 0; }
+.shots img { display: block; width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--seam-soft); }
+.shots figcaption { padding: 14px 12px 4px; color: var(--linen-2); font-size: 14.5px; line-height: 1.45; }
+.shots-nav { display: flex; justify-content: center; gap: 8px; padding: 12px 0 16px; }
+.shots-nav a { width: 36px; height: 16px; display: grid; place-items: center; }
+.shots-nav a::before { content: ''; width: 100%; height: 4px; border-radius: 2px; background: var(--seam); }
+.shots-nav a:hover::before { background: var(--linen-3); }
+.shots-nav a[aria-current='true']::before { background: var(--linen); }
 
 .sec { margin-top: 128px; }
 .sec-h { display: flex; align-items: flex-end; gap: 20px; margin-bottom: 26px; }
@@ -203,6 +217,9 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
     .hero { padding-top: 60px; }
     .dl { flex-direction: column; align-items: stretch; }
     .shot { margin-top: 48px; padding: 5px; border-radius: 12px; }
+    .shots { margin-top: 48px; padding: 5px 5px 0; border-radius: 12px; }
+    .shots img { border-radius: 7px; }
+    .shots figcaption { font-size: 13px; }
     .shot img { border-radius: 7px; }
     .sec { margin-top: 84px; }
     .sec-h { flex-wrap: wrap; }

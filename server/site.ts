@@ -228,7 +228,7 @@ function fixedFiles(): Map<string, Kind> {
     const own = (path: string, type: string) => files.set(path, { bytes: readFileSync(join(HERE, 'assets', path.slice(1))), type, kept: KEPT_AN_HOUR })
     own('/site.css', 'text/css; charset=utf-8')
     own('/site.js', 'text/javascript; charset=utf-8')
-    own('/app.png', 'image/png')
+    for (const picture of ['/app-1.png', '/app-2.png', '/app-3.png']) own(picture, 'image/png')
     own('/icon.svg', 'image/svg+xml')
     for (const [family, names] of Object.entries(FONTS)) {
         const dir = packageDir(`@fontsource-variable/${family}`)
