@@ -1,6 +1,7 @@
 import { createMemo, createSignal, For, Index, onCleanup, onMount, Show } from 'solid-js'
 import { addVariantOf, colorAt, dropOnPattern, duplicatePattern, eventsOf, movePattern, openSounds, removePattern, removeVariantOf, renamePattern, restsNow, select, setControl, setMix, showVariant, songLengthNow, toggleMute, togglePanel, toggleSolo } from '../app/controller'
 import { MOST_VARIANTS, variantBars, variantName } from '../song/variants'
+import { writeNumber } from '../controls/catalog'
 import { favourites, panOf, volumeOf, type ControlView } from '../controls/views'
 import { isDrums, readKit } from '../song/kit'
 import { noteText } from '../song/notes'
@@ -69,14 +70,19 @@ export function Strip(props: { id: string }) {
     // Where the grid or the roll of this strip puts its length, steps and cycle.
     let head!: HTMLSpanElement
     const knobs = createMemo(() => (block() ? favourites(block()) : []))
+    // How loud the pattern is and where it sits come first in the row of knobs under what it
+    // plays. Neither has to be in the code to be turned: it stands where the sound engine puts
+    // it by itself, and the first turn writes its line.
+    const turnable = (view: ControlView): ControlView => (view.state === 'faint' ? { ...view, state: 'number', text: writeNumber(view.value, view.min, view.max) } : view)
     const mix = createMemo((): { fn: 'gain' | 'pan'; name: string; view: ControlView }[] =>
         block()
             ? [
-                  { fn: 'gain', name: `Volume of ${props.id}`, view: { ...volumeOf(block()), label: 'Vol' } },
-                  { fn: 'pan', name: `Pan of ${props.id}`, view: panOf(block()) },
+                  { fn: 'gain', name: `Volume of ${props.id}`, view: turnable(volumeOf(block())) },
+                  { fn: 'pan', name: `Pan of ${props.id}`, view: turnable(panOf(block())) },
               ]
             : [],
     )
+    // The other knobs of the pattern stand in the row until its panel, which has them all, is open.
     const showKnobs = () => !open() && knobs().length > 0
 
     // The name can be typed over, and a small menu duplicates the pattern or moves it up or down.
@@ -243,15 +249,6 @@ export function Strip(props: { id: string }) {
                                 S
                             </button>
                         </span>
-                        <span class="mix" onClick={(event) => event.stopPropagation()}>
-                            <For each={mix().map((knob) => knob.fn)}>
-                                {(fn) => (
-                                    <Show when={mix().find((knob) => knob.fn === fn)}>
-                                        {(knob) => <Knob small name={knob().name} view={knob().view} disabled={stale()} onChange={(value) => setMix(props.id, fn, value)} />}
-                                    </Show>
-                                )}
-                            </For>
-                        </span>
                         <span class="st-more" ref={more} onClick={(event) => event.stopPropagation()}>
                             <button class="st-x" aria-label={`More for ${props.id}`} aria-haspopup="menu" aria-expanded={menu()} title="Rename, duplicate, move" disabled={stale()} onClick={() => setMenu(!menu())}>
                                 <svg viewBox="0 0 12 12" class="dots">
@@ -347,7 +344,7 @@ export function Strip(props: { id: string }) {
                         </button>
                     </div>
                     <Show when={!folded()}>
-                        <div class="st-b" classList={{ two: showKnobs() }}>
+                        <div class="st-b two">
                             <div>
                                 <Show when={isRack()}>
                                     <Rack id={props.id} block={current()} head={head} played={steps()?.rows ?? []} playing={playing()} position={position()} cycle={cycle()} />
@@ -369,8 +366,11 @@ export function Strip(props: { id: string }) {
                                     <p class="st-empty">Nothing to draw. This pattern makes no sound in this cycle.</p>
                                 </Show>
                             </div>
-                            <Show when={showKnobs()}>
-                                <div class="st-r" onClick={(event) => event.stopPropagation()}>
+                            <div class="st-r" onClick={(event) => event.stopPropagation()}>
+                                <For each={mix().map((knob) => knob.fn)}>
+                                    {(fn) => <Show when={mix().find((knob) => knob.fn === fn)}>{(knob) => <Knob name={knob().name} view={knob().view} disabled={stale()} onChange={(value) => setMix(props.id, fn, value)} />}</Show>}
+                                </For>
+                                <Show when={showKnobs()}>
                                     <For each={knobs().map((knob) => knob.fn)}>
                                         {(fn) => (
                                             <Show when={knobs().find((knob) => knob.fn === fn)}>
@@ -378,8 +378,8 @@ export function Strip(props: { id: string }) {
                                             </Show>
                                         )}
                                     </For>
-                                </div>
-                            </Show>
+                                </Show>
+                            </div>
                         </div>
                         <Show when={open()}>
                             <SoundPanel id={props.id} block={current()} />
