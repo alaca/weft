@@ -18,6 +18,10 @@ export const [jamNote, setJamNote] = createSignal<string | null>(null)
 // The pattern the other person changed last, for a little while after they did.
 export const [jamHand, setJamHand] = createSignal<string | null>(null)
 
+// A line that dropped in the middle of a jam: yours, while it is being got back, or theirs,
+// while their place is kept for them.
+export const [jamAway, setJamAway] = createSignal<'me' | 'them' | null>(null)
+
 // What the other person said while the jam was not in sight.
 export const [jamUnread, setJamUnread] = createSignal(0)
 

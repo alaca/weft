@@ -47,10 +47,13 @@ async function pair() {
     const { code } = await host.next('invite')
     const guest = await person()
     guest.send({ t: 'join', code, name: 'Mara' })
-    await guest.next('in')
-    await host.next('joined')
-    return { host, guest, code: String(code) }
+    const guestKey = String((await guest.next('in')).back)
+    const hostKey = String((await host.next('joined')).back)
+    return { host, guest, code: String(code), hostKey, guestKey }
 }
+
+const KEY = expect.stringMatching(/^[0-9a-f]{32}$/)
+const change = (text: string) => ({ by: 'x', changes: [0, [0, text]] })
 
 const quiet = () => new Promise((resolve) => setTimeout(resolve, 60))
 
@@ -95,8 +98,12 @@ describe('the relay of a jam', () => {
         const guest = await person()
         const typed = `${String(code).slice(0, 3).toLowerCase()}-${String(code).slice(3).toLowerCase()} `
         guest.send({ t: 'join', code: typed, name: 'Mara' })
-        expect(await guest.next('in')).toEqual({ t: 'in', name: 'Ante' })
-        expect(await host.next('joined')).toEqual({ t: 'joined', name: 'Mara' })
+        const told = [await guest.next('in'), await host.next('joined')]
+        expect(told).toEqual([
+            { t: 'in', name: 'Ante', back: KEY },
+            { t: 'joined', name: 'Mara', back: KEY },
+        ])
+        expect(told[0].back).not.toBe(told[1].back)
     })
 
     it('takes no second person on the same invite', async () => {
@@ -162,10 +169,13 @@ describe('the relay of a jam', () => {
         expect(guest.heard).toEqual([])
     })
 
-    it('tells the one who stays when the line of the other is cut', async () => {
-        const { host, guest } = await pair()
+    it('ends a jam that was still waiting for its second person when its line is cut', async () => {
+        const host = await person()
+        host.send({ t: 'host', name: 'Ante' })
+        await host.next('invite')
+        expect(relay.rooms()).toBe(1)
         host.socket.terminate()
-        expect(await guest.next('over')).toEqual({ t: 'over', why: 'left' })
+        await quiet()
         expect(relay.rooms()).toBe(0)
     })
 
@@ -244,7 +254,146 @@ describe('the relay of a jam', () => {
         relay = await createRelay({ port: 0, beatMs: 30 })
         const { host, guest } = await pair()
         guest.socket.pause()
-        expect(await host.next('over')).toEqual({ t: 'over', why: 'left' })
+        expect(await host.next('away')).toEqual({ t: 'away' })
+    })
+})
+
+describe('a line that drops in the middle of a jam', () => {
+    it('does not end the jam: the other is told, and told again when they are back on a new line', async () => {
+        const { host, guest, guestKey } = await pair()
+        guest.socket.terminate()
+        expect(await host.next('away')).toEqual({ t: 'away' })
+        expect(relay.rooms()).toBe(1)
+        const again = await person()
+        again.send({ t: 'back', key: guestKey, v: 0 })
+        expect(await again.next('back')).toEqual({ t: 'back', there: true })
+        expect(await host.next('returned')).toEqual({ t: 'returned' })
+        again.send({ t: 'tell', d: { k: 'say', text: 'back' } })
+        expect(await host.next('told')).toEqual({ t: 'told', d: { k: 'say', text: 'back' } })
+        host.send({ t: 'tell', d: { k: 'say', text: 'good' } })
+        expect(await again.next('told')).toEqual({ t: 'told', d: { k: 'say', text: 'good' } })
+    })
+
+    it('sends whoever comes back the changes they missed, in their order, and goes on counting from there', async () => {
+        const { host, guest, guestKey } = await pair()
+        host.send({ t: 'push', v: 0, updates: [change('a')] })
+        await guest.next('updates')
+        await host.next('updates')
+        guest.socket.terminate()
+        await host.next('away')
+        host.send({ t: 'push', v: 1, updates: [change('b'), change('c')] })
+        await host.next('updates')
+        host.send({ t: 'push', v: 3, updates: [change('d')] })
+        await host.next('updates')
+        const again = await person()
+        again.send({ t: 'back', key: guestKey, v: 1 })
+        await again.next('back')
+        expect(await again.next('updates')).toEqual({ t: 'updates', updates: [change('b'), change('c')] })
+        expect(await again.next('updates')).toEqual({ t: 'updates', updates: [change('d')] })
+        again.send({ t: 'push', v: 4, updates: [change('e')] })
+        expect(await host.next('updates')).toEqual({ t: 'updates', updates: [change('e')] })
+    })
+
+    it('sends a change of their own back to someone who never heard that it was taken', async () => {
+        const { host, guest, guestKey } = await pair()
+        guest.socket.pause()
+        guest.send({ t: 'push', v: 0, updates: [change('mine')] })
+        await host.next('updates')
+        guest.socket.terminate()
+        await host.next('away')
+        const again = await person()
+        again.send({ t: 'back', key: guestKey, v: 0 })
+        await again.next('back')
+        expect(await again.next('updates')).toEqual({ t: 'updates', updates: [change('mine')] })
+    })
+
+    it('holds the place of each when both lines drop, and says to the first one back that the other is not there yet', async () => {
+        const { host, guest, hostKey, guestKey } = await pair()
+        host.socket.terminate()
+        await guest.next('away')
+        guest.socket.terminate()
+        await quiet()
+        expect(relay.rooms()).toBe(1)
+        const first = await person()
+        first.send({ t: 'back', key: hostKey, v: 0 })
+        expect(await first.next('back')).toEqual({ t: 'back', there: false })
+        first.send({ t: 'push', v: 0, updates: [change('alone')] })
+        await first.next('updates')
+        const second = await person()
+        second.send({ t: 'back', key: guestKey, v: 0 })
+        expect(await second.next('back')).toEqual({ t: 'back', there: true })
+        expect(await second.next('updates')).toEqual({ t: 'updates', updates: [change('alone')] })
+        expect(await first.next('returned')).toEqual({ t: 'returned' })
+    })
+
+    it('gives the place to the new line when the old one is still held, and the old one ends nothing', async () => {
+        const { host, guest, guestKey } = await pair()
+        const again = await person()
+        again.send({ t: 'back', key: guestKey, v: 0 })
+        expect(await again.next('back')).toEqual({ t: 'back', there: true })
+        await guest.closed
+        await quiet()
+        expect(relay.rooms()).toBe(1)
+        host.send({ t: 'tell', d: { k: 'say', text: 'still here' } })
+        expect(await again.next('told')).toEqual({ t: 'told', d: { k: 'say', text: 'still here' } })
+        expect(guest.heard).toEqual([])
+    })
+
+    it('is over for the one who stayed when nobody comes back in time', async () => {
+        await relay.close()
+        relay = await createRelay({ port: 0, backMs: 50 })
+        const { host, guest, guestKey } = await pair()
+        guest.socket.terminate()
+        await host.next('away')
+        expect(await host.next('over')).toEqual({ t: 'over', why: 'lost' })
+        expect(relay.rooms()).toBe(0)
+        const late = await person()
+        late.send({ t: 'back', key: guestKey, v: 0 })
+        expect(await late.next('no')).toEqual({ t: 'no', why: 'over' })
+    })
+
+    it('is over for the one who comes back when the other left meanwhile', async () => {
+        const { host, guest, guestKey } = await pair()
+        guest.socket.terminate()
+        await host.next('away')
+        host.send({ t: 'leave' })
+        await quiet()
+        expect(relay.rooms()).toBe(0)
+        const again = await person()
+        again.send({ t: 'back', key: guestKey, v: 0 })
+        expect(await again.next('no')).toEqual({ t: 'no', why: 'over' })
+    })
+
+    it('ends the jam when more was changed than is held for whoever comes back', async () => {
+        await relay.close()
+        relay = await createRelay({ port: 0, keptBytes: 120 })
+        const { host, guest, guestKey } = await pair()
+        guest.socket.terminate()
+        await host.next('away')
+        for (let v = 0; v < 4; v++) {
+            host.send({ t: 'push', v, updates: [change(`a change that takes some room ${v}`)] })
+            await host.next('updates')
+        }
+        const again = await person()
+        again.send({ t: 'back', key: guestKey, v: 0 })
+        expect(await again.next('no')).toEqual({ t: 'no', why: 'over' })
+        expect(await host.next('over')).toEqual({ t: 'over', why: 'lost' })
+    })
+
+    it('shows the door to someone who keeps trying keys, and gives no place for a key that was never handed out', async () => {
+        const { host } = await pair()
+        const stranger = await person()
+        for (let tries = 0; tries < 5; tries++) stranger.send({ t: 'back', key: 'f'.repeat(32), v: 0 })
+        expect(await stranger.closed).toBe(1008)
+        await quiet()
+        expect(host.heard).toEqual([])
+        expect(relay.rooms()).toBe(1)
+    })
+
+    it('answers a line that asks whether it still carries', async () => {
+        const { guest } = await pair()
+        guest.send({ t: 'beat' })
+        expect(await guest.next('beat')).toEqual({ t: 'beat' })
     })
 })
 
@@ -301,8 +450,8 @@ describe('jams that are open to anyone', () => {
         await quiet()
         expect(asker.heard).toEqual([])
         host.send({ t: 'let', ask: asked.ask })
-        expect(await asker.next('in')).toEqual({ t: 'in', name: 'Ante' })
-        expect(await host.next('joined')).toEqual({ t: 'joined', name: 'Tomo' })
+        expect(await asker.next('in')).toEqual({ t: 'in', name: 'Ante', back: KEY })
+        expect(await host.next('joined')).toEqual({ t: 'joined', name: 'Tomo', back: KEY })
         expect(await listed()).toEqual([])
         asker.send({ t: 'tell', d: { k: 'say', text: 'hello' } })
         expect(await host.next('told')).toEqual({ t: 'told', d: { k: 'say', text: 'hello' } })
@@ -430,7 +579,7 @@ describe('jams that are open to anyone', () => {
         const waiting = await asks(ante.id, 'Tomo')
         await ante.host.next('asked')
         mara.host.send({ t: 'let', ask: asked.ask })
-        expect(await ante.host.next('in')).toEqual({ t: 'in', name: 'Mara' })
+        expect(await ante.host.next('in')).toEqual({ t: 'in', name: 'Mara', back: KEY })
         expect(await waiting.next('no')).toEqual({ t: 'no', why: 'gone' })
         expect(await listed()).toEqual([])
         expect(relay.rooms()).toBe(1)

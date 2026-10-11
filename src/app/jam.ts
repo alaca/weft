@@ -34,6 +34,7 @@ import { soundNameFor, type OwnSound } from '../library/sounds'
 import {
     jamAsked,
     jamAsks,
+    jamAway,
     jamLines,
     jamListed,
     jamMic,
@@ -47,6 +48,7 @@ import {
     openJams,
     setJamAsked,
     setJamAsks,
+    setJamAway,
     setJamCall,
     setJamCam,
     setJamHand,
@@ -101,6 +103,14 @@ const MOST_LINES = 200
 const MOST_TAKEN = 24
 const MOST_TAKEN_BYTES = 96 * 1024 * 1024
 const UNREACHABLE = 'Jams could not be reached. Check that you are online, then try again.'
+// A line that drops in the middle of a jam is got back without anyone doing anything. The
+// relay is asked now and then whether the line still carries, and a line that has said nothing
+// for a while is taken for dead. A new one is tried for as long as the relay keeps the place.
+const BEAT_EVERY = 5000
+const DEAD_AFTER = 12000
+const TRY_EVERY = 2000
+const BACK_FOR = 2 * 60 * 1000
+const MOST_UNSAID = 50
 
 let deps: JamDeps
 let line: Line | null = null
@@ -112,7 +122,15 @@ let host = false
 // True while something the other person did is being done here, so that it is not sent back.
 let applying = false
 let pinging = 0
+let beating = 0
 let pingCount = 0
+// What gets this place in the jam back on a new line, when the line was last heard from, when
+// it was lost, and what was said meanwhile and is still to be sent.
+let backKey: string | null = null
+let heardAt = 0
+let lostAt = 0
+let returning = 0
+const unsaid: Told[] = []
 const pings = new Map<number, number>()
 let roundTrip = 0
 let placed = false
@@ -173,6 +191,13 @@ export function attachJam(given: JamDeps) {
     setJamName(cleanName(localStorage.getItem(NAME_KEY) ?? ''))
     deps.engine.onMoved(tellJam)
     deps.engine.onCodeChange(codeChanged)
+    // A window that is closed has left the jam, and says so. Without that the other person
+    // would be told that the line was lost, and wait for someone who is not coming back.
+    const gone = () => {
+        if (line && jamStage() === 'jamming') line.send({ t: 'leave' })
+    }
+    window.addEventListener('pagehide', gone)
+    window.addEventListener('beforeunload', gone)
 }
 
 export function nameYourself(text: string) {
@@ -331,7 +356,11 @@ export function leaveJam() {
 function finish(note: string | null) {
     const was = jamStage()
     window.clearInterval(pinging)
+    window.clearInterval(beating)
+    window.clearTimeout(returning)
     window.clearTimeout(handTimer)
+    backKey = null
+    unsaid.length = 0
     line?.close()
     line = null
     opening = null
@@ -352,6 +381,7 @@ function finish(note: string | null) {
     texts = new Map()
     batch(() => {
         setJamStage('idle')
+        setJamAway(null)
         setJamInvite(null)
         setJamOwn(null)
         setJamListed(false)
@@ -366,7 +396,73 @@ function finish(note: string | null) {
 }
 
 function lineLost() {
+    if (jamStage() === 'jamming' && backKey) return lost()
     finish(jamStage() === 'jamming' ? `The line to ${peer()} was lost, so the jam is over. ${deps.songName()} stays with your songs as it is now.` : UNREACHABLE)
+}
+
+// ---- a line that drops in the middle of a jam. The song goes on here, the relay keeps the
+// place, and a new line is tried until one holds or the place is gone.
+
+function lost() {
+    line = null
+    opening = null
+    if (jamAway() !== 'me') {
+        lostAt = performance.now()
+        setJamAway('me')
+        event('The line was lost.')
+    }
+    window.clearTimeout(returning)
+    returning = window.setTimeout(tryBack, performance.now() - lostAt < TRY_EVERY ? 300 : TRY_EVERY)
+}
+
+function tryBack() {
+    if (jamStage() !== 'jamming' || jamAway() !== 'me' || !backKey) return
+    if (performance.now() - lostAt > BACK_FOR) return finish(`The line to ${peer()} was lost and could not be got back, so the jam is over. ${deps.songName()} stays with your songs as it is now.`)
+    const mine = (opening = openLine(RELAY, { message: fromRelay, bytes: pieceArrived, closed: lineLost }))
+    mine.then(
+        (reached) => {
+            if (opening !== mine) return reached.close()
+            line = reached
+            heardAt = performance.now()
+            reached.send({ t: 'back', key: backKey, v: deps.engine.syncVersion() })
+        },
+        () => {
+            if (opening === mine) lost()
+        },
+    )
+}
+
+function beat() {
+    if (jamStage() !== 'jamming' || !line) return
+    if (performance.now() - heardAt < DEAD_AFTER) return line.send({ t: 'beat' })
+    const dead = line
+    line = null
+    dead.close()
+    lost()
+}
+
+// After a line came back, to this side or the other: a sound that was half way here is asked
+// for anew, and what was offered is offered again, which is only taken where it is missing.
+function again() {
+    for (const [name, waiting] of incoming) {
+        waiting.parts = []
+        waiting.got = 0
+        tellJam({ k: 'want', name })
+    }
+    for (const name of offered) void offer(name)
+    for (const told of unsaid.splice(0)) tellJam(told)
+    // Where the song is has to be asked again by the one who follows the other's time.
+    placed = false
+}
+
+function back(there: boolean) {
+    if (jamStage() !== 'jamming' || jamAway() !== 'me') return
+    setJamAway(there ? null : 'them')
+    event(there ? 'You are back in the jam.' : `You are back in the jam. ${peer()} is not there at the moment.`)
+    // What was changed here meanwhile is sent now. What was changed there comes next from the
+    // relay, and what was sent before it is then fitted to it and sent again.
+    deps.engine.receive([])
+    if (there) again()
 }
 
 function begin(who: string, joined: string) {
@@ -390,6 +486,9 @@ function begin(who: string, joined: string) {
     window.clearInterval(pinging)
     ping()
     pinging = window.setInterval(ping, PING_EVERY)
+    window.clearInterval(beating)
+    heardAt = performance.now()
+    beating = window.setInterval(beat, BEAT_EVERY)
 }
 
 // The call is made here when the person at this machine asks for it, and not before: making it
@@ -409,6 +508,20 @@ export function joinCall() {
 // ---- what the relay says
 
 function fromRelay(message: FromRelay) {
+    heardAt = performance.now()
+    if (message.t === 'beat') return
+    if (message.t === 'back') return back(message.there === true)
+    if (message.t === 'away') {
+        if (jamStage() !== 'jamming' || jamAway()) return
+        setJamAway('them')
+        return event(`${peer()} lost the line.`)
+    }
+    if (message.t === 'returned') {
+        if (jamStage() !== 'jamming' || jamAway() === 'me') return
+        setJamAway(null)
+        event(`${peer()} is back.`)
+        return again()
+    }
     if (message.t === 'invite') {
         if (jamStage() !== 'calling') return
         return batch(() => {
@@ -424,17 +537,20 @@ function fromRelay(message: FromRelay) {
     }
     if (message.t === 'unasked') return void setJamAsks(jamAsks().filter((one) => one.ask !== message.ask))
     if (message.t === 'no') {
+        if (message.why === 'over') return jamAway() === 'me' ? finish(`The jam with ${peer()} ended while the line was down. ${deps.songName()} stays with your songs as it is now.`) : undefined
         if (message.why !== 'code' && message.why !== 'full') return askAnswered(message.why)
         return finish(message.why === 'full' ? 'Jams are full at the moment. Try again in a little while.' : 'No jam is waiting under that invite. It may have been used already, or taken back. Ask for a new one.')
     }
     if (message.t === 'over') {
         if (message.why === 'expired') return finish('The invite ran out because nobody used it. Make a new one when you are ready.')
+        if (message.why === 'lost') return finish(jamStage() === 'jamming' ? `${peer()} lost the line and did not come back, so the jam is over. ${deps.songName()} stays with your songs as it is now.` : null)
         return finish(jamStage() === 'jamming' ? `${peer()} left the jam. ${deps.songName()} stays with your songs as it is now.` : null)
     }
     // Someone used the invite. From here on the code is shared, and the first thing they are
     // sent is the song as it is at this moment.
     if (message.t === 'joined') {
         if (jamStage() !== 'waiting') return
+        backKey = typeof message.back === 'string' ? message.back : null
         deps.guardSong()
         const code = deps.engine.getCode()
         deps.engine.startSync(0, 'host', push)
@@ -449,6 +565,7 @@ function fromRelay(message: FromRelay) {
     if (message.t === 'in') {
         if (jamStage() !== 'joining' && !jamAsked()) return
         host = false
+        backKey = typeof message.back === 'string' ? message.back : null
         return batch(() => {
             setJamPeer(message.name)
             setJamInvite(null)
@@ -510,6 +627,8 @@ export function sayInJam(words: string) {
     const text = cleanSay(words)
     if (!text || jamStage() !== 'jamming') return
     add({ kind: 'said', mine: true, who: jamName(), text })
+    // Said while a line is down, it is kept and sent when both are there again.
+    if (jamAway()) return void (unsaid.length < MOST_UNSAID && unsaid.push({ k: 'say', text }))
     tellJam({ k: 'say', text })
 }
 
@@ -645,6 +764,7 @@ function whereNow() {
     const state = engineState()
     if (state.playing) tellJam({ k: 'play', at: deps.engine.now() })
     else if (state.paused) tellJam({ k: 'pause', at: deps.engine.now() })
+    else tellJam({ k: 'stop' })
 }
 
 function ponged(n: number, at: number | null) {

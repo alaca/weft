@@ -5,14 +5,16 @@ import { senderOf } from './sender'
 
 // The meeting point of a jam. Two people who jam do not reach each other directly: each holds
 // one line to this relay, and it hands on what one sends to the other. It knows who is in which
-// jam and how many changes the song has had since the jam began, and nothing of what is in a
-// song: code, chat and sounds pass through and are not kept.
+// jam and how many changes the song has had since the jam began. Chat and sounds pass through
+// and are not kept. Of the changes to the code the last ones are held in memory while the jam
+// lasts, and only for this: a line can drop, and whoever comes back within two minutes is sent
+// what they missed and is in the jam as before.
 //
 // Someone waiting for a second person can say that their jam is open. Open jams are listed for
 // anyone to read, with the name the person gave, how fast the song is and how many patterns it
 // has. Nobody is listed who did not ask to be, and nobody needs an account. Someone who reads
 // the list can ask to join; the one who is asked lets them in or not.
-export type RelayOptions = { port: number; host?: string; maxRooms?: number; maxRoomsEach?: number; maxLinesEach?: number; waitMs?: number; beatMs?: number; askMs?: number; behindProxy?: boolean }
+export type RelayOptions = { port: number; host?: string; maxRooms?: number; maxRoomsEach?: number; maxLinesEach?: number; waitMs?: number; beatMs?: number; askMs?: number; backMs?: number; keptBytes?: number; behindProxy?: boolean }
 export type Relay = { port: number; rooms: () => number; close: () => Promise<void> }
 
 const LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
@@ -27,12 +29,17 @@ const MOST_LINES_EACH = 40
 const WAIT = 30 * 60 * 1000
 const BEAT = 30 * 1000
 const ASK_WAIT = 2 * 60 * 1000
+// How long a place in a jam is held for someone whose line dropped, and how much of the last
+// changes is held for them to catch up with.
+const BACK_WAIT = 2 * 60 * 1000
+const KEPT_BYTES = 256 * 1024
 const MOST_A_SECOND = 400
 const MOST_ASKING = 5
 const MOST_ASKS = 20
 const MOST_LISTED = 100
 
 type About = { bpm: number | null; patterns: number }
+type Role = 'host' | 'guest'
 type Room = {
     code: string
     id: string
@@ -40,6 +47,12 @@ type Room = {
     hostName: string
     guest: WebSocket | null
     version: number
+    // What each of the two shows to get their place back, the timer that runs while one of
+    // them is away, and the last changes: each as it was sent on, with the count it began at.
+    keys: Record<Role, string>
+    away: Partial<Record<Role, ReturnType<typeof setTimeout>>>
+    kept: { from: number; updates: unknown[]; bytes: number }[]
+    keptBytes: number
     expires: ReturnType<typeof setTimeout>
     open: boolean
     about: About
@@ -65,6 +78,7 @@ const codeOf = (value: unknown): string => textOf(value).toUpperCase().replace(/
 export function createRelay(options: RelayOptions): Promise<Relay> {
     const rooms = new Map<string, Room>()
     const seats = new Map<WebSocket, Seat>()
+    const places = new Map<string, { room: Room; role: Role }>()
     const most = options.maxRooms ?? MOST_ROOMS
     // The list of open jams is read as a plain page of data, by anyone, without a line.
     const web = createServer((request, response) => {
@@ -134,14 +148,18 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
         room.guest = socket
         seat.room = room
         turnAway(room, socket)
-        say(socket, { t: 'in', name: room.hostName })
-        say(room.host, { t: 'joined', name })
+        say(socket, { t: 'in', name: room.hostName, back: room.keys.guest })
+        say(room.host, { t: 'joined', name, back: room.keys.host })
     }
 
     // A jam is over for both as soon as it is over for one: the one who stays is told, and
     // neither is in it any longer.
-    const end = (room: Room, by: WebSocket | null, why: 'left' | 'expired') => {
+    const end = (room: Room, by: WebSocket | null, why: 'left' | 'expired' | 'lost') => {
         clearTimeout(room.expires)
+        clearTimeout(room.away.host)
+        clearTimeout(room.away.guest)
+        places.delete(room.keys.host)
+        places.delete(room.keys.guest)
         turnAway(room)
         rooms.delete(room.code)
         for (const socket of [room.host, room.guest]) {
@@ -150,6 +168,50 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
             if (seat) seat.room = null
             if (socket !== by) say(socket, { t: 'over', why })
         }
+    }
+
+    // A line that drops in the middle of a jam does not end it. The place is held for a while,
+    // the other is told, and the jam is only over when nobody comes back for it in time.
+    const roleOf = (room: Room, socket: WebSocket): Role | null => (room.host === socket ? 'host' : room.guest === socket ? 'guest' : null)
+    const wentAway = (room: Room, role: Role) => {
+        if (room.away[role]) return
+        room.away[role] = setTimeout(() => end(room, null, 'lost'), options.backMs ?? BACK_WAIT)
+        say(role === 'host' ? room.guest : room.host, { t: 'away' })
+    }
+
+    // Someone whose line dropped is back on a new one. They say how many changes they have,
+    // and are sent the ones made since. A line of theirs that is still held, because nobody
+    // noticed yet that it is dead, gives way to the new one.
+    const cameBack = (socket: WebSocket, seat: Seat, key: string, has: unknown) => {
+        const place = places.get(key)
+        if (!place) {
+            say(socket, { t: 'no', why: 'over' })
+            if (++seat.wrong >= WRONG_CODES) socket.close(1008)
+            return
+        }
+        const { room, role } = place
+        const missed = room.kept.filter((batch) => typeof has === 'number' && batch.from >= has)
+        if (has !== room.version && missed[0]?.from !== has) {
+            say(socket, { t: 'no', why: 'over' })
+            return end(room, null, 'lost')
+        }
+        const old = role === 'host' ? room.host : room.guest
+        if (old && old !== socket) {
+            const before = seats.get(old)
+            if (before) before.room = null
+            old.terminate()
+        }
+        clearTimeout(room.away[role])
+        delete room.away[role]
+        if (role === 'host') room.host = socket
+        else room.guest = socket
+        unask(seat)
+        if (seat.room && seat.room !== room) end(seat.room, socket, 'left')
+        seat.room = room
+        const partner: Role = role === 'host' ? 'guest' : 'host'
+        say(socket, { t: 'back', there: !room.away[partner] })
+        for (const batch of missed) say(socket, { t: 'updates', updates: batch.updates })
+        say(role === 'host' ? room.guest : room.host, { t: 'returned' })
     }
 
     const onText = (socket: WebSocket, seat: Seat, text: string) => {
@@ -179,8 +241,14 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
                 since: Date.now(),
                 asks: new Map(),
                 blocked: new Set(),
+                keys: { host: randomBytes(16).toString('hex'), guest: randomBytes(16).toString('hex') },
+                away: {},
+                kept: [],
+                keptBytes: 0,
             }
             rooms.set(made.code, made)
+            places.set(made.keys.host, { room: made, role: 'host' })
+            places.set(made.keys.guest, { room: made, role: 'guest' })
             seat.room = made
             return say(socket, { t: 'invite', code: made.code, id: made.id })
         }
@@ -221,6 +289,13 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
             return seatIn(wanted, socket, seat, nameOf(message.name))
         }
 
+        // Asked now and then by a jam that is on, to learn that its line still carries.
+        if (message.t === 'beat') return say(socket, { t: 'beat' })
+        if (message.t === 'back') {
+            if (room) return
+            return cameBack(socket, seat, textOf(message.key), message.v)
+        }
+
         if (!room) return
 
         // What the one who made a jam says about it while they wait: whether it is listed, what
@@ -254,8 +329,13 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
         if (message.t === 'push') {
             const updates = message.updates
             if (!room.guest || message.v !== room.version || !Array.isArray(updates) || !updates.length) return
-            room.version += updates.length
             const out = JSON.stringify({ t: 'updates', updates })
+            // The newest changes are held for whoever is away or goes away next, the oldest
+            // let go of once there is more than is held.
+            room.kept.push({ from: room.version, updates, bytes: out.length })
+            room.keptBytes += out.length
+            while (room.kept.length > 1 && room.keptBytes > (options.keptBytes ?? KEPT_BYTES)) room.keptBytes -= room.kept.shift()!.bytes
+            room.version += updates.length
             say(room.host, out)
             return say(room.guest, out)
         }
@@ -287,7 +367,12 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
         })
         socket.on('close', () => {
             unask(seat)
-            if (seat.room) end(seat.room, socket, 'left')
+            const room = seat.room
+            const role = room ? roleOf(room, socket) : null
+            // A jam that both are in is held for the one whose line this was. One that was
+            // still waiting for its second person ends with its line, as an invite does.
+            if (room && role && room.guest) wentAway(room, role)
+            else if (room) end(room, socket, 'left')
             seats.delete(socket)
         })
         socket.on('error', () => socket.terminate())
@@ -316,7 +401,11 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
                     new Promise<void>((done) => {
                         clearInterval(counting)
                         clearInterval(beating)
-                        rooms.forEach((room) => clearTimeout(room.expires))
+                        rooms.forEach((room) => {
+                            clearTimeout(room.expires)
+                            clearTimeout(room.away.host)
+                            clearTimeout(room.away.guest)
+                        })
                         seats.forEach((seat) => clearTimeout(seat.asking?.expires))
                         seats.forEach((_, socket) => socket.terminate())
                         server.close()

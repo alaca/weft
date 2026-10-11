@@ -8,6 +8,7 @@ const host = process.env.TAURI_DEV_HOST
 
 // While the app is being worked on, the relay of a jam runs beside it on this machine, so two
 // windows here can jam. It is kept across restarts of the dev server, which make a new one.
+// How long it keeps a place for a line that dropped can be set shorter, for trying that out.
 const RELAY_PORT = 5190
 // So does the site that songs are published to, keeping what it is given in a folder of this
 // project that is not part of it. No mail is sent from here: a sign-in link is handed back.
@@ -21,7 +22,7 @@ const devRelay = (): Plugin => ({
         if (process.env.VITEST) return
         held.__weftRelay = (held.__weftRelay ?? Promise.resolve(null))
             .then((before) => before?.close())
-            .then(() => createRelay({ port: RELAY_PORT }))
+            .then(() => createRelay({ port: RELAY_PORT, backMs: Number(process.env.WEFT_BACK_MS) || undefined }))
             .then(
                 (relay) => (console.log(`  jam relay on ws://127.0.0.1:${relay.port}`), relay),
                 (err) => (console.log(`  jam relay not started: ${err?.code ?? err}`), null),

@@ -4,6 +4,7 @@ import { askToJoin, cancelAsk, inviteToJam, joinCall, joinJam, leaveJam, nameYou
 import { aboutText, NAME_LIMIT, SAY_LIMIT, showInvite } from '../jam/protocol'
 import {
     jamAsked,
+    jamAway,
     jamCall,
     jamCam,
     jamInvite,
@@ -272,6 +273,11 @@ export function JamPanel() {
                     <Show when={jamVoiceNote()}>
                         <p class="jm-n in" role="status" data-testid="jam-voice-note">
                             {jamVoiceNote()}
+                        </p>
+                    </Show>
+                    <Show when={jamAway()}>
+                        <p class="jm-n in" role="status" data-testid="jam-line">
+                            {jamAway() === 'me' ? 'The line was lost. Getting back into the jam. The song stays as it is here, and what you change meanwhile is sent when the line is back.' : `${jamPeer()} lost the line. Their place is kept for two minutes, and what you change meanwhile reaches them when they are back.`}
                         </p>
                     </Show>
                     <div class="jm-chat" role="log" aria-label="What was said" ref={chat} data-testid="jam-chat">

@@ -36,14 +36,20 @@ export type Answer = 'let' | 'deny' | 'block'
 
 export type FromRelay =
     | { t: 'invite'; code: string; id: string }
-    | { t: 'joined'; name: string }
-    | { t: 'in'; name: string }
-    | { t: 'no'; why: 'code' | 'full' | 'gone' | 'declined' | 'busy' | 'quiet' }
+    | { t: 'joined'; name: string; back?: string }
+    | { t: 'in'; name: string; back?: string }
+    | { t: 'no'; why: 'code' | 'full' | 'gone' | 'declined' | 'busy' | 'quiet' | 'over' }
     | { t: 'asked'; ask: string; name: string }
     | { t: 'unasked'; ask: string }
     | { t: 'updates'; updates: SentUpdate[] }
     | { t: 'told'; d: Told }
-    | { t: 'over'; why: 'left' | 'expired' }
+    | { t: 'over'; why: 'left' | 'expired' | 'lost' }
+    // A line that dropped in the middle of a jam: the other's went (`away`) and came again
+    // (`returned`), or this one is on a new line and has its place again (`back`).
+    | { t: 'away' }
+    | { t: 'returned' }
+    | { t: 'back'; there: boolean }
+    | { t: 'beat' }
 
 export const NAME_LIMIT = 24
 export const SAY_LIMIT = 500

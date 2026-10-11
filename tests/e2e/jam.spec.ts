@@ -10,9 +10,10 @@ const chat = (page: Page) => page.getByTestId('jam-chat')
 const note = (page: Page) => page.getByTestId('jam-note')
 
 // Each person is a browser of their own: their own songs, their own sounds, their own name.
-async function person(browser: Browser, name: string, song: string): Promise<Page> {
+async function person(browser: Browser, name: string, song: string, first?: (page: Page) => Promise<unknown>): Promise<Page> {
     const context = await browser.newContext()
     const page = await context.newPage()
+    await first?.(page)
     await page.addInitScript((text) => {
         if (!sessionStorage.getItem('seeded')) {
             localStorage.setItem('weft.song', text)
@@ -207,6 +208,112 @@ test('an invite can be taken back, and a name is asked for first', async ({ brow
 })
 
 // Half a second of a plain tone as a 16 bit WAV file.
+// Someone whose line to the relay can be cut and kept down, the way a network does it: both
+// ends of it are closed, and no new one gets through until it is mended.
+async function fragile(browser: Browser, name: string, song: string) {
+    let down = false
+    const lines: { close(): Promise<void> }[] = []
+    const page = await person(browser, name, song, (made) =>
+        made.routeWebSocket(/:5190/, (line) => {
+            if (down) return void line.close()
+            lines.push(line, line.connectToServer())
+        }),
+    )
+    return {
+        page,
+        async cut() {
+            down = true
+            for (const line of lines.splice(0)) await line.close().catch(() => undefined)
+        },
+        mend: () => void (down = false),
+    }
+}
+
+const lineNote = (page: Page) => page.getByTestId('jam-line')
+
+test('a line that drops in the middle of a jam comes back by itself, and each gets what the other changed and said meanwhile', async ({ browser }) => {
+    const ante = await person(browser, 'Ante', SONG)
+    const line = await fragile(browser, 'Mara', OTHER)
+    const mara = line.page
+    await join(mara, await invite(ante))
+    await expect(mara.getByRole('heading', { name: 'Jam with Ante', exact: true })).toBeVisible()
+    const hat = (page: Page, step: number) => page.getByTestId('strip-perc').getByRole('button', { name: `hh step ${step}`, exact: true })
+    await hat(ante, 2).click()
+    await expect.poll(() => code(mara)).toContain('"x x x ~   x ~ x ~   x ~ x ~   x ~ x ~"')
+
+    await line.cut()
+    await expect(lineNote(mara)).toContainText('The line was lost. Getting back into the jam.')
+    await expect(lineNote(ante)).toContainText('Mara lost the line. Their place is kept for two minutes')
+    await expect(chat(ante)).toContainText('Mara lost the line.')
+    await expect(mara.getByRole('heading', { name: 'Jam with Ante', exact: true })).toBeVisible()
+
+    // Both go on working, and talking, while the line is down.
+    await hat(ante, 4).click()
+    await hat(mara, 16).click()
+    await mara.getByLabel('Message').fill('are you still there?')
+    await mara.getByLabel('Message').press('Enter')
+    await ante.getByLabel('Message').fill('waiting for you')
+    await ante.getByLabel('Message').press('Enter')
+    expect(await code(ante)).not.toBe(await code(mara))
+
+    line.mend()
+    await expect(lineNote(mara)).toHaveCount(0)
+    await expect(lineNote(ante)).toHaveCount(0)
+    await expect(chat(mara)).toContainText('You are back in the jam.')
+    await expect(chat(ante)).toContainText('Mara is back.')
+    await expect.poll(() => code(ante)).toContain('"x x x x   x ~ x ~   x ~ x ~   x ~ x x"')
+    await expect.poll(async () => (await code(ante)) === (await code(mara))).toBe(true)
+    await expect(chat(ante)).toContainText('are you still there?')
+    await expect(chat(mara)).toContainText('waiting for you')
+
+    // And the jam is whole again: what either does now reaches the other as before.
+    await hat(mara, 6).click()
+    await expect.poll(() => code(ante)).toContain('"x x x x   x x x ~   x ~ x ~   x ~ x x"')
+    await hat(ante, 8).click()
+    await expect.poll(() => code(mara)).toContain('"x x x x   x x x x   x ~ x ~   x ~ x x"')
+})
+
+test('a song that plays goes on for both while a line is down, and they are in time again when it is back', async ({ browser }) => {
+    const ante = await person(browser, 'Ante', SONG)
+    const line = await fragile(browser, 'Mara', OTHER)
+    const mara = line.page
+    await join(mara, await invite(ante))
+    await expect(mara.getByRole('heading', { name: 'Jam with Ante', exact: true })).toBeVisible()
+    await ante.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(mara.getByTestId('code-status')).toHaveText('Playing this code')
+    await line.cut()
+    await expect(lineNote(mara)).toBeVisible()
+    await expect(mara.getByTestId('code-status')).toHaveText('Playing this code')
+    // Stopped by the one whose song it is while the other could not hear of it.
+    await ante.getByRole('button', { name: 'Stop', exact: true }).click()
+    await expect(mara.getByTestId('code-status')).toHaveText('Playing this code')
+    line.mend()
+    await expect(lineNote(mara)).toHaveCount(0)
+    await expect(mara.getByTestId('code-status')).toHaveText('Stopped')
+})
+
+test('a jam is over for both when the one whose line dropped does not come back in time', async ({ browser }) => {
+    test.setTimeout(200_000)
+    const ante = await person(browser, 'Ante', SONG)
+    const line = await fragile(browser, 'Mara', OTHER)
+    const mara = line.page
+    await join(mara, await invite(ante))
+    await expect(mara.getByRole('heading', { name: 'Jam with Ante', exact: true })).toBeVisible()
+    await line.cut()
+    await expect(lineNote(ante)).toContainText('Mara lost the line.')
+    await expect(note(ante)).toHaveText('Mara lost the line and did not come back, so the jam is over. Untitled stays with your songs as it is now.', { timeout: 140_000 })
+    await expect(ante.getByRole('heading', { name: 'Jam with Mara', exact: true })).toHaveCount(0)
+    line.mend()
+    await expect(note(mara)).toHaveText(/^The jam with Ante ended while the line was down\. Untitled( 2)? stays with your songs as it is now\.$/)
+    expect(await code(mara)).toContain('perc: stack(')
+})
+
+test('closing the window leaves the jam at once, and the other is not kept waiting', async ({ browser }) => {
+    const { ante, mara } = await jam(browser)
+    await mara.close({ runBeforeUnload: true })
+    await expect(note(ante)).toHaveText('Mara left the jam. Untitled stays with your songs as it is now.')
+})
+
 function tone(hertz = 330, seconds = 0.5): Buffer {
     const rate = 22050
     const frames = Math.round(rate * seconds)

@@ -87,6 +87,8 @@ export interface Engine {
     startSync(version: number, by: string, send: (version: number, updates: SentUpdate[]) => void): void
     stopSync(): void
     receive(updates: SentUpdate[]): void
+    // How many of the jam's changes are in the code here, in the relay's count.
+    syncVersion(): number
     previewNote(midi: number, sound: string | null, seconds?: number): void
     sounds(): RawSound[]
     kitNames(): string[]
@@ -725,6 +727,7 @@ export function createEngine(): Engine {
             sync = null
             mirror.editor.dispatch({ effects: syncSlot.reconfigure([]) })
         },
+        syncVersion: () => (sync ? sync.version(mirror.editor) : 0),
         receive(updates) {
             if (!sync) return
             receiving = true

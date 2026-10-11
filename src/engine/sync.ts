@@ -12,7 +12,7 @@ import type { SentUpdate } from '../jam/protocol'
 export const heard = StateEffect.define<null>()
 export const syncSlot = new Compartment()
 
-export type Sync = { extension: Extension; receive(view: EditorView, updates: SentUpdate[]): void }
+export type Sync = { extension: Extension; receive(view: EditorView, updates: SentUpdate[]): void; version(view: EditorView): number }
 export type RemoteEvents = { changed(): void; heard(): void }
 
 const said = (tr: Transaction) => tr.effects.some((effect) => effect.is(heard))
@@ -66,6 +66,7 @@ export function createSync(start: Text, version: number, by: string, send: (vers
                 if (mine) push(update.view)
             }),
         ],
+        version: (view) => getSyncedVersion(view.state),
         receive(view, updates) {
             waiting = false
             const read = updates.map((update) => ({ clientID: update.by, changes: ChangeSet.fromJSON(update.changes), effects: update.heard ? [heard.of(null)] : [] }))

@@ -37,6 +37,9 @@ export default defineConfig({
     webServer: {
         command: 'npx vite --port 5180',
         url: 'http://localhost:5180',
+        // The relay keeps the place of a dropped line for two minutes. The tests that wait for
+        // it to give up would take that long each, so here it gives up sooner.
+        env: { WEFT_BACK_MS: '8000' },
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
     },
