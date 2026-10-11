@@ -23,7 +23,7 @@ import { encodeMp3 } from '../library/mp3'
 import { encodeWav, fileName, levelFor, peakOf, soundingLength } from '../library/wav'
 import { ZIP_LIMIT, zipWriter } from '../library/zip'
 import { analyze } from '../song/analyze'
-import { arrangeEdit, arrangeSong, barsOf, readArrangement, repeatEdits, songLength } from '../song/arrange'
+import { arrangeEdit, arrangeSong, barsOf, readArrangement, removeEdits, repeatEdits, songLength, spaceEdits } from '../song/arrange'
 import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
 import {
     gridFromEvents,
@@ -1488,6 +1488,35 @@ export function repeatLoop() {
     engine.setLoop(moved)
     if (!engineState().playing) setCycle(moved.from)
     tellJam({ k: 'loop', range: moved })
+    replay()
+}
+
+// The bars that go round taken out of the song, in every pattern. A song is not emptied this
+// way: its only bars stay.
+export function removeLoop() {
+    const range = loopBars()
+    const before = songLengthNow()
+    if (!range || stale() || range.to - range.from >= before) return
+    const { edits, length } = removeEdits(engine.getCode(), lanes(), range.from, range.to, before)
+    edits.push(...followSong(lanes(), before, (values) => [...values.slice(0, range.from), ...values.slice(range.to)]))
+    clearLoop()
+    setSongBars(length)
+    if (edits.length) engine.applyEdit(edits)
+    startFrom(Math.min(range.from, length - 1))
+    replay()
+}
+
+// As many empty bars put in before the ones that go round, in every pattern. The empty ones
+// are then the ones that go round: they are where the work goes on. A knob that is drawn
+// over the song stays through them at what it is where they begin.
+export function spaceLoop() {
+    const range = loopBars()
+    const before = songLengthNow()
+    if (!range || stale()) return
+    const { edits, length } = spaceEdits(engine.getCode(), lanes(), range.from, range.to, before)
+    edits.push(...followSong(lanes(), before, (values) => [...values.slice(0, range.from), ...Array.from({ length: range.to - range.from }, () => values[range.from]), ...values.slice(range.from)].slice(0, length)))
+    setSongBars(length)
+    if (edits.length) engine.applyEdit(edits)
     replay()
 }
 

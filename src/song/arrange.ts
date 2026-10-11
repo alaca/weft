@@ -71,6 +71,28 @@ export function repeatEdits(code: string, blocks: PatternBlock[], from: number, 
     return { edits, length: span }
 }
 
+// The bars from `from` up to, not including, `to` taken out of every lane. What came after them
+// moves up, and the song is that much shorter.
+export function removeEdits(code: string, blocks: PatternBlock[], from: number, to: number, length: number): { edits: TextEdit[]; length: number } {
+    const edits = blocks.flatMap((block) => {
+        const bars = barsOf(block, length)
+        const edit = arrangeEdit(code, block, [...bars.slice(0, from), ...bars.slice(to)])
+        return edit ? [edit] : []
+    })
+    return { edits, length: length - (to - from) }
+}
+
+// As many empty bars as there are from `from` to `to`, put in before them in every lane.
+export function spaceEdits(code: string, blocks: PatternBlock[], from: number, to: number, length: number): { edits: TextEdit[]; length: number } {
+    const span = Math.min(MAX_BARS, length + (to - from))
+    const edits = blocks.flatMap((block) => {
+        const bars = barsOf(block, length)
+        const edit = arrangeEdit(code, block, [...bars.slice(0, from), ...Array.from({ length: to - from }, () => false), ...bars.slice(from)].slice(0, span))
+        return edit ? [edit] : []
+    })
+    return { edits, length: span }
+}
+
 export type Clip = { from: number; length: number }
 
 export function clips(bars: boolean[]): Clip[] {

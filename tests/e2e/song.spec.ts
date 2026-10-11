@@ -159,7 +159,7 @@ test('dragging across bar numbers makes those bars go round', async ({ page }) =
     await expect(page.getByTestId('code-status')).toHaveText('Stopped', { timeout: 8000 })
 })
 
-test('the bars that go round can be put in once more, in every pattern', async ({ page }) => {
+test('the bars that go round can be put in once more, have empty bars put in before them, and be taken out, in every pattern', async ({ page }) => {
     await open(page, 'setcpm(120/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n  .mask("<1!2 0!2 1!4>")\n\nbass: note("c2 e2")\n  .s("sawtooth")\n  .mask("<0!3 1!5>")\n\nlead: note("c4")\n')
     await dragNumbers(page, 3, 4)
     await page.getByTestId('loop').getByRole('button', { name: 'Repeat them', exact: true }).click()
@@ -168,6 +168,20 @@ test('the bars that go round can be put in once more, in every pattern', async (
     expect(await code(page)).toContain('lead: note("c4")\n')
     await expect(page.getByTestId('song-length')).toContainText('10 bars')
     await expect(page.getByTestId('loop')).toContainText('Bars 5 to 6 go round')
+
+    // Empty bars are put in before them, and are then the ones that go round.
+    await page.getByTestId('loop').getByRole('button', { name: 'Empty bars before', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('.mask("<1!2 0!6 1!4>")')
+    expect(await code(page)).toContain('.mask("<0!3 1 0!3 1!5>")')
+    await expect(page.getByTestId('song-length')).toContainText('12 bars')
+    await expect(page.getByTestId('loop')).toContainText('Bars 5 to 6 go round')
+
+    // And taken out again, with which nothing goes round any more.
+    await page.getByTestId('loop').getByRole('button', { name: 'Take them out', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('.mask("<1!2 0!4 1!4>")')
+    expect(await code(page)).toContain('.mask("<0!3 1 0 1!5>")')
+    await expect(page.getByTestId('song-length')).toContainText('10 bars')
+    await expect(page.getByTestId('loop')).toHaveCount(0)
 })
 
 test('a pattern is muted, played alone, turned up and moved to a side from its row in the song', async ({ page }) => {

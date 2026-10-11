@@ -1,5 +1,5 @@
 import { batch, createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { clearLoop, colorAt, drawControl, eventsOf, inStep, loopBetween, patternText, repeatLoop, select, setBars, setCurve, setMix, setMotion, songLengthNow, startFrom, toggleBar, toggleMute, toggleSolo } from '../app/controller'
+import { clearLoop, colorAt, drawControl, eventsOf, inStep, loopBetween, patternText, removeLoop, repeatLoop, select, setBars, setCurve, setMix, setMotion, songLengthNow, spaceLoop, startFrom, toggleBar, toggleMute, toggleSolo } from '../app/controller'
 import { fromUnit, toUnit } from '../controls/catalog'
 import { drawableIn, drawnIn, panOf, volumeOf, type ControlView } from '../controls/views'
 import { barsOf, clips, paint, type Clip } from '../song/arrange'
@@ -546,6 +546,12 @@ export function SongPanel() {
                             <span>{round().to - round().from === 1 ? `Bar ${round().from + 1} goes round` : `Bars ${round().from + 1} to ${round().to} go round`}</span>
                             <button class="chip tgl" disabled={stale()} title="Puts these bars in once more, straight after themselves" onClick={repeatLoop}>
                                 Repeat them
+                            </button>
+                            <button class="chip tgl" disabled={stale()} title="Puts as many empty bars in before these, in every pattern" onClick={spaceLoop}>
+                                Empty bars before
+                            </button>
+                            <button class="chip tgl" disabled={stale() || round().to - round().from >= length()} title="Takes these bars out of the song, in every pattern" onClick={removeLoop}>
+                                Take them out
                             </button>
                             <button class="rx" aria-label="Stop going round" onClick={clearLoop}>
                                 <svg viewBox="0 0 8 8">
