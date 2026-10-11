@@ -352,3 +352,29 @@ test('an account is deleted from the app, with its songs', async ({ page }) => {
     await expect(account(page).getByLabel('Your email', { exact: true })).toBeVisible()
     expect((await page.request.get(address)).status()).toBe(404)
 })
+
+test('a link to a song asks before anything is opened, and the song that is open stays in front until then', async ({ page }) => {
+    const { address } = await withASong(page)
+    await page.getByTestId('account').getByRole('button', { name: 'Close your account', exact: true }).click()
+    const id = address.split('/').pop()!
+    const before = await page.getByTestId('song-name').textContent()
+    const ask = page.getByTestId('link-ask')
+    await page.evaluate((song) => (window as any).__weft.askFromLink(song), id)
+    await expect(ask).toContainText(/^Open .+ by .+\?/)
+    await expect(ask).toContainText('A link asked Weft to open this song from the site.')
+    await expect(page.getByTestId('song-name')).toHaveText(before!)
+    await ask.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(ask).toHaveCount(0)
+    await expect(page.getByTestId('song-name')).toHaveText(before!)
+
+    await page.evaluate((song) => (window as any).__weft.askFromLink(song), id)
+    await ask.getByRole('button', { name: 'Open it', exact: true }).click()
+    await expect(ask).toHaveCount(0)
+    await expect(page.getByTestId('song-name')).not.toHaveText(before!)
+    await expect(page.getByTestId('song-note')).toContainText('Opened ')
+
+    await page.evaluate(() => (window as any).__weft.askFromLink('nosuchsong0'))
+    await expect(page.getByTestId('song-note')).toHaveText('A link asked to open a song that is no longer on the site.')
+    await expect(ask).toHaveCount(0)
+})
+

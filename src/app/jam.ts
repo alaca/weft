@@ -46,6 +46,7 @@ import {
     openJams,
     setJamAsked,
     setJamAsks,
+    setJamCall,
     setJamCam,
     setJamHand,
     setJamInvite,
@@ -385,7 +386,20 @@ function begin(who: string, joined: string) {
     window.clearInterval(pinging)
     ping()
     pinging = window.setInterval(ping, PING_EVERY)
+}
+
+// The call is made here when the person at this machine asks for it, and not before: making it
+// tells the other machine where this one is on its network.
+function call(): Voice | null {
+    if (voice || jamStage() !== 'jamming') return voice
     voice = openVoice(host, { tell: tellJam, levels: heardLevels, picture: (theirs) => setJamPictures({ ...jamPictures(), theirs }), failed: () => setJamVoiceNote(`Your voices could not get through between your two networks. The jam itself goes on, and so does the chat.`) })
+    setJamCall(Boolean(voice))
+    return voice
+}
+
+// To hear and see the other person without switching anything of your own on.
+export function joinCall() {
+    if (!call()) setJamVoiceNote('This window has no way to make a call, so voices cannot be used in it. The jam itself works as before.')
 }
 
 // ---- what the relay says
@@ -483,7 +497,7 @@ function told(d: Told) {
     if (d.k === 'where') return whereNow()
     if (d.k === 'offer') return void offeredOne(d)
     if (d.k === 'want') return void sendSound(String(d.name))
-    if (d.k === 'rtc' || d.k === 'ice') return voice?.told(d)
+    if (d.k === 'rtc' || d.k === 'ice' || d.k === 'call') return voice?.told(d)
     if (d.k === 'mic') return void setJamTheirMic(Boolean(d.on))
     if (d.k === 'cam') return void setJamTheirCam(Boolean(d.on))
 }
@@ -522,7 +536,7 @@ function micOff() {
 
 export async function toggleMic() {
     if (jamStage() !== 'jamming' || reaching) return
-    if (!voice) return void setJamVoiceNote('This window has no way to make a call, so voices cannot be used in it. The jam itself works as before.')
+    if (!call() || !voice) return void setJamVoiceNote('This window has no way to make a call, so voices cannot be used in it. The jam itself works as before.')
     if (captured) {
         micOff()
         await voice.speak(null).catch(() => undefined)
@@ -571,7 +585,7 @@ function camOff() {
 
 export async function toggleCam() {
     if (jamStage() !== 'jamming' || reaching) return
-    if (!voice) return void setJamVoiceNote('This window has no way to make a call, so a camera cannot be used in it. The jam itself works as before.')
+    if (!call() || !voice) return void setJamVoiceNote('This window has no way to make a call, so a camera cannot be used in it. The jam itself works as before.')
     if (filmed) {
         camOff()
         await voice.show(null).catch(() => undefined)
@@ -605,6 +619,7 @@ function endVoice() {
     voice?.close()
     voice = null
     batch(() => {
+        setJamCall(false)
         setJamTheirMic(false)
         setJamTheirCam(false)
         setJamPictures({ mine: null, theirs: null })

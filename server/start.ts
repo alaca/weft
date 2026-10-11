@@ -1,16 +1,21 @@
 import { spawn } from 'node:child_process'
 import { createRelay } from './relay'
 import { createSite } from './site'
+import { createStun } from './stun'
 
 // The site and the relay of a jam as they run on a server, behind a web server that holds the
 // certificate and passes requests on. Both listen on this machine only. Everything that differs
 // from one place to another is read from the environment, so that nothing of a place is
 // written into the project:
 //
-//   WEFT_DATA        folder for accounts and published songs (must be there to start)
+//   WEFT_RUN         `site` or `relay` to run only that one; both when not said. They are run
+//                    apart on a server, so that the site can be renewed without ending a jam
+//   WEFT_DATA        folder for accounts and published songs (must be there to start the site)
 //   WEFT_ORIGIN      the address people reach the site at, like https://weftloom.dev
 //   WEFT_SITE_PORT   port of the site, 5191 unless said
 //   WEFT_RELAY_PORT  port of the relay, 5190 unless said
+//   WEFT_STUN_PORT   port on which machines are told their address from outside, for calls
+//                    between two networks; not run unless said. Open to the world, over UDP.
 //   WEFT_SOURCE      where the source code can be read, when there is such a place
 //   WEFT_RELEASES    folder that releases of the app are put into, when there is one
 //   WEFT_SENDMAIL    a program that sends a mail it is given, like /usr/bin/msmtp
@@ -52,6 +57,31 @@ function mailer(program: string, from: string) {
 }
 
 async function start() {
+    const run = env.WEFT_RUN ?? 'both'
+    if (!['site', 'relay', 'both'].includes(run)) throw new Error('WEFT_RUN is neither site nor relay.')
+    const closing: (() => Promise<void>)[] = []
+    let ending = false
+    const end = () => {
+        if (ending) return
+        ending = true
+        void Promise.allSettled(closing.map((close) => close())).then(() => process.exit(0))
+        setTimeout(() => process.exit(0), 5000).unref()
+    }
+    process.on('SIGTERM', end)
+    process.on('SIGINT', end)
+
+    if (run !== 'site') {
+        const relay = await createRelay({ port: port(env.WEFT_RELAY_PORT, 5190), host: '127.0.0.1', behindProxy: true })
+        closing.push(relay.close)
+        console.log(`weft: relay on 127.0.0.1:${relay.port}`)
+        if (env.WEFT_STUN_PORT) {
+            const stun = await createStun({ port: port(env.WEFT_STUN_PORT, 3478) })
+            closing.push(stun.close)
+            console.log(`weft: addresses told on UDP ${stun.port}`)
+        }
+    }
+    if (run === 'relay') return
+
     const dataDir = env.WEFT_DATA
     const origin = env.WEFT_ORIGIN
     if (!dataDir) throw new Error('WEFT_DATA is not set: the folder for accounts and published songs.')
@@ -71,18 +101,8 @@ async function start() {
         behindProxy: true,
         mail: from && program ? mailer(program, from) : undefined,
     })
-    const relay = await createRelay({ port: port(env.WEFT_RELAY_PORT, 5190), host: '127.0.0.1', behindProxy: true })
-    console.log(`weft: site on 127.0.0.1:${site.port} as ${origin}, relay on 127.0.0.1:${relay.port}, mail ${from ? 'on' : 'off'}`)
-
-    let ending = false
-    const end = () => {
-        if (ending) return
-        ending = true
-        void Promise.allSettled([site.close(), relay.close()]).then(() => process.exit(0))
-        setTimeout(() => process.exit(0), 5000).unref()
-    }
-    process.on('SIGTERM', end)
-    process.on('SIGINT', end)
+    closing.push(site.close)
+    console.log(`weft: site on 127.0.0.1:${site.port} as ${origin}, mail ${from ? 'on' : 'off'}`)
 }
 
 // The site and every jam run in this one program. Something that goes wrong for one request or

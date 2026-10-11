@@ -1,6 +1,6 @@
 [package]
 name = "weft"
-version = "0.1.1"
+version = "0.1.2"
 description = "Controls and code for making music with Strudel"
 authors = ["Weft contributors"]
 license = "AGPL-3.0-or-later"

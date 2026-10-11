@@ -1,9 +1,11 @@
 import type { Told } from './protocol'
 
 // The call between the two people in a jam. Their voices and pictures go straight from one
-// machine to the other; only the few messages that set the call up pass through the relay. The
-// call is there from the start of a jam with nothing in it, and a microphone or a camera is put
-// into it and taken out again without the call being made anew.
+// machine to the other; only the few messages that set the call up pass through the relay.
+// Setting a call up tells the other machine where this one is on its network, so a machine
+// takes part only once its person has asked for it, by switching something on or by choosing
+// to hear the other. From then on a microphone or a camera is put into the call and taken out
+// again without the call being made anew.
 export type VoiceEvents = { tell(told: Told): void; levels(mine: number, theirs: number): void; picture(theirs: MediaStream): void; failed(): void }
 export type Voice = { told(told: Told): void; speak(stream: MediaStream | null): Promise<void>; show(stream: MediaStream | null): Promise<void>; close(): void }
 
@@ -50,6 +52,10 @@ export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
     let theirs: AnalyserNode | null = null
     let sender: RTCRtpSender | null = null
     let eye: RTCRtpSender | null = null
+    // What this person has switched on. The one who joined has nowhere to put it until the
+    // offer of the call has arrived, so it is kept and put in then.
+    let voiced: MediaStreamTrack | null = null
+    let filmed: MediaStreamTrack | null = null
     let closed = false
     let described = false
     const early: RTCIceCandidateInit[] = []
@@ -104,14 +110,21 @@ export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
         for (const candidate of early.splice(0)) await peer.addIceCandidate(candidate).catch(() => undefined)
     }
 
+    // The one who made the jam is the one who offers the call. The offer is made when their
+    // side is ready, and made again when the other side says that it now is: an offer that
+    // arrived there earlier was not taken up.
+    const offer = (again: boolean) =>
+        void peer
+            .createOffer(again ? { iceRestart: true } : undefined)
+            .then((made) => peer.setLocalDescription(made))
+            .then(() => peer.localDescription && on.tell({ k: 'rtc', sdp: peer.localDescription.toJSON() }))
+            .catch(() => on.failed())
     if (host) {
         sender = peer.addTransceiver('audio', { direction: 'sendrecv' }).sender
         eye = peer.addTransceiver('video', { direction: 'sendrecv' }).sender
-        void peer
-            .createOffer()
-            .then((offer) => peer.setLocalDescription(offer))
-            .then(() => peer.localDescription && on.tell({ k: 'rtc', sdp: peer.localDescription.toJSON() }))
-            .catch(() => on.failed())
+        offer(false)
+    } else {
+        on.tell({ k: 'call' })
     }
 
     const answer = async (sdp: RTCSessionDescriptionInit) => {
@@ -122,6 +135,8 @@ export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
                 if (line.receiver.track.kind === 'video') eye = line.sender
                 else sender = line.sender
             }
+            await sender?.replaceTrack(voiced)
+            await eye?.replaceTrack(filmed)
             await peer.setLocalDescription(await peer.createAnswer())
             if (peer.localDescription) on.tell({ k: 'rtc', sdp: peer.localDescription.toJSON() })
         }
@@ -131,6 +146,7 @@ export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
     return {
         told(told) {
             if (closed) return
+            if (told.k === 'call' && host) return offer(true)
             if (told.k === 'rtc' && told.sdp && (told.sdp.type === 'offer') !== host) void answer(told.sdp).catch(() => on.failed())
             if (told.k === 'ice' && told.candidate) {
                 if (described) void peer.addIceCandidate(told.candidate).catch(() => undefined)
@@ -138,13 +154,16 @@ export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
             }
         },
         async speak(stream) {
-            if (closed || !sender) return
-            await sender.replaceTrack(stream?.getAudioTracks()[0] ?? null)
+            if (closed) return
+            voiced = stream?.getAudioTracks()[0] ?? null
             mine = stream ? listen(stream, false) : null
+            await sender?.replaceTrack(voiced)
         },
         async show(stream) {
-            if (closed || !eye) return
-            await eye.replaceTrack(stream?.getVideoTracks()[0] ?? null)
+            if (closed) return
+            filmed = stream?.getVideoTracks()[0] ?? null
+            if (!eye) return
+            await eye.replaceTrack(filmed)
             if (!stream) return
             try {
                 const sending = eye.getParameters()

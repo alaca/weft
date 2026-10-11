@@ -68,6 +68,13 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
     const most = options.maxRooms ?? MOST_ROOMS
     // The list of open jams is read as a plain page of data, by anyone, without a line.
     const web = createServer((request, response) => {
+        // How busy the relay is, for whoever looks after it on the machine it runs on: asked
+        // before it is restarted, because a restart ends every jam. A request that came through
+        // the web server in front carries that server's note, and is not answered.
+        if (request.method === 'GET' && request.url === '/rooms' && request.headers['x-real-ip'] === undefined && /^(::1|::ffff:127\.|127\.)/.test(request.socket.remoteAddress ?? '')) {
+            response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+            return response.end(JSON.stringify({ rooms: rooms.size, lines: seats.size }))
+        }
         if (request.method !== 'GET' || request.url !== '/jams') {
             response.writeHead(404, { 'Content-Type': 'application/json' })
             return response.end('{}')

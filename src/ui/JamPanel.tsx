@@ -1,9 +1,10 @@
 import { createEffect, createSignal, For, Match, on, onCleanup, Show, Switch } from 'solid-js'
 import { toggleJams } from '../app/controller'
-import { askToJoin, cancelAsk, inviteToJam, joinJam, leaveJam, nameYourself, openToJam, refreshOpenJams, sayInJam, toggleCam, toggleMic } from '../app/jam'
+import { askToJoin, cancelAsk, inviteToJam, joinCall, joinJam, leaveJam, nameYourself, openToJam, refreshOpenJams, sayInJam, toggleCam, toggleMic } from '../app/jam'
 import { aboutText, NAME_LIMIT, SAY_LIMIT, showInvite } from '../jam/protocol'
 import {
     jamAsked,
+    jamCall,
     jamCam,
     jamInvite,
     jamLevels,
@@ -258,6 +259,16 @@ export function JamPanel() {
                         <span class="grow" />
                         <span class="jm-note">Use headphones</span>
                     </div>
+                    <Show when={!jamCall() && (jamTheirMic() || jamTheirCam())}>
+                        <p class="jm-n in jm-call" role="status" data-testid="jam-call">
+                            <span>
+                                {jamPeer()} switched their {jamTheirMic() && jamTheirCam() ? 'microphone and camera' : jamTheirCam() ? 'camera' : 'microphone'} on.
+                            </span>
+                            <button class="btn" onClick={joinCall}>
+                                {jamTheirCam() ? 'See and hear them' : 'Hear them'}
+                            </button>
+                        </p>
+                    </Show>
                     <Show when={jamVoiceNote()}>
                         <p class="jm-n in" role="status" data-testid="jam-voice-note">
                             {jamVoiceNote()}

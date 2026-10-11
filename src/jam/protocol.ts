@@ -26,6 +26,7 @@ export type Told =
     | { k: 'ice'; candidate: RTCIceCandidateInit | null }
     | { k: 'mic'; on: boolean }
     | { k: 'cam'; on: boolean }
+    | { k: 'call' }
 
 // A jam whose maker said that anyone may ask to join it, as the list of them tells it: a name,
 // and how big the song is. Nothing of the song itself.

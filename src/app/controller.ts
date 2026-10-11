@@ -10,7 +10,7 @@ import { saveFile, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, LEFT_PANELS, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type LeftPanel, type ViewMode } from '../library/layout'
-import { fitSoundName, readSongFile, renameSound, SONG_FILE, SOUND_NAME, soundsUsed, writeSongFile, type PackedSound } from '../library/songfile'
+import { fitSoundName, readSongFile, readSource, renameSound, SONG_FILE, SOUND_NAME, soundsUsed, writeSongFile, type PackedSound } from '../library/songfile'
 import { DEFAULT_MIX, fitMix, readMix, type Mix } from '../library/mix'
 import { prepareForPublishing, type Prepared } from '../library/publish'
 import { withoutLead } from '../library/shrink'
@@ -134,6 +134,8 @@ import {
     setMixNow,
     folded,
     setFolded,
+    linkAsk,
+    setLinkAsk,
     type PlayMode,
     setTakeSince,
     takeSince,
@@ -384,8 +386,8 @@ export async function mount(root: HTMLElement): Promise<void> {
             )
         })
     })
-    void onSongLink((id) => void openFromSite(id))
-    if (import.meta.env.DEV) (window as any).__weft = { engine, prepareToPublish, openFromSite, lookWith, lookForNewVersion }
+    void onSongLink((id) => void askFromLink(id))
+    if (import.meta.env.DEV) (window as any).__weft = { engine, prepareToPublish, openFromSite, askFromLink, lookWith, lookForNewVersion }
 }
 
 export const play = () => void engine.evaluate()
@@ -1796,6 +1798,32 @@ async function restored(packed: PackedSound): Promise<Pick<PackedSound, 'file' |
 }
 
 export const dismissSongNote = () => setSongNote(null)
+
+// A link can be pressed anywhere, on any page, and the system hands it to the app. So a link
+// does not open a song: it brings the song from the site and asks. Nothing is opened, and the
+// song that is open stays in front, until the person at the app says so.
+export async function askFromLink(id: string) {
+    if (!/^[a-z0-9]{1,16}$/.test(id)) return
+    if (jamStage() === 'jamming') return void setSongNote('A link asked to open a song from the site. That cannot be done in the middle of a jam. Press Leave in the Jams panel first, then press the link again.')
+    try {
+        const answer = await fetch(`${SITE}/songs/${id}.weft`)
+        if (!answer.ok) return void setSongNote('A link asked to open a song that is no longer on the site.')
+        const text = await answer.text()
+        const file = JSON.parse(text) as { name?: unknown; source?: unknown }
+        setLinkAsk({ id, name: (typeof file.name === 'string' && cleanName(file.name)) || 'Song', by: readSource(file.source)?.by ?? '', text })
+    } catch {
+        setSongNote('A link asked to open a song, and it could not be fetched from the site. Check that you are online, then press the link again.')
+    }
+}
+
+export async function openAsked() {
+    const asked = linkAsk()
+    if (!asked) return
+    setLinkAsk(null)
+    await openSongFile(new File([asked.text], `${asked.name}.${SONG_FILE}`, { type: 'application/json' }))
+}
+
+export const dropAsked = () => setLinkAsk(null)
 
 // The kinds of file a song is opened from.
 export const SONG_KINDS = [SONG_FILE, 'js', 'strudel', 'txt']

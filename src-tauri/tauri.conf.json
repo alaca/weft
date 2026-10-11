@@ -1,7 +1,7 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
     "productName": "Weft",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "identifier": "app.weft.desktop",
     "build": {
         "frontendDist": "../dist",
@@ -22,7 +22,37 @@
             }
         ],
         "security": {
-            "csp": null
+            "csp": {
+                "default-src": "'self'",
+                "script-src": "'self' 'unsafe-eval' blob: data:",
+                "worker-src": "'self' blob: data:",
+                "style-src": "'self' 'unsafe-inline'",
+                "img-src": "'self' data: blob:",
+                "font-src": "'self' data:",
+                "media-src": "'self' blob: data: mediastream: https://weftloom.dev",
+                "connect-src": "'self' ipc: http://ipc.localhost blob: data: https://weftloom.dev https://jam.weftloom.dev wss://jam.weftloom.dev https://raw.githubusercontent.com https://felixroos.github.io",
+                "object-src": "'none'",
+                "frame-src": "'none'",
+                "base-uri": "'none'",
+                "form-action": "'none'"
+            },
+            "devCsp": {
+                "default-src": "'self'",
+                "script-src": "'self' 'unsafe-eval' 'unsafe-inline' blob: data:",
+                "worker-src": "'self' blob: data:",
+                "style-src": "'self' 'unsafe-inline'",
+                "img-src": "'self' data: blob:",
+                "font-src": "'self' data:",
+                "media-src": "'self' blob: data: mediastream: https://weftloom.dev http://127.0.0.1:5191",
+                "connect-src": "'self' ipc: http://ipc.localhost blob: data: https://weftloom.dev https://jam.weftloom.dev wss://jam.weftloom.dev https://raw.githubusercontent.com https://felixroos.github.io http://localhost:5180 ws://localhost:5180 http://127.0.0.1:5191 ws://127.0.0.1:5190 http://127.0.0.1:5190",
+                "object-src": "'none'",
+                "frame-src": "'none'",
+                "base-uri": "'none'",
+                "form-action": "'none'"
+            },
+            "dangerousDisableAssetCspModification": [
+                "style-src"
+            ]
         }
     },
     "bundle": {

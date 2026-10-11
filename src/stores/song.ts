@@ -66,3 +66,5 @@ export const [takeSince, setTakeSince] = createSignal<number | null>(null)
 export const [draggedSound, setDraggedSound] = createSignal<SoundItem | null>(null)
 export const [exportNote, setExportNote] = createSignal<string | null>(null)
 export const [songNote, setSongNote] = createSignal<string | null>(null)
+// A song that a link asked the app to open, held until its owner says whether to.
+export const [linkAsk, setLinkAsk] = createSignal<{ id: string; name: string; by: string; text: string } | null>(null)

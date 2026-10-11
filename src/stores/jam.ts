@@ -27,6 +27,9 @@ export const [jamMic, setJamMic] = createSignal(false)
 export const [jamTheirMic, setJamTheirMic] = createSignal(false)
 export const [jamLevels, setJamLevels] = createSignal<{ mine: number; theirs: number }>({ mine: 0, theirs: 0 })
 export const [jamVoiceNote, setJamVoiceNote] = createSignal<string | null>(null)
+// Whether this machine takes part in the call. It does once its person switched something on
+// or chose to hear and see the other.
+export const [jamCall, setJamCall] = createSignal(false)
 // The pictures of the call: whose camera is on, and what each camera shows.
 export const [jamCam, setJamCam] = createSignal(false)
 export const [jamTheirCam, setJamTheirCam] = createSignal(false)

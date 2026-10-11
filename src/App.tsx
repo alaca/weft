@@ -6,6 +6,7 @@ import { codeWidth, mixerOpen, soundsOpen, soundsWidth, startOpen, viewMode } fr
 import { CodePane } from './ui/CodePane'
 import { ExportDialog } from './ui/ExportDialog'
 import { LeftColumn } from './ui/LeftColumn'
+import { LinkDialog } from './ui/LinkDialog'
 import { AccountDialog } from './ui/AccountDialog'
 import { CloseDialog } from './ui/CloseDialog'
 import { JamAsk } from './ui/JamAsk'
@@ -66,6 +67,7 @@ export function App() {
             <StatusBar />
             <StartScreen />
             <CloseDialog />
+            <LinkDialog />
             <JamAsk />
             <UpdateCard />
             <ExportDialog />

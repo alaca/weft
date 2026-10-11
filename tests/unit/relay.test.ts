@@ -260,6 +260,15 @@ describe('jams that are open to anyone', () => {
         expect(JSON.stringify(jams)).not.toContain(code)
     })
 
+    it('says how busy it is to the machine it runs on, and not to anyone who comes through the web server in front', async () => {
+        await pair()
+        const waiting = await person()
+        waiting.send({ t: 'host', name: 'Ante' })
+        await waiting.next('invite')
+        expect(await (await fetch(`http://127.0.0.1:${relay.port}/rooms`)).json()).toEqual({ rooms: 2, lines: 3 })
+        expect((await fetch(`http://127.0.0.1:${relay.port}/rooms`, { headers: { 'X-Real-IP': '203.0.113.7' } })).status).toBe(404)
+    })
+
     it('answers nothing else over the web, and the list to anyone', async () => {
         const list = await fetch(`http://127.0.0.1:${relay.port}/jams`)
         expect(list.headers.get('access-control-allow-origin')).toBe('*')

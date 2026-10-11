@@ -600,6 +600,9 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .jm-lvl u { width: 3px; border-radius: 1px; background: var(--lichen); }
 .jm-ctl { display: flex; align-items: center; gap: 6px; padding: 10px 12px 2px; }
 .jm-n.in { margin: 8px 12px 0; }
+.jm-call { display: flex; align-items: center; gap: 10px; }
+.jm-call span { flex: 1; min-width: 0; }
+.jm-call .btn { flex: none; height: 26px; padding: 0 10px; font-size: 11.5px; }
 .jm-chat { flex: 1; min-height: 0; overflow-y: auto; border-top: 1px solid var(--seam-soft); margin-top: 8px; padding: 10px 14px 4px; display: flex; flex-direction: column; gap: 9px; }
 .jm-chat > :first-child { margin-top: auto; }
 .jm-m { align-self: flex-start; max-width: 86%; padding: 7px 10px; border-radius: 10px; background: var(--cloth-2); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
