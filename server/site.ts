@@ -650,7 +650,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
     const noSong = () => note(404, 'No such song', ['It may have been hidden or deleted by whoever made it.'], { href: '/songs', label: 'See all songs' })
 
     // Anyone may say that something is wrong with a song. What they say is kept with the song
-    // and the time; nothing shows it yet.
+    // and the time, and handed on to whoever runs the site where the site was told how.
     function reported(song: Song, body: any, from: string): Answer {
         const back = { href: `/songs/${song.id}`, label: 'Back to the song' }
         const reason = clean(body?.reason, REASON_LIMIT)

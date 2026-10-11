@@ -389,7 +389,7 @@ export function privacyPage(around: Around): string {
         <h2>Jams</h2>
         <p>What two people do in a jam, the song, the chat and the sounds, passes through the relay to the other person and is not kept. If you switch Open to jam on, the name you typed, the tempo of your song and its number of patterns are shown to anyone until you switch it off or the jam begins. Voice and picture go straight from one machine to the other wherever the two networks let them. Where they do not, the server passes them on between the two, scrambled so that it cannot hear or see them, and keeps nothing. To find each other, each machine asks the server for the address it is reached at from outside; nothing of that is kept.</p>
         <h2>Reports</h2>
-        <p>A report of a song is kept with the song and the time. It carries no name.</p>
+        <p>A report of a song is kept with the song and the time, and is mailed to whoever runs the site, through the same mail service. It carries no name.</p>
         <h2>What the server notes</h2>
         <p>Like every web server it notes each request: the address it came from, the time and what was asked for. Those notes are kept for two weeks and used only to keep the site running. The site sets no cookies and uses no tracking.</p>
         <h2>Where</h2>
