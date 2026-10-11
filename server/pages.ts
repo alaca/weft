@@ -43,6 +43,8 @@ export type Listed = {
     downloads: number
     preview: Preview
 }
+// A song as a line of another song's page names it.
+export type Named = { id: string; name: string; by: Maker }
 export type Shown = Listed & {
     description: string
     licence: string
@@ -51,7 +53,10 @@ export type Shown = Listed & {
     parts: Part[]
     sounds: OwnSound[]
     fileName: string
-    origin: { id: string; name: string; by: string } | null
+    // The song this one was made from, or `gone` when that song is no longer shown.
+    from: Named | 'gone' | null
+    // The songs that were made from this one.
+    made: Named[]
 }
 export type Search = { q: string; sort: 'newest' | 'downloads'; from: number | null; to: number | null; page: number }
 export type Found = { songs: Listed[]; total: number; pages: number; slowest: number | null; fastest: number | null }
@@ -597,6 +602,15 @@ ${pasted(around, song.name, about, `/songs/${song.id}.png`)}${address ? html`<me
                     </li>`)}
                 </ul>
             </section>`
+    const from = song.from === 'gone' ? 'Made from a song that is no longer on the site' : song.from ? html`Made from <a href="/songs/${song.from.id}"><b>${song.from.name}</b></a> by ${nameLink(song.from.by)}` : ''
+    const made = html`<section class="part" aria-labelledby="h-made">
+                <div class="part-h">
+                    <h2 id="h-made">Made from this</h2>
+                </div>
+                <ul class="made">
+                    ${song.made.map((one) => html`<li><a href="/songs/${one.id}">${one.name}</a><span class="by">${disc(one.by, true)}${nameLink(one.by)}</span></li>`)}
+                </ul>
+            </section>`
     const main = html`<main class="wrap page">
     <article class="song">
         <div class="song-a">
@@ -615,7 +629,7 @@ ${pasted(around, song.name, about, `/songs/${song.id}.png`)}${address ? html`<me
             ${player(song)}
 
             ${song.description ? html`<p class="about">${song.description}</p>` : ''}
-            ${song.origin ? html`<a class="from" href="/songs/${song.origin.id}">${TURN}<span>Reworked from <b>${song.origin.name}</b> by ${song.origin.by}</span></a>` : ''}
+            ${from ? html`<p class="from">${TURN}<span>${from}</span></p>` : ''}
         </div>
 
         <aside class="get" aria-label="Get this song">
@@ -647,6 +661,7 @@ ${pasted(around, song.name, about, `/songs/${song.id}.png`)}${address ? html`<me
         <div class="song-b">
             ${song.parts.length ? patterns : ''}
             ${song.sounds.length ? sounds : ''}
+            ${song.made.length ? made : ''}
         </div>
     </article>
 

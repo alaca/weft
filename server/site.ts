@@ -7,7 +7,7 @@ import { checkSongFile, looksLikeAudio } from '../src/guard/file'
 import { SONG_LIMIT, soundsUsed } from '../src/library/songfile'
 import { analyze } from '../src/song/analyze'
 import { DEFAULT_SONG, songLength } from '../src/song/arrange'
-import { downloadPage, homePage, licencePage, makerPage, notePage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
+import { downloadPage, homePage, licencePage, makerPage, notePage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type Named, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
 import { songPicture } from './picture'
 import { senderOf } from './sender'
 
@@ -73,6 +73,8 @@ const MOST_PEAKS = 200
 const MOST_SECONDS = 31
 const MOST_REPORTS = 5000
 const A_PAGE = 24
+// How many of the songs that were made from a song its page names.
+const MOST_MADE = 12
 const APP_ORIGINS = ['http://localhost:5180', 'tauri://localhost', 'https://tauri.localhost', 'http://tauri.localhost']
 const PLATFORM_NAMES: Record<Platform, string> = { macos: 'macOS', windows: 'Windows', linux: 'Linux' }
 // A page may load only what this site serves itself, and may run nothing written into it.
@@ -119,7 +121,7 @@ type Song = {
     // How loud the preview is along its length, and how long it is, for the pages to draw.
     peaks?: number[]
     seconds?: number
-    // The published song this one was reworked from.
+    // The published song this one was made from.
     from?: string
 }
 type Report = { song: string; reason: string; at: number }
@@ -386,8 +388,10 @@ export function createSite(options: SiteOptions): Promise<Site> {
             preview: { seconds: song.seconds ?? null, peaks: song.peaks ?? [] },
         }
     }
-    // A song as its own page shows it. What it was reworked from is only named while that song
-    // is there to be opened, so the line never leads nowhere.
+    const named = (song: Song): Named => ({ id: song.id, name: song.name, by: makerOf(song.by) })
+    // A song as its own page shows it. What it was made from is named while that song is shown.
+    // Once it is hidden or deleted the page only says that there was one, so no line leads
+    // nowhere and nothing of a hidden song is told.
     const shownOnPage = (song: Song): Shown => {
         const read = factsOf(song)
         const from = kept.songs.find((one) => one.id === song.from && !one.hidden)
@@ -400,7 +404,8 @@ export function createSite(options: SiteOptions): Promise<Site> {
             parts: read?.parts ?? song.patterns.map((name) => ({ name, sound: '', own: false })),
             sounds: read?.sounds ?? [],
             fileName: `${fileNameOf(song.name)}.weft`,
-            origin: from ? { id: from.id, name: from.name, by: nameOf(from.by) } : null,
+            from: from ? named(from) : song.from ? 'gone' : null,
+            made: kept.songs.filter((one) => one.from === song.id && !one.hidden).sort(newestFirst).slice(0, MOST_MADE).map(named),
         }
     }
 
@@ -604,9 +609,9 @@ export function createSite(options: SiteOptions): Promise<Site> {
         const read = analyze(file.code)
         const peaks = peaksOf(body?.peaks)
         const seconds = secondsOf(body?.seconds)
-        // A song says what it was reworked from only when that song is there to be opened, by
-        // everyone or at least by its own maker.
-        const from = kept.songs.find((one) => one.id === body?.from && (!one.hidden || one.by === person.id))
+        // A song says what it was made from only when that is a song on the site that everyone
+        // can open. Whatever else is sent in its place is left out.
+        const from = kept.songs.find((one) => one.id === body?.from && !one.hidden)
         let id = shortId()
         while (kept.songs.some((one) => one.id === id)) id = shortId()
         const song: Song = {
@@ -648,7 +653,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
     }
 
     // The file as it is handed out: as it came, and saying which published song it is, so that
-    // a song made from it can say what it was reworked from. The stored file is not touched.
+    // a song made from it can say so. The stored file is not touched.
     function handedOut(song: Song, text: string): string {
         try {
             return JSON.stringify({ ...JSON.parse(text), source: { id: song.id, name: song.name, by: nameOf(song.by) } })

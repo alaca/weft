@@ -132,7 +132,7 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
 .row:hover { background: color-mix(in srgb, var(--cloth-2) 50%, var(--cloth)); }
 .row-t { min-width: 0; display: grid; gap: 3px; }
 .row h3 { font: 600 19px/1.15 var(--voice); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row h3 a:hover, .pick h3 a:hover, .by a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.row h3 a:hover, .pick h3 a:hover, .by a:hover, .from a:hover, .made a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .row-m { display: contents; }
 .row-m > * { min-width: 0; }
 .num { font: 500 12px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); white-space: nowrap; }
@@ -267,7 +267,6 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
 
 .about { margin-top: 30px; max-width: 62ch; font-size: 16.5px; line-height: 1.6; color: var(--linen); overflow-wrap: anywhere; }
 .from { margin-top: 20px; display: inline-flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 14px 6px 12px; border: 1px solid var(--seam); border-radius: 9px; font-size: 13.5px; color: var(--linen-2); }
-.from:hover { border-color: var(--linen-3); }
 .from svg { width: 15px; height: 15px; fill: none; stroke: var(--linen-3); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .from b { font-weight: 600; color: var(--linen); }
 
@@ -289,6 +288,10 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
 .snds p { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 7px; margin-top: 5px; font-size: 13px; color: var(--linen-3); }
 .snds p .dot { width: 7px; height: 7px; margin-left: 5px; }
 .snds p b { font-weight: 500; color: var(--linen-2); }
+
+.made { margin-top: 10px; }
+.made li { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 40px; border-bottom: 1px solid var(--seam-soft); }
+.made li > a { min-width: 0; font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .get { grid-column: 2; grid-row: 1 / span 2; margin-top: 37px; position: sticky; top: 24px; }
 .get-a { padding: 20px 20px 18px; display: grid; gap: 9px; }
