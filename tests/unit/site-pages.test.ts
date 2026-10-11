@@ -249,6 +249,40 @@ describe('the page of a song', () => {
         expect(gone).not.toContain('Reworked from')
         expect(gone).not.toContain(first.id)
     })
+
+    it('tells wherever its address is pasted its name, who made it and where its picture and sound are, in whole addresses or not at all', async () => {
+        const made = await publish(await signIn())
+        const bare = await page(`/songs/${made.id}`)
+        expect(bare).toContain('<meta property="og:title" content="Slow burn">')
+        expect(bare).toContain('<meta property="og:description" content="By Ante, trip hop, 84 bpm. Slow.">')
+        expect(bare).not.toMatch(/og:image|og:url|og:audio|twitter:card|rel="canonical"/)
+        await site.close()
+        await start({ origin: 'https://weft.example' })
+        const here = `http://127.0.0.1:${site.port}`
+        const html = await (await fetch(`${here}/songs/${made.id}`)).text()
+        const whole = `https://weft.example/songs/${made.id}`
+        expect(html).toContain('<meta property="og:type" content="music.song">')
+        expect(html).toContain('<meta property="og:site_name" content="Weft">')
+        expect(html).toContain(`<meta property="og:url" content="${whole}">`)
+        expect(html).toContain(`<meta property="og:image" content="${whole}.png">\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">`)
+        expect(html).toContain(`<meta property="og:audio" content="${whole}.mp3">\n<meta property="og:audio:type" content="audio/mpeg">`)
+        expect(html).toContain('<meta name="twitter:card" content="summary_large_image">')
+        expect(html).toContain(`<link rel="canonical" href="${whole}">`)
+        expect(await (await fetch(`${here}/songs`)).text()).toContain('<meta property="og:image" content="https://weft.example/app-1.png">')
+    })
+
+    it('has a picture of its preview, 1200 dots wide and 630 high, and none while it is hidden', async () => {
+        const token = await signIn()
+        const made = await publish(token, { peaks: [0.2, 0.8] })
+        const answer = await fetch(`${site.origin}/songs/${made.id}.png`)
+        expect([answer.status, answer.headers.get('content-type')]).toEqual([200, 'image/png'])
+        const picture = Buffer.from(await answer.arrayBuffer())
+        expect(picture.subarray(1, 4).toString()).toBe('PNG')
+        expect([picture.readUInt32BE(16), picture.readUInt32BE(20)]).toEqual([1200, 630])
+        await ask(`/api/songs/${made.id}/hide`, { token, method: 'POST' })
+        expect((await fetch(`${site.origin}/songs/${made.id}.png`)).status).toBe(404)
+        expect((await fetch(`${site.origin}/songs/nosuchsong.png`)).status).toBe(404)
+    })
 })
 
 describe('reporting a song', () => {

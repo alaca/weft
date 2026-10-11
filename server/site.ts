@@ -8,6 +8,7 @@ import { SONG_LIMIT, soundsUsed } from '../src/library/songfile'
 import { analyze } from '../src/song/analyze'
 import { DEFAULT_SONG, songLength } from '../src/song/arrange'
 import { downloadPage, homePage, licencePage, notePage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
+import { songPicture } from './picture'
 import { senderOf } from './sender'
 
 // The site that songs are published to. It has two sides. The pages are for everyone and know
@@ -270,7 +271,9 @@ export function createSite(options: SiteOptions): Promise<Site> {
         renameSync(`${keptFile}.new`, keptFile)
     }
     const fixed = fixedFiles()
-    const around: Around = { source: /^https?:\/\//.test(options.source ?? '') ? options.source : undefined }
+    // An address is only written into a page when it begins the way a web address does.
+    const webAddress = (given: string | undefined) => (/^https?:\/\//.test(given ?? '') ? given : undefined)
+    const around: Around = { source: webAddress(options.source), origin: webAddress(options.origin) }
     type Installer = { file: string; version: string; bytes: number }
     const installers = (list: { platform: Platform; file: string; version: string }[]) => {
         const there = new Map<Platform, Installer>()
@@ -307,6 +310,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
     const codes = new Map<string, Code>()
     const asked = new Map<string, number[]>()
     const facts = new Map<string, Facts | null>()
+    const pictures = new Map<string, Buffer>()
     const allowed = new Set(options.allow ?? APP_ORIGINS)
     let origin = options.origin ?? ''
 
@@ -357,6 +361,13 @@ export function createSite(options: SiteOptions): Promise<Site> {
             facts.set(song.id, existsSync(stored) ? readFacts(readFileSync(stored, 'utf8')) : null)
         }
         return facts.get(song.id) ?? null
+    }
+    // The picture a song is shown with wherever its address is pasted, drawn the first time it
+    // is asked for and kept until the song is hidden or deleted.
+    const pictureOf = (song: Song): Buffer => {
+        const drawn = pictures.get(song.id) ?? songPicture(song.peaks ?? [])
+        pictures.set(song.id, drawn)
+        return drawn
     }
     const listed = (song: Song): Listed => {
         const read = factsOf(song)
@@ -425,6 +436,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
     function removeSong(song: Song) {
         kept.songs = kept.songs.filter((one) => one !== song)
         facts.delete(song.id)
+        pictures.delete(song.id)
         for (const ending of ['weft', 'mp3']) rmSync(join(songsDir, `${song.id}.${ending}`), { force: true })
     }
 
@@ -705,7 +717,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
             return song ? reported(song, body, from) : noSong()
         }
 
-        const asset = /^\/songs\/([a-z0-9]+)(?:\.(weft|mp3))?$/.exec(path)
+        const asset = /^\/songs\/([a-z0-9]+)(?:\.(weft|mp3|png))?$/.exec(path)
         if (asset && get) {
             const song = kept.songs.find((one) => one.id === asset[1] && !one.hidden)
             if (!song) return noSong()
@@ -713,6 +725,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
                 const more = kept.songs.filter((one) => one.by === song.by && one !== song && !one.hidden).sort(newestFirst)
                 return { status: 200, html: songPage(around, shownOnPage(song), more.map(listed)) }
             }
+            if (asset[2] === 'png') return { status: 200, file: { bytes: pictureOf(song), type: 'image/png' } }
             const stored = join(songsDir, `${song.id}.${asset[2]}`)
             if (!existsSync(stored)) return refuse(404, 'missing', 'The file is gone.')
             if (asset[2] === 'weft') song.downloads++
@@ -763,8 +776,10 @@ export function createSite(options: SiteOptions): Promise<Site> {
             if (!song) return refuse(404, 'missing', 'There is no such song of yours.')
             if (method === 'POST' && !change[2]) return edited(song, body)
             if (method === 'DELETE' && !change[2]) removeSong(song)
-            else if (method === 'POST' && change[2]) song.hidden = change[2] === 'hide'
-            else return refuse(405, 'method', 'That cannot be done to a song.')
+            else if (method === 'POST' && change[2]) {
+                song.hidden = change[2] === 'hide'
+                pictures.delete(song.id)
+            } else return refuse(405, 'method', 'That cannot be done to a song.')
             keep()
             return { status: 200, body: { used: mine(person).length, most: MOST_SONGS } }
         }
