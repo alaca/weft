@@ -67,12 +67,12 @@ describe('panelFor', () => {
         expect(of('source')).toEqual([['vib', 'faint'], ['noise', 'faint'], ['fm', 'faint']])
         expect(of('filter')).toEqual([['lpf', 'live'], ['lpq', 'number'], ['lpenv', 'faint']])
         expect(of('shape')).toEqual([['attack', 'faint'], ['decay', 'faint'], ['sustain', 'faint'], ['release', 'faint']])
-        expect(of('effects')).toEqual([['delay', 'faint'], ['pan', 'locked'], ['room', 'faint']])
+        expect(of('effects')).toEqual([['delay', 'faint'], ['room', 'faint']])
     })
 
     it('puts a control that is in the code but not a starter after the starters', () => {
         const effects = panelFor(first('x: note("c").distort(1)')).find((g) => g.group === 'effects')!
-        expect(effects.items.map((v) => v.fn)).toEqual(['delay', 'pan', 'room', 'distort'])
+        expect(effects.items.map((v) => v.fn)).toEqual(['delay', 'room', 'distort'])
     })
 
     it('offers the ratio and the fade of the metal beside it, once the metal is in the code', () => {

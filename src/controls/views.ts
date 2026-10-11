@@ -148,7 +148,7 @@ export function browserItems(block: PatternBlock, filter: FilterType): ControlDe
     return CONTROLS.filter(
         (def) =>
             def.group !== 'pattern' &&
-            def.fn !== 'gain' &&
+            !MIX.includes(def.fn) &&
             !starters.includes(def.fn) &&
             !familyOf(def.fn) &&
             !def.needs &&
@@ -158,11 +158,13 @@ export function browserItems(block: PatternBlock, filter: FilterType): ControlDe
 }
 
 export function panelFor(block: PatternBlock, filter?: FilterType): { group: PanelGroup; items: ControlView[] }[] {
-    const inCode = present(block).filter((view) => view.fn !== 'gain')
+    // How loud a pattern is and where it sits are not in its panel: they are the first two
+    // knobs under what it plays, and stay there while the panel is open.
+    const inCode = present(block).filter((view) => !MIX.includes(view.fn))
     const kind = soundKind(block)
     const starters = startersFor(kind, filterTypeOf(block) ?? filter ?? 'low')
     return PANEL_GROUPS.map((group) => {
-        const first = starters[group].map((fn) => inCode.find((view) => view.fn === fn) ?? faint(CONTROLS.find((def) => def.fn === fn) as ControlDef))
+        const first = starters[group].filter((fn) => !MIX.includes(fn)).map((fn) => inCode.find((view) => view.fn === fn) ?? faint(CONTROLS.find((def) => def.fn === fn) as ControlDef))
         // A control that only does something together with another is offered beside it, from the
         // moment the other is in the code.
         const beside = CONTROLS.filter((def) => def.group === group && def.needs && (!def.only || def.only === kind) && callFor(block, def.needs))
