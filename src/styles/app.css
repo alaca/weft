@@ -478,6 +478,17 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .jm-note b { color: var(--linen-2); font-weight: 600; }
 .jm-n { padding: 9px 11px; border: 1px dashed var(--seam); border-radius: 8px; color: var(--linen-2); font-size: 11.5px; line-height: 1.5; }
 .jm .btn:disabled { opacity: 0.45; cursor: default; }
+.jm-cams { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 6px 12px 0; }
+.jm-cam { --who: var(--woad); position: relative; height: 84px; border-radius: 10px; overflow: hidden; background: radial-gradient(120% 90% at 50% 20%, color-mix(in srgb, var(--who) 34%, var(--cloth-3)), var(--vat)); display: grid; place-items: center; border: 1px solid var(--seam); }
+.jm-cam.me { --who: var(--linen-2); }
+.jm-cam[data-sound='yes'] { border-color: var(--lichen); }
+.jm-cam i { font: 600 30px/1 var(--voice); font-style: normal; color: color-mix(in srgb, var(--who) 80%, white); opacity: 0.9; padding-bottom: 8px; }
+.jm-cam span { position: absolute; left: 8px; bottom: 7px; max-width: calc(100% - 64px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 600; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }
+.jm-cam em { position: absolute; right: 8px; bottom: 7px; font-style: normal; font-size: 10px; color: var(--linen-3); }
+.jm-lvl { position: absolute; right: 9px; bottom: 9px; display: flex; gap: 2px; align-items: flex-end; height: 13px; }
+.jm-lvl u { width: 3px; border-radius: 1px; background: var(--lichen); }
+.jm-ctl { display: flex; align-items: center; gap: 6px; padding: 10px 12px 2px; }
+.jm-n.in { margin: 8px 12px 0; }
 .jm-chat { flex: 1; min-height: 0; overflow-y: auto; border-top: 1px solid var(--seam-soft); margin-top: 8px; padding: 10px 14px 4px; display: flex; flex-direction: column; gap: 9px; }
 .jm-chat > :first-child { margin-top: auto; }
 .jm-m { align-self: flex-start; max-width: 86%; padding: 7px 10px; border-radius: 10px; background: var(--cloth-2); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }

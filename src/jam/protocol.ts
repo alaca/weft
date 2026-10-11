@@ -22,6 +22,9 @@ export type Told =
     | { k: 'where' }
     | Offer
     | { k: 'want'; name: string }
+    | { k: 'rtc'; sdp: RTCSessionDescriptionInit }
+    | { k: 'ice'; candidate: RTCIceCandidateInit | null }
+    | { k: 'mic'; on: boolean }
 
 export type FromRelay =
     | { t: 'invite'; code: string }

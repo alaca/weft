@@ -1,9 +1,29 @@
 import { createEffect, createSignal, For, Match, on, Show, Switch } from 'solid-js'
 import { toggleJams } from '../app/controller'
-import { inviteToJam, joinJam, leaveJam, nameYourself, sayInJam } from '../app/jam'
+import { inviteToJam, joinJam, leaveJam, nameYourself, sayInJam, toggleMic } from '../app/jam'
 import { NAME_LIMIT, SAY_LIMIT, showInvite } from '../jam/protocol'
-import { jamInvite, jamLines, jamming, jamName, jamNote, jamPeer, jamsOpen, jamStage } from '../stores/jam'
+import { jamInvite, jamLevels, jamLines, jamMic, jamming, jamName, jamNote, jamPeer, jamsOpen, jamStage, jamTheirMic, jamVoiceNote } from '../stores/jam'
 import { currentSong } from '../stores/song'
+
+const HEARD = 0.02
+const BARS = [0.5, 1, 0.7]
+const letter = (name: string | null) => (name ?? '').trim().charAt(0).toUpperCase() || '?'
+
+// One of the two people in a jam: who it is, whether their microphone is on, and how loud they
+// are at this moment.
+function Tile(props: { name: string; shown: string; on: boolean; level: number; mine?: boolean; testid: string }) {
+    return (
+        <div class="jm-cam" classList={{ me: props.mine }} data-testid={props.testid} data-mic={props.on ? 'on' : 'off'} data-sound={props.on && props.level > HEARD ? 'yes' : 'no'}>
+            <i>{letter(props.name)}</i>
+            <span>{props.shown}</span>
+            <Show when={props.on} fallback={<em>mic off</em>}>
+                <div class="jm-lvl" aria-hidden="true">
+                    <For each={BARS}>{(share) => <u style={{ height: `${3 + Math.round(props.level * share * 10)}px` }} />}</For>
+                </div>
+            </Show>
+        </div>
+    )
+}
 
 // Two people on one song. Before a jam this is where one is started, by an invite made or an
 // invite typed in; during one it is who you are with and what you say to each other.
@@ -129,6 +149,22 @@ export function JamPanel() {
                         </div>
                     }
                 >
+                    <div class="jm-cams">
+                        <Tile name={jamPeer() ?? ''} shown={jamPeer() ?? ''} on={jamTheirMic()} level={jamLevels().theirs} testid="jam-them" />
+                        <Tile name={jamName()} shown="You" on={jamMic()} level={jamLevels().mine} mine testid="jam-me" />
+                    </div>
+                    <div class="jm-ctl">
+                        <button class="chip tgl" classList={{ on: jamMic() }} aria-pressed={jamMic()} title={jamMic() ? 'Switch your microphone off' : `Let ${jamPeer()} hear you`} onClick={() => void toggleMic()}>
+                            Microphone
+                        </button>
+                        <span class="grow" />
+                        <span class="jm-note">Use headphones</span>
+                    </div>
+                    <Show when={jamVoiceNote()}>
+                        <p class="jm-n in" role="status" data-testid="jam-voice-note">
+                            {jamVoiceNote()}
+                        </p>
+                    </Show>
                     <div class="jm-chat" role="log" aria-label="What was said" ref={chat} data-testid="jam-chat">
                         <For each={jamLines()}>
                             {(line) =>

@@ -20,4 +20,11 @@ export const [jamHand, setJamHand] = createSignal<string | null>(null)
 // What the other person said while the jam was not in sight.
 export const [jamUnread, setJamUnread] = createSignal(0)
 
+// The call inside a jam: whose microphone is on, how loud each is at this moment (0 to 1), and
+// what there is to say when a microphone or the call itself does not work.
+export const [jamMic, setJamMic] = createSignal(false)
+export const [jamTheirMic, setJamTheirMic] = createSignal(false)
+export const [jamLevels, setJamLevels] = createSignal<{ mine: number; theirs: number }>({ mine: 0, theirs: 0 })
+export const [jamVoiceNote, setJamVoiceNote] = createSignal<string | null>(null)
+
 export const jamming = () => jamStage() === 'jamming'

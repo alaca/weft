@@ -3,12 +3,16 @@
 // does not. A take is held in memory while it is made and handed over as a WAV file.
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, Sample, SizedSample};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tauri::ipc::{Channel, InvokeResponseBody};
 
 const LONGEST_SECONDS: usize = 600;
 const ANSWER: Duration = Duration::from_secs(6);
+// How much of a voice is handed to the window at a time, in samples: about a fortieth of a second.
+const VOICE_PIECE: usize = 1024;
+const VOICE_WAIT: Duration = Duration::from_millis(50);
 
 pub struct Running {
     stop: Sender<()>,
@@ -40,11 +44,15 @@ where
         .map_err(|err| err.to_string())
 }
 
-fn open() -> Result<(cpal::Stream, Heard, u32, u16), String> {
+fn input() -> Result<(cpal::Device, cpal::SampleFormat, cpal::StreamConfig), String> {
     let device = cpal::default_host().default_input_device().ok_or("missing")?;
     let supported = device.default_input_config().map_err(|err| err.to_string())?;
     let format = supported.sample_format();
-    let config: cpal::StreamConfig = supported.into();
+    Ok((device, format, supported.into()))
+}
+
+fn open() -> Result<(cpal::Stream, Heard, u32, u16), String> {
+    let (device, format, config) = input()?;
     let rate = config.sample_rate;
     let channels = config.channels;
     let most = rate as usize * channels as usize * LONGEST_SECONDS;
@@ -58,6 +66,107 @@ fn open() -> Result<(cpal::Stream, Heard, u32, u16), String> {
     }?;
     stream.play().map_err(|err| err.to_string())?;
     Ok((stream, heard, rate, channels))
+}
+
+// For a call the microphone is not kept but passed on as it comes, with its channels made one.
+fn overhear<T>(device: &cpal::Device, config: &cpal::StreamConfig, pass: Sender<Vec<f32>>) -> Result<cpal::Stream, String>
+where
+    T: SizedSample,
+    f32: FromSample<T>,
+{
+    let channels = config.channels.max(1) as usize;
+    device
+        .build_input_stream(
+            config.clone(),
+            move |data: &[T], _: &cpal::InputCallbackInfo| {
+                let one: Vec<f32> = data.chunks(channels).map(|frame| frame.iter().map(|sample| f32::from_sample(*sample)).sum::<f32>() / channels as f32).collect();
+                let _ = pass.send(one);
+            },
+            |_| {},
+            None,
+        )
+        .map_err(|err| err.to_string())
+}
+
+fn open_voice(pass: Sender<Vec<f32>>) -> Result<(cpal::Stream, u32), String> {
+    let (device, format, config) = input()?;
+    let stream = match format {
+        cpal::SampleFormat::F32 => overhear::<f32>(&device, &config, pass),
+        cpal::SampleFormat::I16 => overhear::<i16>(&device, &config, pass),
+        cpal::SampleFormat::U16 => overhear::<u16>(&device, &config, pass),
+        cpal::SampleFormat::I32 => overhear::<i32>(&device, &config, pass),
+        other => Err(format!("the microphone gives sound as {other}, which is not read")),
+    }?;
+    stream.play().map_err(|err| err.to_string())?;
+    Ok((stream, config.sample_rate))
+}
+
+// The samples of a voice as the bytes the window reads them from, four to a sample.
+fn voice_bytes(samples: &[f32]) -> Vec<u8> {
+    samples.iter().flat_map(|sample| sample.to_le_bytes()).collect()
+}
+
+pub struct Speaking {
+    stop: Sender<()>,
+}
+
+#[derive(Default)]
+pub struct Speaker(pub Mutex<Option<Speaking>>);
+
+// Starts handing the microphone to the window, and says how many samples a second it gives.
+#[tauri::command]
+pub fn start_voice(speaker: tauri::State<Speaker>, on_sound: Channel<InvokeResponseBody>) -> Result<u32, String> {
+    let mut slot = speaker.0.lock().map_err(|_| "the microphone is busy")?;
+    if let Some(before) = slot.take() {
+        let _ = before.stop.send(());
+    }
+    let (stop, stopped) = channel::<()>();
+    let (ready, is_ready) = channel::<Result<u32, String>>();
+    std::thread::spawn(move || {
+        let (pass, passed) = channel::<Vec<f32>>();
+        match open_voice(pass) {
+            Ok((stream, rate)) => {
+                let _ = ready.send(Ok(rate));
+                let mut held: Vec<f32> = Vec::with_capacity(VOICE_PIECE * 2);
+                loop {
+                    match stopped.try_recv() {
+                        Ok(_) | Err(TryRecvError::Disconnected) => break,
+                        Err(TryRecvError::Empty) => {}
+                    }
+                    match passed.recv_timeout(VOICE_WAIT) {
+                        Ok(piece) => {
+                            held.extend(piece);
+                            if held.len() < VOICE_PIECE {
+                                continue;
+                            }
+                            // The window is gone when it no longer takes what it is handed.
+                            if on_sound.send(InvokeResponseBody::Raw(voice_bytes(&held))).is_err() {
+                                break;
+                            }
+                            held.clear();
+                        }
+                        Err(RecvTimeoutError::Timeout) => {}
+                        Err(RecvTimeoutError::Disconnected) => break,
+                    }
+                }
+                drop(stream);
+            }
+            Err(why) => {
+                let _ = ready.send(Err(why));
+            }
+        }
+    });
+    let rate = is_ready.recv_timeout(ANSWER).map_err(|_| "the microphone did not answer".to_string())??;
+    *slot = Some(Speaking { stop });
+    Ok(rate)
+}
+
+#[tauri::command]
+pub fn stop_voice(speaker: tauri::State<Speaker>) -> Result<(), String> {
+    if let Some(speaking) = speaker.0.lock().map_err(|_| "the microphone is busy")?.take() {
+        let _ = speaking.stop.send(());
+    }
+    Ok(())
 }
 
 // Sixteen bits a sample, the channels side by side.
@@ -121,7 +230,7 @@ pub fn stop_take(recorder: tauri::State<Recorder>) -> Result<tauri::ipc::Respons
 
 #[cfg(test)]
 mod tests {
-    use super::wav;
+    use super::{voice_bytes, wav};
     use cpal::traits::{DeviceTrait, HostTrait};
 
     // Asks the machine what it would record from, without recording. It passes on a machine
@@ -135,6 +244,14 @@ mod tests {
             },
             None => println!("input: none"),
         }
+    }
+
+    #[test]
+    fn hands_a_voice_over_four_bytes_to_a_sample() {
+        let bytes = voice_bytes(&[0.0, 1.0, -0.5]);
+        assert_eq!(bytes.len(), 12);
+        assert_eq!(f32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]), 1.0);
+        assert_eq!(f32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]), -0.5);
     }
 
     #[test]

@@ -1,5 +1,6 @@
 import { batch } from 'solid-js'
 import type { Engine } from '../engine/engine'
+import { captureVoice, type Captured } from '../jam/capture'
 import { openLine, type Line } from '../jam/line'
 import {
     arrivedAt,
@@ -18,10 +19,33 @@ import {
     type Offer,
     type Told,
 } from '../jam/protocol'
+import { openVoice, primeVoice, type Voice } from '../jam/voice'
 import { sizeText } from '../library/audio'
+import { whyNot, type NoTake } from '../library/recorder'
 import { soundRenames, soundsUsed } from '../library/songfile'
 import { soundNameFor, type OwnSound } from '../library/sounds'
-import { jamLines, jamName, jamPeer, jamsOpen, jamStage, jamUnread, setJamHand, setJamInvite, setJamLines, setJamName, setJamNote, setJamPeer, setJamStage, setJamUnread, type JamLine } from '../stores/jam'
+import {
+    jamLines,
+    jamMic,
+    jamName,
+    jamPeer,
+    jamsOpen,
+    jamStage,
+    jamUnread,
+    setJamHand,
+    setJamInvite,
+    setJamLevels,
+    setJamLines,
+    setJamMic,
+    setJamName,
+    setJamNote,
+    setJamPeer,
+    setJamStage,
+    setJamTheirMic,
+    setJamUnread,
+    setJamVoiceNote,
+    type JamLine,
+} from '../stores/jam'
 import { engineState, loopBars, ownSounds, playMode, song, stale, startBar, type PlayMode } from '../stores/song'
 
 // Two people on one song. Each machine makes its own sound from the same code: what travels is
@@ -75,6 +99,15 @@ const theirs = new Set<string>()
 const had = new Set<string>()
 const lent = new Map<string, OwnSound>()
 const incoming = new Map<string, { offer: Offer; parts: Uint8Array[]; got: number; shadow: boolean }>()
+
+// The call: `voice` is there for as long as the jam is, `captured` is your microphone while it is on.
+let voice: Voice | null = null
+let captured: Captured | null = null
+let reaching = false
+let micSince = 0
+let loudest = 0
+const QUIET_FOR = 4000
+const QUIET = 0.004
 
 const peer = () => jamPeer() ?? 'They'
 const ownNames = () => ownSounds().map((sound) => sound.name)
@@ -140,6 +173,7 @@ async function reach(first: object): Promise<boolean> {
 
 export async function inviteToJam() {
     if (jamStage() !== 'idle' || !named()) return
+    primeVoice()
     host = true
     batch(() => {
         setJamNote(null)
@@ -152,6 +186,7 @@ export async function joinJam(text: string) {
     if (jamStage() !== 'idle' || !named()) return
     const code = readInvite(text)
     if (!code) return void setJamNote('That is not an invite. An invite is six letters and digits, like 7KQ-M2D. Type it as you were given it.')
+    primeVoice()
     host = false
     batch(() => {
         setJamNote(null)
@@ -174,6 +209,7 @@ function finish(note: string | null) {
     line?.close()
     line = null
     deps.engine.stopSync()
+    endVoice()
     if (was === 'jamming') void giveBack()
     host = false
     placed = false
@@ -213,6 +249,7 @@ function begin(who: string, joined: string) {
     window.clearInterval(pinging)
     ping()
     pinging = window.setInterval(ping, PING_EVERY)
+    voice = openVoice(host, { tell: tellJam, levels: heardLevels, failed: () => setJamVoiceNote(`Your voices could not get through between your two networks. The jam itself goes on, and so does the chat.`) })
 }
 
 // ---- what the relay says
@@ -283,6 +320,8 @@ function told(d: Told) {
     if (d.k === 'where') return whereNow()
     if (d.k === 'offer') return void offeredOne(d)
     if (d.k === 'want') return void sendSound(String(d.name))
+    if (d.k === 'rtc' || d.k === 'ice') return voice?.told(d)
+    if (d.k === 'mic') return void setJamTheirMic(Boolean(d.on))
 }
 
 export function sayInJam(words: string) {
@@ -290,6 +329,71 @@ export function sayInJam(words: string) {
     if (!text || jamStage() !== 'jamming') return
     add({ kind: 'said', mine: true, who: jamName(), text })
     tellJam({ k: 'say', text })
+}
+
+// ---- talking. A microphone is only ever on because its owner pressed for it, and it is let go
+// of the moment they press again or the jam is over.
+
+const NO_MIC: Record<NoTake, string> = {
+    unreachable: 'This window has no way to reach a microphone. In the desktop app, quit and start it again.',
+    refused: 'The microphone could not be used: the system did not allow it. Open System Settings, Privacy and Security, Microphone, and allow Weft there, or the browser, or the terminal the app was started from. Then press Microphone again.',
+    silent: 'Nothing is heard from your microphone. If the system has not allowed Weft to use it, allow it under System Settings, Privacy and Security, Microphone; if it has, check the input level under Sound.',
+    missing: 'No microphone was found. Plug one in, or choose an input in the sound settings of the system, and press Microphone again.',
+    other: 'The microphone could not be used.',
+}
+
+function heardLevels(mine: number, theirs: number) {
+    setJamLevels({ mine, theirs })
+    if (!jamMic()) return
+    loudest = Math.max(loudest, mine)
+    if (loudest >= QUIET) setJamVoiceNote((note) => (note === NO_MIC.silent ? null : note))
+    else if (performance.now() - micSince > QUIET_FOR) setJamVoiceNote(NO_MIC.silent)
+}
+
+function micOff() {
+    captured?.stop()
+    captured = null
+    setJamMic(false)
+}
+
+export async function toggleMic() {
+    if (jamStage() !== 'jamming' || reaching) return
+    if (!voice) return void setJamVoiceNote('This window has no way to make a call, so voices cannot be used in it. The jam itself works as before.')
+    if (captured) {
+        micOff()
+        await voice.speak(null).catch(() => undefined)
+        tellJam({ k: 'mic', on: false })
+        return void setJamVoiceNote(null)
+    }
+    reaching = true
+    setJamVoiceNote(null)
+    try {
+        const made = await captureVoice()
+        if (jamStage() !== 'jamming' || !voice) return made.stop()
+        captured = made
+        await voice.speak(made.stream)
+        micSince = performance.now()
+        loudest = 0
+        setJamMic(true)
+        tellJam({ k: 'mic', on: true })
+    } catch (err) {
+        const refused = whyNot(err)
+        micOff()
+        setJamVoiceNote(`${NO_MIC[refused.why]}${refused.why === 'other' ? ` (${refused.message})` : ''}`)
+    } finally {
+        reaching = false
+    }
+}
+
+function endVoice() {
+    micOff()
+    voice?.close()
+    voice = null
+    batch(() => {
+        setJamTheirMic(false)
+        setJamLevels({ mine: 0, theirs: 0 })
+        setJamVoiceNote(null)
+    })
 }
 
 // ---- playing together. Each machine keeps its own time. The one who joined asks where the
