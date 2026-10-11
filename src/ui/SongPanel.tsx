@@ -1,5 +1,7 @@
 import { batch, createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { clearLoop, colorAt, eventsOf, inStep, loopBetween, patternText, repeatLoop, select, setBars, songLengthNow, startFrom, toggleBar } from '../app/controller'
+import { clearLoop, colorAt, drawControl, eventsOf, inStep, loopBetween, patternText, repeatLoop, select, setBars, setCurve, setMotion, songLengthNow, startFrom, toggleBar } from '../app/controller'
+import { fromUnit, toUnit } from '../controls/catalog'
+import { drawableIn, drawnIn } from '../controls/views'
 import { barsOf, clips, paint, type Clip } from '../song/arrange'
 import { MAX_BARS } from '../song/bars'
 import type { PatternEvent } from '../song/types'
@@ -203,6 +205,229 @@ function Lane(props: { id: string; index: number; view: View }) {
     )
 }
 
+// A control drawn over the song: one column to a bar, as high as the control is in that bar.
+// Dragging draws it, a bar at a time under the pointer; with Shift held it is a straight line
+// from where the drag began, which is how something opens or closes over a stretch of bars.
+const KEYS: Record<string, number> = { ArrowUp: 0.02, ArrowDown: -0.02, PageUp: 0.1, PageDown: -0.1 }
+
+function CurveLane(props: { id: string; fn: string; index: number; view: View }) {
+    let track!: HTMLDivElement
+    let drag: { from: number; start: number; last: number } | null = null
+    const control = createMemo(() => {
+        const block = song().patterns.find((p) => p.id === props.id)
+        return block ? drawnIn(block).find((view) => view.fn === props.fn) : undefined
+    })
+    const written = createMemo(() => {
+        const curve = control()?.curve
+        return curve?.length ? Array.from({ length: props.view.length }, (_, bar) => curve[bar % curve.length]) : []
+    })
+    const [draft, setDraft] = createSignal<number[] | null>(null)
+    const values = () => draft() ?? written()
+    const cells = () => Array.from({ length: Math.max(0, props.view.last - props.view.first) })
+    const unitOf = (value: number | undefined) => {
+        const now = control()
+        return now && value !== undefined ? toUnit(value, now.min, now.max, now.scale) : 0
+    }
+    const valueOf = (unit: number) => {
+        const now = control()
+        return now ? fromUnit(Math.min(1, Math.max(0, unit)), now.min, now.max, now.scale) : 0
+    }
+    const barAt = (x: number) => Math.min(props.view.length - 1, Math.max(0, Math.floor((x - track.getBoundingClientRect().left) / props.view.barWidth)))
+    const unitAt = (y: number) => {
+        const box = track.getBoundingClientRect()
+        return Math.min(1, Math.max(0, 1 - (y - box.top - 3) / Math.max(1, box.height - 6)))
+    }
+    const sweep = (event: PointerEvent) => {
+        if (!drag) return
+        const bar = barAt(event.clientX)
+        const unit = unitAt(event.clientY)
+        if (event.shiftKey) {
+            const next = [...written()]
+            const span = bar - drag.from
+            for (let at = Math.min(drag.from, bar); at <= Math.max(drag.from, bar); at++) next[at] = valueOf(span ? drag.start + ((unit - drag.start) * (at - drag.from)) / span : unit)
+            setDraft(next)
+        } else {
+            const next = [...values()]
+            for (let at = Math.min(drag.last, bar); at <= Math.max(drag.last, bar); at++) next[at] = valueOf(unit)
+            setDraft(next)
+        }
+        drag.last = bar
+    }
+    const finish = (keep: boolean) => {
+        const next = draft()
+        if (!drag) return
+        drag = null
+        batch(() => {
+            if (keep && next) setCurve(props.id, props.fn, next)
+            setDraft(null)
+        })
+    }
+    const nudge = (bar: number, unit: number) => setCurve(props.id, props.fn, written().map((value, at) => (at === bar ? valueOf(unit) : value)))
+
+    return (
+        <div
+            class="sg-l sg-k"
+            ref={track}
+            style={{ '--h': colorAt(props.index) }}
+            data-testid={`curve-${props.id}-${props.fn}`}
+            onPointerDown={(event) => {
+                // Past the last bar of the song there is nothing to draw on.
+                const bar = Math.floor((event.clientX - track.getBoundingClientRect().left) / props.view.barWidth)
+                if (stale() || event.button !== 0 || !control() || bar < 0 || bar >= props.view.length) return
+                drag = { from: bar, start: unitAt(event.clientY), last: bar }
+                track.setPointerCapture(event.pointerId)
+                sweep(event)
+            }}
+            onPointerMove={sweep}
+            onPointerUp={() => finish(true)}
+            onPointerCancel={() => finish(false)}
+        >
+            <div class="sg-cells" style={{ left: `${props.view.first * props.view.barWidth}px`, 'grid-template-columns': `repeat(${cells().length}, ${props.view.barWidth}px)` }}>
+                <Index each={cells()}>
+                    {(_, at) => {
+                        const bar = () => props.view.first + at
+                        return (
+                            <Show when={bar() < props.view.length} fallback={<span />}>
+                                <div
+                                    class="sg-v"
+                                    role="slider"
+                                    tabindex="0"
+                                    aria-label={`${props.id} ${control()?.label ?? props.fn} in bar ${bar() + 1}`}
+                                    aria-valuemin={control()?.min}
+                                    aria-valuemax={control()?.max}
+                                    aria-valuenow={values()[bar()]}
+                                    aria-disabled={stale() ? 'true' : 'false'}
+                                    title={`Bar ${bar() + 1}: ${values()[bar()]}`}
+                                    onKeyDown={(event) => {
+                                        if (stale()) return
+                                        if (event.key === 'Home') nudge(bar(), 0)
+                                        else if (event.key === 'End') nudge(bar(), 1)
+                                        else if (event.key in KEYS) nudge(bar(), unitOf(written()[bar()]) + KEYS[event.key])
+                                        else return
+                                        event.preventDefault()
+                                    }}
+                                >
+                                    <i style={{ height: `${Math.round(unitOf(values()[bar()]) * 1000) / 10}%` }} />
+                                </div>
+                            </Show>
+                        )
+                    }}
+                </Index>
+            </div>
+        </div>
+    )
+}
+
+// The name of a pattern, with the way to draw one of its knobs over the song beside it, and
+// under it a row for every knob that is drawn.
+function NameRows(props: { id: string; index: number }) {
+    let row: HTMLDivElement | undefined
+    const block = () => song().patterns.find((p) => p.id === props.id)
+    const drawable = createMemo(() => {
+        const now = block()
+        return now ? drawableIn(now) : []
+    })
+    const drawn = createMemo(() => {
+        const now = block()
+        return now ? drawnIn(now) : []
+    })
+    const [choosing, setChoosing] = createSignal(false)
+    const away = (event: PointerEvent) => {
+        if (choosing() && !row?.contains(event.target as Node)) setChoosing(false)
+    }
+    const escape = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') setChoosing(false)
+    }
+    onMount(() => {
+        document.addEventListener('pointerdown', away)
+        document.addEventListener('keydown', escape)
+    })
+    onCleanup(() => {
+        document.removeEventListener('pointerdown', away)
+        document.removeEventListener('keydown', escape)
+    })
+    return (
+        <>
+            <div class="sg-nr" ref={row} style={{ '--h': colorAt(props.index) }}>
+                <button
+                    class="sg-n"
+                    classList={{ muted: block()?.muted }}
+                    aria-label={`Go to ${props.id}`}
+                    onClick={() => {
+                        select(props.id)
+                        document.querySelector(`[data-testid="strip-${props.id}"]`)?.scrollIntoView({ block: 'nearest' })
+                    }}
+                >
+                    <i />
+                    <span>{props.id}</span>
+                </button>
+                <button
+                    class="sg-dr"
+                    aria-label={`Draw a knob of ${props.id} over the song`}
+                    aria-haspopup="menu"
+                    aria-expanded={choosing()}
+                    disabled={stale() || !drawable().length}
+                    title={drawable().length ? 'Draw one of its knobs over the song, bar by bar' : drawn().length ? 'Every knob it has is drawn already' : 'It has no knob to draw yet. Add one in its panel first.'}
+                    onClick={() => setChoosing(!choosing())}
+                >
+                    <svg viewBox="0 0 12 10" aria-hidden="true">
+                        <path d="M1 8.5h2.2V5.4h2.3V2h2.3v3.4h2.2" />
+                    </svg>
+                </button>
+                <Show when={choosing()}>
+                    <div class="menu single sg-dm" role="menu" aria-label={`Knobs of ${props.id}`}>
+                        <For each={drawable()}>
+                            {(view) => (
+                                <button
+                                    role="menuitem"
+                                    onClick={() => {
+                                        setChoosing(false)
+                                        drawControl(props.id, view.fn)
+                                    }}
+                                >
+                                    {view.label}
+                                </button>
+                            )}
+                        </For>
+                    </div>
+                </Show>
+            </div>
+            <For each={drawn().map((view) => view.fn)}>
+                {(fn) => {
+                    const label = () => drawn().find((view) => view.fn === fn)?.label ?? fn
+                    return (
+                        <div class="sg-kn" style={{ '--h': colorAt(props.index) }} data-testid={`curve-name-${props.id}-${fn}`}>
+                            <span title={drawn().find((view) => view.fn === fn)?.text}>{label()}</span>
+                            <button class="rx" aria-label={`Let ${label()} of ${props.id} stand still again`} title="Stand still again" disabled={stale()} onClick={() => setMotion(props.id, fn, null)}>
+                                <svg viewBox="0 0 8 8">
+                                    <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
+                                </svg>
+                            </button>
+                        </div>
+                    )
+                }}
+            </For>
+        </>
+    )
+}
+
+function Lanes(props: { id: string; index: number; view: View }) {
+    const fns = createMemo(
+        () => {
+            const block = song().patterns.find((p) => p.id === props.id)
+            return block ? drawnIn(block).map((view) => view.fn) : []
+        },
+        [] as string[],
+        { equals: sameList },
+    )
+    return (
+        <>
+            <Lane id={props.id} index={props.index} view={props.view} />
+            <For each={fns()}>{(fn) => <CurveLane id={props.id} fn={fn} index={props.index} view={props.view} />}</For>
+        </>
+    )
+}
+
 export function SongPanel() {
     let scroller!: HTMLDivElement
     const ids = createMemo(() => [...new Set(song().patterns.map((p) => p.id))], [] as string[], { equals: sameList })
@@ -318,23 +543,7 @@ export function SongPanel() {
             </div>
             <div class="sg-g">
                 <div class="sg-names">
-                    <For each={ids()}>
-                        {(id, index) => (
-                            <button
-                                class="sg-n"
-                                classList={{ muted: song().patterns.find((p) => p.id === id)?.muted }}
-                                style={{ '--h': colorAt(index()) }}
-                                aria-label={`Go to ${id}`}
-                                onClick={() => {
-                                    select(id)
-                                    document.querySelector(`[data-testid="strip-${id}"]`)?.scrollIntoView({ block: 'nearest' })
-                                }}
-                            >
-                                <i />
-                                <span>{id}</span>
-                            </button>
-                        )}
-                    </For>
+                    <For each={ids()}>{(id, index) => <NameRows id={id} index={index()} />}</For>
                 </div>
                 <div class="sg-s" ref={scroller} data-testid="song-scroll" onScroll={() => setLeft(scroller.scrollLeft)}>
                     <div class="sg-t" classList={{ dense: barWidth() < 12, aside: playMode() === 'live' }} style={{ width: `${shown() * barWidth()}px`, '--bar': `${barWidth()}px` }}>
@@ -393,7 +602,7 @@ export function SongPanel() {
                                 }}
                             </Index>
                         </div>
-                        <For each={ids()}>{(id, index) => <Lane id={id} index={index()} view={view()} />}</For>
+                        <For each={ids()}>{(id, index) => <Lanes id={id} index={index()} view={view()} />}</For>
                         <div class="sg-end" data-testid="song-end" style={{ left: `${length() * barWidth()}px` }} />
                         <Show when={playMode() === 'song' && (playing() || paused() || startBar() > 0 || loopBars())}>
                             <div class="sg-ph" classList={{ idle: !playing() }} style={{ left: `${head() * barWidth()}px` }} />

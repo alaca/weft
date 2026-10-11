@@ -2,6 +2,7 @@ import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from 'soli
 import { fromUnit, toUnit } from '../controls/catalog'
 import { MOTION_BARS, MOTION_SHAPES, type Motion } from '../controls/motion'
 import type { ControlView } from '../controls/views'
+import { cycle } from '../stores/song'
 
 const ARC = 94.25
 const KEY_STEPS: Record<string, number> = { ArrowUp: 0.01, ArrowRight: 0.01, ArrowDown: -0.01, ArrowLeft: -0.01, PageUp: 0.1, PageDown: -0.1 }
@@ -30,7 +31,9 @@ export function Knob(props: {
     onMotion?: (motion: Motion | null) => void
     onStartMotion?: () => void
 }) {
-    const unit = () => toUnit(props.view.value, props.view.min, props.view.max, props.view.scale)
+    // A control that is drawn over the song shows what it is in the bar the song is at.
+    const shown = () => (props.view.curve?.length ? props.view.curve[cycle() % props.view.curve.length] : props.view.value)
+    const unit = () => toUnit(shown(), props.view.min, props.view.max, props.view.scale)
     const move = (next: number) => props.onChange(fromUnit(Math.min(1, Math.max(0, next)), props.view.min, props.view.max, props.view.scale))
 
     let startY = 0
@@ -129,6 +132,37 @@ export function Knob(props: {
                         </Show>
                     </div>
                 )}
+            </Match>
+            <Match when={props.view.state === 'drawn'}>
+                <div class="kn moving drawn" classList={{ big: props.big, small: props.small }} ref={box}>
+                    <button
+                        class="kn-d"
+                        aria-label={`${props.name ?? props.view.label} is drawn over the song`}
+                        aria-haspopup="dialog"
+                        aria-expanded={editing()}
+                        title={props.onMotion ? 'Drawn bar by bar in the Song panel. Press to let it stand still again.' : 'Drawn bar by bar in the Song panel'}
+                        disabled={props.disabled || !props.onMotion}
+                        onClick={() => setEditing(!editing())}
+                    >
+                        <Dial unit={unit()} />
+                    </button>
+                    <b>{props.view.text}</b>
+                    <span class="cap">{props.view.label}</span>
+                    <Show when={editing()}>
+                        <div class="mv" role="dialog" aria-label={`${props.view.label} over the song`}>
+                            <span class="cap">Drawn bar by bar in the Song panel</span>
+                            <button
+                                class="addb"
+                                onClick={() => {
+                                    setEditing(false)
+                                    props.onMotion?.(null)
+                                }}
+                            >
+                                Stand still again
+                            </button>
+                        </div>
+                    </Show>
+                </div>
             </Match>
             <Match when={props.view.state === 'faint' && !props.small}>
                 <button class="kn faint" aria-label={`Add ${props.view.label}`} title={props.view.describe} disabled={props.disabled} onClick={() => props.onAdd?.()}>

@@ -423,6 +423,21 @@ svg.mini rect { fill: var(--h); }
 .sg-n i { width: 8px; height: 8px; border-radius: 50%; background: var(--h); flex: none; }
 .sg-n span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sg-n.muted, .sg-l.muted { opacity: 0.45; }
+.sg-nr { position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; padding-right: 8px; }
+.sg-nr .sg-n { flex: 1; }
+.sg-dr { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; flex: none; color: var(--linen-3); }
+.sg-dr svg { width: 12px; height: 10px; stroke: currentColor; stroke-width: 1.4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.sg-dr:hover:not(:disabled), .sg-dr[aria-expanded='true'] { background: var(--cloth-3); color: var(--linen); }
+.sg-dr:disabled { opacity: 0.3; cursor: default; }
+.menu.single.sg-dm { left: 17px; right: auto; top: 28px; width: 170px; }
+.sg-kn { display: flex; align-items: center; gap: 6px; height: 30px; min-width: 0; padding: 0 8px 0 17px; font: 500 10.5px/1 var(--mono); font-stretch: 87%; text-transform: uppercase; letter-spacing: 0.06em; color: var(--linen-2); }
+.sg-kn span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sg-kn .rx { opacity: 0; }
+.sg-kn:hover .rx, .sg-kn .rx:focus-visible { opacity: 1; }
+.sg-k { cursor: ns-resize; }
+.sg-v { position: relative; min-width: 0; height: 100%; display: flex; align-items: flex-end; padding: 3px 0; }
+.sg-v i { display: block; width: 100%; min-height: 2px; background: color-mix(in srgb, var(--h) 42%, var(--vat)); border-top: 2px solid var(--h); }
+.sg-v:focus-visible { outline: 2px solid var(--linen); outline-offset: -2px; z-index: 2; }
 .sg-l { position: relative; height: 30px; border-radius: 7px; overflow: hidden; touch-action: none; background-color: var(--vat); box-shadow: inset 0 0 0 1px var(--seam-soft); background-image: repeating-linear-gradient(to right, var(--seam) 0 1px, transparent 1px calc(var(--bar) * 4)), repeating-linear-gradient(to right, var(--seam-soft) 0 1px, transparent 1px var(--bar)); }
 .sg-t.dense .sg-l { background-image: repeating-linear-gradient(to right, var(--seam) 0 1px, transparent 1px calc(var(--bar) * 16)), repeating-linear-gradient(to right, var(--seam-soft) 0 1px, transparent 1px calc(var(--bar) * 4)); }
 .sg-cells { position: absolute; top: 0; bottom: 0; display: grid; }

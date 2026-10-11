@@ -3,6 +3,7 @@ import { FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '..
 import { drumChoices } from '../controls/drums'
 import { firstMotion, motionText, readMotion, type Motion } from '../controls/motion'
 import { callFor, controlOf, valueArg, type ControlView } from '../controls/views'
+import { curveOver, curveText, followSong, readCurve, stretched } from '../song/curves'
 import { onSongLink } from '../desktop/links'
 import { installMenus } from '../desktop/menu'
 import { chooseFile } from '../desktop/open'
@@ -529,10 +530,42 @@ export function setMotion(id: string, fn: string, motion: Motion | null) {
     if (!call || !def || !arg || stale()) return
     const was = readMotion(call)
     const still = valueArg(call)
-    if (!was && !still) return
+    const drawn = readCurve(call)
+    if (!was && !still && !drawn) return
     const write = (value: number) => writeNumber(Math.min(def.max, Math.max(def.min, value)), def.min, def.max)
-    const text = motion ? motionText(motion, write) : `slider(${write(was?.to ?? still?.value ?? def.initial)}, ${def.min}, ${def.max})`
+    // A control that was drawn over the song stands still at what it is in the bar the song is at.
+    const here = drawn ? Number(curveOver(drawn.values, songLengthNow())[barNow()]) : null
+    const text = motion ? motionText(motion, write) : `slider(${write(here ?? was?.to ?? still?.value ?? def.initial)}, ${def.min}, ${def.max})`
     engine.applyEdit({ from: arg.from, to: arg.to, insert: text })
+    replay()
+}
+
+const barNow = (): number => (engineState().playing || engineState().paused ? cycle() % songLengthNow() : Math.min(startBar(), songLengthNow() - 1))
+
+// A control that is drawn bar by bar over the song, in the Song panel, in place of a knob. It
+// starts level, at where the knob stood, and is as long as the song.
+export function drawControl(id: string, fn: string) {
+    const block = find(id)
+    const call = block ? callFor(block, fn) : undefined
+    const def = findDef(fn)
+    const arg = call?.args[0]
+    if (!call || !def || def.wrap || !arg || stale() || readCurve(call)) return
+    const still = valueArg(call)
+    const moving = readMotion(call)
+    if (!moving && still !== arg) return
+    const value = writeNumber(Math.min(def.max, Math.max(def.min, moving?.to ?? still?.value ?? def.initial)), def.min, def.max)
+    engine.applyEdit({ from: arg.from, to: arg.to, insert: `"${curveText(Array.from({ length: songLengthNow() }, () => value))}"` })
+    replay()
+}
+
+export function setCurve(id: string, fn: string, values: number[]) {
+    const block = find(id)
+    const drawn = block ? readCurve(callFor(block, fn)) : null
+    const def = findDef(fn)
+    if (!drawn || !def || !values.length || stale()) return
+    const text = curveText(values.map((value) => writeNumber(Math.min(def.max, Math.max(def.min, value)), def.min, def.max)))
+    if (text === drawn.arg.value) return
+    engine.applyEdit(setString(drawn.arg, text))
     replay()
 }
 
@@ -1383,7 +1416,10 @@ const lanes = (): PatternBlock[] => {
 
 export function setBars(id: string, bars: boolean[]) {
     if (!find(id) || stale()) return
-    const { edits, length } = arrangeSong(engine.getCode(), lanes(), id, bars, songLengthNow())
+    const before = songLengthNow()
+    const { edits, length } = arrangeSong(engine.getCode(), lanes(), id, bars, before)
+    // What is drawn over the song is as long as the song, and stays so.
+    if (length !== before) edits.push(...followSong(lanes(), before, (values) => stretched(values, length)))
     setSongBars(length)
     if (startBar() >= length) startFrom(0)
     if (!edits.length) return
@@ -1442,7 +1478,9 @@ export function clearLoop() {
 export function repeatLoop() {
     const range = loopBars()
     if (!range || stale()) return
-    const { edits, length } = repeatEdits(engine.getCode(), lanes(), range.from, range.to, songLengthNow())
+    const before = songLengthNow()
+    const { edits, length } = repeatEdits(engine.getCode(), lanes(), range.from, range.to, before)
+    edits.push(...followSong(lanes(), before, (values) => [...values.slice(0, range.to), ...values.slice(range.from, range.to), ...values.slice(range.to)].slice(0, length)))
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
     const moved = { from: range.to, to: Math.min(length, range.to + (range.to - range.from)) }

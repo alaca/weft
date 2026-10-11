@@ -1,3 +1,4 @@
+import { readCurve } from '../song/curves'
 import type { Arg, Call, PatternBlock } from '../song/types'
 import { readMotion, type Motion } from './motion'
 import {
@@ -20,8 +21,10 @@ export type ControlView = {
     label: string
     group: Group
     describe: string
-    state: 'live' | 'number' | 'locked' | 'faint' | 'moving'
+    state: 'live' | 'number' | 'locked' | 'faint' | 'moving' | 'drawn'
     motion?: Motion
+    // The value of every bar, for a control that is drawn over the song.
+    curve?: number[]
     value: number
     min: number
     max: number
@@ -94,6 +97,16 @@ function viewOfCall(call: Call): ControlView | null {
         const max = Math.max(def.max, motion.from, motion.to)
         return { ...base, state: 'moving', motion, value: motion.to, min, max, scale: def.scale, text: `${writeNumber(motion.from, min, max)} to ${withUnit(writeNumber(motion.to, min, max), unit)}` }
     }
+    const curve = def.wrap ? null : readCurve(call)
+    if (curve) {
+        const numbers = curve.values.map(Number)
+        const low = Math.min(...numbers)
+        const high = Math.max(...numbers)
+        const min = Math.min(def.min, low)
+        const max = Math.max(def.max, high)
+        const text = low === high ? withUnit(writeNumber(high, min, max), unit) : `${writeNumber(low, min, max)} to ${withUnit(writeNumber(high, min, max), unit)}`
+        return { ...base, state: 'drawn', curve: numbers, value: high, min, max, scale: def.scale, text }
+    }
     return { ...base, state: 'locked', value: def.initial, min: def.min, max: def.max, scale: def.scale, text: 'in code' }
 }
 
@@ -107,6 +120,18 @@ function present(block: PatternBlock): ControlView[] {
         views.push(view)
     }
     return views
+}
+
+// The controls of a pattern that are drawn over the song, and those that could be: the ones
+// that are a plain number, a slider or a motion now, and are written as one value.
+export const drawnIn = (block: PatternBlock): ControlView[] => present(block).filter((view) => view.state === 'drawn')
+export function drawableIn(block: PatternBlock): ControlView[] {
+    return present(block).filter((view) => {
+        const def = findDef(view.fn)
+        if (!def || def.wrap) return false
+        if (view.state === 'moving') return true
+        return (view.state === 'live' || view.state === 'number') && valueArg(callFor(block, view.fn)) === callFor(block, view.fn)?.args[0]
+    })
 }
 
 const MIX = ['gain', 'pan']
