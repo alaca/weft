@@ -53,6 +53,16 @@ async function appVoice(): Promise<Captured> {
     }
 }
 
+// Your picture for a call, small, as a tile is small. The window's own way of reaching a
+// camera is used, in a browser and in the desktop app alike.
+export async function captureCamera(): Promise<Captured> {
+    if (!navigator.mediaDevices?.getUserMedia) throw new TakeRefused('unreachable', 'no way to reach a camera in this window')
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 15 } } }).catch((err) => {
+        throw whyNot(err)
+    })
+    return { stream, stop: () => stream.getTracks().forEach((track) => track.stop()) }
+}
+
 export async function captureVoice(): Promise<Captured> {
     if (inDesktop()) return appVoice()
     if (!navigator.mediaDevices?.getUserMedia) throw new TakeRefused('unreachable', 'no way to reach a microphone in this window')

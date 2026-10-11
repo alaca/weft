@@ -27,6 +27,10 @@ export const [jamMic, setJamMic] = createSignal(false)
 export const [jamTheirMic, setJamTheirMic] = createSignal(false)
 export const [jamLevels, setJamLevels] = createSignal<{ mine: number; theirs: number }>({ mine: 0, theirs: 0 })
 export const [jamVoiceNote, setJamVoiceNote] = createSignal<string | null>(null)
+// The pictures of the call: whose camera is on, and what each camera shows.
+export const [jamCam, setJamCam] = createSignal(false)
+export const [jamTheirCam, setJamTheirCam] = createSignal(false)
+export const [jamPictures, setJamPictures] = createSignal<{ mine: MediaStream | null; theirs: MediaStream | null }>({ mine: null, theirs: null })
 
 // Jams that anyone may ask to join. Yours is `jamListed` while you wait in it; `openJams` are
 // those of others, null while the list cannot be read. `jamAsked` is the one you asked and have

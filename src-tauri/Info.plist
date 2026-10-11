@@ -3,6 +3,8 @@
 <plist version="1.0">
 <dict>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Weft records from the microphone when you press Record, to make a sound of your own.</string>
+    <string>Weft uses the microphone when you press Record, to make a sound of your own, and when you switch your microphone on in a jam.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Weft uses the camera when you switch your camera on in a jam, so the person you play with can see you.</string>
 </dict>
 </plist>

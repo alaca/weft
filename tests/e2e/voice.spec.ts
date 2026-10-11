@@ -6,8 +6,27 @@ const SONG = 'setcpm(120/4)\n\ndrums: s("bd*4")\n'
 // handed out so that it can be seen to have been let go of again.
 function standIn() {
     const handed: MediaStreamTrack[] = []
+    const filmed: MediaStreamTrack[] = []
     ;(window as any).__mics = handed
-    MediaDevices.prototype.getUserMedia = async function () {
+    ;(window as any).__cams = filmed
+    MediaDevices.prototype.getUserMedia = async function (wanted?: MediaStreamConstraints) {
+        if (wanted?.video) {
+            // A camera that shows a square going from side to side.
+            const canvas = document.createElement('canvas')
+            canvas.width = 320
+            canvas.height = 240
+            const pen = canvas.getContext('2d')!
+            let at = 0
+            setInterval(() => {
+                pen.fillStyle = '#204060'
+                pen.fillRect(0, 0, 320, 240)
+                pen.fillStyle = '#e0c040'
+                pen.fillRect((at = (at + 8) % 280), 100, 40, 40)
+            }, 50)
+            const stream = canvas.captureStream(15)
+            filmed.push(...stream.getVideoTracks())
+            return stream
+        }
         const context = new AudioContext()
         const tone = context.createOscillator()
         const out = context.createMediaStreamDestination()
@@ -47,6 +66,9 @@ const me = (page: Page) => page.getByTestId('jam-me')
 const them = (page: Page) => page.getByTestId('jam-them')
 const mic = (page: Page) => page.getByRole('button', { name: 'Microphone', exact: true })
 const micsLeftOn = (page: Page) => page.evaluate(() => ((window as any).__mics as MediaStreamTrack[]).filter((track) => track.readyState === 'live').length)
+const cam = (page: Page) => page.getByRole('button', { name: 'Camera', exact: true })
+const camsLeftOn = (page: Page) => page.evaluate(() => ((window as any).__cams as MediaStreamTrack[]).filter((track) => track.readyState === 'live').length)
+const seen = (page: Page, tile: 'jam-me' | 'jam-them') => page.getByTestId(tile).locator('video').evaluate((video: HTMLVideoElement) => video.videoWidth > 0 && !video.paused).catch(() => false)
 
 test.afterEach(async ({ browser }) => {
     for (const context of browser.contexts()) await context.close()
@@ -130,3 +152,49 @@ test('a microphone that gives nothing but silence is said to be silent', async (
     await expect(mara.getByTestId('jam-voice-note')).toContainText('Nothing is heard from your microphone.', { timeout: 20000 })
     await expect(mic(mara)).toHaveAttribute('aria-pressed', 'true')
 })
+
+test('nobody is seen until they press for it, then the other sees them, and the camera is let go of again', async ({ browser }) => {
+    const { ante, mara } = await jam(browser)
+    await expect(me(ante)).toHaveAttribute('data-cam', 'off')
+    await expect(them(mara)).toHaveAttribute('data-cam', 'off')
+    expect(await camsLeftOn(ante)).toBe(0)
+
+    await cam(ante).click()
+    await expect(cam(ante)).toHaveAttribute('aria-pressed', 'true')
+    await expect(me(ante)).toHaveAttribute('data-cam', 'on')
+    await expect(them(mara)).toHaveAttribute('data-cam', 'on')
+    await expect.poll(() => seen(ante, 'jam-me')).toBe(true)
+    await expect.poll(() => seen(mara, 'jam-them'), { timeout: 20000 }).toBe(true)
+    await expect(me(mara)).toHaveAttribute('data-cam', 'off')
+    await expect(them(ante)).toHaveAttribute('data-cam', 'off')
+    expect(await camsLeftOn(mara)).toBe(0)
+
+    await cam(mara).click()
+    await expect.poll(() => seen(ante, 'jam-them'), { timeout: 20000 }).toBe(true)
+
+    await cam(ante).click()
+    await expect(cam(ante)).toHaveAttribute('aria-pressed', 'false')
+    await expect(me(ante)).toHaveAttribute('data-cam', 'off')
+    await expect(them(mara)).toHaveAttribute('data-cam', 'off')
+    expect(await camsLeftOn(ante)).toBe(0)
+
+    await mara.getByRole('button', { name: 'Leave', exact: true }).click()
+    await expect.poll(() => camsLeftOn(mara)).toBe(0)
+})
+
+test('a camera that the system does not allow says so, and the jam goes on', async ({ browser }) => {
+    const refusing = () => {
+        MediaDevices.prototype.getUserMedia = async function () {
+            throw new DOMException('denied', 'NotAllowedError')
+        }
+    }
+    const { ante, mara } = await jam(browser, refusing)
+    await cam(mara).click()
+    await expect(mara.getByTestId('jam-voice-note')).toContainText('The camera could not be used: the system did not allow it.')
+    await expect(cam(mara)).toHaveAttribute('aria-pressed', 'false')
+    await expect(them(ante)).toHaveAttribute('data-cam', 'off')
+    await mara.getByLabel('Message').fill('still here')
+    await mara.getByLabel('Message').press('Enter')
+    await expect(ante.getByTestId('jam-chat')).toContainText('still here')
+})
+

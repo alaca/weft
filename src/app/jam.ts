@@ -1,6 +1,6 @@
 import { batch } from 'solid-js'
 import type { Engine } from '../engine/engine'
-import { captureVoice, type Captured } from '../jam/capture'
+import { captureCamera, captureVoice, type Captured } from '../jam/capture'
 import { openLine, type Line } from '../jam/line'
 import {
     arrivedAt,
@@ -36,6 +36,7 @@ import {
     jamLines,
     jamListed,
     jamMic,
+    jamPictures,
     jamName,
     jamPeer,
     jamsOpen,
@@ -45,6 +46,7 @@ import {
     openJams,
     setJamAsked,
     setJamAsks,
+    setJamCam,
     setJamHand,
     setJamInvite,
     setJamLevels,
@@ -55,7 +57,9 @@ import {
     setJamNote,
     setJamOwn,
     setJamPeer,
+    setJamPictures,
     setJamStage,
+    setJamTheirCam,
     setJamTheirMic,
     setJamTurnedDown,
     setJamUnread,
@@ -130,6 +134,7 @@ let jamSong: string | null = null
 // The call: `voice` is there for as long as the jam is, `captured` is your microphone while it is on.
 let voice: Voice | null = null
 let captured: Captured | null = null
+let filmed: Captured | null = null
 let reaching = false
 let micSince = 0
 let loudest = 0
@@ -380,7 +385,7 @@ function begin(who: string, joined: string) {
     window.clearInterval(pinging)
     ping()
     pinging = window.setInterval(ping, PING_EVERY)
-    voice = openVoice(host, { tell: tellJam, levels: heardLevels, failed: () => setJamVoiceNote(`Your voices could not get through between your two networks. The jam itself goes on, and so does the chat.`) })
+    voice = openVoice(host, { tell: tellJam, levels: heardLevels, picture: (theirs) => setJamPictures({ ...jamPictures(), theirs }), failed: () => setJamVoiceNote(`Your voices could not get through between your two networks. The jam itself goes on, and so does the chat.`) })
 }
 
 // ---- what the relay says
@@ -480,6 +485,7 @@ function told(d: Told) {
     if (d.k === 'want') return void sendSound(String(d.name))
     if (d.k === 'rtc' || d.k === 'ice') return voice?.told(d)
     if (d.k === 'mic') return void setJamTheirMic(Boolean(d.on))
+    if (d.k === 'cam') return void setJamTheirCam(Boolean(d.on))
 }
 
 export function sayInJam(words: string) {
@@ -543,12 +549,65 @@ export async function toggleMic() {
     }
 }
 
+// ---- being seen. A camera, like a microphone, is only ever on because its owner pressed for
+// it, and is let go of the moment they press again or the jam is over.
+
+const NO_CAM: Record<NoTake, string> = {
+    unreachable: 'This window has no way to reach a camera. The jam, the chat and your voice work without one.',
+    refused: 'The camera could not be used: the system did not allow it. Open System Settings, Privacy and Security, Camera, and allow Weft there, or the browser. Then press Camera again.',
+    silent: 'The camera gives no picture.',
+    missing: 'No camera was found. Plug one in, or close whatever else is using it, and press Camera again.',
+    other: 'The camera could not be used.',
+}
+
+function camOff() {
+    filmed?.stop()
+    filmed = null
+    batch(() => {
+        setJamCam(false)
+        setJamPictures({ ...jamPictures(), mine: null })
+    })
+}
+
+export async function toggleCam() {
+    if (jamStage() !== 'jamming' || reaching) return
+    if (!voice) return void setJamVoiceNote('This window has no way to make a call, so a camera cannot be used in it. The jam itself works as before.')
+    if (filmed) {
+        camOff()
+        await voice.show(null).catch(() => undefined)
+        tellJam({ k: 'cam', on: false })
+        return void setJamVoiceNote(null)
+    }
+    reaching = true
+    setJamVoiceNote(null)
+    try {
+        const made = await captureCamera()
+        if (jamStage() !== 'jamming' || !voice) return made.stop()
+        filmed = made
+        await voice.show(made.stream)
+        batch(() => {
+            setJamPictures({ ...jamPictures(), mine: made.stream })
+            setJamCam(true)
+        })
+        tellJam({ k: 'cam', on: true })
+    } catch (err) {
+        const refused = whyNot(err)
+        camOff()
+        setJamVoiceNote(`${NO_CAM[refused.why]}${refused.why === 'other' ? ` (${refused.message})` : ''}`)
+    } finally {
+        reaching = false
+    }
+}
+
 function endVoice() {
     micOff()
+    camOff()
     voice?.close()
     voice = null
     batch(() => {
         setJamTheirMic(false)
+        setJamTheirCam(false)
+        setJamPictures({ mine: null, theirs: null })
         setJamLevels({ mine: 0, theirs: 0 })
         setJamVoiceNote(null)
     })

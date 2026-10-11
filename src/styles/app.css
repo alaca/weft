@@ -585,6 +585,13 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .jm-cams { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 6px 12px 0; }
 .jm-cam { --who: var(--woad); position: relative; height: 84px; border-radius: 10px; overflow: hidden; background: radial-gradient(120% 90% at 50% 20%, color-mix(in srgb, var(--who) 34%, var(--cloth-3)), var(--vat)); display: grid; place-items: center; border: 1px solid var(--seam); }
 .jm-cam.me { --who: var(--linen-2); }
+.jm-cams.seen .jm-cam { height: 112px; }
+.jm-cam video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: var(--vat); }
+.jm-cam.me video { transform: scaleX(-1); }
+.jm-cam span, .jm-cam em, .jm-lvl { z-index: 1; }
+.jm-tg { background: var(--cloth-2); box-shadow: inset 0 0 0 1px var(--seam); }
+.jm-tg.on { background: var(--lichen); color: var(--vat); box-shadow: none; }
+.jm-tg.on:hover { background: var(--lichen); color: var(--vat); filter: brightness(1.08); }
 .jm-cam[data-sound='yes'] { border-color: var(--lichen); }
 .jm-cam i { font: 600 30px/1 var(--voice); font-style: normal; color: color-mix(in srgb, var(--who) 80%, white); opacity: 0.9; padding-bottom: 8px; }
 .jm-cam span { position: absolute; left: 8px; bottom: 7px; max-width: calc(100% - 64px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 600; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }

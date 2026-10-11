@@ -214,8 +214,8 @@ export function homePage(around: Around, songs: Listed[], builds: Build[]): stri
     const defs = defsOf(songs.map((song) => waveDef(`w-${song.id}`, song.preview.peaks, 44)))
     const main = html`<main>
     <section class="hero wrap">
-        <h1>Build songs from patterns,<br>alone or together.</h1>
-        <p class="lede">Weft is a desktop app built on Strudel. Drum grids, piano rolls and knobs sit beside the code, and both show the same song.</p>
+        <h1>Weave songs from patterns.</h1>
+        <p class="lede">Weft is a free desktop app for pattern music, built on Strudel. Click drums into a grid, draw notes in a piano roll, turn a knob, and the code follows. Change the code, and the controls follow. Play alone, or jam on one song with someone else.</p>
         <div class="dl" id="download">
             <a class="btn go" href="${get('macos')}">${DOWN}Download for macOS</a>
             <a class="btn" href="${get('windows')}">Windows</a>

@@ -1,9 +1,10 @@
 import { createEffect, createSignal, For, Match, on, onCleanup, Show, Switch } from 'solid-js'
 import { toggleJams } from '../app/controller'
-import { askToJoin, cancelAsk, inviteToJam, joinJam, leaveJam, nameYourself, openToJam, refreshOpenJams, sayInJam, toggleMic } from '../app/jam'
+import { askToJoin, cancelAsk, inviteToJam, joinJam, leaveJam, nameYourself, openToJam, refreshOpenJams, sayInJam, toggleCam, toggleMic } from '../app/jam'
 import { aboutText, NAME_LIMIT, SAY_LIMIT, showInvite } from '../jam/protocol'
 import {
     jamAsked,
+    jamCam,
     jamInvite,
     jamLevels,
     jamLines,
@@ -14,8 +15,10 @@ import {
     jamNote,
     jamOwn,
     jamPeer,
+    jamPictures,
     jamsOpen,
     jamStage,
+    jamTheirCam,
     jamTheirMic,
     jamTurnedDown,
     jamVoiceNote,
@@ -32,12 +35,25 @@ export const letter = (name: string | null) => (name ?? '').trim().charAt(0).toU
 // The same name has the same colour wherever it is shown.
 export const hueOf = (name: string) => HUES[[...name].reduce((mixed, char) => (mixed * 31 + char.codePointAt(0)!) % 9973, 7) % HUES.length]
 
-// One of the two people in a jam: who it is, whether their microphone is on, and how loud they
-// are at this moment.
-function Tile(props: { name: string; shown: string; on: boolean; level: number; mine?: boolean; testid: string }) {
+// What a camera shows. A picture from a call does not always start to move by itself, so it is
+// told to, and again whenever it is another picture.
+function Picture(props: { of: MediaStream }) {
+    let video!: HTMLVideoElement
+    createEffect(() => {
+        video.srcObject = props.of
+        void video.play().catch(() => undefined)
+    })
+    return <video ref={video} autoplay playsinline muted />
+}
+
+// One of the two people in a jam: who it is, their picture when their camera is on, whether
+// their microphone is on, and how loud they are at this moment.
+function Tile(props: { name: string; shown: string; on: boolean; level: number; picture: MediaStream | null; mine?: boolean; testid: string }) {
     return (
-        <div class="jm-cam" classList={{ me: props.mine }} data-testid={props.testid} data-mic={props.on ? 'on' : 'off'} data-sound={props.on && props.level > HEARD ? 'yes' : 'no'}>
-            <i>{letter(props.name)}</i>
+        <div class="jm-cam" classList={{ me: props.mine }} data-testid={props.testid} data-mic={props.on ? 'on' : 'off'} data-cam={props.picture ? 'on' : 'off'} data-sound={props.on && props.level > HEARD ? 'yes' : 'no'}>
+            <Show when={props.picture} fallback={<i>{letter(props.name)}</i>}>
+                {(picture) => <Picture of={picture()} />}
+            </Show>
             <span>{props.shown}</span>
             <Show when={props.on} fallback={<em>mic off</em>}>
                 <div class="jm-lvl" aria-hidden="true">
@@ -222,13 +238,22 @@ export function JamPanel() {
                         </div>
                     }
                 >
-                    <div class="jm-cams">
-                        <Tile name={jamPeer() ?? ''} shown={jamPeer() ?? ''} on={jamTheirMic()} level={jamLevels().theirs} testid="jam-them" />
-                        <Tile name={jamName()} shown="You" on={jamMic()} level={jamLevels().mine} mine testid="jam-me" />
+                    <div class="jm-cams" classList={{ seen: jamCam() || jamTheirCam() }}>
+                        <Tile name={jamPeer() ?? ''} shown={jamPeer() ?? ''} on={jamTheirMic()} level={jamLevels().theirs} picture={jamTheirCam() ? jamPictures().theirs : null} testid="jam-them" />
+                        <Tile name={jamName()} shown="You" on={jamMic()} level={jamLevels().mine} picture={jamCam() ? jamPictures().mine : null} mine testid="jam-me" />
                     </div>
                     <div class="jm-ctl">
-                        <button class="chip tgl" classList={{ on: jamMic() }} aria-pressed={jamMic()} title={jamMic() ? 'Switch your microphone off' : `Let ${jamPeer()} hear you`} onClick={() => void toggleMic()}>
-                            Microphone
+                        <button class="ib jm-tg" classList={{ on: jamMic() }} aria-pressed={jamMic()} aria-label="Microphone" title={jamMic() ? 'Your microphone is on. Press to switch it off.' : `Switch your microphone on, so ${jamPeer()} hears you`} onClick={() => void toggleMic()}>
+                            <svg viewBox="0 0 16 16" aria-hidden="true">
+                                <rect x="6" y="1.8" width="4" height="7.6" rx="2" />
+                                <path class="ln" d="M3.6 7.4a4.4 4.4 0 0 0 8.8 0M8 11.8v2.4M5.7 14.2h4.6" />
+                            </svg>
+                        </button>
+                        <button class="ib jm-tg" classList={{ on: jamCam() }} aria-pressed={jamCam()} aria-label="Camera" title={jamCam() ? 'Your camera is on. Press to switch it off.' : `Switch your camera on, so ${jamPeer()} sees you`} onClick={() => void toggleCam()}>
+                            <svg viewBox="0 0 16 16" aria-hidden="true">
+                                <rect x="1.6" y="4" width="9" height="8" rx="1.8" />
+                                <path d="M11.4 7.2 14.4 5v6l-3-2.2z" />
+                            </svg>
                         </button>
                         <span class="grow" />
                         <span class="jm-note">Use headphones</span>

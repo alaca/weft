@@ -1,11 +1,14 @@
 import type { Told } from './protocol'
 
-// The call between the two people in a jam. Their voices go straight from one machine to the
-// other; only the few messages that set the call up pass through the relay. The call is there
-// from the start of a jam with nothing in it, and a microphone is put into it and taken out
-// again without the call being made anew.
-export type VoiceEvents = { tell(told: Told): void; levels(mine: number, theirs: number): void; failed(): void }
-export type Voice = { told(told: Told): void; speak(stream: MediaStream | null): Promise<void>; close(): void }
+// The call between the two people in a jam. Their voices and pictures go straight from one
+// machine to the other; only the few messages that set the call up pass through the relay. The
+// call is there from the start of a jam with nothing in it, and a microphone or a camera is put
+// into it and taken out again without the call being made anew.
+export type VoiceEvents = { tell(told: Told): void; levels(mine: number, theirs: number): void; picture(theirs: MediaStream): void; failed(): void }
+export type Voice = { told(told: Told): void; speak(stream: MediaStream | null): Promise<void>; show(stream: MediaStream | null): Promise<void>; close(): void }
+
+// A picture the size of a small tile needs no more than this to be sent.
+const PICTURE_BITS = 350_000
 
 const EVERY = 100
 const LOUD = 4
@@ -46,6 +49,7 @@ export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
     let mine: AnalyserNode | null = null
     let theirs: AnalyserNode | null = null
     let sender: RTCRtpSender | null = null
+    let eye: RTCRtpSender | null = null
     let closed = false
     let described = false
     const early: RTCIceCandidateInit[] = []
@@ -88,7 +92,8 @@ export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
         if (!closed && peer.iceConnectionState === 'failed') on.failed()
     }
     peer.ontrack = (event) => {
-        const stream = event.streams[0] ?? new MediaStream([event.track])
+        if (event.track.kind === 'video') return on.picture(new MediaStream([event.track]))
+        const stream = new MediaStream([event.track])
         ear.srcObject = stream
         void ear.play().catch(() => undefined)
         theirs = listen(stream, true)
@@ -101,6 +106,7 @@ export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
 
     if (host) {
         sender = peer.addTransceiver('audio', { direction: 'sendrecv' }).sender
+        eye = peer.addTransceiver('video', { direction: 'sendrecv' }).sender
         void peer
             .createOffer()
             .then((offer) => peer.setLocalDescription(offer))
@@ -111,10 +117,10 @@ export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
     const answer = async (sdp: RTCSessionDescriptionInit) => {
         await peer.setRemoteDescription(sdp)
         if (sdp.type === 'offer') {
-            const line = peer.getTransceivers()[0]
-            if (line) {
+            for (const line of peer.getTransceivers()) {
                 line.direction = 'sendrecv'
-                sender = line.sender
+                if (line.receiver.track.kind === 'video') eye = line.sender
+                else sender = line.sender
             }
             await peer.setLocalDescription(await peer.createAnswer())
             if (peer.localDescription) on.tell({ k: 'rtc', sdp: peer.localDescription.toJSON() })
@@ -135,6 +141,20 @@ export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
             if (closed || !sender) return
             await sender.replaceTrack(stream?.getAudioTracks()[0] ?? null)
             mine = stream ? listen(stream, false) : null
+        },
+        async show(stream) {
+            if (closed || !eye) return
+            await eye.replaceTrack(stream?.getVideoTracks()[0] ?? null)
+            if (!stream) return
+            try {
+                const sending = eye.getParameters()
+                if (sending.encodings?.[0]) {
+                    sending.encodings[0].maxBitrate = PICTURE_BITS
+                    await eye.setParameters(sending)
+                }
+            } catch {
+                return
+            }
         },
         close() {
             closed = true

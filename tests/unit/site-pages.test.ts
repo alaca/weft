@@ -62,7 +62,7 @@ describe('the first page', () => {
         await ask(`/api/songs/${made[3].id}/hide`, { token, method: 'POST' })
         const html = await page('/')
         expect(names(html)).toEqual(['Five', 'Three', 'Two', 'One'])
-        expect(html).toContain('Build songs from patterns,<br>alone or together.')
+        expect(html).toContain('<h1>Weave songs from patterns.</h1>')
         expect(html).toContain('<h3>Jams</h3>')
         expect(html).toContain(`<a class="play" href="/songs/${made[4].id}.mp3" aria-label="Play the preview of Five">`)
         expect(html).toContain(`<path id="w-${made[4].id}" vector-effect="non-scaling-stroke" d="M2 17.8V22.2`)
