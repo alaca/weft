@@ -7,7 +7,19 @@ import { TakeRefused, whyNot } from '../library/recorder'
 export type Captured = { stream: MediaStream; stop(): void }
 
 const LEAD = 0.06
+// The furthest a voice is let to fall behind, in seconds. It is more than the window is late by
+// in ordinary use, or a voice would be cut at every change to a heavy song.
+const BEHIND = 0.25
 const inDesktop = () => '__TAURI_INTERNALS__' in window
+
+// When a piece of a voice is to sound: right after the piece before it, or a little ahead of
+// now when it comes late, so that the ones after it follow without a gap. What a late piece
+// loses is never made up, and after a standstill of the window the pieces of that time come
+// all at once. So a piece that would sound further from now than a voice may fall behind is
+// left out: a short cut in the voice, in place of a voice that stays late.
+export function pieceStart(next: number, now: number): number | null {
+    return next - now > BEHIND ? null : Math.max(next, now + LEAD)
+}
 
 function fromApp(err: unknown): TakeRefused {
     const said = String((err as Error)?.message ?? err)
@@ -24,16 +36,15 @@ async function appVoice(): Promise<Captured> {
     const play = (bytes: ArrayBuffer) => {
         const samples = new Float32Array(bytes)
         if (!samples.length || rate === null) return
+        const at = pieceStart(next, context.currentTime)
+        if (at === null) return
         const buffer = context.createBuffer(1, samples.length, rate)
         buffer.copyToChannel(samples, 0)
         const source = context.createBufferSource()
         source.buffer = buffer
         source.connect(out)
-        // A piece that comes late starts a little ahead of now, so that the ones after it
-        // follow without a gap.
-        next = Math.max(next, context.currentTime + LEAD)
-        source.start(next)
-        next += buffer.duration
+        source.start(at)
+        next = at + buffer.duration
     }
     const heard = new Channel<ArrayBuffer>()
     heard.onmessage = (bytes) => (rate === null ? void early.push(bytes) : play(bytes))
