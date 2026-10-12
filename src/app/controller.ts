@@ -2201,10 +2201,9 @@ const PREVIEW_PEAKS = 160
 async function previewToPublish(from: number, onProgress: (done: number) => void): Promise<{ mp3: Uint8Array; peaks: number[]; seconds: number } | null> {
     const perBar = 240 / engine.bpm()
     const bars = Math.max(from + 1, Math.min(songLengthNow(), from + Math.ceil(PREVIEW_SECONDS / perBar)))
-    const made = await engine.render({ bars, ringSeconds: 0, sampleRate: PREVIEW_RATE }, onProgress)
-    const start = Math.min(made.channels[0].length, Math.round(from * made.secondsPerBar * made.sampleRate))
-    const length = Math.min(made.channels[0].length - start, PREVIEW_SECONDS * made.sampleRate)
-    const part = made.channels.map((channel) => channel.slice(start, start + length))
+    const made = await engine.render({ from, bars, ringSeconds: 0, sampleRate: PREVIEW_RATE }, onProgress)
+    const length = Math.min(made.channels[0].length, PREVIEW_SECONDS * made.sampleRate)
+    const part = made.channels.map((channel) => channel.slice(0, length))
     const peak = peakOf(part, length)
     if (!peak || length <= 0) return null
     const fade = Math.min(length, Math.round(made.sampleRate * 0.3))

@@ -24,6 +24,7 @@ import { cutAt } from './cut'
 import { toEvents } from './events'
 import { lightNotes } from './lights'
 import { answerLists, transpile } from './lists'
+import { madeFrom } from './madeFrom'
 import { marksField, setMarks, type BlockMark } from './marks'
 import { maskSliders } from './mask'
 import { useOwnWorklets } from './ownWorklets'
@@ -44,7 +45,9 @@ export type EvalError = { message: string; line: number | null; guard?: boolean 
 export type Rendered = { channels: Float32Array[]; sampleRate: number; secondsPerBar: number; missed: number }
 // `only` names one pattern to make the recording of. The others are left out of it, but what
 // they do to it stays: a pattern that is pushed down by the kick is still pushed down.
-export type RenderRequest = { bars: number; ringSeconds: number; sampleRate: number; only?: string }
+// `from` is the bar the recording starts at when that is not the first one, and `bars` is
+// still the bar of the song it ends before.
+export type RenderRequest = { bars: number; from?: number; ringSeconds: number; sampleRate: number; only?: string }
 export type Moved = { k: 'play'; at: number } | { k: 'pause'; at: number } | { k: 'stop' }
 
 export type EngineState = {
@@ -127,6 +130,14 @@ const MANY_NODES = 20000
 const RUNG_OUT = 5000
 const STRETCH = 2
 const LEAD = 0.05
+// How many bars before its start a recording that starts later in the song is made from.
+const RUN_UP = 2
+// The clock of such a recording starts on a multiple of this many seconds of the song. That is
+// a whole number of the stretches sounds are handed over in and, at the rates a file is made
+// at, of the blocks of samples the clock works in. So every sound is handed over as long before
+// it starts, and falls on the same sample of the same block, as in a recording from the first
+// bar, and comes out the same.
+const START_ON = 32
 // Where the limiter of the desk begins to hold back, in decibels, and how hard.
 const LIMIT_AT = -2
 const LIMIT_BY = 20
@@ -950,8 +961,10 @@ export function createEngine(): Engine {
         // The song as a recording, made faster than it plays: every sound of the song is
         // handed to an audio clock that is not the one you listen on, and that clock then runs
         // through the song as fast as the machine can. The song is evaluated from its first
-        // bar for this, with nothing soloed, and put back as it was afterwards.
-        async render({ bars, ringSeconds, sampleRate, only }, onProgress) {
+        // bar for this, with nothing soloed, and put back as it was afterwards. For a recording
+        // that starts at a later bar the song is not moved: it is asked at its real bars, so
+        // that whatever goes by the bar is as it is there, and only the clock starts later.
+        async render({ bars, from = 0, ringSeconds, sampleRate, only }, onProgress) {
             if (blank()) throw new Error('There is nothing in this song to play.')
             engine.stop()
             dropSpare()
@@ -982,12 +995,17 @@ export function createEngine(): Engine {
                 if (state.error) throw new Error(state.error.message)
                 const pattern = mirror.repl.state.pattern
                 const cps: number = mirror.repl.scheduler.cps
-                const seconds = bars / cps + ringSeconds
+                const first = madeFrom(from, RUN_UP, (bar) => pattern.queryArc(bar, bar + 1, { _cps: cps }).flatMap((hap: any) => (hap.whole ? [hap.whole.begin.valueOf()] : [])))
+                const zero = Math.floor(first / cps / START_ON) * START_ON
+                // Nothing sounds on the clock before the bar the recording is made from, and
+                // that takes no time to make, so it does not count in how far along it is.
+                const silent = first / cps - zero
+                const seconds = bars / cps - zero + ringSeconds
                 const clock = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate)
                 setAudioContext(clock)
                 setSuperdoughAudioController(null)
                 await initAudio()
-                const startOf = (hap: any) => hap.whole.begin.valueOf() / cps
+                const startOf = (hap: any) => hap.whole.begin.valueOf() / cps - zero
                 const ducks = (hap: any) => hap.value?.duckorbit !== undefined && hap.value?.duckorbit !== null
                 const own = only === undefined ? null : pending.get(only)
                 const known = ducking?.code === code && ducking.cps === cps && ducking.bars === bars ? ducking.byBar : []
@@ -1003,7 +1021,7 @@ export function createEngine(): Engine {
                     if (only === undefined) return everything.map((hap) => ({ hap, heard: true }))
                     return [...hapsOf(own).map((hap) => ({ hap, heard: true })), ...found[bar].map((hap) => ({ hap, heard: false }))]
                 }
-                const due = barByBar(bars, cps, inBar, (sound) => startOf(sound.hap))
+                const due = barByBar(bars - first, cps, (bar) => inBar(first + bar), (sound) => startOf(sound.hap))
                 // The sounds are handed over a stretch at a time, a little before they are
                 // due, with the clock standing still meanwhile, the way they arrive when the
                 // song plays. Handing over the whole song at once makes the clock carry every
@@ -1030,7 +1048,7 @@ export function createEngine(): Engine {
                         } catch (why) {
                             failed = { why }
                         }
-                        onProgress?.(at / seconds)
+                        onProgress?.(Math.max(0, at - silent) / (seconds - silent))
                         void clock.resume()
                     })
                 }
@@ -1038,7 +1056,8 @@ export function createEngine(): Engine {
                 await pause(SETTLE)
                 if (failed) throw failed.why
                 ducking = { code, cps, bars, byBar: found }
-                return { channels: [buffer.getChannelData(0), buffer.getChannelData(1)], sampleRate, secondsPerBar: 1 / cps, missed }
+                const early = Math.round((from / cps) * sampleRate) - zero * sampleRate
+                return { channels: [buffer.getChannelData(0).subarray(early), buffer.getChannelData(1).subarray(early)], sampleRate, secondsPerBar: 1 / cps, missed }
             } finally {
                 setAudioContext(live)
                 setSuperdoughAudioController(liveController)
