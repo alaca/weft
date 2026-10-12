@@ -70,7 +70,7 @@ export const DOCS: DocSection[] = [
         pictures: [{ file: '/docs/scenes.webp', width: 980, height: 360, alt: 'The Song panel in Live with a row of three scenes: Intro, Build, which is waiting for the next bar, and Drop, which is playing.' }],
         html: `<p>Scenes are for playing a song live. Switch to Live and the Song panel gets a row of them.</p>
 <p>A scene is a set of patterns that play together. Mute and unmute patterns until you hear one part of your song, and press <b>Keep what plays now</b>. Do the same for the next part.</p>
-<p>While the song plays, press a scene. It waits for the bar to end and comes in with the next one. Double click a scene to give it a name.</p>`,
+<p>While the song plays, press a scene. It waits for the bar to end and comes in on the first beat of the next one. Pressed in the last half second of a bar, it waits for the bar after. Double click a scene to give it a name.</p>`,
     },
     {
         id: 'keys',

@@ -4,7 +4,7 @@ import { drumChoices } from '../controls/drums'
 import { firstMotion, motionText, readMotion, type Motion } from '../controls/motion'
 import { callFor, controlOf, valueArg, type ControlView } from '../controls/views'
 import { curveOver, curveText, followSong, readCurve, stretched } from '../song/curves'
-import { dropScene, freeSceneName, keepScene, readScenes, renameScene, sceneEdits, type Scene } from '../song/scenes'
+import { dropScene, freeSceneName, keepScene, readScenes, renameScene, sceneBar, sceneEdits, type Scene } from '../song/scenes'
 import { addVariant, chooseEdit, followChoices, removeVariant, variantBars } from '../song/variants'
 import { onSongLink } from '../desktop/links'
 import { openInBrowser } from '../desktop/browser'
@@ -1803,9 +1803,13 @@ export function removeVariantOf(id: string, index: number) {
 }
 
 // ---- scenes: sets of patterns that play together, kept as lines of the song and chosen
-// while it plays. A scene that is chosen while the song plays comes in with the next bar, so
-// that what changes changes on the beat. Stopped, it is there at once.
-const SCENE_LEAD = 0.12
+// while it plays. A scene that is chosen while the song plays comes in on a bar, so that what
+// changes changes on the beat. Stopped, it is there at once.
+//
+// The notes of a bar are taken up to a third of a second before they sound, so the code is
+// changed and the song played again that long before the bar and a little more, which is what
+// the change itself takes. The engine is told the bar, and switches each pattern exactly there.
+const SCENE_LEAD = 0.45
 let sceneTimer = 0
 
 export const scenesOf = (code: string): Scene[] => readScenes(code)
@@ -1818,13 +1822,14 @@ export function keepSceneNow() {
     if (edit) engine.applyEdit(edit)
 }
 
-function showScene(name: string) {
+function showScene(name: string, bar?: number) {
     window.clearTimeout(sceneTimer)
     setSceneWaiting(null)
     const scene = readScenes(engine.getCode()).find((one) => one.name === name)
     const edits = scene && !stale() ? sceneEdits(song().patterns, scene) : []
     if (!edits.length) return
     engine.applyEdit(edits)
+    if (bar !== undefined) engine.comeInAt(bar)
     replay()
 }
 
@@ -1832,9 +1837,9 @@ export function chooseScene(name: string) {
     if (stale()) return
     window.clearTimeout(sceneTimer)
     if (!engineState().playing) return showScene(name)
-    const left = (1 - (engine.now() % 1)) * (240 / engine.bpm()) - SCENE_LEAD
+    const { bar, wait } = sceneBar(engine.now(), 240 / engine.bpm(), SCENE_LEAD)
     setSceneWaiting(name)
-    sceneTimer = window.setTimeout(() => showScene(name), Math.max(0, left * 1000))
+    sceneTimer = window.setTimeout(() => showScene(name, bar), wait * 1000)
 }
 
 export function removeScene(name: string) {

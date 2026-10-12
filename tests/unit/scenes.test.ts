@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { analyze } from '../../src/song/analyze'
-import { dropScene, freeSceneName, keepScene, readScenes, renameScene, sceneEdits, sceneIsOn } from '../../src/song/scenes'
+import { dropScene, freeSceneName, keepScene, readScenes, renameScene, sceneBar, sceneEdits, sceneIsOn } from '../../src/song/scenes'
 
 const SONG = `// A song
 setcpm(120/4)
@@ -59,5 +59,26 @@ describe('scenes', () => {
         const back = apply(two, [dropScene(two, readScenes(two)[1])])
         expect(back).toBe(one)
         expect(apply(one, [dropScene(one, readScenes(one)[0])])).toBe(SONG)
+    })
+
+    it('come in on the next bar when they are chosen in time, and on the bar after when they are not', () => {
+        const bar = 240 / 146
+        const early = sceneBar(4.5, bar, 0.45)
+        expect(early.bar).toBe(5)
+        expect(early.wait).toBeCloseTo(0.5 * bar - 0.45, 9)
+        expect(sceneBar(4, bar, 0.45)).toEqual({ bar: 5, wait: bar - 0.45 })
+        const late = sceneBar(4.9, bar, 0.45)
+        expect(late.bar).toBe(6)
+        expect(late.wait).toBeCloseTo(1.1 * bar - 0.45, 9)
+        // Left of the bar is exactly what is needed: that is still in time.
+        expect(sceneBar(7.5, 2, 1)).toEqual({ bar: 8, wait: 0 })
+    })
+
+    it('wait as many bars as it takes when a bar is shorter than what is needed', () => {
+        const fast = sceneBar(3.5, 0.25, 0.45)
+        expect(fast.bar).toBe(6)
+        expect(fast.wait).toBeCloseTo(0.175, 9)
+        // With no length of a bar to go by there is nothing to wait for.
+        expect(sceneBar(3.5, 0, 0.45)).toEqual({ bar: 4, wait: 0 })
     })
 })

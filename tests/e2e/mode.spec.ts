@@ -75,6 +75,21 @@ test('scenes keep which patterns play, are written into the song, and one that i
     await expect.poll(code, { timeout: 8000 }).toContain('\n_bass: note(')
     expect(await now(page)).toBeGreaterThan(bar + 0.8)
     await expect(scenes.getByRole('button', { name: 'Scene 2', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    // The code changes a moment before the bar, and the bass plays on until the bar itself.
+    await expect.poll(() => sounding(page, bar + 1)).toBe(4)
+    expect(await sounding(page, bar)).toBe(6)
+
+    // Chosen in the last moment of a bar, a scene waits for the bar after.
+    const near = await page.waitForFunction(() => {
+        const at = (window as any).__weft.engine.now() as number
+        return at % 1 > 0.9 && at % 1 < 0.94 ? { bar: Math.floor(at) } : null
+    })
+    const late = (await near.jsonValue())!.bar
+    await scenes.getByRole('button', { name: 'Scene 1', exact: true }).click()
+    await expect.poll(code, { timeout: 12000 }).toContain('\nbass: note(')
+    expect(await now(page)).toBeGreaterThan(late + 1.8)
+    await expect.poll(() => sounding(page, late + 2)).toBe(6)
+    expect(await sounding(page, late + 1)).toBe(4)
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
 
     // A scene gets a name of its own, and is taken out again.

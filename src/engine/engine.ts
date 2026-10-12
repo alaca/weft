@@ -19,6 +19,7 @@ import { checkSong } from '../guard/check'
 import type { SentUpdate } from '../jam/protocol'
 import { DEFAULT_MIX, fitMix, type Mix } from '../library/mix'
 import type { PatternEvent, TextEdit } from '../song/types'
+import { cutAt } from './cut'
 import { toEvents } from './events'
 import { answerLists, transpile } from './lists'
 import { marksField, setMarks, type BlockMark } from './marks'
@@ -64,6 +65,7 @@ export interface Engine {
     refresh(): Promise<void>
     replay(held?: boolean): void
     replayHeld(): void
+    comeInAt(bar: number): void
     pause(): void
     stop(): void
     setSolo(ids: string[]): void
@@ -167,6 +169,11 @@ export function createEngine(): Engine {
     let pending = new Map<string, any>()
     let unmasked = new Map<string, any>()
     let pendingUnmasked = new Map<string, any>()
+    // The patterns that sounded when the code was last evaluated: not muted, not left out by a solo.
+    let sounding = new Set<string>()
+    let pendingSounding = new Set<string>()
+    // The bar a scene comes in on. It is said once, for the evaluation that follows.
+    let comeIn: number | null = null
     let startBar = 0
     let endBar: number | null = null
     let liveMode = false
@@ -348,6 +355,14 @@ export function createEngine(): Engine {
         let anonymous = 0
         pending = new Map()
         pendingUnmasked = new Map()
+        pendingSounding = new Set()
+        // A scene that is chosen while the song plays comes in on a bar. Strudel takes the notes
+        // of the next third of a second at a time, so the code is evaluated that long before the
+        // bar, and each pattern the scene switches is cut at the bar: one it switches off plays
+        // on until there, one it switches on rests until there.
+        const bar = liveMode && state.playing ? comeIn : null
+        const sounded = sounding
+        comeIn = null
         Pattern.prototype.p = function (this: any, id: unknown) {
             if (typeof id !== 'string') return original.call(this, id)
             const bare = bareId(id)
@@ -355,12 +370,21 @@ export function createEngine(): Engine {
             pending.set(key, this)
             pendingUnmasked.set(key, this[BEFORE_MASK] ?? this)
             if (soloIds.length && !soloIds.includes(key)) return silence
+            const muted = id !== bare
+            if (!muted) pendingSounding.add(key)
             // Strudel looks a little ahead, so the bar after the last one would already have
             // started to sound by the time the song is stopped at its end. Nothing that starts
             // at or after the end is let through. The end is read as it is now, not as it was
             // when the code was evaluated, because the song grows and shrinks as it is arranged.
             const shift = offset
-            if (liveMode) return original.call(shift ? (this[BEFORE_MASK] ?? this).early(shift) : (this[BEFORE_MASK] ?? this), id)
+            if (liveMode) {
+                const whole = this[BEFORE_MASK] ?? this
+                const switched = bar !== null && muted === sounded.has(key)
+                const round = switched ? new Pattern(cutAt((asked: unknown) => whole.query(asked), bar, muted ? 'before' : 'from')) : whole
+                // Strudel plays nothing under a muted name, so a pattern that is switched off
+                // is handed over under its bare one.
+                return original.call(shift ? round.early(shift) : round, switched ? bare : id)
+            }
             if (loop) return original.call(this.ribbon(loop.from, loop.to - loop.from).early(shift), id)
             const within = (hap: any) => endBar === null || (hap.whole ?? hap.part).begin.valueOf() + shift < endBar
             return original.call((shift ? this.early(shift) : this).filterHaps(within), id)
@@ -464,6 +488,7 @@ export function createEngine(): Engine {
         mirror.stop()
         registry = new Map()
         unmasked = new Map()
+        sounding = new Set()
         evaluated = false
         evaluatedCode = null
         resumeAt = null
@@ -553,6 +578,7 @@ export function createEngine(): Engine {
                 applyMix()
                 registry = pending
                 unmasked = pendingUnmasked
+                sounding = pendingSounding
                 evaluated = true
                 evaluatedCode = done?.code ?? mirror.code
                 setState({ error: null, dirty: false })
@@ -735,6 +761,9 @@ export function createEngine(): Engine {
         },
         replay,
         replayHeld,
+        comeInAt(bar) {
+            comeIn = bar
+        },
         pause() {
             if (!state.playing) return
             const at = engine.now()

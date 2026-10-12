@@ -70,4 +70,15 @@ export function sceneEdits(blocks: PatternBlock[], scene: Scene): TextEdit[] {
     })
 }
 
+// The bar a scene comes in on when it is chosen while the song plays, and how many seconds to
+// wait before the song is played again for it. `now` is where the song is, in bars, and `lead`
+// how long before the bar that has to be done. A scene chosen with less than that left of its
+// bar waits for the bar after.
+export function sceneBar(now: number, barSeconds: number, lead: number): { bar: number; wait: number } {
+    const next = Math.floor(now) + 1
+    const left = (next - now) * barSeconds - lead
+    const more = left < 0 && barSeconds > 0 ? Math.ceil(-left / barSeconds) : 0
+    return { bar: next + more, wait: Math.max(0, left + more * barSeconds) }
+}
+
 export const sceneIsOn = (blocks: PatternBlock[], scene: Scene): boolean => blocks.length > 0 && sceneEdits(blocks, scene).length === 0
