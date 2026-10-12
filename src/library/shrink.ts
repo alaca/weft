@@ -1,4 +1,5 @@
 import { SONG_LIMIT, type PackedSound } from './songfile'
+import { giveTurn } from './turn'
 
 // A song file small enough to publish. A song's own sounds are what makes a file large, so each
 // is made into an MP3, at the best quality at which the whole file fits. A sound that an MP3
@@ -25,7 +26,12 @@ const START = 0.1
 // exactly that much off again, so a drum hit still falls where it was put.
 export function onsetOf(sound: Decoded): number {
     let peak = 0
-    for (const channel of sound.channels) for (const sample of channel) peak = Math.max(peak, Math.abs(sample))
+    for (const channel of sound.channels) {
+        for (let at = 0; at < channel.length; at++) {
+            const loud = Math.abs(channel[at])
+            if (loud > peak) peak = loud
+        }
+    }
     if (!peak) return 0
     const length = sound.channels[0]?.length ?? 0
     for (let at = 0; at < length; at++) {
@@ -52,15 +58,17 @@ export async function shrinkSounds(
 ): Promise<Shrunk> {
     if (sizeWith(sounds) <= limit) return { sounds, fits: true, kbps: null }
     const heard = await Promise.all(sounds.map((sound) => decode(sound.data)))
+    const onsets = heard.map((decoded) => (decoded ? onsetOf(decoded) : 0))
     let made = sounds
     for (const kbps of SHRINK_STEPS) {
+        await giveTurn()
         made = []
         for (const [at, sound] of sounds.entries()) {
             const decoded = heard[at]
             const rate = decoded ? rateFor(decoded, kbps) : 0
             const fit = decoded && rate !== decoded.sampleRate ? await decode(sound.data, rate) : decoded
             const small = fit ? await encode(fit, kbps) : null
-            made.push(small && decoded && small.length < sound.data.length ? { ...sound, file: mp3Name(sound.file), type: 'audio/mpeg', data: small, onset: onsetOf(decoded) } : sound)
+            made.push(small && small.length < sound.data.length ? { ...sound, file: mp3Name(sound.file), type: 'audio/mpeg', data: small, onset: onsets[at] } : sound)
         }
         if (sizeWith(made) <= limit) return { sounds: made, fits: true, kbps }
     }

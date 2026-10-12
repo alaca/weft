@@ -2074,16 +2074,31 @@ export async function saveSongFile() {
     }
 }
 
-// The open song as the file that would be published, or why it cannot be. Nothing publishes
-// yet; this is the step that will stand in front of it.
+// The open song as the file that would be published, or why it cannot be. Making it can take
+// seconds, and it is asked for when the publish window opens, when someone signs in inside it
+// and when Publish is pressed. So the last one is kept beside what it was made from, and while
+// none of that has changed, whoever asks gets that one, done or still being made. Your own
+// sounds are a new list whenever one of them is added, cut or removed.
+let readied: { from: string; sounds: ReturnType<typeof ownSounds>; made: Promise<Prepared> } | null = null
+
 async function prepareToPublish(): Promise<Prepared | null> {
     if (!current) return null
-    const code = engine.getCode()
-    return prepareForPublishing(
-        { name: current.name, code, keys: current.keys ?? {}, sounds: await soundsOfSong(code), ...(current.source ? { source: current.source } : {}) },
-        (bytes, sampleRate) => engine.decodeAudio(bytes.slice().buffer, sampleRate),
-        (sound, kbps) => encodeMp3(sound.channels, sound.sampleRate, kbps),
+    const song = { name: current.name, code: engine.getCode(), keys: current.keys ?? {}, ...(current.source ? { source: current.source } : {}) }
+    const from = JSON.stringify(song)
+    const sounds = ownSounds()
+    if (readied?.from === from && readied.sounds === sounds) return readied.made
+    const made = soundsOfSong(song.code).then((packed) =>
+        prepareForPublishing(
+            { ...song, sounds: packed },
+            (bytes, sampleRate) => engine.decodeAudio(bytes.slice().buffer, sampleRate),
+            (sound, kbps) => encodeMp3(sound.channels, sound.sampleRate, kbps),
+        ),
     )
+    readied = { from, sounds, made }
+    made.catch(() => {
+        if (readied?.made === made) readied = null
+    })
+    return made
 }
 
 const PREVIEW_SECONDS = 30
