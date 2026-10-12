@@ -1,5 +1,5 @@
 import { history, isolateHistory, redo, undo } from '@codemirror/commands'
-import { Annotation, EditorState, Prec, StateEffect } from '@codemirror/state'
+import { Annotation, EditorState, Prec, StateEffect, Transaction } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
 import { BlockWidget, StrudelMirror, codemirrorSettings, sliderPlugin } from '@strudel/codemirror'
 import { Pattern, silence } from '@strudel/core'
@@ -195,10 +195,14 @@ export function createEngine(): Engine {
     let mix: Mix = DEFAULT_MIX
     let gesture = 0
     let editedIn = -1
+    // The editor only joins changes made within half a second of each other, and a press can
+    // rest for longer than that. Every change of a press is given the time of its first.
+    let editedAt = 0
     const step = () => {
         const joins = gesture === editedIn
         editedIn = gesture
-        return joins ? sameGesture.of(true) : isolateHistory.of('before')
+        if (!joins) editedAt = Date.now()
+        return [joins ? sameGesture.of(true) : isolateHistory.of('before'), Transaction.time.of(editedAt)]
     }
     // Everything Strudel plays comes together in one place. Between there and the speakers
     // stands the desk: three tone controls, the pan, a limiter that is in the way or not, and

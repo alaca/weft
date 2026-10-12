@@ -68,8 +68,9 @@ test('a knob whose line in the code is out of sight is turned without the song b
     await expect.poll(async () => Math.abs(Number(/\.lpf\(slider\(([\d.]+), 200, 4000\)\)/.exec(await code(page))?.[1]) - 2000)).toBeLessThan(4)
 })
 
-// A number typed by hand is only heard changed when the song is played again. Its knob used to
-// do that at every move of the pointer, also when the move changed nothing.
+// A number typed by hand is only heard changed when the song is played again. Its knob puts it
+// on a slider at the first turn that changes it, so the song is played again once, and a move
+// that changes nothing writes nothing.
 test('a knob that is a plain number in the code is put on a slider at its first turn, and the song is played again once', async ({ page }) => {
     const song = SONG.replace('.lpf(slider(1200, 200, 4000))', '.lpf(800)')
     await open(page, song)

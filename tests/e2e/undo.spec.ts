@@ -48,7 +48,11 @@ test('a knob that was dragged is undone in one step', async ({ page }) => {
     const box = (await volume.boundingBox())!
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
     await page.mouse.down()
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 30, { steps: 6 })
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 15, { steps: 3 })
+    // A hand that rests while it listens is still on the same drag. The rest here is longer
+    // than the half second within which the editor joins changes by itself.
+    await page.waitForTimeout(700)
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 30, { steps: 3 })
     await page.mouse.up()
     await expect.poll(() => code(page)).toMatch(/\.mul\(postgain\(slider\(0\.7\d?, 0, 1\.5\)\)\)/)
     await page.getByTestId('status').click()
