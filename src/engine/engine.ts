@@ -545,6 +545,16 @@ export function createEngine(): Engine {
         if (!state.playing) offset = startingAt()
         await mirror.repl.evaluate(mirror.code, false)
     }
+    // Word that they did so can come several times in one turn, as when a line that dropped is
+    // back. The song is then made to sound once, as the code reads after the last of them.
+    // A change of your own may still be waiting to be played when the word comes. The song is
+    // then played again the way that change would have had it played, which tells them. Answered
+    // by itself, the change would sound here without being said, and the other would never hear it.
+    let reheard = 0
+    const hearSoon = () => {
+        window.clearTimeout(reheard)
+        reheard = window.setTimeout(() => (replayWaits() ? replay() : void reevaluate()), 0)
+    }
 
     // A control writes a whole value again: all the steps of a row, all the notes of a roll. Only
     // what differs from what stands there is changed in the code, so that two people who change
@@ -808,11 +818,7 @@ export function createEngine(): Engine {
         startSync(version, by, send) {
             sync = createSync(mirror.editor.state.doc, version, by, send, {
                 changed: followSliders,
-                // A change of your own may still be waiting to be played when the other person
-                // says they played theirs. The song is then played again the way that change
-                // would have had it played, which tells them. Answered by itself, the change
-                // would sound here without being said, and the other would never hear it.
-                heard: () => void window.setTimeout(() => (replayWaits() ? replay() : void reevaluate()), 0),
+                heard: hearSoon,
             })
             mirror.editor.dispatch({ effects: syncSlot.reconfigure(sync.extension) })
         },

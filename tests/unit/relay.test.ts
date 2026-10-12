@@ -288,10 +288,11 @@ describe('a line that drops in the middle of a jam', () => {
         const again = await person()
         again.send({ t: 'back', key: guestKey, v: 1 })
         await again.next('back')
-        expect(await again.next('updates')).toEqual({ t: 'updates', updates: [change('b'), change('c')] })
-        expect(await again.next('updates')).toEqual({ t: 'updates', updates: [change('d')] })
+        expect(await again.next('updates')).toEqual({ t: 'updates', updates: [change('b'), change('c'), change('d')] })
         again.send({ t: 'push', v: 4, updates: [change('e')] })
         expect(await host.next('updates')).toEqual({ t: 'updates', updates: [change('e')] })
+        await again.next('updates')
+        expect(again.heard).toEqual([])
     })
 
     it('sends a change of their own back to someone who never heard that it was taken', async () => {
@@ -305,6 +306,26 @@ describe('a line that drops in the middle of a jam', () => {
         again.send({ t: 'back', key: guestKey, v: 0 })
         await again.next('back')
         expect(await again.next('updates')).toEqual({ t: 'updates', updates: [change('mine')] })
+    })
+
+    it('sends a change of their own that was never answered apart from what the other changed after it', async () => {
+        const { host, guest, guestKey } = await pair()
+        guest.socket.pause()
+        guest.send({ t: 'push', v: 0, updates: [change('mine')] })
+        await host.next('updates')
+        guest.socket.terminate()
+        await host.next('away')
+        host.send({ t: 'push', v: 1, updates: [change('b')] })
+        await host.next('updates')
+        host.send({ t: 'push', v: 2, updates: [change('c'), change('d')] })
+        await host.next('updates')
+        const again = await person()
+        again.send({ t: 'back', key: guestKey, v: 0 })
+        await again.next('back')
+        expect(await again.next('updates')).toEqual({ t: 'updates', updates: [change('mine')] })
+        expect(await again.next('updates')).toEqual({ t: 'updates', updates: [change('b'), change('c'), change('d')] })
+        await quiet()
+        expect(again.heard).toEqual([])
     })
 
     it('holds the place of each when both lines drop, and says to the first one back that the other is not there yet', async () => {

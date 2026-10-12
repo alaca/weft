@@ -48,10 +48,11 @@ type Room = {
     guest: WebSocket | null
     version: number
     // What each of the two shows to get their place back, the timer that runs while one of
-    // them is away, and the last changes: each as it was sent on, with the count it began at.
+    // them is away, and the last changes: each as it was sent on, with the count it began at
+    // and which of the two made it.
     keys: Record<Role, string>
     away: Partial<Record<Role, ReturnType<typeof setTimeout>>>
-    kept: { from: number; updates: unknown[]; bytes: number }[]
+    kept: { from: number; by: Role; updates: unknown[]; bytes: number }[]
     keptBytes: number
     expires: ReturnType<typeof setTimeout>
     open: boolean
@@ -210,7 +211,16 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
         seat.room = room
         const partner: Role = role === 'host' ? 'guest' : 'host'
         say(socket, { t: 'back', there: !room.away[partner] })
-        for (const batch of missed) say(socket, { t: 'updates', updates: batch.updates })
+        // What was missed goes out in one piece, so that it is worked through once. Whoever gets
+        // a message takes all of it for their own or all of it for the other's, so a change of
+        // their own that they never heard was taken goes first, by itself.
+        const pieces: { by: Role; updates: unknown[] }[] = []
+        for (const batch of missed) {
+            const last = pieces[pieces.length - 1]
+            if (last?.by === batch.by) for (const update of batch.updates) last.updates.push(update)
+            else pieces.push({ by: batch.by, updates: [...batch.updates] })
+        }
+        for (const piece of pieces) say(socket, { t: 'updates', updates: piece.updates })
         say(role === 'host' ? room.guest : room.host, { t: 'returned' })
     }
 
@@ -332,7 +342,7 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
             const out = JSON.stringify({ t: 'updates', updates })
             // The newest changes are held for whoever is away or goes away next, the oldest
             // let go of once there is more than is held.
-            room.kept.push({ from: room.version, updates, bytes: out.length })
+            room.kept.push({ from: room.version, by: room.host === socket ? 'host' : 'guest', updates, bytes: out.length })
             room.keptBytes += out.length
             while (room.kept.length > 1 && room.keptBytes > (options.keptBytes ?? KEPT_BYTES)) room.keptBytes -= room.kept.shift()!.bytes
             room.version += updates.length
