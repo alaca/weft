@@ -2013,12 +2013,17 @@ export function duplicateSong() {
     if (keepNew(copy)) show(copy)
 }
 
+// The open song as it was in front, when it was deleted with changes that were not kept. Those
+// changes are nowhere else, so it is held for as long as the song can be put back.
+let deletedFront: SongRecord | null = null
+
 export function deleteSong(id: string) {
-    flush()
+    const kept = flush()
     const record = shelf.read(id)
     if (!record) return
     shelf.remove(id)
     setDeletedSong(record)
+    deletedFront = id === current?.id && !kept ? current : null
     if (id !== current?.id) {
         // The room this made may be what the open song was waiting for.
         if (unkept !== null) flush()
@@ -2031,11 +2036,20 @@ export function deleteSong(id: string) {
     newSong()
 }
 
+// A song that was deleted with changes that were not kept comes back the way it was: what was
+// kept of it is kept again, and it is in front with those changes, where it waits for room.
+// That is opening a song, so the one in front is written first, and a jam has to be left.
 export function restoreSong() {
     const record = deletedSong()
-    if (!record || !keepNew(record)) return
+    if (!record) return
+    const front = deletedFront
+    if (front && jamStage() === 'jamming') return void setSongNote(`${record.name} cannot be put back in the middle of a jam. Press Leave in the Jams panel first.`)
+    if ((front && !flush()) || !keepNew(record)) return
     setDeletedSong(null)
-    refreshSongs()
+    deletedFront = null
+    if (!front) return refreshSongs()
+    show(front)
+    flush()
 }
 
 export const listSongs = () => refreshSongs()

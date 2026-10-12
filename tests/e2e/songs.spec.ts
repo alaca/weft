@@ -155,6 +155,16 @@ test('when there is no room left for songs it is said, and deleting a song makes
     await expect(note).toContainText('The changes to Untitled are not kept')
     await name(page).click()
     await expect(rows(page)).toHaveText(['Untitled', 'Old sketch'])
+
+    // Deleted and put back, the song is in front again with the changes that are not kept.
+    await menu(page).getByRole('button', { name: 'Delete Untitled', exact: true }).click()
+    await expect(rows(page)).toHaveText(['Old sketch'])
+    await menu(page).getByRole('button', { name: 'Put it back' }).click()
+    await expect(rows(page)).toHaveText(['Untitled', 'Old sketch'])
+    await expect(name(page)).toHaveText('Untitled')
+    expect(await code(page)).toBe(`// ${'n'.repeat(3000)}\n${SONG}`)
+    await expect(note).toContainText('The changes to Untitled are not kept')
+
     await menu(page).getByRole('button', { name: 'Open Old sketch', exact: true }).hover()
     await menu(page).getByRole('button', { name: 'Delete Old sketch', exact: true }).click()
     await expect(rows(page)).toHaveText(['Untitled'])
