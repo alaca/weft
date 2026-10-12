@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aboutText, arrivedAt, cleanName, cleanSay, digestOf, listAddress, packPiece, PIECE, piecesOf, readInvite, readOpenJams, readPiece, showInvite } from '../../src/jam/protocol'
+import { aboutText, arrivedAt, cleanName, cleanSay, digestOf, HELD_UP, heldUp, listAddress, packPiece, PIECE, piecesOf, quickest, readInvite, readOpenJams, readPiece, showInvite, TRIPS_KEPT, withTrip } from '../../src/jam/protocol'
 import { soundRenames } from '../../src/library/songfile'
 
 describe('invites', () => {
@@ -103,6 +103,36 @@ describe('arrivedAt', () => {
         expect(arrivedAt(4, 0, 120)).toBe(4)
         expect(arrivedAt(4, 200, 120)).toBeCloseTo(4.05)
         expect(arrivedAt(4, 200, 240)).toBeCloseTo(4.1)
+    })
+})
+
+describe('how a line is timed', () => {
+    it('takes the quickest of the last few round trips for what the line takes', () => {
+        expect(quickest([])).toBe(0)
+        expect(quickest([141, 12, 9, 30])).toBe(9)
+        let trips: number[] = []
+        for (const took of [5, 90, 91, 92, 93, 94, 95, 96, 97]) trips = withTrip(trips, took)
+        expect(trips).toHaveLength(TRIPS_KEPT)
+        expect(quickest(trips)).toBe(90)
+    })
+
+    it('leaves out an answer that waited in a busy window', () => {
+        const trips = [141, 6, 9, 12, 174]
+        expect(heldUp(12, trips)).toBe(false)
+        expect(heldUp(6 + HELD_UP, trips)).toBe(false)
+        expect(heldUp(101, trips)).toBe(true)
+        expect(heldUp(174, trips)).toBe(true)
+    })
+
+    it('takes a line that has really become slower for what it is, a few pings later', () => {
+        let trips = [8, 9, 7, 8]
+        const left: boolean[] = []
+        for (let n = 0; n < TRIPS_KEPT; n++) {
+            const took = 120 + (n % 3)
+            trips = withTrip(trips, took)
+            left.push(heldUp(took, trips))
+        }
+        expect(left).toEqual([...Array<boolean>(TRIPS_KEPT - 1).fill(true), false])
     })
 })
 

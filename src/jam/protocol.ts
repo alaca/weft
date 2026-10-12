@@ -139,3 +139,16 @@ export const DRIFT = 0.04
 
 // Where the other's song is now, from where it said it was and how long the saying took.
 export const arrivedAt = (at: number, roundTripMs: number, bpm: number): number => at + (roundTripMs / 2000) * (bpm / 240)
+
+// A line is timed by how long a ping takes there and back. Only the last few times are kept,
+// and the quickest of them is what the line takes: a slower one waited at one end, in a window
+// that was busy. A line that has really become slower is taken for what it is once the quick
+// times have gone out of the few that are kept.
+export const TRIPS_KEPT = 8
+// How far above the quickest a round trip may be and still tell where the other's song is. One
+// that took longer is out by up to half of what it took too long, and is left out.
+export const HELD_UP = 30
+
+export const withTrip = (trips: number[], tookMs: number): number[] => [...trips, tookMs].slice(-TRIPS_KEPT)
+export const quickest = (trips: number[]): number => (trips.length ? Math.min(...trips) : 0)
+export const heldUp = (tookMs: number, trips: number[]): boolean => tookMs > quickest(trips) + HELD_UP

@@ -8,14 +8,17 @@ import {
     cleanSay,
     digestOf,
     DRIFT,
+    heldUp,
     listAddress,
     packPiece,
     PIECE,
     piecesOf,
+    quickest,
     readInvite,
     readOpenJams,
     readPiece,
     SOUND_LIMIT,
+    withTrip,
     type About,
     type Answer,
     type Bars,
@@ -98,6 +101,11 @@ export type JamDeps = {
 const RELAY: string = import.meta.env.VITE_JAM_RELAY ?? 'ws://127.0.0.1:5190'
 const NAME_KEY = 'weft.name'
 const PING_EVERY = 4000
+// The first pings of a line go out close together, and the line is taken as timed when a few of
+// them were answered: the very first find both windows busy opening the song.
+const PING_SOON = 300
+const PINGS_SOON = 5
+const TIMED_BY = 3
 const HAND_FOR = 8000
 const MOST_LINES = 200
 // How many sounds, and how much of them in all, one jam takes from the other person.
@@ -133,6 +141,7 @@ let lostAt = 0
 let returning = 0
 const unsaid: Told[] = []
 const pings = new Map<number, number>()
+let trips: number[] = []
 let roundTrip = 0
 let placed = false
 let handTimer = 0
@@ -356,7 +365,7 @@ export function leaveJam() {
 
 function finish(note: string | null) {
     const was = jamStage()
-    window.clearInterval(pinging)
+    window.clearTimeout(pinging)
     window.clearInterval(beating)
     window.clearTimeout(returning)
     window.clearTimeout(handTimer)
@@ -371,6 +380,7 @@ function finish(note: string | null) {
     if (was === 'jamming') void giveBack()
     host = false
     placed = false
+    trips = []
     roundTrip = 0
     takenBytes = 0
     pings.clear()
@@ -454,8 +464,10 @@ function again() {
     }
     for (const name of offered) void offer(name)
     for (const told of unsaid.splice(0)) tellJam(told)
-    // Where the song is has to be asked again by the one who follows the other's time.
+    // The line is a new one and is timed anew. The one who follows the other's time then looks
+    // again at where their song is.
     placed = false
+    timeLine()
 }
 
 function back(there: boolean) {
@@ -486,9 +498,7 @@ function begin(who: string, joined: string) {
     void site.ice().then(useHelpers, () => undefined)
     jamSong = deps.songId()
     texts = patternTexts(deps.engine.getCode())
-    window.clearInterval(pinging)
-    ping()
-    pinging = window.setInterval(ping, PING_EVERY)
+    timeLine()
     window.clearInterval(beating)
     heardAt = performance.now()
     beating = window.setInterval(beat, BEAT_EVERY)
@@ -765,6 +775,20 @@ function ping() {
     tellJam({ k: 'ping', n })
 }
 
+// A line is timed from its start, and anew when it came back: by a few pings close together,
+// and after them by one now and then.
+function timeLine() {
+    window.clearTimeout(pinging)
+    pings.clear()
+    trips = []
+    let soon = PINGS_SOON
+    const next = () => {
+        ping()
+        pinging = window.setTimeout(next, --soon > 0 ? PING_SOON : PING_EVERY)
+    }
+    next()
+}
+
 function whereNow() {
     const state = engineState()
     if (state.playing) tellJam({ k: 'play', at: deps.engine.now() })
@@ -774,16 +798,23 @@ function whereNow() {
 
 function ponged(n: number, at: number | null) {
     const sent = pings.get(n)
-    pings.clear()
+    // A ping from before this one that has no answer yet will not get one.
+    for (const earlier of pings.keys()) if (earlier <= n) pings.delete(earlier)
     if (sent === undefined) return
     const took = performance.now() - sent
-    roundTrip = roundTrip ? Math.min(roundTrip, took) : took
+    trips = withTrip(trips, took)
+    roundTrip = quickest(trips)
     if (host) return
+    const both = at !== null && engineState().playing && !loopBars()
     if (!placed) {
         placed = true
-        return tellJam({ k: 'where' })
+        // Their song is asked for when yours has to be started, paused or stopped to be as
+        // theirs is. One that plays on both sides is only moved when the two have run apart.
+        if (!both) return tellJam({ k: 'where' })
     }
-    if (at === null || !engineState().playing || loopBars()) return
+    // An answer that was held up says little of where their song is, and so does one on a
+    // line that has not been timed yet.
+    if (!both || trips.length < TIMED_BY || heldUp(took, trips)) return
     const there = arrivedAt(at, took, deps.engine.bpm())
     if (Math.abs(there - deps.engine.now()) > DRIFT) follow(() => deps.engine.playAt(there))
 }

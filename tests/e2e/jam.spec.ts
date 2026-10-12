@@ -236,6 +236,26 @@ test('a line that drops in the middle of a jam comes back by itself, and each ge
     await expect.poll(() => code(mara)).toContain('"x x x x   x x x x   x ~ x ~   x ~ x x"')
 })
 
+test('someone who joins while the song plays is put where it is, and a song that was stopped while their line was down stops when it is back', async ({ browser }) => {
+    const ante = await person(browser, 'Ante', SONG)
+    const line = await fragile(browser, 'Mara', OTHER)
+    const mara = line.page
+    await ante.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(ante.getByRole('button', { name: 'Pause', exact: true })).toBeVisible()
+    await join(mara, await invite(ante))
+    await expect(mara.getByRole('button', { name: 'Pause', exact: true })).toBeVisible()
+    await expect.poll(async () => Math.abs((await now(ante)) - (await now(mara)))).toBeLessThan(0.25)
+
+    await line.cut()
+    await expect(lineNote(mara)).toContainText('The line was lost.')
+    await ante.getByRole('button', { name: 'Stop', exact: true }).click()
+    await expect(ante.getByRole('button', { name: 'Play', exact: true })).toBeVisible()
+    await expect(mara.getByRole('button', { name: 'Pause', exact: true })).toBeVisible()
+    line.mend()
+    await expect(chat(mara)).toContainText('You are back in the jam.')
+    await expect(mara.getByRole('button', { name: 'Play', exact: true })).toBeVisible()
+})
+
 test('closing the window leaves the jam at once, and the other is not kept waiting', async ({ browser }) => {
     const { ante, mara } = await jam(browser)
     await mara.close({ runBeforeUnload: true })
