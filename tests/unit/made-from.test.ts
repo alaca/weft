@@ -28,9 +28,19 @@ describe('the bar a recording that starts later is made from', () => {
         expect(madeFrom(69, 2, () => [68.5, 69])).toBe(67)
     })
 
-    it('asks what is heard in the bar the recording starts at', () => {
+    it('is the bar a note began in that ends right where the recording starts', () => {
+        const chords = (bar: number) => [Math.floor(bar / 4) * 4]
+        expect(madeFrom(20, 2, chords)).toBe(16)
+        expect(madeFrom(21, 2, chords)).toBe(16)
+        expect(madeFrom(22, 2, chords)).toBe(20)
+    })
+
+    it('asks what is heard in the bars before the start and in the bar the recording starts at', () => {
         const asked: number[] = []
         madeFrom(12, 2, (bar) => (asked.push(bar), []))
-        expect(asked).toEqual([12])
+        expect(asked).toEqual([10, 11, 12])
+        asked.length = 0
+        madeFrom(1, 2, (bar) => (asked.push(bar), []))
+        expect(asked).toEqual([0, 1])
     })
 })
