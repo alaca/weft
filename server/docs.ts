@@ -27,7 +27,7 @@ export const DOCS: DocSection[] = [
         html: `<p>The row under the strips adds a pattern: Drums, Bass line, Chords or Melody.</p>
 <p><b>Drums</b> are a grid. Click a step to put a hit there, and click it again to take it away. Hold <kbd>Shift</kbd> and click to make a hit louder. Add a sound adds a row, and a click on a row's name plays that sound. Every row has its own mute, volume, pan and controls at its end.</p>
 <p><b>Notes</b> are a piano roll. Click an empty cell for a note. Drag a note to move it, drag its right edge to make it longer, and double click it to remove it. Higher and Lower show more of the keyboard. Choose a Key and the roll keeps to the notes of that key; with Chords on, one click puts in the whole chord.</p>
-<p><b>Length</b> is how many bars the pattern lasts before it comes round again. <b>Steps</b> is how finely a bar is divided. When a pattern is longer than one bar, <b>Cycle</b> pages through its bars.</p>
+<p><b>Length</b> is how many bars the pattern lasts before it comes round again. <b>Steps</b> is how finely a bar is divided: 16 is the usual, 12 and 24 divide each beat in three, for a shuffle or a swing. When a pattern is longer than one bar, <b>Cycle</b> pages through its bars.</p>
 <p>At the right of a strip, M mutes the pattern and S plays it alone. The three dots rename, duplicate and move it, and the cross removes it. Under the grid or the roll are the pattern's knobs, with Volume and Pan first.</p>`,
     },
     {
