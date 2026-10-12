@@ -2388,9 +2388,14 @@ export async function exportPatterns(options: AudioOptions) {
         // The whole song is made first, only to learn how long it sounds and how far it has
         // to be turned down to fit. Every pattern is then cut and turned down by the same.
         setExportNote('Listening to the whole song first, 0%.')
-        const whole = await engine.render({ bars, ringSeconds: RING_SECONDS, sampleRate: grade.sampleRate }, (done) => setExportNote(`Listening to the whole song first, ${percent(done)}.`))
-        const length = soundingLength(whole.channels, whole.sampleRate, Math.min(whole.channels[0].length, Math.round(bars * whole.secondsPerBar * whole.sampleRate)))
-        const peak = peakOf(whole.channels, length)
+        // Its length, its level and what it could not load are all that is kept of it. The
+        // sound itself is let go before the patterns are made, each of which is as large again.
+        const { length, peak, missed } = await engine
+            .render({ bars, ringSeconds: RING_SECONDS, sampleRate: grade.sampleRate }, (done) => setExportNote(`Listening to the whole song first, ${percent(done)}.`))
+            .then((whole) => {
+                const length = soundingLength(whole.channels, whole.sampleRate, Math.min(whole.channels[0].length, Math.round(bars * whole.secondsPerBar * whole.sampleRate)))
+                return { length, peak: peakOf(whole.channels, length), missed: whole.missed }
+            })
         if (!peak) return void setExportNote('Nothing sounds in this song, so there is no audio to save.')
         const level = levelFor(peak)
         const zip = zipWriter()
@@ -2412,7 +2417,7 @@ export async function exportPatterns(options: AudioOptions) {
         const saved = await pieces.done()
         const quiet = ids.length - kept
         const left = quiet ? ` ${quiet} that never ${quiet === 1 ? 'sounds was' : 'sound were'} left out.` : ''
-        const missing = whole.missed ? ` ${whole.missed} ${whole.missed === 1 ? 'sound' : 'sounds'} could not be loaded and ${whole.missed === 1 ? 'is' : 'are'} missing from it.` : ''
+        const missing = missed ? ` ${missed} ${missed === 1 ? 'sound' : 'sounds'} could not be loaded and ${missed === 1 ? 'is' : 'are'} missing from it.` : ''
         setExportNote(`${told(saved, name)} ${kept} ${kept === 1 ? 'pattern' : 'patterns'} in it.${left}${missing}`)
     } catch (err) {
         const why = String((err as Error)?.message ?? err)
