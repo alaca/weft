@@ -779,11 +779,11 @@ function ping() {
 }
 
 // A line is timed from its start, and anew when it came back: by a few pings close together,
-// and after them by one now and then.
+// and after them by one now and then. What it took before it dropped stays among the times
+// that are kept, so that a first answer that was held up is not taken for what the line takes.
 function timeLine() {
     window.clearTimeout(pinging)
     pings.clear()
-    trips = []
     let soon = PINGS_SOON
     const next = () => {
         ping()
