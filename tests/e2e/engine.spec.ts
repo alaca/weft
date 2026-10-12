@@ -82,3 +82,30 @@ test('a recording that starts at a later bar is the song from that bar on, with 
     expect(heard.loud).toBeGreaterThan(0.05)
     expect(heard.apart).toBeLessThan(0.001)
 })
+
+// A clap with a large reverb in the first four bars only, and from the ninth bar on a clap
+// that asks for reverb and names no size.
+const EARLY_ROOM =
+    'setcpm(120/4)\n\nbig: s("cp")\n  .bank("RolandTR909")\n  .room(0.9)\n  .roomsize(8)\n  .mask("<1!4 0!60>")\n\nsmall: s("cp")\n  .bank("RolandTR909")\n  .room(0.9)\n  .mask("<0!8 1!56>")\n'
+
+test('a recording that starts at a later bar has the reverb the song has by then, from its first sound on', async ({ page }) => {
+    await page.addInitScript((value) => localStorage.setItem('weft.song', value), EARLY_ROOM)
+    await page.goto('/')
+    await ready(page)
+    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
+    const rings = await page.evaluate(async () => {
+        const { engine } = (window as any).__weft
+        const whole = await engine.render({ bars: 18, ringSeconds: 0, sampleRate: 22050 })
+        const late = await engine.render({ from: 16, bars: 18, ringSeconds: 0, sampleRate: 22050 })
+        // From one second after a clap until the next clap nothing sounds but its reverb.
+        const ring = (heard: Float32Array, clap: number) => {
+            let sum = 0
+            for (let at = Math.round((clap + 1) * 22050); at < Math.round((clap + 1.9) * 22050); at++) sum += heard[at] * heard[at]
+            return Math.sqrt(sum / (0.9 * 22050))
+        }
+        return { song: ring(whole.channels[0], 16 * whole.secondsPerBar), late: ring(late.channels[0], 0) }
+    })
+    expect(rings.song).toBeGreaterThan(0.005)
+    expect(rings.late).toBeGreaterThan(rings.song * 0.7)
+    expect(rings.late).toBeLessThan(rings.song * 1.4)
+})

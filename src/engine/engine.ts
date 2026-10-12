@@ -6,6 +6,7 @@ import { Pattern, silence } from '@strudel/core'
 import { mini } from '@strudel/mini'
 import {
     getAudioContext,
+    getDefaultValue,
     getSuperdoughAudioController,
     initAudio,
     initAudioOnFirstClick,
@@ -132,6 +133,10 @@ const STRETCH = 2
 const LEAD = 0.05
 // How many bars before its start a recording that starts later in the song is made from.
 const RUN_UP = 2
+// The bars before that are only asked, for what their sounds leave behind, and that goes much
+// faster than making them. This is what a second of them counts for in how far along a
+// recording is, beside a second that is made.
+const ASKED = 0.1
 // Where the limiter of the desk begins to hold back, in decibels, and how hard.
 const LIMIT_AT = -2
 const LIMIT_BY = 20
@@ -992,10 +997,10 @@ export function createEngine(): Engine {
                 const pattern = mirror.repl.state.pattern
                 const cps: number = mirror.repl.scheduler.cps
                 const first = madeFrom(from, RUN_UP, (bar) => pattern.queryArc(bar, bar + 1, { _cps: cps }).flatMap((hap: any) => (hap.whole ? [hap.whole.begin.valueOf()] : [])))
-                // Nothing sounds on the clock before the bar the recording is made from, and
-                // that takes no time to make, so it does not count in how far along it is.
+                // Nothing sounds on the clock before the bar the recording is made from.
                 const silent = first / cps
                 const seconds = bars / cps + ringSeconds
+                const along = (at: number) => (ASKED * Math.min(at, silent) + Math.max(0, at - silent)) / (ASKED * silent + seconds - silent)
                 const clock = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate)
                 setAudioContext(clock)
                 setSuperdoughAudioController(null)
@@ -1009,6 +1014,7 @@ export function createEngine(): Engine {
                 // and the whole song is asked for that only where it is not known yet.
                 const inBar = (bar: number): { hap: any; heard: boolean }[] => {
                     const hapsOf = (from: any): any[] => (from ? from.queryArc(bar, Math.min(bar + 1, bars), { _cps: cps }).filter((hap: any) => hap.hasOnset()) : [])
+                    if (bar < first) return hapsOf(only === undefined ? pattern : own).flatMap((hap) => (hap.value?.room > 0 ? [{ hap, heard: true }] : []))
                     const kept: any[] | undefined = only === undefined ? undefined : known[bar]
                     const everything = kept ? [] : hapsOf(pattern)
                     everything.forEach((hap: any) => hap.ensureObjectValue())
@@ -1016,7 +1022,41 @@ export function createEngine(): Engine {
                     if (only === undefined) return everything.map((hap) => ({ hap, heard: true }))
                     return [...hapsOf(own).map((hap) => ({ hap, heard: true })), ...found[bar].map((hap) => ({ hap, heard: false }))]
                 }
-                const due = barByBar(bars, cps, (bar) => (bar < first ? [] : inBar(bar)), (sound) => startOf(sound.hap))
+                const due = barByBar(bars, cps, inBar, (sound) => startOf(sound.hap))
+                // A reverb keeps what a sound last gave it, its size above all, however long
+                // ago that was. The sounds from before the bar a recording is made from are
+                // not made, so those of them with reverb are still asked for, and each gives
+                // the reverb of its mixing channel what it names, in the order they come in
+                // the song. One that names the sound a reverb is made from, or the outputs
+                // it plays on, is handed to Strudel to find those, as a sound that is silent.
+                const leaveRoom = async (value: any, time: number) => {
+                    const { room, roomsize, roomfade, roomlp, roomdim, ir, i, irspeed, irbegin, orbit = getDefaultValue('orbit'), channels } = value
+                    if (ir !== undefined || channels != null) return superdough({ gain: 0, room, roomsize, roomfade, roomlp, roomdim, ir, i, irspeed, irbegin, orbit, channels }, time, 0.01, cps).catch(() => undefined)
+                    getSuperdoughAudioController().getOrbit(orbit).getReverb(roomsize, roomfade, roomlp, roomdim, undefined, irspeed, irbegin)
+                }
+                // A reverb gets its sound a moment after it is made or changed, because Strudel
+                // makes that sound on a clock of its own. The clock of the recording would not
+                // wait for it: it runs through seconds of the song meanwhile, and what it makes
+                // then has no reverb, or the one from before. So every reverb that waits for
+                // its sound is kept here beside the one it has, and the clock is left standing
+                // until it has another, or for five seconds should none ever come.
+                const owed = new Map<any, AudioBuffer | null>()
+                const makeReverb = (clock as any).createReverb
+                ;(clock as any).createReverb = (...how: unknown[]) => {
+                    const reverb = makeReverb.apply(clock, how)
+                    const generate = reverb.generate
+                    reverb.generate = (...again: unknown[]) => {
+                        const had = reverb.buffer
+                        generate(...again)
+                        if (reverb.buffer === had) owed.set(reverb, had)
+                    }
+                    if (!reverb.buffer) owed.set(reverb, null)
+                    return reverb
+                }
+                const reverbsSound = async () => {
+                    for (let waited = 0; waited < 5000 && [...owed].some(([reverb, had]) => reverb.buffer === had); waited += 10) await pause(10)
+                    owed.clear()
+                }
                 // The sounds are handed over a stretch at a time, a little before they are
                 // due, with the clock standing still meanwhile, the way they arrive when the
                 // song plays. Handing over the whole song at once makes the clock carry every
@@ -1025,10 +1065,15 @@ export function createEngine(): Engine {
                     for (const { hap, heard } of sounds) {
                         hap.ensureObjectValue()
                         if (guarded && carriesCode(hap.value)) continue
+                        if (hap.whole.begin.valueOf() < first) {
+                            await leaveRoom(hap.value, startOf(hap))
+                            continue
+                        }
                         const { duckorbit, ...value } = hap.value
                         if (duckorbit !== undefined && duckorbit !== null && (only === undefined || !heard)) duckAt(hap.value, startOf(hap))
                         if (heard) await superdough(value, startOf(hap), hap.duration.valueOf() / cps, cps, hap.whole.begin.valueOf()).catch(() => void missed++)
                     }
+                    await reverbsSound()
                 }
                 await handOver(due(STRETCH))
                 // A bar can answer something that is not a sound, and that ends the recording.
@@ -1043,7 +1088,7 @@ export function createEngine(): Engine {
                         } catch (why) {
                             failed = { why }
                         }
-                        onProgress?.(Math.max(0, at - silent) / (seconds - silent))
+                        onProgress?.(along(at))
                         void clock.resume()
                     })
                 }
