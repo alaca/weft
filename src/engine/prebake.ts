@@ -84,10 +84,13 @@ export async function loadSamples(): Promise<void> {
 // your own would otherwise be looked for in that kit and not be found.
 const inKits = (name: string) => kits.map((kit) => `${kit.toLowerCase()}_${name}`)
 
+// Strudel copies its whole map of sounds for every name that is set in it or taken out of it.
+// The names of a sound of your own are many, so they are all set in one copy, or left out of
+// one, and the map is written once.
 export async function addOwnSound(name: string, url: string): Promise<void> {
     await samples({ [name]: [url] }, '', { tag: YOURS_TAG })
-    const entry = soundMap.get()[name]
-    for (const key of inKits(name)) soundMap.setKey(key, entry)
+    const known = soundMap.get()
+    soundMap.set({ ...known, ...Object.fromEntries(inKits(name).map((key) => [key, known[name]])) })
 }
 
 // Every name the sound is known under goes, whoever gave it the name: Strudel hands out names
@@ -96,11 +99,8 @@ export async function addOwnSound(name: string, url: string): Promise<void> {
 export function removeOwnSound(name: string): void {
     const known = soundMap.get()
     const sound = known[name]
-    for (const key of [name, ...inKits(name)]) soundMap.setKey(key, undefined)
-    if (!sound) return
-    for (const [key, other] of Object.entries(known)) {
-        if (other === sound) soundMap.setKey(key, undefined)
-    }
+    const gone = new Set([name, ...inKits(name)])
+    soundMap.set(Object.fromEntries(Object.entries(known).filter(([key, other]) => !gone.has(key) && (!sound || other !== sound))))
 }
 
 export function soundTaken(name: string): boolean {

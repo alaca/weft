@@ -84,6 +84,24 @@ test('your own sound can be the sound of a pattern that plays notes', async ({ p
     await expect.poll(() => heard(page)).toBeGreaterThan(0.05)
 })
 
+test('your own sound is a row of a drum grid in the kit the grid is on, and its name is free again once it is removed', async ({ page }) => {
+    await open(page)
+    await yours(page, 'drums')
+    await add(page, [{ name: 'Clap of mine.wav', buffer: tone() }])
+    const row = browser(page).locator('.sb-i')
+    await expect(row.locator('code')).toHaveText('clap_of_mine')
+    // A row is heard as it is added, played the way the grid plays it: as a sound of its kit.
+    await browser(page).getByRole('button', { name: 'Use Clap of mine for drums', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('s("clap_of_mine")')
+    await expect.poll(() => heard(page)).toBeGreaterThan(0.05)
+
+    await row.hover()
+    await row.getByRole('button', { name: 'Remove Clap of mine from your sounds', exact: true }).click()
+    await expect(browser(page)).toContainText('Nothing here yet')
+    await add(page, [{ name: 'Clap of mine.wav', buffer: tone() }])
+    await expect(browser(page).locator('.sb-i code')).toHaveText(['clap_of_mine'])
+})
+
 test('a file that is not sound is refused, and a name that is taken gets a number', async ({ page }) => {
     await open(page)
     await yours(page)
