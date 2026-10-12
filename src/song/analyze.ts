@@ -43,15 +43,29 @@ function rootOf(expression: Node): string | undefined {
     return node.type === 'Identifier' ? node.name : undefined
 }
 
+// How loud a pattern is, is written as .mul(postgain(0.8)): the level after its effects, times
+// whatever the pattern already says of it, which is the louder hits of a drum row and the
+// rows of a kit. A plain .postgain(0.8) would put those aside. It is read as a call of its own,
+// `volume`, given the number.
+export const VOLUME = 'volume'
+
+function loudness(node: Node, callee: Node): Node | null {
+    const inner: Node | undefined = node.arguments[0]
+    if (callee.property.name !== 'mul' || node.arguments.length !== 1 || !inner) return null
+    if (inner.type !== 'CallExpression' || inner.callee.type !== 'Identifier' || inner.callee.name !== 'postgain' || inner.arguments.length !== 1) return null
+    return inner.arguments[0]
+}
+
 function callChain(expression: Node): Call[] {
     const calls: Call[] = []
     let node: Node | undefined = expression
     while (node && node.type === 'CallExpression') {
         const callee: Node = node.callee
-        const args = (node.arguments as Node[]).map(toArg)
+        const loud = callee.type === 'MemberExpression' && callee.property.type === 'Identifier' ? loudness(node, callee) : null
+        const args = loud ? [toArg(loud)] : (node.arguments as Node[]).map(toArg)
         if (callee.type === 'MemberExpression' && callee.property.type === 'Identifier') {
             calls.unshift({
-                name: callee.property.name,
+                name: loud ? VOLUME : callee.property.name,
                 from: callee.object.end,
                 to: node.end,
                 nameFrom: callee.property.start,

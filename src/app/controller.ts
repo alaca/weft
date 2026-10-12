@@ -580,7 +580,8 @@ export function addControl(id: string, fn: string, value?: number) {
     if (!block || !def || stale() || callFor(block, fn)) return
     const start = writeNumber(value ?? def.initial, def.min, def.max)
     const [before, after] = def.wrap ?? ['', '']
-    engine.applyEdit(addCall(engine.getCode(), block, `.${def.fn}(${before}slider(${start}, ${def.min}, ${def.max})${after})`))
+    const [open, close] = def.call ?? [`.${def.fn}(`, ')']
+    engine.applyEdit(addCall(engine.getCode(), block, `${open}${before}slider(${start}, ${def.min}, ${def.max})${after}${close}`))
     replay()
 }
 
@@ -648,7 +649,7 @@ export function removeControl(id: string, fn: string) {
     replay()
 }
 
-export function setMix(id: string, fn: 'gain' | 'pan', value: number) {
+export function setMix(id: string, fn: 'volume' | 'pan', value: number) {
     const block = find(id)
     if (block && callFor(block, fn)) setControl(id, fn, value)
     else addControl(id, fn, value)

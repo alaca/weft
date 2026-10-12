@@ -74,10 +74,10 @@ export function Strip(props: { id: string }) {
     // plays. Neither has to be in the code to be turned: it stands where the sound engine puts
     // it by itself, and the first turn writes its line.
     const turnable = (view: ControlView): ControlView => (view.state === 'faint' ? { ...view, state: 'number', text: writeNumber(view.value, view.min, view.max) } : view)
-    const mix = createMemo((): { fn: 'gain' | 'pan'; name: string; view: ControlView }[] =>
+    const mix = createMemo((): { fn: 'volume' | 'pan'; name: string; view: ControlView }[] =>
         block()
             ? [
-                  { fn: 'gain', name: `Volume of ${props.id}`, view: turnable(volumeOf(block())) },
+                  { fn: 'volume', name: `Volume of ${props.id}`, view: turnable(volumeOf(block())) },
                   { fn: 'pan', name: `Pan of ${props.id}`, view: turnable(panOf(block())) },
               ]
             : [],

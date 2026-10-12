@@ -25,9 +25,11 @@ describe('what the app itself writes is music code', () => {
     it('every control, as a knob that stands still and as one that moves', () => {
         for (const def of CONTROLS) {
             for (const name of def.names) {
-                expect([name, METHODS.has(name)]).toEqual([name, true])
-                expect(checkSong(`a: s("bd").${name}(slider(0.5, 0, 1))`)).toBeNull()
-                expect(checkSong(`a: s("bd").${name}(sine.range(0.2, 0.8).slow(4))`)).toBeNull()
+                // A control with a way of its own of being written is checked as it is written.
+                const written = (value: string) => (def.call ? `a: s("bd")${def.call[0]}${value}${def.call[1]}` : `a: s("bd").${name}(${value})`)
+                if (!def.call) expect([name, METHODS.has(name)]).toEqual([name, true])
+                expect([name, checkSong(written('slider(0.5, 0, 1)'))]).toEqual([name, null])
+                expect([name, checkSong(written('sine.range(0.2, 0.8).slow(4)'))]).toEqual([name, null])
             }
         }
     })

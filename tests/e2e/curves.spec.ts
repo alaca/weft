@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-const SONG = 'setcpm(240/4)\n\nbass: note("c2 c2 c2 c2")\n  .s("sawtooth")\n  .lpf(slider(1200, 100, 8000))\n  .gain(0.8)\n  .mask("<1!4>")\n\nhats: s("hh*8")\n  .bank("RolandTR909")\n  .mask("<1!4>")\n'
+const SONG = 'setcpm(240/4)\n\nbass: note("c2 c2 c2 c2")\n  .s("sawtooth")\n  .lpf(slider(1200, 100, 8000))\n  .mul(postgain(0.8))\n  .mask("<1!4>")\n\nhats: s("hh*8")\n  .bank("RolandTR909")\n  .mask("<1!4>")\n'
 
 const code = (page: Page) => page.evaluate(() => (window as any).__weft.engine.getCode() as string)
 const lane = (page: Page, id: string, fn: string) => page.getByTestId(`curve-${id}-${fn}`)
@@ -40,17 +40,17 @@ test('a knob is drawn over the song bar by bar, in the code and in what is heard
     await expect(page.getByRole('menu', { name: 'Knobs of bass' })).toHaveCount(0)
 
     await draw(page, 'bass', 'Volume')
-    await expect.poll(() => code(page)).toContain('  .gain("<0.8!4>")\n')
-    await expect(lane(page, 'bass', 'gain')).toBeVisible()
-    await expect(page.getByTestId('curve-name-bass-gain')).toHaveText('Volume')
+    await expect.poll(() => code(page)).toContain('  .mul(postgain("<0.8!4>"))\n')
+    await expect(lane(page, 'bass', 'volume')).toBeVisible()
+    await expect(page.getByTestId('curve-name-bass-volume')).toHaveText('Volume')
 
     // A bar is set from the keyboard, like a knob.
     await bar(page, 'bass Volume', 2).focus()
     await page.keyboard.press('Home')
-    await expect.poll(() => code(page)).toContain('.gain("<0.8 0 0.8!2>")')
+    await expect.poll(() => code(page)).toContain('.mul(postgain("<0.8 0 0.8!2>"))')
     await bar(page, 'bass Volume', 4).focus()
     await page.keyboard.press('End')
-    await expect.poll(() => code(page)).toContain('.gain("<0.8 0 0.8 1.5>")')
+    await expect.poll(() => code(page)).toContain('.mul(postgain("<0.8 0 0.8 1.5>"))')
     await expect(bar(page, 'bass Volume', 4)).toHaveAttribute('aria-valuenow', '1.5')
 
     // The song is as the drawing says: nothing of the bass in the second bar, the most in the fourth.
@@ -69,16 +69,16 @@ test('a knob is drawn over the song bar by bar, in the code and in what is heard
     await strip.getByRole('dialog', { name: 'Cutoff over the song' }).getByRole('button', { name: 'Stand still again', exact: true }).click()
     await expect.poll(() => code(page)).toContain('.lpf(slider(1200, 100, 8000))')
     await expect(lane(page, 'bass', 'lpf')).toHaveCount(0)
-    await page.getByTestId('curve-name-bass-gain').hover()
+    await page.getByTestId('curve-name-bass-volume').hover()
     await page.getByRole('button', { name: 'Let Volume of bass stand still again', exact: true }).click()
-    await expect.poll(() => code(page)).toContain('.gain(slider(0.8, 0, 1.5))')
-    await expect(lane(page, 'bass', 'gain')).toHaveCount(0)
+    await expect.poll(() => code(page)).toContain('.mul(postgain(slider(0.8, 0, 1.5)))')
+    await expect(lane(page, 'bass', 'volume')).toHaveCount(0)
 })
 
 test('dragging draws bar by bar, and with Shift held a straight line from where the drag began', async ({ page }) => {
     await open(page)
     await draw(page, 'bass', 'Volume')
-    const box = (await lane(page, 'bass', 'gain').boundingBox())!
+    const box = (await lane(page, 'bass', 'volume').boundingBox())!
     const wide = (await bar(page, 'bass Volume', 1).boundingBox())!.width
     const x = (at: number) => box.x + (at - 0.5) * wide
     const top = box.y + 3
@@ -91,7 +91,7 @@ test('dragging draws bar by bar, and with Shift held a straight line from where 
     await page.mouse.move(x(3), top, { steps: 3 })
     await page.mouse.move(x(4), top, { steps: 3 })
     await page.mouse.up()
-    await expect.poll(() => code(page)).toContain('.gain("<0!2 1.5!2>")')
+    await expect.poll(() => code(page)).toContain('.mul(postgain("<0!2 1.5!2>"))')
 
     // With Shift: a line from the first bar to the last, whatever was there.
     await page.mouse.move(x(1), bottom)
@@ -100,7 +100,7 @@ test('dragging draws bar by bar, and with Shift held a straight line from where 
     await page.mouse.move(x(4), top, { steps: 4 })
     await page.mouse.up()
     await page.keyboard.up('Shift')
-    await expect.poll(() => code(page)).toContain('.gain("<0 0.5 1 1.5>")')
+    await expect.poll(() => code(page)).toContain('.mul(postgain("<0 0.5 1 1.5>"))')
 })
 
 test('a knob that is turned while the song plays is drawn over the song when it stops', async ({ page }) => {

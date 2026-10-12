@@ -52,9 +52,12 @@ describe('readKit', () => {
         const [bd, cp] = readKit(first(KIT))!.rows
         expect(bd.block).toMatchObject({ id: 'drums/bd', soundName: 'bd', inline: true })
         expect(favourites(bd.block)).toEqual([])
-        expect(favourites(cp.block).map((view) => [view.fn, view.state])).toEqual([['hpf', 'live']])
-        expect(volumeOf(cp.block)).toMatchObject({ state: 'number', value: 0.6 })
+        expect(favourites(cp.block).map((view) => [view.fn, view.state])).toEqual([['hpf', 'live'], ['gain', 'number']])
+        expect(volumeOf(cp.block)).toMatchObject({ state: 'faint' })
         expect(volumeOf(bd.block)).toMatchObject({ state: 'faint' })
+        const loud = readKit(first(KIT.replace('.gain(0.6),', '.gain(0.6).mul(postgain(0.5)),')))!.rows[1]
+        expect(volumeOf(loud.block)).toMatchObject({ state: 'number', value: 0.5 })
+        expect(favourites(loud.block).map((view) => view.fn)).toEqual(['hpf', 'gain'])
         expect(favourites(first(KIT)).map((view) => view.fn)).toEqual(['room'])
     })
 
@@ -194,7 +197,7 @@ describe('muting one sound', () => {
     it('is read from a hush at the end of its line', () => {
         expect(readKit(first(KIT))!.rows.map((r) => r.muted)).toEqual([false, false, false])
         expect(readKit(first(MUTED))!.rows.map((r) => r.muted)).toEqual([false, true, false])
-        expect(favourites(readKit(first(MUTED))!.rows[1].block).map((view) => view.fn)).toEqual(['hpf'])
+        expect(favourites(readKit(first(MUTED))!.rows[1].block).map((view) => view.fn)).toEqual(['hpf', 'gain'])
     })
 
     it('is written after the controls the sound already has', () => {

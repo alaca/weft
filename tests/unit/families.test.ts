@@ -39,7 +39,8 @@ describe('browserItems', () => {
         expect(offered).toContain('lpdecay')
         expect(offered).not.toContain('lpf')
         expect(offered).not.toContain('delay')
-        expect(offered).not.toContain('gain')
+        expect(offered).toContain('gain')
+        expect(offered).not.toContain('volume')
         expect(offered).not.toContain('degradeBy')
     })
 

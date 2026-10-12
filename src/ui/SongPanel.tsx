@@ -404,11 +404,11 @@ function NameRows(props: { id: string; index: number }) {
         const now = block()
         return now ? drawnIn(now) : []
     })
-    const mix = createMemo((): { fn: 'gain' | 'pan'; name: string; view: ControlView }[] => {
+    const mix = createMemo((): { fn: 'volume' | 'pan'; name: string; view: ControlView }[] => {
         const now = block()
         return now
             ? [
-                  { fn: 'gain', name: `Volume of ${props.id}`, view: volumeOf(now) },
+                  { fn: 'volume', name: `Volume of ${props.id}`, view: volumeOf(now) },
                   { fn: 'pan', name: `Pan of ${props.id}`, view: panOf(now) },
               ]
             : []

@@ -50,7 +50,7 @@ test('a knob that was dragged is undone in one step', async ({ page }) => {
     await page.mouse.down()
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 30, { steps: 6 })
     await page.mouse.up()
-    await expect.poll(() => code(page)).toMatch(/\.gain\(slider\(0\.5\d?, 0, 1\.5\)\)/)
+    await expect.poll(() => code(page)).toMatch(/\.mul\(postgain\(slider\(0\.7\d?, 0, 1\.5\)\)\)/)
     await page.getByTestId('status').click()
     await page.keyboard.press(`${MOD}+z`)
     await expect.poll(() => code(page)).toBe(SONG)

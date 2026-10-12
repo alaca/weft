@@ -134,7 +134,7 @@ export function drawableIn(block: PatternBlock): ControlView[] {
     })
 }
 
-const MIX = ['gain', 'pan']
+const MIX = ['volume', 'pan']
 
 export function favourites(block: PatternBlock): ControlView[] {
     return present(block)
@@ -178,5 +178,5 @@ export function panelFor(block: PatternBlock, filter?: FilterType): { group: Pan
 export const controlOf = (block: PatternBlock, fn: string): ControlView => present(block).find((view) => view.fn === fn) ?? faint(findDef(fn) as ControlDef)
 const mixOf = controlOf
 
-export const volumeOf = (block: PatternBlock): ControlView => mixOf(block, 'gain')
+export const volumeOf = (block: PatternBlock): ControlView => mixOf(block, 'volume')
 export const panOf = (block: PatternBlock): ControlView => mixOf(block, 'pan')

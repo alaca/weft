@@ -83,16 +83,18 @@ test('pressing a faint knob adds its line, and removing it takes the line away',
     await expect(bass.getByRole('button', { name: 'Add Delay' })).toBeVisible()
 })
 
-test('every strip has a volume knob that writes gain into the code when it is first turned', async ({ page }) => {
+// How loud a pattern is, is the level after its effects: written as a multiplying, so that it
+// goes together with the louder hits of a row and with the rows of a kit.
+test('every strip has a volume knob, at full until it is turned, that writes the level after the effects into the code', async ({ page }) => {
     await open(page)
     const volume = page.getByTestId('strip-drums').getByRole('slider', { name: 'Volume of drums', exact: true })
-    await expect(volume).toHaveAttribute('aria-valuenow', '0.8')
-    await expect.poll(() => code(page)).not.toContain('.gain(')
+    await expect(volume).toHaveAttribute('aria-valuenow', '1')
+    await expect.poll(() => code(page)).not.toContain('postgain')
     await volume.focus()
     await page.keyboard.press('End')
-    await expect.poll(() => code(page)).toContain('.gain(slider(1.5, 0, 1.5))')
+    await expect.poll(() => code(page)).toContain('.mul(postgain(slider(1.5, 0, 1.5)))')
     await expect(volume).toBeFocused()
     await page.keyboard.press('PageDown')
-    await expect.poll(() => code(page)).toContain('.gain(slider(1.35, 0, 1.5))')
+    await expect.poll(() => code(page)).toContain('.mul(postgain(slider(1.35, 0, 1.5)))')
     await expect(volume).toHaveAttribute('aria-valuenow', '1.35')
 })

@@ -19,6 +19,24 @@ describe('calls', () => {
         expect(code.slice(arg.from, arg.to)).toBe('.18')
     })
 
+    it('reads how loud a pattern is as a call of its own, given the number', () => {
+        const code = 'x: s("bd").gain(0.5).mul(postgain(slider(0.8, 0, 1.5))).room(0.2)'
+        const [, gain, volume, room] = first(code).calls
+        expect([gain.name, volume.name, room.name]).toEqual(['gain', 'volume', 'room'])
+        expect(volume.args).toHaveLength(1)
+        expect(volume.args[0]).toMatchObject({ kind: 'slider', value: 0.8, min: 0, max: 1.5 })
+        expect(code.slice(volume.from, volume.to)).toBe('.mul(postgain(slider(0.8, 0, 1.5)))')
+        expect(first('x: s("bd").mul(postgain("<0.5!4 1!4>"))').calls[1]).toMatchObject({ name: 'volume', args: [{ kind: 'string', value: '<0.5!4 1!4>' }] })
+    })
+
+    it('leaves every other multiplying and every other level alone', () => {
+        const names = (code: string) => first(code).calls.map((call) => call.name)
+        expect(names('x: note("c").mul(2)')).toEqual(['note', 'mul'])
+        expect(names('x: s("bd").mul(gain(0.5))')).toEqual(['s', 'mul'])
+        expect(names('x: s("bd").mul(postgain(0.5), 2)')).toEqual(['s', 'mul'])
+        expect(names('x: s("hh").postgain("1 1.5 1 1")')).toEqual(['s', 'postgain'])
+    })
+
     it('reads a negative number', () => {
         expect(first('x: s("bd").penv(-12)').calls[1].args[0]).toMatchObject({ kind: 'number', value: -12 })
     })

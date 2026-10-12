@@ -18,18 +18,18 @@ async function open(page: Page, song = SONG) {
 test('every sound of a kit has its own volume and pan, written on its own line', async ({ page }) => {
     await open(page)
     const volume = knob(page, 'Volume of hh')
-    await expect(volume).toHaveAttribute('aria-valuenow', '0.8')
+    await expect(volume).toHaveAttribute('aria-valuenow', '1')
     await volume.focus()
     await page.keyboard.press('End')
-    await expect.poll(() => code(page)).toContain(`${BD},\n${HH}.gain(slider(1.5, 0, 1.5)),\n)\n  .bank("RolandTR909")\n`)
+    await expect.poll(() => code(page)).toContain(`${BD},\n${HH}.mul(postgain(slider(1.5, 0, 1.5))),\n)\n  .bank("RolandTR909")\n`)
     await expect(volume).toBeFocused()
     await page.keyboard.press('PageDown')
-    await expect.poll(() => code(page)).toContain(`${HH}.gain(slider(1.35, 0, 1.5)),\n`)
+    await expect.poll(() => code(page)).toContain(`${HH}.mul(postgain(slider(1.35, 0, 1.5))),\n`)
 
     await knob(page, 'Pan of bd').focus()
     await page.keyboard.press('Home')
-    await expect.poll(() => code(page)).toContain(`${BD}.pan(slider(0, 0, 1)),\n${HH}.gain(slider(1.35, 0, 1.5)),\n`)
-    await expect(knob(page, 'Volume of bd')).toHaveAttribute('aria-valuenow', '0.8')
+    await expect.poll(() => code(page)).toContain(`${BD}.pan(slider(0, 0, 1)),\n${HH}.mul(postgain(slider(1.35, 0, 1.5))),\n`)
+    await expect(knob(page, 'Volume of bd')).toHaveAttribute('aria-valuenow', '1')
 })
 
 test('one sound has its own panel of controls', async ({ page }) => {

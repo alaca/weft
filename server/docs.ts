@@ -36,6 +36,7 @@ export const DOCS: DocSection[] = [
         pictures: [{ file: '/docs/sounds.webp', width: 1000, height: 812, alt: 'The Sounds on the left with a list of instruments, and beside it a pattern with all the controls of its sound open: Source, Filter, Shape and Effects.' }],
         html: `<p>Click the name of the sound on a strip. The Sounds open on the left: drum kits, instruments, synths, samples and your own. Click one to hear it, press Use to give it to the pattern, or drag it onto a strip.</p>
 <p>The button with the sliders on a strip opens every control of its sound: Source, Filter, Shape, Effects and Feel. A faint knob is one the sound does not use yet. Press it and it is added, to the sound and to the code. Browse all controls finds the rest by name.</p>
+<p><b>Volume</b> is how loud a pattern is after its effects, like a fader. <b>Gain</b>, among the controls of the sound, is how hard the sound goes into its filter and effects: on an overdriven sound it changes the bite far more than the loudness.</p>
 <p>A knob can move by itself. Point at it and press the small wave at its top left, then choose how it moves, between which two values and over how many bars.</p>`,
     },
     {

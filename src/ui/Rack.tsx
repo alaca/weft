@@ -21,7 +21,7 @@ function RowControls(props: { id: string; sound: string; block: PatternBlock | u
             <button class="rm" classList={{ on: props.muted }} aria-label={`Mute ${props.sound}`} aria-pressed={props.muted} title={`Mute ${name()} only`} disabled={stale()} onClick={() => toggleRowMute(props.id, props.sound)}>
                 M
             </button>
-            <Knob small name={`Volume of ${props.sound}`} view={volumeOf(props.block ?? NO_CONTROLS)} disabled={stale()} onChange={(value) => setMix(target(), 'gain', value)} />
+            <Knob small name={`Volume of ${props.sound}`} view={volumeOf(props.block ?? NO_CONTROLS)} disabled={stale()} onChange={(value) => setMix(target(), 'volume', value)} />
             <Knob small name={`Pan of ${props.sound}`} view={panOf(props.block ?? NO_CONTROLS)} disabled={stale()} onChange={(value) => setMix(target(), 'pan', value)} />
             <button
                 class="rs"

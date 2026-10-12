@@ -206,10 +206,10 @@ test('a pattern is muted, played alone, turned up and moved to a side from its r
     await expect(strip.getByRole('button', { name: 'Solo bass', exact: true })).toHaveAttribute('aria-pressed', 'false')
 
     const volume = rows.getByRole('slider', { name: 'Volume of bass', exact: true })
-    await expect(volume).toHaveAttribute('aria-valuenow', '0.8')
+    await expect(volume).toHaveAttribute('aria-valuenow', '1')
     await volume.focus()
     await page.keyboard.press('End')
-    await expect.poll(() => code(page)).toContain('.gain(slider(1.5, 0, 1.5))')
+    await expect.poll(() => code(page)).toContain('.mul(postgain(slider(1.5, 0, 1.5)))')
     await expect(strip.getByRole('slider', { name: 'Volume of bass', exact: true })).toHaveAttribute('aria-valuenow', '1.5')
 
     const pan = rows.getByRole('slider', { name: 'Pan of bass', exact: true })
