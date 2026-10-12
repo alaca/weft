@@ -537,9 +537,11 @@ export function createEngine(): Engine {
     }
 
     // The song made to sound as its code now reads, because the other person did so on theirs.
+    // Where it already does, and no error is showing, there is nothing to answer.
     const reevaluate = async () => {
         if (!mirror) return
         if (blank()) return silence()
+        if (evaluatedCode === mirror.code && !state.error) return
         if (!state.playing) offset = startingAt()
         await mirror.repl.evaluate(mirror.code, false)
     }
