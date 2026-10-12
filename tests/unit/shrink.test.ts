@@ -106,13 +106,18 @@ describe('shrinkSounds', () => {
     }, 60000)
 
     it('leaves a sound as it is at a quality it cannot be read for, and never hands it over at another rate', async () => {
-        const seen: [number, number][] = []
         const both = Float32Array.from([0, 1])
-        const read = async (_: Uint8Array, wanted?: number) => (wanted ? null : { channels: [both, both], sampleRate: 44100 })
-        const big = packed('big', 5000)
-        const result = await shrinkSounds([big], sizeWith, read, async (heard, kbps) => (seen.push([kbps, heard.sampleRate]), new Uint8Array(2000)), 1000)
-        expect(seen).toEqual([[128, 44100]])
-        expect(result.fits).toBe(false)
-        expect(result.sounds[0]).toBe(big)
+        const first = { channels: [both, both], sampleRate: 44100 }
+        // One reader cannot read at a rate that is asked for. The other reads at the rate it
+        // has itself, whatever is asked.
+        for (const second of [null, first]) {
+            const seen: [number, number][] = []
+            const read = async (_: Uint8Array, wanted?: number) => (wanted ? second : first)
+            const big = packed('big', 5000)
+            const result = await shrinkSounds([big], sizeWith, read, async (heard, kbps) => (seen.push([kbps, heard.sampleRate]), new Uint8Array(2000)), 1000)
+            expect(seen).toEqual([[128, 44100]])
+            expect(result.fits).toBe(false)
+            expect(result.sounds[0]).toBe(big)
+        }
     })
 })

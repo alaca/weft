@@ -66,7 +66,10 @@ export async function shrinkSounds(
         for (const [at, sound] of sounds.entries()) {
             const decoded = heard[at]
             const rate = decoded ? rateFor(decoded, kbps) : 0
-            const fit = decoded && rate !== decoded.sampleRate ? await decode(sound.data, rate) : decoded
+            const read = decoded && rate !== decoded.sampleRate ? await decode(sound.data, rate) : decoded
+            // A sound that comes back at another rate than was asked for is left as it is, like
+            // one that cannot be read.
+            const fit = read?.sampleRate === rate ? read : null
             const small = fit ? await encode(fit, kbps) : null
             made.push(small && small.length < sound.data.length ? { ...sound, file: mp3Name(sound.file), type: 'audio/mpeg', data: small, onset: onsets[at] } : sound)
         }
