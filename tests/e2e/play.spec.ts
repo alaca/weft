@@ -82,3 +82,48 @@ test('the keys that update and silence the song work from anywhere in the window
     await page.keyboard.press('ControlOrMeta+.')
     await expect(status).toHaveText('Stopped')
 })
+
+// WebKit gives back what a worklet node took only when its audio clock is closed, so a song
+// that has made very many gets a new clock a few seconds after it is stopped by a press. The
+// nodes are made here the way hours of a song with crush or distortion leave them.
+test('a song that was stopped after very many effects plays on a new audio clock, with the mixer as it was', async ({ page }) => {
+    await page.addInitScript(() => {
+        const Clock = window.AudioContext
+        const made: AudioContext[] = []
+        ;(window as any).__clocks = made
+        window.AudioContext = class extends Clock {
+            constructor(options?: AudioContextOptions) {
+                super(options)
+                made.push(this)
+            }
+        }
+    })
+    await page.goto('/')
+    await ready(page)
+    const clocks = () => page.evaluate(() => ((window as any).__clocks as AudioContext[]).map((clock) => clock.state))
+    const loudest = () => page.evaluate(() => Math.max(...(((window as any).__weft.engine.levels() ?? [0, 0]) as number[])))
+    await page.evaluate(() => {
+        const engine = (window as any).__weft.engine
+        engine.setMix({ ...engine.mix(), volume: 0.4, pan: -0.5 })
+    })
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect.poll(loudest, { timeout: 20_000 }).toBeGreaterThan(0.01)
+
+    await page.evaluate(async () => {
+        const clock = ((window as any).__clocks as AudioContext[])[0]
+        for (let at = 0; at < 20500; at++) {
+            const node = new AudioWorkletNode(clock, 'crush-processor')
+            node.connect(clock.createGain())
+            node.disconnect()
+            if (at % 500 === 499) await new Promise((done) => setTimeout(done, 20))
+        }
+    })
+    await page.waitForTimeout(1000)
+    await page.getByRole('button', { name: 'Stop', exact: true }).click()
+    await expect.poll(clocks, { timeout: 20_000 }).toEqual(['closed', 'running'])
+
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect.poll(loudest, { timeout: 20_000 }).toBeGreaterThan(0.01)
+    expect(await page.evaluate(() => (window as any).__weft.engine.mix())).toMatchObject({ volume: 0.4, pan: -0.5 })
+})

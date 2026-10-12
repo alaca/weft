@@ -10,12 +10,20 @@ const PER_REST = 256
 
 type Rest = { into: GainNode; held: number; full: GainNode[] }
 
+const rests = new WeakMap<BaseAudioContext, Rest>()
+
+// How many worklet nodes have been put to rest on an audio clock. That is nearly every one it
+// has had made on it, and it keeps what each of them took until it is closed.
+export function restedOn(context: BaseAudioContext): number {
+    const mine = rests.get(context)
+    return mine ? mine.full.length * PER_REST + mine.held : 0
+}
+
 let done = false
 
 export function restUnpluggedWorklets() {
     if (done || typeof AudioWorkletNode === 'undefined') return
     done = true
-    const rests = new WeakMap<BaseAudioContext, Rest>()
     const connect = AudioNode.prototype.connect as (this: AudioNode, to: AudioNode) => AudioNode
     const disconnect = AudioNode.prototype.disconnect as (this: AudioNode, ...args: any[]) => void
     let unplugged = new Set<AudioWorkletNode>()

@@ -32,7 +32,7 @@ import { useOwnSupersaw } from './supersaw'
 import { createSync, heard, syncSlot, type Sync } from './sync'
 import { registerTheme } from './theme'
 import { startTicking, stopTicking } from './ticker'
-import { restUnpluggedWorklets } from './unplug'
+import { restedOn, restUnpluggedWorklets } from './unplug'
 
 // A number as a slider in the code holds it.
 const NUMBER = /^-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/i
@@ -119,6 +119,11 @@ const bareId = (id: string) => id.replace(/^_+|_+$/g, '')
 const sameGesture = Annotation.define<boolean>()
 const pause = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))
 const SETTLE = 300
+// A song with distortion or crush has a few dozen worklet nodes made every second, and WebKit
+// gives back what they took only when their audio clock is closed. After this many, a song
+// that is stopped gets a new clock. What still rings when a song stops has this long to ring out.
+const MANY_NODES = 20000
+const RUNG_OUT = 5000
 const STRETCH = 2
 const LEAD = 0.05
 // Where the limiter of the desk begins to hold back, in decibels, and how hard.
@@ -473,8 +478,56 @@ export function createEngine(): Engine {
         }
     }
 
+    // The new clock is made inside the press that stops the song, because only there is a clock
+    // allowed to start by itself. It takes over a little later, if the song is still stopped
+    // then, and the old clock is closed with all it held. Whatever goes wrong, the old one stays.
+    let spare: AudioContext | null = null
+    let spareTimer = 0
+    let renewing: Promise<void> | null = null
+    const dropSpare = () => {
+        window.clearTimeout(spareTimer)
+        void spare?.close().catch(() => undefined)
+        spare = null
+    }
+    const renew = async () => {
+        const next = spare
+        spare = null
+        const old = getAudioContext()
+        if (!next) return
+        if (state.playing || state.paused || next.state !== 'running' || old instanceof OfflineAudioContext) return void next.close().catch(() => undefined)
+        const controller = getSuperdoughAudioController()
+        try {
+            setAudioContext(next)
+            setSuperdoughAudioController(null)
+            await initAudio()
+            applyMix()
+            void old.close().catch(() => undefined)
+        } catch {
+            setAudioContext(old)
+            setSuperdoughAudioController(controller)
+            void next.close().catch(() => undefined)
+        }
+    }
+    const renewLater = () => {
+        window.clearTimeout(spareTimer)
+        spareTimer = window.setTimeout(() => (renewing = renew().finally(() => (renewing = null))), RUNG_OUT)
+    }
+    const renewSoon = () => {
+        if (spare || renewing) return
+        const old = getAudioContext()
+        if (old instanceof OfflineAudioContext || !navigator.userActivation?.isActive || restedOn(old) < MANY_NODES) return
+        try {
+            spare = new AudioContext({ sampleRate: old.sampleRate })
+        } catch {
+            return
+        }
+        renewLater()
+    }
+
     const audition = (make: () => Record<string, unknown>, seconds: number) => {
         wakeAudio()
+        // A sound that is tried out is not cut off by the clock being changed under it.
+        if (spare) renewLater()
         const fire = async () => {
             const due = getAudioContext().currentTime + 0.05
             await superdough(make(), due, seconds)
@@ -793,6 +846,8 @@ export function createEngine(): Engine {
             return true
         },
         async evaluate() {
+            dropSpare()
+            if (renewing) await renewing
             // Whatever was waiting to be played again is played by this.
             dropReplay()
             wakeAudio()
@@ -828,6 +883,7 @@ export function createEngine(): Engine {
         // In a jam the other's song is already somewhere when yours starts, or is found to have
         // run a little ahead while both play. Either way yours is put where theirs is.
         playAt(position) {
+            dropSpare()
             wakeAudio()
             if (!mirror || blank()) return
             resumeAt = null
@@ -893,6 +949,8 @@ export function createEngine(): Engine {
         async render({ bars, ringSeconds, sampleRate, only }, onProgress) {
             if (blank()) throw new Error('There is nothing in this song to play.')
             engine.stop()
+            dropSpare()
+            if (renewing) await renewing
             const before = { soloIds, offset, endBar, loop, liveMode }
             const live = getAudioContext()
             const liveController = getSuperdoughAudioController()
@@ -979,6 +1037,7 @@ export function createEngine(): Engine {
             if (state.paused) setState({ paused: false })
             mirror.stop()
             if (was) moved({ k: 'stop' })
+            if (was) renewSoon()
         },
         setSolo(ids) {
             soloIds = ids
