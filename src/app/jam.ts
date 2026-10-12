@@ -82,7 +82,8 @@ export type JamDeps = {
     songName(): string
     songId(): string | null
     songKeys(): Record<string, string>
-    openAs(name: string, code: string, keys: Record<string, string>, mode: PlayMode): void
+    // False when the song could not be kept, and so was not opened.
+    openAs(name: string, code: string, keys: Record<string, string>, mode: PlayMode): boolean
     guardSong(): void
     startFrom(bar: number): void
     setLoop(range: Bars | null): void
@@ -177,10 +178,10 @@ export function tellJam(told: Told) {
     if (line && jamStage() === 'jamming' && !applying) line.send({ t: 'tell', d: told })
 }
 
-function follow(work: () => void) {
+function follow<T>(work: () => T): T {
     applying = true
     try {
-        work()
+        return work()
     } finally {
         applying = false
     }
@@ -592,11 +593,13 @@ function told(d: Told) {
         // only when it is of that kind.
         if (typeof d.name !== 'string' || typeof d.code !== 'string') return finish('The jam could not be joined: the song did not arrive as a song. Ask for a new invite.')
         const loop = d.loop && Number.isInteger(d.loop.from) && Number.isInteger(d.loop.to) && d.loop.from >= 0 && d.loop.to > d.loop.from ? { from: d.loop.from, to: d.loop.to } : null
-        follow(() => {
-            deps.openAs(d.name, d.code, d.keys && typeof d.keys === 'object' && !Array.isArray(d.keys) ? d.keys : {}, d.mode === 'live' ? 'live' : 'song')
+        const opened = follow(() => {
+            if (!deps.openAs(d.name, d.code, d.keys && typeof d.keys === 'object' && !Array.isArray(d.keys) ? d.keys : {}, d.mode === 'live' ? 'live' : 'song')) return false
             deps.startFrom(Math.max(0, Math.floor(Number(d.start) || 0)))
             deps.setLoop(loop)
+            return true
         })
+        if (!opened) return finish('The jam could not be joined: there is no room left to keep its song. Delete songs you no longer need, then join again.')
         deps.engine.startSync(0, 'guest', push)
         known = new Set(soundsUsed(deps.engine.getCode(), ownNames()))
         return begin(peer(), `You joined ${peer()}. You are both on ${deps.songName()}.`)

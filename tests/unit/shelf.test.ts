@@ -1,15 +1,21 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { cleanName, createShelf, freeTitle, infoOf, whenText, type Shelf, type SongRecord } from '../../src/library/shelf'
 
-function memory(): Storage {
+// A store with room for so many characters, names and values together, as the app's window has.
+function memory(room = Infinity): Storage {
     const map = new Map<string, string>()
+    const taken = () => [...map].reduce((sum, [key, value]) => sum + key.length + value.length, 0)
     return {
         get length() {
             return map.size
         },
         key: (index: number) => [...map.keys()][index] ?? null,
         getItem: (key: string) => map.get(key) ?? null,
-        setItem: (key: string, value: string) => void map.set(key, value),
+        setItem: (key: string, value: string) => {
+            const before = map.has(key) ? key.length + map.get(key)!.length : 0
+            if (taken() - before + key.length + value.length > room) throw new DOMException('The quota has been exceeded.', 'QuotaExceededError')
+            map.set(key, value)
+        },
         removeItem: (key: string) => void map.delete(key),
         clear: () => map.clear(),
     }
@@ -30,6 +36,47 @@ describe('the shelf of songs', () => {
         shelf.write(record)
         expect(shelf.read('one')).toEqual(record)
         expect(shelf.read('two')).toBeNull()
+    })
+
+    it('writes a song that is as it was saved once, and one that has changed twice', () => {
+        const code = 'drums: s("bd*4")\n'
+        const same = song('one', 'Same', 1, code)
+        const changed = song('two', 'Changed', 2, `${code}// more\n`, code)
+        shelf.write(same)
+        shelf.write(changed)
+        expect(JSON.parse(store.getItem('weft.songs.one')!)).toEqual({ name: 'Same', saved: code, changedAt: 1 })
+        expect(JSON.parse(store.getItem('weft.songs.two')!)).toEqual({ name: 'Changed', saved: code, draft: `${code}// more\n`, changedAt: 2 })
+        expect(shelf.read('one')).toEqual(same)
+        expect(shelf.read('two')).toEqual(changed)
+        expect(shelf.list().map((entry) => entry.changed)).toEqual([true, false])
+    })
+
+    it('reads the songs that were kept with both versions, changed or not', () => {
+        store.setItem('weft.songs.one', JSON.stringify({ name: 'Same', saved: 'a', draft: 'a', changedAt: 1 }))
+        store.setItem('weft.songs.two', JSON.stringify({ name: 'Changed', saved: 'a', draft: 'b', changedAt: 2 }))
+        store.setItem('weft.songs.three', JSON.stringify({ name: 'Broken', saved: 'a', draft: 5, changedAt: 3 }))
+        expect(shelf.read('one')).toEqual(song('one', 'Same', 1, 'a'))
+        expect(shelf.read('two')).toEqual(song('two', 'Changed', 2, 'b', 'a'))
+        expect(shelf.read('three')).toBeNull()
+    })
+
+    it('says when there is no room for a song, and what was kept before is still there', () => {
+        store = memory(200)
+        shelf = createShelf(store)
+        const first = song('one', 'First', 1, 'x'.repeat(100))
+        expect(shelf.write(first)).toBe(true)
+        expect(shelf.write({ ...first, draft: 'y'.repeat(100) })).toBe(false)
+        expect(shelf.write(song('two', 'Second', 2, 'z'.repeat(100)))).toBe(false)
+        expect(shelf.read('one')).toEqual(first)
+        expect(shelf.list().map((entry) => entry.id)).toEqual(['one'])
+        store.removeItem('weft.songs.one')
+        expect(shelf.write(song('two', 'Second', 2, 'z'.repeat(100)))).toBe(true)
+    })
+
+    it('goes on without remembering which song is open when there is no room for that', () => {
+        shelf = createShelf(memory(0))
+        expect(() => shelf.setCurrent('two')).not.toThrow()
+        expect(shelf.current()).toBeNull()
     })
 
     it('lists the songs, the one changed last first, and says which differ from what was saved', () => {

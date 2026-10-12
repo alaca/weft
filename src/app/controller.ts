@@ -165,6 +165,7 @@ import {
     soloIds,
     song,
     songBars,
+    songNote,
     soundsOpen,
     stale,
     startBar,
@@ -217,9 +218,33 @@ function refreshSongs() {
     })
 }
 
-function flush() {
+// The place the songs are kept in can be full. A song that could not be written is said in the
+// window, with what makes room. It stays in front as it is until it has been written, so what
+// was done to it is not lost while the app is open.
+const MAKE_ROOM = 'Make room by deleting songs you no longer need, in the list under the name of the open song.'
+let unkept: string | null = null
+
+// What was said about the open song not being kept is taken back once the song is written after
+// all, or is gone.
+function sayUnkept(note: string | null) {
+    if (note === null && unkept !== null && songNote() === unkept) setSongNote(null)
+    if (note !== null) setSongNote(note)
+    unkept = note
+}
+
+function flush(): boolean {
     window.clearTimeout(saveTimer)
-    if (current) shelf.write(current)
+    if (!current) return true
+    const kept = shelf.write(current)
+    sayUnkept(kept ? null : `The changes to ${current.name} are not kept: there is no room left for your songs. ${MAKE_ROOM}`)
+    return kept
+}
+
+// A song that is new to the shelf. Without room for it nothing else changes.
+function keepNew(record: SongRecord): boolean {
+    const kept = shelf.write(record)
+    if (!kept) setSongNote(`There is no room left for another song. ${MAKE_ROOM}`)
+    return kept
 }
 
 function keepDraft(code: string) {
@@ -1881,12 +1906,13 @@ export function trustSong() {
 }
 
 // The song of the person who invited you to a jam, as a song of your own from the moment you join.
-function openAs(name: string, code: string, keys: Record<string, string>, mode: PlayMode) {
-    flush()
+function openAs(name: string, code: string, keys: Record<string, string>, mode: PlayMode): boolean {
+    if (!flush()) return false
     const kept = Object.fromEntries(Object.entries(keys).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
     const record: SongRecord = { id: newId(), name: freeTitle(cleanName(name) || UNTITLED, titles()), saved: code, draft: code, changedAt: Date.now(), mode, guarded: true, ...(Object.keys(kept).length ? { keys: kept } : {}) }
-    shelf.write(record)
+    if (!keepNew(record)) return false
     show(record)
+    return true
 }
 
 // What the start screen lists under your songs: each with how fast it is and how many patterns
@@ -1908,11 +1934,11 @@ export function recentSongs(): RecentSong[] {
 function toStart() {
     leaveJam()
     engine.stop()
+    setSongNote(null)
     flush()
     refreshSongs()
     batch(() => {
         setClosingSong(false)
-        setSongNote(null)
         setStartOpen(true)
     })
 }
@@ -1944,15 +1970,13 @@ function publishedAs(id: string) {
 }
 
 export function newSong() {
-    flush()
+    if (!flush()) return
     const record: SongRecord = { id: newId(), name: freeTitle(UNTITLED, titles()), saved: NEW_SONG, draft: NEW_SONG, changedAt: Date.now() }
-    shelf.write(record)
-    show(record)
+    if (keepNew(record)) show(record)
 }
 
 export function openSong(id: string) {
-    if (id === current?.id) return
-    flush()
+    if (id === current?.id || !flush()) return
     const record = shelf.read(id)
     if (record) show(record)
 }
@@ -1975,18 +1999,18 @@ export function renameSong(id: string, name: string): boolean {
     const record = id === current?.id ? current : shelf.read(id)
     if (!clean || !record) return false
     const renamed = { ...record, name: clean }
-    if (id === current?.id) current = renamed
-    shelf.write(renamed)
+    if (id === current?.id) {
+        current = renamed
+        flush()
+    } else if (!shelf.write(renamed)) return false
     refreshSongs()
     return true
 }
 
 export function duplicateSong() {
-    if (!current) return
-    flush()
+    if (!current || !flush()) return
     const copy: SongRecord = { ...current, id: newId(), name: freeTitle(`${current.name} copy`, titles()), changedAt: Date.now() }
-    shelf.write(copy)
-    show(copy)
+    if (keepNew(copy)) show(copy)
 }
 
 export function deleteSong(id: string) {
@@ -1995,7 +2019,12 @@ export function deleteSong(id: string) {
     if (!record) return
     shelf.remove(id)
     setDeletedSong(record)
-    if (id !== current?.id) return refreshSongs()
+    if (id !== current?.id) {
+        // The room this made may be what the open song was waiting for.
+        if (unkept !== null) flush()
+        return refreshSongs()
+    }
+    sayUnkept(null)
     const next = shelf.list().flatMap((entry) => shelf.read(entry.id) ?? [])[0]
     if (next) return show(next)
     current = null
@@ -2004,8 +2033,7 @@ export function deleteSong(id: string) {
 
 export function restoreSong() {
     const record = deletedSong()
-    if (!record) return
-    shelf.write(record)
+    if (!record || !keepNew(record)) return
     setDeletedSong(null)
     refreshSongs()
 }
@@ -2260,9 +2288,9 @@ export async function openSongFile(file: File): Promise<boolean> {
             setOwnSounds([...ownSounds(), infoOfSound(sound)].sort(byName))
             added++
         }
-        flush()
+        if (!flush()) return false
         const record: SongRecord = { id: newId(), name: freeTitle(cleanName(read.name) || UNTITLED, titles()), saved: code, draft: code, changedAt: Date.now(), guarded: true, ...(Object.keys(read.keys).length ? { keys: read.keys } : {}), ...(read.source ? { source: read.source } : {}) }
-        shelf.write(record)
+        if (!keepNew(record)) return false
         show(record)
         setSongNote(added ? `Opened ${record.name}, with ${added} ${added === 1 ? 'sound' : 'sounds'} of its own, now among yours.` : `Opened ${record.name}.`)
         return true

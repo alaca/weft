@@ -127,6 +127,43 @@ test('a song can be deleted and put back', async ({ page }) => {
     await expect.poll(() => code(page)).toBe(SONG)
 })
 
+// The place the songs are kept in, filled: one more song that can be deleted, and then filler
+// down to the last few characters.
+const fill = (page: Page) =>
+    page.evaluate(() => {
+        localStorage.setItem('weft.songs.old', JSON.stringify({ name: 'Old sketch', saved: `// ${'o'.repeat(6000)}\n`, changedAt: 1 }))
+        for (const size of [1_000_000, 100_000, 10_000, 1000, 100, 10]) {
+            try {
+                for (let at = 0; ; at++) localStorage.setItem(`filler.${size}.${at}`, 'x'.repeat(size))
+            } catch {
+                // Nothing more of this size fits.
+            }
+        }
+    })
+
+test('when there is no room left for songs it is said, and deleting a song makes room', async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', (error) => errors.push(error.message))
+    const note = page.getByTestId('song-note')
+    await open(page)
+    await fill(page)
+    await page.getByTestId('top').getByRole('button', { name: 'New song', exact: true }).click()
+    await expect(note).toContainText('There is no room left for another song.')
+    await expect(name(page)).toHaveText('Untitled')
+
+    await type(page, `// ${'n'.repeat(3000)}\n`)
+    await expect(note).toContainText('The changes to Untitled are not kept')
+    await name(page).click()
+    await expect(rows(page)).toHaveText(['Untitled', 'Old sketch'])
+    await menu(page).getByRole('button', { name: 'Open Old sketch', exact: true }).hover()
+    await menu(page).getByRole('button', { name: 'Delete Old sketch', exact: true }).click()
+    await expect(rows(page)).toHaveText(['Untitled'])
+    await expect(note).toHaveCount(0)
+    await again(page)
+    expect(await code(page)).toBe(`// ${'n'.repeat(3000)}\n${SONG}`)
+    expect(errors).toEqual([])
+})
+
 // Two of the eight: the one with the most in it, and one that is played on instruments. That
 // each of them is a song the controls can read is looked at for all eight where it is quick.
 for (const demo of ['Slow burn', 'Undertow']) {

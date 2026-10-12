@@ -315,8 +315,8 @@ export function StartScreen() {
                         <div class="sx-pub-e" data-testid="start-site-count">
                             <Show when={reached() === 'yes'} fallback={reached() === 'asking' ? 'Asking the site for its songs.' : ''}>
                                 {query().trim() ? `${listed().length} of ${found().length} ${found().length === 1 ? 'song' : 'songs'}.` : `${found().length} ${found().length === 1 ? 'song' : 'songs'}.`}
-                                <Show when={opening() === null ? songNote() : null}>{(said) => <span class="sx-warn">&nbsp;{said()}</span>}</Show>
                             </Show>
+                            <Show when={opening() === null ? songNote() : null}>{(said) => <span class="sx-warn">&nbsp;{said()}</span>}</Show>
                         </div>
                     </div>
                 </section>

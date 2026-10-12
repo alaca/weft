@@ -3,6 +3,8 @@ import { readSource, type SongSource } from './songfile'
 // The songs a person has made are kept inside the app, one record for each song. A record holds
 // the song as it was last saved and the song as it is now; the second is written as you work,
 // so nothing is lost when a song is not saved, and saving marks the version to go back to.
+// The place they are kept in has a limit of about five million characters, so a song that is as
+// it was saved is written once and not twice: a record without `draft` is one that has not changed.
 // `keys` holds the key each pattern's piano roll keeps to, by the pattern's name, written as
 // "9:minor". A pattern with no key is not in it.
 // `mode` is what plays, the song or every pattern, once that has been chosen for this song.
@@ -44,8 +46,8 @@ function parse(id: string, text: string | null): SongRecord | null {
     if (text === null) return null
     try {
         const value = JSON.parse(text) as Partial<SongRecord>
-        if (typeof value.name !== 'string' || typeof value.saved !== 'string' || typeof value.draft !== 'string') return null
-        return { id, name: value.name, saved: value.saved, draft: value.draft, changedAt: typeof value.changedAt === 'number' ? value.changedAt : 0, ...(value.keys && typeof value.keys === 'object' ? { keys: value.keys } : {}), ...(value.mode === 'song' || value.mode === 'live' ? { mode: value.mode } : {}), ...(value.guarded === true ? { guarded: true } : {}), ...(readSource(value.source) ? { source: readSource(value.source)! } : {}), ...(typeof value.publishedAs === 'string' && /^[a-z0-9]{1,16}$/.test(value.publishedAs) ? { publishedAs: value.publishedAs } : {}) }
+        if (typeof value.name !== 'string' || typeof value.saved !== 'string' || (value.draft !== undefined && typeof value.draft !== 'string')) return null
+        return { id, name: value.name, saved: value.saved, draft: value.draft ?? value.saved, changedAt: typeof value.changedAt === 'number' ? value.changedAt : 0, ...(value.keys && typeof value.keys === 'object' ? { keys: value.keys } : {}), ...(value.mode === 'song' || value.mode === 'live' ? { mode: value.mode } : {}), ...(value.guarded === true ? { guarded: true } : {}), ...(readSource(value.source) ? { source: readSource(value.source)! } : {}), ...(typeof value.publishedAs === 'string' && /^[a-z0-9]{1,16}$/.test(value.publishedAs) ? { publishedAs: value.publishedAs } : {}) }
     } catch {
         return null
     }
@@ -65,13 +67,26 @@ export function createShelf(store: Store) {
     return {
         read,
         list: (): SongInfo[] => all().map(infoOf),
-        write(record: SongRecord) {
-            const { id, ...rest } = record
-            store.setItem(PREFIX + id, JSON.stringify(rest))
+        // False when there was no room for it. What was kept under its name before is still there.
+        write(record: SongRecord): boolean {
+            const { id, draft, ...rest } = record
+            try {
+                store.setItem(PREFIX + id, JSON.stringify(draft === rest.saved ? rest : { ...rest, draft }))
+                return true
+            } catch {
+                return false
+            }
         },
         remove: (id: string) => store.removeItem(PREFIX + id),
         current: (): string | null => store.getItem(CURRENT),
-        setCurrent: (id: string) => store.setItem(CURRENT, id),
+        setCurrent(id: string) {
+            try {
+                store.setItem(CURRENT, id)
+            } catch {
+                // Without room for it the app opens with the song changed last, which is nearly
+                // always the same one.
+            }
+        },
     }
 }
 
