@@ -65,7 +65,7 @@ p { text-wrap: pretty; }
 .nav { display: flex; align-items: center; gap: 2px; }
 .nav a { height: 32px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center; font-size: 14px; font-weight: 500; color: var(--linen-2); white-space: nowrap; }
 .nav a:hover { background: var(--cloth-3); color: var(--linen); }
-[data-page='songs'] .nav [data-nav='songs'], [data-page='song'] .nav [data-nav='songs'], [data-page='maker'] .nav [data-nav='songs'], [data-page='download'] .nav [data-nav='download'] { background: var(--cloth-2); color: var(--linen); box-shadow: inset 0 0 0 1px var(--seam); }
+[data-page='songs'] .nav [data-nav='songs'], [data-page='song'] .nav [data-nav='songs'], [data-page='maker'] .nav [data-nav='songs'], [data-page='download'] .nav [data-nav='download'], [data-page='docs'] .nav [data-nav='docs'] { background: var(--cloth-2); color: var(--linen); box-shadow: inset 0 0 0 1px var(--seam); }
 
 .ft { margin-top: 120px; border-top: 1px solid var(--seam-soft); }
 .ft-in { padding-top: 26px; padding-bottom: 30px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 22px; color: var(--linen-3); font-size: 13px; }
@@ -355,6 +355,40 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
 }
 
 /* Small pages: a refusal, what happened, what is not there */
+/* The docs: what is on the page at the left, the parts at the right, each headed like a
+   pattern in the app, with its dot. */
+.docs { display: grid; grid-template-columns: 216px minmax(0, 1fr); gap: 56px; align-items: start; }
+.docs-n { position: sticky; top: 20px; display: grid; gap: 2px; padding-top: 4px; }
+.docs-n a { min-height: 32px; padding: 5px 10px; border-radius: 8px; display: flex; align-items: center; gap: 10px; font-size: 14px; line-height: 1.3; color: var(--linen-2); }
+.docs-n a:hover { background: var(--cloth-2); color: var(--linen); }
+.docs-n i, .docs-b h2 i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--h); }
+.docs-b { min-width: 0; max-width: 800px; }
+.docs-b section { scroll-margin-top: 20px; padding-bottom: 52px; }
+.docs-b section + section { padding-top: 48px; border-top: 1px solid var(--seam-soft); }
+.docs-b h2 { display: flex; align-items: center; gap: 13px; font: 600 29px/1.15 var(--voice); letter-spacing: -0.012em; }
+.docs-b h2 i { width: 10px; height: 10px; }
+.docs-b p { margin-top: 14px; max-width: 68ch; font-size: 16px; line-height: 1.62; color: var(--linen-2); }
+.docs-b b { font-weight: 600; color: var(--linen); }
+.docs-b p a { color: var(--linen); text-decoration: underline; text-decoration-color: var(--linen-3); text-underline-offset: 3px; }
+.docs-b p a:hover { text-decoration-color: var(--linen); }
+.docs-b kbd { display: inline-block; min-width: 22px; padding: 1px 6px; border-radius: 6px; background: var(--cloth-2); border: 1px solid var(--seam); font: 500 12px/1.5 var(--mono); font-stretch: 87%; text-align: center; color: var(--linen); white-space: nowrap; }
+.docs-f { width: fit-content; max-width: 100%; margin-top: 26px; padding: 6px; border-radius: 15px; background: var(--cloth); border: 1px solid var(--seam); box-shadow: inset 0 1px 0 rgba(236, 230, 214, 0.05), 0 30px 60px -30px rgba(0, 0, 0, 0.7); }
+.docs-f a { display: block; border-radius: 9px; }
+.docs-f img { max-width: 100%; height: auto; border-radius: 9px; border: 1px solid var(--seam-soft); }
+.docs-k { margin-top: 18px; max-width: 620px; border-top: 1px solid var(--seam-soft); }
+.docs-k div { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: 16px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--seam-soft); }
+.docs-k dt { font-size: 14px; color: var(--linen-2); white-space: nowrap; }
+.docs-k dd { color: var(--linen-2); }
+@media (max-width: 880px) {
+    .docs { grid-template-columns: minmax(0, 1fr); gap: 30px; }
+    .docs-n { position: static; display: flex; flex-wrap: wrap; gap: 6px; }
+    .docs-n a { min-height: 30px; padding: 4px 11px; border: 1px solid var(--seam); background: var(--cloth); font-size: 13px; }
+    .docs-b h2 { font-size: 25px; }
+    .docs-b section { padding-bottom: 40px; }
+    .docs-b section + section { padding-top: 36px; }
+    .docs-k div { grid-template-columns: 118px minmax(0, 1fr); }
+}
+
 .mid { padding-top: 88px; }
 .note { max-width: 460px; margin: 0 auto; padding: 28px 28px 30px; }
 .note.wide { max-width: 640px; }

@@ -13,6 +13,8 @@ A free, open-source desktop app for making music with [Strudel](https://strudel.
 - Jams: two people on one song at once, each on their own machine, with chat, voice and a camera.
 - Publishing songs to the site, where others can listen and open a copy.
 
+How each of these works is in the [docs](https://weftloom.dev/docs), with pictures.
+
 <p>
 <img src="server/assets/app-2.webp" width="49%" alt="A melody drawn as notes in a piano roll, with the controls of its sound open under it and the list of instruments beside it.">
 <img src="server/assets/app-3.webp" width="49%" alt="Two people in a jam on one song: who they are, what they wrote to each other, and which pattern the other one just changed.">

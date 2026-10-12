@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, randomInt, scrypt, timingSafeEqual } from 'node:crypto'
-import { createReadStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -7,7 +7,7 @@ import { checkSongFile, looksLikeAudio } from '../src/guard/file'
 import { SONG_LIMIT, soundsUsed } from '../src/library/songfile'
 import { analyze } from '../src/song/analyze'
 import { DEFAULT_SONG, songLength } from '../src/song/arrange'
-import { downloadPage, homePage, licencePage, makerPage, notePage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type Named, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
+import { docsPage, downloadPage, homePage, licencePage, makerPage, notePage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type Named, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
 import { songPicture } from './picture'
 import { senderOf } from './sender'
 
@@ -246,6 +246,7 @@ function fixedFiles(): Map<string, Kind> {
     // pasted, and not every place that shows such a picture can read the other kind.
     own('/app-1.png', 'image/png')
     for (const picture of ['/app-1.webp', '/app-2.webp', '/app-3.webp']) own(picture, 'image/webp')
+    for (const name of readdirSync(join(HERE, 'assets', 'docs'))) if (name.endsWith('.webp')) own(`/docs/${name}`, 'image/webp')
     own('/icon.svg', 'image/svg+xml')
     for (const [family, names] of Object.entries(FONTS)) {
         const dir = packageDir(`@fontsource-variable/${family}`)
@@ -708,6 +709,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
         }
         if (get && path === '/licence') return { status: 200, html: licencePage(around, LICENCES) }
         if (get && path === '/privacy') return { status: 200, html: privacyPage(around) }
+        if (get && path === '/docs') return { status: 200, html: docsPage(around) }
         if (get && path === '/download') return { status: 200, html: downloadPage(around, built()) }
         const wanted = /^\/download\/(macos|windows|linux)$/.exec(path)
         if (wanted && get) {

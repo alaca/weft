@@ -531,7 +531,7 @@ describe('every page', () => {
             expect(answer.headers.get('set-cookie')).toBeNull()
             const html = await answer.text()
             expect(html).not.toMatch(/sign in|sign out|dashboard|password|ante@example\.com/i)
-            expect(html).toMatch(/<nav class="nav" aria-label="Site">\s*<a href="\/songs" data-nav="songs">Songs<\/a>\s*<a href="\/download" data-nav="download">Download<\/a>\s*<\/nav>\s*<\/div>\s*<\/header>/)
+            expect(html).toMatch(/<nav class="nav" aria-label="Site">\s*<a href="\/songs" data-nav="songs">Songs<\/a>\s*<a href="\/docs" data-nav="docs">Docs<\/a>\s*<a href="\/download" data-nav="download">Download<\/a>\s*<\/nav>\s*<\/div>\s*<\/header>/)
         }
     })
 
@@ -546,6 +546,19 @@ describe('every page', () => {
         for (const path of ['/api/sign-in/poll', `/api/songs/${made.id}/preview`, '/api/dashboard']) expect([path, (await ask(path, { token, json: {} })).status]).toEqual([path, 404])
         expect((await send(`/dashboard/songs/${made.id}/delete`, {})).status).toBe(404)
         expect((await fetch(made.url)).status).toBe(200)
+    })
+})
+
+describe('the docs', () => {
+    it('have every part in the list at their side, and every picture they show is there', async () => {
+        const html = await (await fetch(`${site.origin}/docs`)).text()
+        expect(html).toContain('<h1>Docs</h1>')
+        const parts = [...html.matchAll(/<section id="([a-z]+)"/g)].map((found) => found[1])
+        expect(parts.length).toBeGreaterThan(8)
+        expect([...html.matchAll(/<nav class="docs-n"[\s\S]*?<\/nav>/g)][0][0].match(/href="#([a-z]+)"/g)).toEqual(parts.map((id) => `href="#${id}"`))
+        const pictures = [...new Set([...html.matchAll(/<img src="([^"]+)"/g)].map((found) => found[1]))]
+        expect(pictures.length).toBeGreaterThan(8)
+        for (const picture of pictures) expect([picture, (await fetch(site.origin + picture)).status]).toEqual([picture, 200])
     })
 })
 

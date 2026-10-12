@@ -2,6 +2,8 @@
 // back the page; nothing is read or kept here. Whatever goes into a page through `html` is
 // escaped, so words a person typed never become markup, in text or in an attribute. Only what
 // `html` made itself, or what `safe` was given by this file, goes in as it is.
+import { DOCS, DOCS_ABOUT, type DocPicture } from './docs'
+
 class Markup {
     constructor(readonly text: string) {}
 }
@@ -148,6 +150,7 @@ ${defs}
         <a class="word" href="/" aria-label="Weft, home">${MARK}Weft</a>
         <nav class="nav" aria-label="Site">
             <a href="/songs" data-nav="songs">Songs</a>
+            <a href="/docs" data-nav="docs">Docs</a>
             <a href="/download" data-nav="download">Download</a>
             ${sourceLink(around, ' data-nav="source"')}
         </nav>
@@ -161,6 +164,7 @@ ${main}
         <span class="grow"></span>
         <nav aria-label="Footer">
             <a href="/songs">Songs</a>
+            <a href="/docs">Docs</a>
             <a href="/download">Download</a>
             ${sourceLink(around)}
             <a href="/licence">Licence</a>
@@ -399,6 +403,34 @@ export function licencePage(around: Around, licences: readonly string[]): string
     </div>
 </main>`
     return layout(around, 'licence', 'Licence, Weft', main)
+}
+
+// How the app works. Each part is headed the way a pattern is in the app, with a dot of the
+// colour a pattern in that place would have.
+export function docsPage(around: Around): string {
+    const picture = (shown: DocPicture) => html`<figure class="docs-f"><a href="${shown.file}" aria-label="The picture in full size"><img src="${shown.file}" width="${shown.width}" height="${shown.height}" loading="lazy" alt="${shown.alt}"></a></figure>`
+    const main = html`<main class="wrap page">
+    <div class="ph">
+        <div>
+            <h1>Docs</h1>
+            <p>How Weft works, one thing at a time.</p>
+        </div>
+    </div>
+    <div class="docs">
+        <nav class="docs-n" aria-label="On this page">
+            ${DOCS.map((part, at) => html`<a href="#${part.id}"><i class="${hue(at)}"></i>${part.title}</a>`)}
+        </nav>
+        <div class="docs-b">
+            ${DOCS.map((part, at) => html`<section id="${part.id}" aria-labelledby="h-${part.id}">
+                <h2 id="h-${part.id}"><i class="${hue(at)}"></i>${part.title}</h2>
+                ${safe(part.html)}
+                ${part.pictures.map(picture)}
+            </section>`)}
+        </div>
+    </div>
+</main>`
+    return layout(around, 'docs', 'Docs, Weft', main, '', html`<meta name="description" content="${DOCS_ABOUT}">
+${pasted(around, 'How Weft works', DOCS_ABOUT)}`)
 }
 
 // What the site and the app keep about a person, in plain words. It says what is so, and has to
