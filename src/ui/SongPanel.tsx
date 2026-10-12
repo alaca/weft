@@ -431,6 +431,14 @@ function NameRows(props: { id: string; index: number }) {
     return (
         <>
             <div class="sg-nr" ref={row} style={{ '--h': colorAt(props.index) }}>
+                <span class="ms">
+                    <button classList={{ on: block()?.muted }} aria-label={`Mute ${props.id}`} aria-pressed={block()?.muted ?? false} disabled={stale()} onClick={() => toggleMute(props.id)}>
+                        M
+                    </button>
+                    <button classList={{ on: soloIds().includes(props.id) }} aria-label={`Solo ${props.id}`} aria-pressed={soloIds().includes(props.id)} onClick={() => toggleSolo(props.id)}>
+                        S
+                    </button>
+                </span>
                 <button
                     class="sg-n"
                     classList={{ muted: block()?.muted }}
@@ -443,14 +451,6 @@ function NameRows(props: { id: string; index: number }) {
                     <i />
                     <span>{props.id}</span>
                 </button>
-                <span class="ms">
-                    <button classList={{ on: block()?.muted }} aria-label={`Mute ${props.id}`} aria-pressed={block()?.muted ?? false} disabled={stale()} onClick={() => toggleMute(props.id)}>
-                        M
-                    </button>
-                    <button classList={{ on: soloIds().includes(props.id) }} aria-label={`Solo ${props.id}`} aria-pressed={soloIds().includes(props.id)} onClick={() => toggleSolo(props.id)}>
-                        S
-                    </button>
-                </span>
                 <span class="mix">
                     <For each={mix().map((knob) => knob.fn)}>
                         {(fn) => <Show when={mix().find((knob) => knob.fn === fn)}>{(knob) => <Knob small name={knob().name} view={knob().view} disabled={stale()} onChange={(value) => setMix(props.id, fn, value)} />}</Show>}
