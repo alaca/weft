@@ -27,17 +27,19 @@ describe('the voice of the desktop app', () => {
         expect(pieceStart(0, 0)).toBeCloseTo(0.06)
     })
 
-    it('leaves nothing out while the window is no later than it is in ordinary use', () => {
-        const spoken = speak(10, [[2, 0.146], [4, 0.146], [6, 0.1], [8, 0.146]])
+    // A change to a heavy song holds the window several times in a row, and no piece gets
+    // through in between: 43, 61, 70 and 43 ms are one standstill of 217 ms to a voice.
+    it('leaves nothing out when a change to a heavy song holds the window several times in a row', () => {
+        const spoken = speak(10, [[2, 0.217], [4, 0.256], [6, 0.146], [8, 0.296]])
         expect(spoken.leftOut).toBe(0)
-        expect(spoken.behind).toBeGreaterThan(0.15)
-        expect(spoken.behind).toBeLessThan(0.25)
+        expect(spoken.behind).toBeGreaterThan(0.3)
+        expect(spoken.behind).toBeLessThan(0.4)
     })
 
     it('does not stay behind by the length of a long standstill', () => {
-        for (const lasting of [0.3, 1, 3]) {
+        for (const lasting of [0.5, 1, 3]) {
             const spoken = speak(lasting + 6, [[2, lasting]])
-            expect(spoken.behind).toBeLessThan(0.3)
+            expect(spoken.behind).toBeLessThan(0.4)
             expect(spoken.leftOut).toBeGreaterThan(0)
             expect(spoken.leftOut * PIECE).toBeLessThan(lasting)
         }

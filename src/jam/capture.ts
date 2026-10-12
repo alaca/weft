@@ -7,9 +7,11 @@ import { TakeRefused, whyNot } from '../library/recorder'
 export type Captured = { stream: MediaStream; stop(): void }
 
 const LEAD = 0.06
-// The furthest a voice is let to fall behind, in seconds. It is more than the window is late by
-// in ordinary use, or a voice would be cut at every change to a heavy song.
-const BEHIND = 0.25
+// The furthest a voice is let to fall behind, in seconds. A change to a heavy song holds the
+// window several times in a row, for about 0.3 s in all, and a piece needs more than one free
+// turn of the window to get through, so the pieces of all that time arrive at its end. There
+// is room for those, or a voice would be cut at every such change.
+const BEHIND = 0.36
 const inDesktop = () => '__TAURI_INTERNALS__' in window
 
 // When a piece of a voice is to sound: right after the piece before it, or a little ahead of
