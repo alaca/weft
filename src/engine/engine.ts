@@ -19,6 +19,7 @@ import { checkSong } from '../guard/check'
 import type { SentUpdate } from '../jam/protocol'
 import { DEFAULT_MIX, fitMix, type Mix } from '../library/mix'
 import type { PatternEvent, TextEdit } from '../song/types'
+import { barByBar } from './barByBar'
 import { cutAt } from './cut'
 import { toEvents } from './events'
 import { lightNotes } from './lights'
@@ -198,6 +199,10 @@ export function createEngine(): Engine {
     let evaluatedCode: string | null = null
     let dress: () => void = () => undefined
     let soloIds: string[] = []
+    // The sounds that push others down, bar by bar, as the last recording was answered them.
+    // A recording of one pattern needs nothing else from the rest of the song, so one that
+    // follows a recording of the same song does not ask the whole song again.
+    let ducking: { code: string; cps: number; bars: number; byBar: any[][] } | null = null
     let evaluated = false
     let lastCode = ''
     let mix: Mix = DEFAULT_MIX
@@ -972,7 +977,8 @@ export function createEngine(): Engine {
             loop = null
             liveMode = false
             try {
-                await mirror.repl.evaluate(mirror.code, false)
+                const code: string = mirror.code
+                await mirror.repl.evaluate(code, false)
                 if (state.error) throw new Error(state.error.message)
                 const pattern = mirror.repl.state.pattern
                 const cps: number = mirror.repl.scheduler.cps
@@ -982,24 +988,28 @@ export function createEngine(): Engine {
                 setSuperdoughAudioController(null)
                 await initAudio()
                 const startOf = (hap: any) => hap.whole.begin.valueOf() / cps
-                const hapsOf = (from: any): any[] => (from ? from.queryArc(0, bars, { _cps: cps }).filter((hap: any) => hap.hasOnset()) : [])
-                const everything = hapsOf(pattern)
                 const ducks = (hap: any) => hap.value?.duckorbit !== undefined && hap.value?.duckorbit !== null
-                everything.forEach((hap: any) => hap.ensureObjectValue())
-                // With one pattern asked for, the others are only there for what they do to it.
-                const haps: { hap: any; heard: boolean }[] = (
-                    only === undefined
-                        ? everything.map((hap) => ({ hap, heard: true }))
-                        : [...hapsOf(pending.get(only)).map((hap) => ({ hap, heard: true })), ...everything.filter(ducks).map((hap) => ({ hap, heard: false }))]
-                ).sort((a, b) => startOf(a.hap) - startOf(b.hap))
+                const own = only === undefined ? null : pending.get(only)
+                const known = ducking?.code === code && ducking.cps === cps && ducking.bars === bars ? ducking.byBar : []
+                const found: any[][] = []
+                // With one pattern asked for, the others are only there for what they do to it,
+                // and the whole song is asked for that only where it is not known yet.
+                const inBar = (bar: number): { hap: any; heard: boolean }[] => {
+                    const hapsOf = (from: any): any[] => (from ? from.queryArc(bar, Math.min(bar + 1, bars), { _cps: cps }).filter((hap: any) => hap.hasOnset()) : [])
+                    const kept: any[] | undefined = only === undefined ? undefined : known[bar]
+                    const everything = kept ? [] : hapsOf(pattern)
+                    everything.forEach((hap: any) => hap.ensureObjectValue())
+                    found[bar] = kept ?? everything.filter(ducks)
+                    if (only === undefined) return everything.map((hap) => ({ hap, heard: true }))
+                    return [...hapsOf(own).map((hap) => ({ hap, heard: true })), ...found[bar].map((hap) => ({ hap, heard: false }))]
+                }
+                const due = barByBar(bars, cps, inBar, (sound) => startOf(sound.hap))
                 // The sounds are handed over a stretch at a time, a little before they are
                 // due, with the clock standing still meanwhile, the way they arrive when the
                 // song plays. Handing over the whole song at once makes the clock carry every
                 // sound of it from the first moment, and it then runs slower than the song.
-                let next = 0
-                const handOver = async (until: number) => {
-                    for (; next < haps.length && startOf(haps[next].hap) < until; next++) {
-                        const { hap, heard } = haps[next]
+                const handOver = async (sounds: { hap: any; heard: boolean }[]) => {
+                    for (const { hap, heard } of sounds) {
                         hap.ensureObjectValue()
                         if (guarded && carriesCode(hap.value)) continue
                         const { duckorbit, ...value } = hap.value
@@ -1007,16 +1017,27 @@ export function createEngine(): Engine {
                         if (heard) await superdough(value, startOf(hap), hap.duration.valueOf() / cps, cps, hap.whole.begin.valueOf()).catch(() => void missed++)
                     }
                 }
-                await handOver(STRETCH)
+                await handOver(due(STRETCH))
+                // A bar can answer something that is not a sound, and that ends the recording.
+                // The clock cannot be stopped, so it runs to its end with nothing more handed
+                // over, and the reason is given then.
+                let failed = null as { why: unknown } | null
                 for (let at = STRETCH - LEAD; at < seconds; at += STRETCH) {
                     void clock.suspend(at).then(async () => {
-                        await handOver(at + LEAD + STRETCH).catch(() => undefined)
+                        try {
+                            const sounds = failed ? [] : due(at + LEAD + STRETCH)
+                            await handOver(sounds).catch(() => undefined)
+                        } catch (why) {
+                            failed = { why }
+                        }
                         onProgress?.(at / seconds)
                         void clock.resume()
                     })
                 }
                 const buffer = await clock.startRendering()
                 await pause(SETTLE)
+                if (failed) throw failed.why
+                ducking = { code, cps, bars, byBar: found }
                 return { channels: [buffer.getChannelData(0), buffer.getChannelData(1)], sampleRate, secondsPerBar: 1 / cps, missed }
             } finally {
                 setAudioContext(live)
