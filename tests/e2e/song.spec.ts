@@ -84,10 +84,11 @@ test('playing starts from the bar that was chosen', async ({ page }) => {
     await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
     await expect.poll(() => now(page)).toBeGreaterThan(4.05)
     expect(await now(page)).toBeLessThan(6)
+    // Stop goes back to the beginning of the song, and the next Play starts there.
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
-    await expect(page.getByTestId('cycle')).toHaveText('5')
-    await page.getByRole('button', { name: 'Start from bar 1', exact: true }).click()
     await expect(page.getByTestId('cycle')).toHaveText('1')
+    await expect(page.getByRole('button', { name: 'Start from bar 1', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(five).toHaveAttribute('aria-pressed', 'false')
 })
 
 test('what plays follows the bars: a pattern is silent where it rests', async ({ page }) => {

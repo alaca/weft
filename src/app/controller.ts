@@ -457,7 +457,12 @@ function replay() {
     }, 0)
 }
 
-export const stop = () => engine.stop()
+// Stop goes back to the beginning of the song, and pause keeps its place. Bars that go round
+// are still what plays next.
+export function stop() {
+    engine.stop()
+    if (!loopBars() && startBar() !== 0) startFrom(0)
+}
 
 export const pause = () => engine.pause()
 
