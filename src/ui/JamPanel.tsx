@@ -12,6 +12,7 @@ import {
     jamLines,
     jamListed,
     jamMic,
+    jamMicOpening,
     jamming,
     jamName,
     jamNote,
@@ -245,7 +246,7 @@ export function JamPanel() {
                         <Tile name={jamName()} shown="You" on={jamMic()} level={jamLevels().mine} picture={jamCam() ? jamPictures().mine : null} mine testid="jam-me" />
                     </div>
                     <div class="jm-ctl">
-                        <button class="ib jm-tg" classList={{ on: jamMic() }} aria-pressed={jamMic()} aria-label="Microphone" title={jamMic() ? 'Your microphone is on. Press to switch it off.' : `Switch your microphone on, so ${jamPeer()} hears you`} onClick={() => void toggleMic()}>
+                        <button class="ib jm-tg" classList={{ on: jamMic(), wait: jamMicOpening() }} aria-pressed={jamMic()} aria-busy={jamMicOpening()} aria-label="Microphone" title={jamMicOpening() ? 'Your microphone is opening.' : jamMic() ? 'Your microphone is on. Press to switch it off.' : `Switch your microphone on, so ${jamPeer()} hears you`} onClick={() => void toggleMic()}>
                             <svg viewBox="0 0 16 16" aria-hidden="true">
                                 <rect x="6" y="1.8" width="4" height="7.6" rx="2" />
                                 <path class="ln" d="M3.6 7.4a4.4 4.4 0 0 0 8.8 0M8 11.8v2.4M5.7 14.2h4.6" />

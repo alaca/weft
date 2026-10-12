@@ -647,6 +647,7 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .jm-tg { background: var(--cloth-2); box-shadow: inset 0 0 0 1px var(--seam); }
 .jm-tg.on { background: var(--lichen); color: var(--vat); box-shadow: none; }
 .jm-tg.on:hover { background: var(--lichen); color: var(--vat); filter: brightness(1.08); }
+.jm-tg.wait { animation: wait 0.6s ease-in-out infinite alternate; }
 .jm-cam[data-sound='yes'] { border-color: var(--lichen); }
 .jm-cam i { font: 600 30px/1 var(--voice); font-style: normal; color: color-mix(in srgb, var(--who) 80%, white); opacity: 0.9; padding-bottom: 8px; }
 .jm-cam span { position: absolute; left: 8px; bottom: 7px; max-width: calc(100% - 64px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 600; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }

@@ -60,6 +60,7 @@ import {
     setJamLines,
     setJamListed,
     setJamMic,
+    setJamMicOpening,
     setJamName,
     setJamNote,
     setJamOwn,
@@ -682,6 +683,7 @@ export async function toggleMic() {
         return void setJamVoiceNote(null)
     }
     reaching = true
+    setJamMicOpening(true)
     setJamVoiceNote(null)
     try {
         const made = await captureVoice()
@@ -698,6 +700,7 @@ export async function toggleMic() {
         setJamVoiceNote(`${NO_MIC[refused.why]}${refused.why === 'other' ? ` (${refused.message})` : ''}`)
     } finally {
         reaching = false
+        setJamMicOpening(false)
     }
 }
 

@@ -114,7 +114,9 @@ pub struct Speaking {
 pub struct Speaker(pub Mutex<Option<Speaking>>);
 
 // Starts handing the microphone to the window, and says how many samples a second it gives.
-#[tauri::command]
+// A microphone can take seconds to answer, and a wait on the main thread holds the whole window
+// still, so the commands that wait for one are run off it.
+#[tauri::command(async)]
 pub fn start_voice(speaker: tauri::State<Speaker>, on_sound: Channel<InvokeResponseBody>) -> Result<u32, String> {
     let mut slot = speaker.0.lock().map_err(|_| "the microphone is busy")?;
     if let Some(before) = slot.take() {
@@ -191,7 +193,8 @@ fn wav(samples: &[f32], rate: u32, channels: u16) -> Vec<u8> {
     bytes
 }
 
-#[tauri::command]
+// Waits for the microphone, so it is run off the main thread, as the start of a voice is.
+#[tauri::command(async)]
 pub fn start_take(recorder: tauri::State<Recorder>) -> Result<(), String> {
     let mut slot = recorder.0.lock().map_err(|_| "the recorder is busy")?;
     if slot.is_some() {
@@ -220,7 +223,8 @@ pub fn start_take(recorder: tauri::State<Recorder>) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
+// Waits for the take to be handed over, so it is run off the main thread too.
+#[tauri::command(async)]
 pub fn stop_take(recorder: tauri::State<Recorder>) -> Result<tauri::ipc::Response, String> {
     let running = recorder.0.lock().map_err(|_| "the recorder is busy")?.take().ok_or("no take is being made")?;
     let _ = running.stop.send(());

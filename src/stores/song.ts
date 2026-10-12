@@ -78,6 +78,8 @@ export const [ownSounds, setOwnSounds] = createSignal<OwnSoundInfo[]>([])
 export const [ownSoundNote, setOwnSoundNote] = createSignal<string | null>(null)
 // When a take from the microphone was started, while one is being made.
 export const [takeSince, setTakeSince] = createSignal<number | null>(null)
+// Whether the microphone is being opened for a take. One can take seconds to answer.
+export const [takeOpening, setTakeOpening] = createSignal(false)
 export const [draggedSound, setDraggedSound] = createSignal<SoundItem | null>(null)
 export const [exportNote, setExportNote] = createSignal<string | null>(null)
 export const [songNote, setSongNote] = createSignal<string | null>(null)

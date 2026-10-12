@@ -153,7 +153,9 @@ import {
     linkAsk,
     setLinkAsk,
     type PlayMode,
+    setTakeOpening,
     setTakeSince,
+    takeOpening,
     takeSince,
     setSongs,
     setSoundsOpen,
@@ -1479,15 +1481,20 @@ const NO_TAKE: Record<NoTake, string> = {
     other: 'The microphone could not be used.',
 }
 
+// The window goes on answering while the microphone opens, so a second press in that time is
+// not taken for a second take.
 export async function recordTake() {
-    if (take) return
+    if (take || takeOpening()) return
     setOwnSoundNote(null)
+    setTakeOpening(true)
     try {
         take = await startTake()
         setTakeSince(Date.now())
     } catch (err) {
         const refused = whyNot(err)
         setOwnSoundNote(`${NO_TAKE[refused.why]}${refused.why === 'other' ? ` (${refused.message})` : ''}`)
+    } finally {
+        setTakeOpening(false)
     }
 }
 

@@ -4,7 +4,7 @@ import { addOwnSounds, closeSounds, colorAt, hearSound, keepTake, openTrim, reco
 import { lengthText } from '../library/sounds'
 import { fits, inUse, takesKit } from '../sounds/apply'
 import { countSounds, findSounds, SOUND_DRAG, SOUND_GROUPS, type SoundGroup, type SoundItem } from '../sounds/catalog'
-import { engineState, ownSoundNote, ownSounds, selected, setDraggedSound, song, soundsOpen, stale, takeSince } from '../stores/song'
+import { engineState, ownSoundNote, ownSounds, selected, setDraggedSound, song, soundsOpen, stale, takeOpening, takeSince } from '../stores/song'
 
 export function SoundBrowser() {
     let search: HTMLInputElement | undefined
@@ -153,9 +153,9 @@ export function SoundBrowser() {
                         <Show
                             when={takeSince() !== null}
                             fallback={
-                                <button class="btn" disabled={loaded() === 'loading'} title="Makes a sound of your own from the microphone" onClick={() => void recordTake()}>
+                                <button class="btn" disabled={loaded() === 'loading' || takeOpening()} title={takeOpening() ? 'The microphone is opening' : 'Makes a sound of your own from the microphone'} onClick={() => void recordTake()}>
                                     <i class="rec" />
-                                    Record
+                                    {takeOpening() ? 'Opening' : 'Record'}
                                 </button>
                             }
                         >
