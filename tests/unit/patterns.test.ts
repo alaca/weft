@@ -177,5 +177,10 @@ describe('the code that belongs to no pattern, as it counts for what the pattern
         // A tempo that the code works out is not a number the song is written at.
         const worked = SONG.replace('setcpm(120/4)', 'const speed = 120\nsetcpm(speed/4)')
         expect(outside(worked.replace('speed = 120', 'speed = 146'))).not.toBe(outside(worked))
+        // A pattern set to go round so many times a minute plays more in a slower bar.
+        for (const call of ['.cpm(30)', '._cpm(30)', '.cpm (30)']) {
+            const byTheMinute = SONG.replace('s("bd*4")', `s("bd*4")${call}`)
+            expect(outside(applyEdit(byTheMinute, setTempo(analyze(byTheMinute), 146)))).not.toBe(outside(byTheMinute))
+        }
     })
 })

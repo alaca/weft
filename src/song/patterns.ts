@@ -115,11 +115,13 @@ export function removePattern(code: string, block: PatternBlock): TextEdit {
 // things in it cannot, and are left out: the lines that are only a remark, as the ones that
 // keep the scenes are, the empty lines, which come and go with the patterns between them,
 // and the number of the tempo, because a pattern is asked what it plays by the bar, however
-// long a bar lasts.
+// long a bar lasts. The tempo stays in when the code calls .cpm( ): that sets how many times
+// a minute a pattern goes round, so what it plays in a bar follows the tempo.
 export function textOutside(code: string, song: Song): string {
+    const byTheMinute = /\b_?cpm\s*\(/.test(code)
     let outside = ''
     let at = 0
-    for (const taken of [...song.patterns, ...(song.tempo ? [song.tempo] : [])].sort((a, b) => a.from - b.from)) {
+    for (const taken of [...song.patterns, ...(song.tempo && !byTheMinute ? [song.tempo] : [])].sort((a, b) => a.from - b.from)) {
         outside += code.slice(at, taken.from)
         at = taken.to
     }
