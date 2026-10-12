@@ -552,13 +552,23 @@ export function setControl(id: string, fn: string, value: number) {
     const arg = valueArg(callFor(block, fn))
     if (!arg) return
     const def = findDef(fn)
-    const min = arg.kind === 'slider' ? arg.min : Math.min(def?.min ?? 0, value)
-    const max = arg.kind === 'slider' ? arg.max : Math.max(def?.max ?? 1, value)
+    // A plain number has the range its knob shows: the usual one, made wider by a number that
+    // lies outside it.
+    const min = arg.kind === 'slider' ? arg.min : Math.min(def?.min ?? 0, arg.value)
+    const max = arg.kind === 'slider' ? arg.max : Math.max(def?.max ?? 1, arg.value)
     const text = writeNumber(Math.min(max, Math.max(min, value)), min, max)
     if (def && !def.wrap && arg === callFor(block, fn)?.args[0]) takeDown(id, fn, arg.value, Number(text))
     if (arg.kind === 'slider' && engine.moveSlider(arg.valueFrom, text)) return
-    engine.applyEdit(setNumber(arg, text))
-    scheduleEvaluate()
+    if (Number(text) === arg.value) return
+    if (arg.kind === 'slider') {
+        engine.applyEdit(setNumber(arg, text))
+        return scheduleEvaluate()
+    }
+    // A plain number can only be heard changed by playing the song again. At its first turn
+    // it is put on a slider, with the song played again once, and every turn after that is
+    // heard at once.
+    engine.applyEdit({ from: arg.from, to: arg.to, insert: `slider(${text}, ${min}, ${max})` })
+    replay()
 }
 
 // A knob that is turned while the song plays, taken down bar by bar. When the song stops, each

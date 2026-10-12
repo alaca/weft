@@ -1,5 +1,5 @@
 import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from 'solid-js'
-import { fromUnit, toUnit } from '../controls/catalog'
+import { fromUnit, toUnit, type Scale } from '../controls/catalog'
 import { MOTION_BARS, MOTION_SHAPES, type Motion } from '../controls/motion'
 import type { ControlView } from '../controls/views'
 import { cycle } from '../stores/song'
@@ -38,14 +38,23 @@ export function Knob(props: {
 
     let startY = 0
     let startUnit = 0
+    let startScale: Scale = 'linear'
+    const startFrom = (y: number) => {
+        startY = y
+        startUnit = unit()
+        startScale = props.view.scale
+    }
     const onPointerDown = (event: PointerEvent) => {
         if (props.disabled) return
         ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
-        startY = event.clientY
-        startUnit = unit()
+        startFrom(event.clientY)
     }
     const onPointerMove = (event: PointerEvent) => {
         if (!(event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) return
+        // A plain number is put on a slider at its first turn, and a slider is on an even scale
+        // where the number's knob may not have been. The same travel of the pointer then stands
+        // for another value, so the drag goes on from where the knob now stands.
+        if (props.view.scale !== startScale) return startFrom(event.clientY)
         move(startUnit + ((startY - event.clientY) / 180) * (event.shiftKey ? 0.25 : 1))
     }
     const onKeyDown = (event: KeyboardEvent) => {

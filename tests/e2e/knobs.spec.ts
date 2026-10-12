@@ -68,6 +68,50 @@ test('a knob whose line in the code is out of sight is turned without the song b
     await expect.poll(async () => Math.abs(Number(/\.lpf\(slider\(([\d.]+), 200, 4000\)\)/.exec(await code(page))?.[1]) - 2000)).toBeLessThan(4)
 })
 
+// A number typed by hand is only heard changed when the song is played again. Its knob used to
+// do that at every move of the pointer, also when the move changed nothing.
+test('a knob that is a plain number in the code is put on a slider at its first turn, and the song is played again once', async ({ page }) => {
+    const song = SONG.replace('.lpf(slider(1200, 200, 4000))', '.lpf(800)')
+    await open(page, song)
+    await page.evaluate(() => {
+        const engine = (window as any).__weft.engine
+        ;(window as any).__played = 0
+        for (const name of ['evaluate', 'refresh']) {
+            const play = engine[name].bind(engine)
+            engine[name] = (...args: unknown[]) => (((window as any).__played += 1), play(...args))
+        }
+    })
+    const played = () => page.evaluate(() => (window as any).__played as number)
+    const cutoff = page.getByTestId('strip-bass').getByRole('slider', { name: 'Cutoff' })
+    await cutoff.scrollIntoViewIfNeeded()
+    const box = (await cutoff.boundingBox())!
+    const x = Math.round(box.x + box.width / 2)
+    const y = Math.round(box.y + box.height / 2)
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x + 20, y, { steps: 4 })
+    expect(await code(page)).toBe(song)
+    expect(await played()).toBe(0)
+
+    await page.mouse.move(x + 20, y - 2)
+    await expect.poll(() => code(page)).toContain('.lpf(slider(840, 100, 8000))')
+    await expect.poll(played).toBe(1)
+    // The slider is on an even scale and the number's knob was not. The drag goes on from
+    // where the knob now stands: ten more pixels are a small turn, not a leap to 4000 Hz.
+    await page.mouse.move(x + 20, y - 12, { steps: 5 })
+    await page.mouse.up()
+    const now = Number(await cutoff.getAttribute('aria-valuenow'))
+    expect(now).toBeGreaterThan(840)
+    expect(now).toBeLessThan(1500)
+    expect(await code(page)).toContain(`.lpf(slider(${now}, 100, 8000))`)
+    expect(await played()).toBe(1)
+    await expect(page.getByTestId('code-status')).toHaveText('Stopped')
+
+    await page.getByTestId('status').click()
+    await page.keyboard.press(`${process.platform === 'darwin' ? 'Meta' : 'Control'}+z`)
+    await expect.poll(() => code(page)).toBe(song)
+})
+
 test('pressing a faint knob adds its line, and removing it takes the line away', async ({ page }) => {
     await open(page)
     const bass = page.getByTestId('strip-bass')

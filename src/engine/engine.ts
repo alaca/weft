@@ -474,16 +474,25 @@ export function createEngine(): Engine {
 
     // A slider in the code changes the sound as it is dragged, without the code being evaluated
     // again, because Strudel is told the new number directly. When the other person drags one,
-    // only the number in the code arrives, so Strudel is told here.
+    // only the number in the code arrives, so Strudel is told here. The editor only draws the
+    // sliders of the lines that are in sight, so all the sliders it knows of are gone through,
+    // drawn or not.
     const followSliders = () => {
-        type Widget = HTMLInputElement & { from: number; originalFrom: number; originalValue: string }
+        type Drawn = HTMLInputElement & { originalValue: string }
+        type Known = { originalFrom: number; value: string; slider?: Drawn }
         const doc = mirror.editor.state.doc
-        for (const input of mirror.root.querySelectorAll('.cm-slider input') as NodeListOf<Widget>) {
-            const text = doc.sliceString(input.from, Math.min(doc.length, input.from + 24)).match(/^-?\d*\.?\d+/)?.[0]
-            if (text === undefined || text === input.originalValue) continue
-            input.originalValue = text
-            input.value = text
-            window.postMessage({ type: 'cm-slider', value: Number(text), id: `slider_${input.originalFrom}` })
+        const known = mirror.editor.plugin(sliderPlugin)?.decorations.iter()
+        for (; known?.value; known.next()) {
+            const widget: Known | undefined = known.value.widget
+            const text = NUMBER.exec(doc.sliceString(known.from, known.from + 32))?.[0]
+            if (!widget || text === undefined || text === (widget.slider ? widget.slider.originalValue : widget.value)) continue
+            // One that is drawn later starts from what it is given here.
+            widget.value = text
+            if (widget.slider) {
+                widget.slider.originalValue = text
+                widget.slider.value = text
+            }
+            window.postMessage({ type: 'cm-slider', value: Number(text), id: `slider_${widget.originalFrom}` })
         }
     }
 
