@@ -4,8 +4,8 @@ const SONG = 'setcpm(120/4)\n\nbass: note("c2 e2")\n  .s("sawtooth")\n  .lpf(sli
 
 const code = (page: Page) => page.evaluate(() => (window as any).__weft.engine.getCode() as string)
 
-async function open(page: Page) {
-    await page.addInitScript((value) => localStorage.setItem('weft.song', value), SONG)
+async function open(page: Page, song = SONG) {
+    await page.addInitScript((value) => localStorage.setItem('weft.song', value), song)
     await page.goto('/')
     await page.waitForFunction(() => Boolean((window as any).__weft))
 }
@@ -44,4 +44,21 @@ test('a knob is set moving by itself, changed, and made to stand still again', a
     await box.getByRole('button', { name: 'Stand still again', exact: true }).click()
     await expect.poll(() => code(page)).toContain('  .lpf(slider(200, 100, 8000))\n')
     await expect(bass.getByRole('slider', { name: 'Cutoff', exact: true })).toHaveAttribute('aria-valuenow', '200')
+})
+
+const ROOMS = 'setcpm(120/4)\n\nbass: note("c2 e2")\n  .s("sawtooth")\n  .room(slider(0.3, 0, 1))\n  .roomsize(slider(2, 0, 10))\n\nriff: note("c4")\n  .s("sawtooth")\n  .room(0.3)\n  .roomsize(sine.range(1, 6).slow(4))\n'
+
+test('Room size is not offered to move by itself, and one that already does is made to stand still', async ({ page }) => {
+    await open(page, ROOMS)
+    const bass = page.getByTestId('strip-bass')
+    await bass.getByRole('button', { name: 'Sound controls for bass', exact: true }).click()
+    await expect(bass.getByRole('slider', { name: 'Room size', exact: true })).toBeVisible()
+    await expect(bass.getByRole('button', { name: 'Let Room move by itself', exact: true, includeHidden: true })).toHaveCount(1)
+    await expect(bass.getByRole('button', { name: 'Let Room size move by itself', exact: true, includeHidden: true })).toHaveCount(0)
+
+    const riff = page.getByTestId('strip-riff')
+    await riff.getByRole('button', { name: 'Sound controls for riff', exact: true }).click()
+    await riff.getByRole('button', { name: 'Room size moves by itself', exact: true }).click()
+    await riff.getByRole('dialog', { name: 'How Room size moves' }).getByRole('button', { name: 'Stand still again', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('  .roomsize(slider(6, 0, 10))\n')
 })

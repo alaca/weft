@@ -16,7 +16,7 @@ import {
     setWave,
     startMotion,
 } from '../app/controller'
-import { filterTypeOf, soundKind, type FilterType, type PanelGroup } from '../controls/catalog'
+import { filterTypeOf, findDef, soundKind, type FilterType, type PanelGroup } from '../controls/catalog'
 import { drumLabel } from '../controls/drums'
 import { envelopeOf, envelopePoints } from '../controls/envelope'
 import { callFor, panelFor } from '../controls/views'
@@ -190,7 +190,7 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
                                                     onAdd={() => addControl(props.id, fn)}
                                                     onRemove={() => removeControl(props.id, fn)}
                                                     onMotion={(motion) => setMotion(props.id, fn, motion)}
-                                                    onStartMotion={() => startMotion(props.id, fn)}
+                                                    onStartMotion={findDef(fn)?.steady ? undefined : () => startMotion(props.id, fn)}
                                                 />
                                             )}
                                         </Show>

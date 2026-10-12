@@ -23,9 +23,11 @@ export type ControlDef = {
     wrap?: [string, string]
     // How the whole call is written, around what it is given, when that is not .fn( and ).
     call?: [string, string]
+    // Set, the knob is not offered to move by itself.
+    steady?: boolean
 }
 
-type Extra = Partial<Pick<ControlDef, 'names' | 'scale' | 'unit' | 'only' | 'needs' | 'wrap' | 'call'>>
+type Extra = Partial<Pick<ControlDef, 'names' | 'scale' | 'unit' | 'only' | 'needs' | 'wrap' | 'call' | 'steady'>>
 
 const control = (fn: string, label: string, group: Group, min: number, max: number, initial: number, describe: string, extra: Extra = {}): ControlDef => ({
     fn,
@@ -70,7 +72,12 @@ export const CONTROLS: ControlDef[] = [
     control('delayfeedback', 'Echo feedback', 'effects', 0, 0.9, 0.5, 'How long the echoes keep going', { names: ['delayfeedback', 'delayfb', 'dfb'] }),
     control('pan', 'Pan', 'effects', 0, 1, 0.5, 'Left, right, or anywhere between'),
     control('room', 'Room', 'effects', 0, 1, 0.3, 'How much reverb is added'),
-    control('roomsize', 'Room size', 'effects', 0, 10, 2, 'How large the reverb space sounds', { names: ['roomsize', 'size', 'sz', 'rsize'] }),
+    // The room is built again from nothing for every new size, and what rang in it is gone, so
+    // a size that never stands still would be heard as a reverb that keeps breaking off.
+    control('roomsize', 'Room size', 'effects', 0, 10, 2, 'How large the reverb space sounds. Patterns on one mixing channel share one room', {
+        names: ['roomsize', 'size', 'sz', 'rsize'],
+        steady: true,
+    }),
     control('distort', 'Drive', 'effects', 0, 5, 1, 'Overdrives the sound', { names: ['distort', 'dist'] }),
     control('crush', 'Crush', 'effects', 1, 16, 8, 'Gritty, low-resolution digital sound'),
     control('coarse', 'Coarse', 'effects', 1, 32, 4, 'Lowers the sample rate for a rough sound'),

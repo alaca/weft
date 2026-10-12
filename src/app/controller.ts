@@ -668,7 +668,7 @@ export function startMotion(id: string, fn: string) {
     const block = find(id)
     const def = findDef(fn)
     const still = block ? valueArg(callFor(block, fn)) : null
-    if (def && still) setMotion(id, fn, firstMotion(still.value, def.min, def.max))
+    if (def && !def.steady && still) setMotion(id, fn, firstMotion(still.value, def.min, def.max))
 }
 
 export function removeControl(id: string, fn: string) {
