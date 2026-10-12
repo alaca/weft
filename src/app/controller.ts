@@ -221,7 +221,7 @@ function refreshSongs() {
 // The place the songs are kept in can be full. A song that could not be written is said in the
 // window, with what makes room. It stays in front as it is until it has been written, so what
 // was done to it is not lost while the app is open.
-const MAKE_ROOM = 'Make room by deleting songs you no longer need, in the list under the name of the open song.'
+const MAKE_ROOM = 'Make room by deleting songs you no longer need: with a song open, the list is under its name.'
 let unkept: string | null = null
 
 // What was said about the open song not being kept is taken back once the song is written after
