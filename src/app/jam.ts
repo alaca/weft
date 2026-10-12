@@ -926,6 +926,9 @@ async function sendSound(name: string) {
 function pieceArrived(frame: ArrayBuffer) {
     // A line that brings a piece of a sound carries, as one that brings a message does.
     heardAt = performance.now()
+    // The answer to a ping that is out waits behind the sound, and so says nothing of how long
+    // the line takes.
+    pings.clear()
     const piece = readPiece(frame)
     const waiting = piece ? incoming.get(piece.name) : undefined
     if (!piece || !waiting || piece.parts !== piecesOf(waiting.offer.bytes) || waiting.parts[piece.part]) return
