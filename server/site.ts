@@ -242,7 +242,10 @@ function fixedFiles(): Map<string, Kind> {
     const own = (path: string, type: string) => files.set(path, { bytes: readFileSync(join(HERE, 'assets', path.slice(1))), type, kept: KEPT_AN_HOUR })
     own('/site.css', 'text/css; charset=utf-8')
     own('/site.js', 'text/javascript; charset=utf-8')
-    for (const picture of ['/app-1.png', '/app-2.png', '/app-3.png']) own(picture, 'image/png')
+    // The first picture is also there as a PNG: it is what is shown where the site's address is
+    // pasted, and not every place that shows such a picture can read the other kind.
+    own('/app-1.png', 'image/png')
+    for (const picture of ['/app-1.webp', '/app-2.webp', '/app-3.webp']) own(picture, 'image/webp')
     own('/icon.svg', 'image/svg+xml')
     for (const [family, names] of Object.entries(FONTS)) {
         const dir = packageDir(`@fontsource-variable/${family}`)

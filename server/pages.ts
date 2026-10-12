@@ -259,15 +259,15 @@ export function homePage(around: Around, songs: Listed[], builds: Build[]): stri
         <div class="shots" data-shots>
             <div class="shots-row" tabindex="0" aria-label="Pictures of the app, three of them, side by side">
                 <figure id="shot-1">
-                    <img src="/app-1.png" width="1440" height="900" alt="The Weft window while a song plays: the mixer and the sounds on the left, drum grids in the middle, the song's code on the right.">
-                    <figcaption>Grids and knobs in the middle, the code on the right. They are the same song.</figcaption>
+                    <img src="/app-1.webp" width="1440" height="900" alt="The Weft window while a song plays: the mixer and the sounds on the left, the song laid out bar by bar and a drum grid in the middle, the song's code on the right.">
+                    <figcaption>The song bar by bar, grids and knobs under it, the code on the right. They are the same song.</figcaption>
                 </figure>
                 <figure id="shot-2">
-                    <img src="/app-2.png" width="1440" height="900" loading="lazy" alt="A melody drawn as notes in a piano roll, with the controls of its sound open under it.">
+                    <img src="/app-2.webp" width="1440" height="900" loading="lazy" alt="A melody drawn as notes in a piano roll, with the controls of its sound open under it and the list of instruments beside it.">
                     <figcaption>Draw a melody as notes, and shape its sound with a knob for every number.</figcaption>
                 </figure>
                 <figure id="shot-3">
-                    <img src="/app-3.png" width="1440" height="900" loading="lazy" alt="Two people in a jam on one song: who they are, what they wrote to each other, and which pattern the other one just changed.">
+                    <img src="/app-3.webp" width="1440" height="900" loading="lazy" alt="Two people in a jam on one song: who they are, what they wrote to each other, and which pattern the other one just changed.">
                     <figcaption>Jam with someone on one song, with chat, voice and a camera.</figcaption>
                 </figure>
             </div>

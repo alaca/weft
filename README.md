@@ -2,19 +2,20 @@
 
 A free, open-source desktop app for making music with [Strudel](https://strudel.cc). Every pattern of a song is shown twice: as controls and as Strudel code. The code is the song; the controls read it and rewrite it, so you can make a whole song without writing any, and read or change the code whenever you want to.
 
-![The Weft window while a song plays: the mixer and the sounds on the left, drum grids in the middle, the song's code on the right.](server/assets/app-1.png)
+![The Weft window while a song plays: the mixer and the sounds on the left, the song laid out bar by bar and a drum grid in the middle, the song's code on the right.](server/assets/app-1.webp)
 
 - Step grids for drums, piano rolls for notes, and a knob for every number in the code.
 - A browser for trying and choosing sounds, and for recording or bringing in your own.
-- A playlist where you choose the bars each pattern plays in.
+- A Song panel where you choose the bars each pattern plays in, draw a knob over the song bar by bar, and give a pattern versions for the verse and the chorus.
+- Scenes for playing a song live, and notes played in from the computer's keyboard.
 - A mixer with volume, pan, tone, a limiter and level meters.
-- Export as a sound file, as code, or as one `.weft` file that holds the song and its sounds.
-- Jams: two people on one song at once, each on their own machine, with chat and voice.
+- Export as a sound file, as a file for each pattern, as code, or as one `.weft` file that holds the song and its sounds.
+- Jams: two people on one song at once, each on their own machine, with chat, voice and a camera.
 - Publishing songs to the site, where others can listen and open a copy.
 
 <p>
-<img src="server/assets/app-2.png" width="49%" alt="A melody drawn as notes in a piano roll, with the controls of its sound open under it.">
-<img src="server/assets/app-3.png" width="49%" alt="Two people in a jam on one song: who they are, what they wrote to each other, and which pattern the other one just changed.">
+<img src="server/assets/app-2.webp" width="49%" alt="A melody drawn as notes in a piano roll, with the controls of its sound open under it and the list of instruments beside it.">
+<img src="server/assets/app-3.webp" width="49%" alt="Two people in a jam on one song: who they are, what they wrote to each other, and which pattern the other one just changed.">
 </p>
 
 ## Run it
