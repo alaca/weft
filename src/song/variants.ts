@@ -1,4 +1,6 @@
 import { findDef } from '../controls/catalog'
+import { ARRANGE } from './arrange'
+import { parseBars } from './bars'
 import { curvesOf, curveText, parseCurve } from './curves'
 import { setString } from './edits'
 import type { PatternBlock, TextEdit } from './types'
@@ -21,11 +23,18 @@ export function variantBars(block: PatternBlock, length: number): number[] {
 // the same place in the `round` bars after which a pattern is taken to repeat, and have the
 // same value in every list that is written bar by bar and can move a note. The knobs that
 // only change the sound, as Decay or Resonance, move none, and are not looked at. A list in
-// a call that is no knob at all is taken to move notes.
+// a call that is no knob at all is taken to move notes. The bars a pattern plays in are such
+// a list when something is written after them: only where they stand last is the pattern
+// asked as it would play without them.
 export function barKeys(block: PatternBlock, length: number, round: number): string[] {
-    const lists = curvesOf(block)
+    const lists: (string | boolean)[][] = curvesOf(block)
         .filter((curve) => (findDef(curve.call.name)?.group ?? 'pattern') === 'pattern')
         .map((curve) => curve.values)
+    for (const call of block.calls.slice(1, -1)) {
+        const arg = call.args[0]
+        const bars = call.name === ARRANGE && call.args.length === 1 && arg.kind === 'string' ? parseBars(arg.value) : null
+        if (bars) lists.push(bars)
+    }
     return variantBars(block, length).map((kind, bar) => [kind, bar % round, ...lists.map((values) => values[bar % values.length])].join(' '))
 }
 

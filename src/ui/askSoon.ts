@@ -1,8 +1,8 @@
 // Asking a pattern what it plays is work on the thread the song is timed on. A row of the Song
-// panel asks a pattern with versions about every bar of the song: half a second for a busy one.
-// And at every new bar each playing strip asks about that bar. Done in one go, either is heard
-// as the song stumbling. So the asking is done a few milliseconds at a time, with room for the
-// song between, and a picture follows when all it needs has been asked.
+// panel asks a pattern with versions about many more bars than one without, which for a busy
+// one takes long. And at every new bar each playing strip asks about that bar. Done in one go,
+// either is heard as the song stumbling. So the asking is done a few milliseconds at a time,
+// with room for the song between, and a picture follows when all it needs has been asked.
 const ASK_FOR = 5
 
 // Who is asked for first. A strip asks one thing and is drawn as late as it has to wait, so one

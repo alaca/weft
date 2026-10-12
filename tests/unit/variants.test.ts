@@ -122,4 +122,13 @@ describe('the bars a picture of a pattern is asked about', () => {
         expect(new Set(moved).size).toBe(16)
         expect(asked(`${VERSIONS}\n  .transpose("<0!48 5!48>")`, 96)).toBe(11 + 16 + 16)
     })
+
+    it('are more for the bars a pattern rests in when something is written after them', () => {
+        const rests = '\n  .mask("<0!32 1!64>")'
+        expect(keys(`${VERSIONS}${rests}`, 96)).toEqual(keys(VERSIONS, 96))
+        // Bar 17 rests and bar 33 plays, and the pattern is then asked with its rests in it.
+        const after = keys(`${VERSIONS}${rests}\n  .hpf(40)`, 96)
+        expect(after[32]).not.toBe(after[16])
+        expect(after[64]).toBe(after[48])
+    })
 })
