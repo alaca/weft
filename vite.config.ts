@@ -58,8 +58,9 @@ export default defineConfig({
         // The relay of a jam is tested as it runs, on Node, where its websocket library is not
         // the one a browser gets.
         alias: { ws: new URL('./node_modules/ws/wrapper.mjs', import.meta.url).pathname },
-        // Strudel itself runs in the tests of how a list is read. It is taken through Vite, as
-        // the app takes it: Node on its own cannot load one of the packages Strudel is built on.
-        server: { deps: { inline: [/@strudel\//] } },
+        // Strudel itself runs in the tests of how a list is read, and its sound engine in the
+        // test of the supersaw. They are taken through Vite, as the app takes them: Node on its
+        // own cannot load one of the packages Strudel is built on.
+        server: { deps: { inline: [/@strudel\//, /superdough/, /@kabelsalat\//] } },
     },
 })
