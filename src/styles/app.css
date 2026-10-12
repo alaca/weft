@@ -461,14 +461,18 @@ svg.mini rect { fill: var(--h); }
 .sg-v { position: relative; min-width: 0; height: 100%; display: flex; align-items: flex-end; padding: 3px 0; }
 .sg-v i { display: block; width: 100%; min-height: 2px; background: color-mix(in srgb, var(--h) 42%, var(--vat)); border-top: 2px solid var(--h); }
 .sg-v:focus-visible { outline: 2px solid var(--linen); outline-offset: -2px; z-index: 2; }
-.sg-l { position: relative; height: var(--row, 30px); border-radius: 7px; overflow: hidden; touch-action: none; background-color: var(--vat); box-shadow: inset 0 0 0 1px var(--seam-soft); background-image: repeating-linear-gradient(to right, var(--seam) 0 1px, transparent 1px calc(var(--bar) * 4)), repeating-linear-gradient(to right, var(--seam-soft) 0 1px, transparent 1px var(--bar)); }
-.sg-t.dense .sg-l { background-image: repeating-linear-gradient(to right, var(--seam) 0 1px, transparent 1px calc(var(--bar) * 16)), repeating-linear-gradient(to right, var(--seam-soft) 0 1px, transparent 1px calc(var(--bar) * 4)); }
+/* The lines between the bars are a small picture laid side by side: one gradient that repeats
+   over the whole width is drawn slowly when the song is long. The line is 4 px into its picture
+   and the picture starts 4 px early. At the very edge of a picture WebKit leaves a line out
+   under round corners, and 4 px is a whole number of screen pixels at 125 and 150 percent too. */
+.sg-l { position: relative; height: var(--row, 30px); border-radius: 7px; overflow: hidden; touch-action: none; background-color: var(--vat); box-shadow: inset 0 0 0 1px var(--seam-soft); background-image: linear-gradient(to right, transparent 4px, var(--seam) 4px 5px, transparent 5px), linear-gradient(to right, transparent 4px, var(--seam-soft) 4px 5px, transparent 5px); background-size: calc(var(--bar) * 4) 100%, var(--bar) 100%; background-position: -4px 0; }
+.sg-t.dense .sg-l { background-size: calc(var(--bar) * 16) 100%, calc(var(--bar) * 4) 100%; }
 .sg-cells { position: absolute; top: 0; bottom: 0; display: grid; }
 .sg-b { min-width: 0; height: 100%; }
 .sg-b:hover:not(:disabled) { background: color-mix(in srgb, var(--h) 24%, transparent); }
 .sg-b:focus-visible { outline: 2px solid var(--linen); outline-offset: -2px; z-index: 2; }
 .sg-b:disabled { cursor: default; }
-.sg-c { z-index: 2; position: absolute; top: 3px; bottom: 3px; border-radius: 5px; overflow: hidden; pointer-events: none; background-color: color-mix(in srgb, var(--h) 90%, var(--vat)); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); background-image: repeating-linear-gradient(to right, transparent 0 calc(var(--bar) - 1px), rgba(0, 0, 0, 0.28) calc(var(--bar) - 1px) var(--bar)); background-position: -2px 0; }
+.sg-c { z-index: 2; position: absolute; top: 3px; bottom: 3px; border-radius: 5px; overflow: hidden; pointer-events: none; background-color: color-mix(in srgb, var(--h) 90%, var(--vat)); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); background-image: linear-gradient(to right, transparent calc(100% - 1px), rgba(0, 0, 0, 0.28) calc(100% - 1px)); background-size: var(--bar) 100%; background-position: -2px 0; }
 .sg-t.dense .sg-c { background-image: none; }
 .sg-c svg { position: absolute; top: 0; height: 100%; }
 .sg-vl { position: absolute; top: 2px; margin-left: 4px; z-index: 1; font: 700 8.5px/1 var(--mono); color: rgba(22, 22, 24, 0.75); pointer-events: none; }
