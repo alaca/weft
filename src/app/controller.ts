@@ -7,6 +7,7 @@ import { curveOver, curveText, followSong, readCurve, stretched } from '../song/
 import { dropScene, freeSceneName, keepScene, readScenes, renameScene, sceneEdits, type Scene } from '../song/scenes'
 import { addVariant, chooseEdit, followChoices, removeVariant, variantBars } from '../song/variants'
 import { onSongLink } from '../desktop/links'
+import { openInBrowser } from '../desktop/browser'
 import { installMenus } from '../desktop/menu'
 import { chooseFile } from '../desktop/open'
 import { saveFile, savePieces, type FileKind, type Saved } from '../desktop/save'
@@ -384,7 +385,10 @@ export async function mount(root: HTMLElement): Promise<void> {
             'line',
             { id: 'weft-view-reset', text: 'Reset Layout', action: resetLayout },
         ],
-        Help: [{ id: 'weft-help-update', text: 'Check for Updates…', action: () => void lookForNewVersion(true) }],
+        Help: [
+            { id: 'weft-help-docs', text: 'Weft Docs', action: () => void openInBrowser(`${SITE}/docs`) },
+            { id: 'weft-help-update', text: 'Check for Updates…', action: () => void lookForNewVersion(true) },
+        ],
     })
     createRoot(() => {
         createEffect(() => {

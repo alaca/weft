@@ -2,7 +2,8 @@ import type { CheckMenuItem as Tick, MenuItem as Item, Submenu as Sub } from '@t
 
 // The desktop app's own menu bar. The system's usual menu is kept as it is: what is done with a
 // song is put at the top of its File menu, what can be shown and hidden in the window at the
-// top of its View menu, and looking for a newer version at the top of its Help menu. In a browser there is no such menu and nothing happens.
+// top of its View menu, and the docs and looking for a newer version at the top of its Help
+// menu. In a browser there is no such menu and nothing happens.
 export type MenuEntry = { id: string; text: string; keys?: string; checked?: () => boolean; enabled?: () => boolean; action: () => void } | 'line'
 
 const inDesktop = () => '__TAURI_INTERNALS__' in window
