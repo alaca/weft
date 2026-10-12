@@ -21,6 +21,7 @@ import { DEFAULT_MIX, fitMix, type Mix } from '../library/mix'
 import type { PatternEvent, TextEdit } from '../song/types'
 import { cutAt } from './cut'
 import { toEvents } from './events'
+import { lightNotes } from './lights'
 import { answerLists, transpile } from './lists'
 import { marksField, setMarks, type BlockMark } from './marks'
 import { maskSliders } from './mask'
@@ -602,9 +603,12 @@ export function createEngine(): Engine {
         }
     }
 
+    // A note that is handed over to be played is also one to light in the code.
+    let toLight: (hap: any) => void = () => undefined
     const makeMirror = (root: HTMLElement, initialCode: string) =>
         new StrudelMirror({
             defaultOutput: (hap: any, deadline: number, duration: number, cps: number, time: number) => {
+                toLight(hap)
                 if (guarded && carriesCode(hap.value)) return
                 readyToDuck(hap.value)
                 return webaudioOutput(hap, deadline, duration, cps, time)
@@ -663,6 +667,7 @@ export function createEngine(): Engine {
             } finally {
                 ;(EditorState as any).create = create
             }
+            toLight = lightNotes(mirror, root)
 
             dress = () => {
                 mirror.updateSettings({
