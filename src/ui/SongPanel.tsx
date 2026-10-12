@@ -316,7 +316,7 @@ function CurveLane(props: { id: string; fn: string; index: number; view: View })
             setDraft(null)
         })
     }
-    const nudge = (bar: number, unit: number) => setCurve(props.id, props.fn, written().map((value, at) => (at === bar ? valueOf(unit) : value)))
+    const nudge = (bar: number, unit: number, held: boolean) => setCurve(props.id, props.fn, written().map((value, at) => (at === bar ? valueOf(unit) : value)), held)
 
     return (
         <div
@@ -354,9 +354,9 @@ function CurveLane(props: { id: string; fn: string; index: number; view: View })
                                     title={`Bar ${bar() + 1}: ${values()[bar()]}`}
                                     onKeyDown={(event) => {
                                         if (stale()) return
-                                        if (event.key === 'Home') nudge(bar(), 0)
-                                        else if (event.key === 'End') nudge(bar(), 1)
-                                        else if (event.key in KEYS) nudge(bar(), unitOf(written()[bar()]) + KEYS[event.key])
+                                        if (event.key === 'Home') nudge(bar(), 0, event.repeat)
+                                        else if (event.key === 'End') nudge(bar(), 1, event.repeat)
+                                        else if (event.key in KEYS) nudge(bar(), unitOf(written()[bar()]) + KEYS[event.key], event.repeat)
                                         else return
                                         event.preventDefault()
                                     }}

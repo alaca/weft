@@ -25,6 +25,7 @@ import { marksField, setMarks, type BlockMark } from './marks'
 import { maskSliders } from './mask'
 import { SOUND_DRAG, type RawSound } from '../sounds/catalog'
 import { addOwnSound, kitNames, loadModules, loadSamples, removeOwnSound, soundTaken } from './prebake'
+import { createReplay } from './replay'
 import { createSync, heard, syncSlot, type Sync } from './sync'
 import { registerTheme } from './theme'
 import { startTicking, stopTicking } from './ticker'
@@ -61,7 +62,8 @@ export interface Engine {
     moveSlider(from: number, text: string): boolean
     evaluate(): Promise<void>
     refresh(): Promise<void>
-    replay(): void
+    replay(held?: boolean): void
+    replayHeld(): void
     pause(): void
     stop(): void
     setSolo(ids: string[]): void
@@ -451,14 +453,9 @@ export function createEngine(): Engine {
     }
 
     // The code is evaluated in a turn of its own as well, after the screen has followed the
-    // change: two short stretches of work are not heard where one long one is. Everything that
-    // asks for it in the same turn is answered by one evaluation: a change to the code, a bar
-    // to start from, bars to go round, a solo.
-    let replayTimer = 0
-    const replay = () => {
-        window.clearTimeout(replayTimer)
-        replayTimer = window.setTimeout(() => void (state.playing ? engine.evaluate() : engine.refresh()), 0)
-    }
+    // change. Everything that asks for it in the same turn is answered by one evaluation: a
+    // change to the code, a bar to start from, bars to go round, a solo.
+    const { replay, replayHeld, dropReplay } = createReplay(() => void (state.playing ? engine.evaluate() : engine.refresh()))
 
     // Strudel throws when it is given no code at all, so an empty song is handled here:
     // nothing plays, nothing is registered and there is no error to show.
@@ -708,6 +705,8 @@ export function createEngine(): Engine {
             return true
         },
         async evaluate() {
+            // Whatever was waiting to be played again is played by this.
+            dropReplay()
             wakeAudio()
             if (blank()) return silence()
             if (!state.playing) {
@@ -726,6 +725,7 @@ export function createEngine(): Engine {
             await mirror.repl.evaluate(mirror.code, false)
         },
         replay,
+        replayHeld,
         pause() {
             if (!state.playing) return
             const at = engine.now()

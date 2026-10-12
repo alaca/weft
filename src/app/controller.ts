@@ -474,10 +474,16 @@ export function redoChange() {
 }
 
 // The song made to sound as its code now reads. The engine does it in a turn of its own, and
-// once for a change that also moves the start, the bars that go round or a solo.
-function replay() {
-    engine.replay()
+// once for a change that also moves the start, the bars that go round or a solo. A change that
+// is one of a run is `held`: a note under a dragged pointer, a key that is held down, a note
+// played on the keyboard. The song then follows when the run rests, and about once a second
+// while it lasts.
+function replay(held = false) {
+    engine.replay(held)
 }
+
+// The pointer was let go: what its drag held back is played now.
+export const replayHeld = () => engine.replayHeld()
 
 // Stop goes back to the beginning of the song, and pause keeps its place. Bars that go round
 // are still what plays next.
@@ -642,7 +648,7 @@ export function drawControl(id: string, fn: string) {
     replay()
 }
 
-export function setCurve(id: string, fn: string, values: number[]) {
+export function setCurve(id: string, fn: string, values: number[], held = false) {
     const block = find(id)
     const drawn = block ? readCurve(callFor(block, fn)) : null
     const def = findDef(fn)
@@ -650,7 +656,7 @@ export function setCurve(id: string, fn: string, values: number[]) {
     const text = curveText(values.map((value) => writeNumber(Math.min(def.max, Math.max(def.min, value)), def.min, def.max)))
     if (text === drawn.arg.value) return
     engine.applyEdit(setString(drawn.arg, text))
-    replay()
+    replay(held)
 }
 
 export function startMotion(id: string, fn: string) {
@@ -804,10 +810,10 @@ export function setEcho(id: string, value: number | null) {
     replay()
 }
 
-export function setTempo(bpm: number) {
+export function setTempo(bpm: number, held = false) {
     if (stale() || song().tempoLocked || !Number.isFinite(bpm)) return
     engine.applyEdit(tempoEdit(song(), Math.round(Math.min(300, Math.max(20, bpm)))))
-    replay()
+    replay(held)
 }
 
 // The mixer is how the song sounds on this machine. Nothing of it is written into the song.
@@ -1090,7 +1096,7 @@ function editableNotes(block: PatternBlock): NoteSource | null {
     return { grid: { notes: found.notes, steps: found.perCycle * found.cycles, cycles: found.cycles, perCycle: found.perCycle }, from: text.from, to: text.to, slow: null }
 }
 
-function changeNotes(id: string, change: (source: NoteSource) => { notes: Note[]; perCycle: number; cycles: number } | null): boolean {
+function changeNotes(id: string, change: (source: NoteSource) => { notes: Note[]; perCycle: number; cycles: number } | null, held = false): boolean {
     const block = find(id)
     if (!block || stale()) return false
     const source = editableNotes(block)
@@ -1098,7 +1104,7 @@ function changeNotes(id: string, change: (source: NoteSource) => { notes: Note[]
     setGridNotes({ ...gridNotes(), [id]: !source })
     if (!source || !next) return false
     engine.applyEdit(noteEdits(block, source, next.notes, next.perCycle * next.cycles, next.cycles))
-    replay()
+    replay(held)
     return true
 }
 
@@ -1168,7 +1174,7 @@ export function putNote(id: string, start: number, midi: number): boolean {
     return changeNotes(id, (source) => {
         const next = addNote(source.grid.notes, { start, midi, length: 1 }, source.grid.steps)
         return next ? { notes: next, perCycle: source.grid.perCycle, cycles: source.grid.cycles } : null
-    })
+    }, true)
 }
 
 export const addNoteAt = (id: string, at: { page: number; time: number; midi: number }): NoteRef | null => addNotesAt(id, { page: at.page, time: at.time, midis: [at.midi] })
@@ -1177,22 +1183,22 @@ export function removeNoteAt(id: string, ref: NoteRef) {
     changeNotes(id, (source) => ({ notes: removeNote(source.grid.notes, ref), perCycle: source.grid.perCycle, cycles: source.grid.cycles }))
 }
 
-export function moveNoteTo(id: string, ref: NoteRef, to: NoteRef): NoteRef | null {
+export function moveNoteTo(id: string, ref: NoteRef, to: NoteRef, held = false): NoteRef | null {
     const moved = changeNotes(id, (source) => {
         const next = moveNote(source.grid.notes, ref, to, source.grid.steps)
         return next ? { notes: next, perCycle: source.grid.perCycle, cycles: source.grid.cycles } : null
-    })
+    }, held)
     if (moved && to.midi !== ref.midi) previewNoteOf(id, to.midi)
     return moved ? to : null
 }
 
-export function resizeNoteTo(id: string, ref: NoteRef, length: number): boolean {
+export function resizeNoteTo(id: string, ref: NoteRef, length: number, held = false): boolean {
     const resized = changeNotes(id, (source) => {
         const current = source.grid.notes.find((note) => note.start === ref.start && note.midi === ref.midi)
         if (!current || current.length === length) return null
         const next = resizeNote(source.grid.notes, ref, length, source.grid.steps)
         return next ? { notes: next, perCycle: source.grid.perCycle, cycles: source.grid.cycles } : null
-    })
+    }, held)
     if (resized) lastLength.set(id, length)
     return resized
 }

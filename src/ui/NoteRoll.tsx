@@ -1,5 +1,5 @@
 import { batch, createMemo, createSignal, For, Show } from 'solid-js'
-import { addNotesAt, canWriteNotes, chooseKey, convertNotes, hearNotes, moveNoteTo, newNoteLength, removeNoteAt, resizeNoteTo, setNotesLength, setNotesSteps } from '../app/controller'
+import { addNotesAt, canWriteNotes, chooseKey, convertNotes, hearNotes, moveNoteTo, newNoteLength, removeNoteAt, replayHeld, resizeNoteTo, setNotesLength, setNotesSteps } from '../app/controller'
 import { NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, roomAt, type Note, type NoteRef } from '../song/notes'
 import { chordOn, inKey, nearestInKey, ROOTS, SCALE_KINDS, SCALES, stepInKey, type ScaleKind } from '../song/scales'
 import type { PatternBlock } from '../song/types'
@@ -192,19 +192,22 @@ export function NoteRoll(props: {
         const cell = cellOf(event)
         const at = offset() + cell.step
         if (drag.resize) {
-            resizeNoteTo(props.id, drag.ref, Math.max(1, at - drag.ref.start + 1))
+            resizeNoteTo(props.id, drag.ref, Math.max(1, at - drag.ref.start + 1), true)
             return
         }
         const up = cell.midi - drag.fromMidi
         const to = { start: drag.ref.start + (at - drag.fromStep), midi: up ? toKey(drag.ref.midi + up) : drag.ref.midi }
         if (to.start === drag.ref.start && to.midi === drag.ref.midi) return
-        if (moveNoteTo(props.id, drag.ref, to)) drag = { ...drag, ref: to, fromStep: at, fromMidi: to.midi === drag.ref.midi ? drag.fromMidi : cell.midi }
+        if (moveNoteTo(props.id, drag.ref, to, true)) drag = { ...drag, ref: to, fromStep: at, fromMidi: to.midi === drag.ref.midi ? drag.fromMidi : cell.midi }
     }
 
     // Also when the menu opens over a drag: WebKit then never tells the page the pointer was let go.
     const finish = (keep: boolean) => {
         const drawing = draw()
-        if (drag) focusNote(drag.ref)
+        if (drag) {
+            focusNote(drag.ref)
+            replayHeld()
+        }
         drag = null
         batch(() => {
             const span = drawing?.dragged ? drawing.length / perCycle() : undefined
@@ -230,11 +233,11 @@ export function NoteRoll(props: {
         const ref = { start: Number(el.dataset.start), midi: Number(el.dataset.midi) }
         const length = Number(el.dataset.length)
         const moved = (to: NoteRef) => {
-            const next = moveNoteTo(props.id, ref, to)
+            const next = moveNoteTo(props.id, ref, to, event.repeat)
             focusNote(next ?? ref)
         }
         const resized = (next: number) => {
-            resizeNoteTo(props.id, ref, next)
+            resizeNoteTo(props.id, ref, next, event.repeat)
             focusNote(ref)
         }
         if (event.key === 'Delete' || event.key === 'Backspace') removeNoteAt(props.id, ref)

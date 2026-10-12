@@ -50,6 +50,9 @@ export function TopBar() {
     onMount(() => document.addEventListener('pointerdown', away))
     onCleanup(() => document.removeEventListener('pointerdown', away))
     const inJam = 'You are in a jam on this song. Press Leave in the Jams panel first.'
+    // A change of the tempo field does not say whether it comes from an arrow key that is held
+    // down, so the key press before it is asked.
+    let keyHeld = false
 
     return (
         <header class="top" data-testid="top">
@@ -156,8 +159,12 @@ export function TopBar() {
                         title={song().tempoLocked ? 'The tempo is worked out by code. Change it there.' : 'Tempo in beats per minute'}
                         value={Math.round(song().tempo?.bpm ?? bpm())}
                         disabled={stale() || song().tempoLocked}
-                        onChange={(event) => setTempo(Number(event.currentTarget.value))}
+                        onChange={(event) => {
+                            setTempo(Number(event.currentTarget.value), keyHeld)
+                            keyHeld = false
+                        }}
                         onKeyDown={(event) => {
+                            keyHeld = event.repeat
                             if (event.key === 'Enter') event.currentTarget.blur()
                         }}
                     />

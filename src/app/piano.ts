@@ -53,6 +53,6 @@ export function pianoUp(event: KeyboardEvent): boolean {
     if (key.start === null) return true
     const cycles = (((performance.now() - key.at) / 1000) * bpm()) / 240
     const length = Math.min(key.room, Math.max(1, Math.round(cycles * key.perCycle)))
-    if (length > 1) resizeNoteTo(key.id, { start: key.start, midi: key.midi }, length)
+    if (length > 1) resizeNoteTo(key.id, { start: key.start, midi: key.midi }, length, true)
     return true
 }
