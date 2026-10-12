@@ -38,6 +38,21 @@ export async function saveFile(name: string, data: Uint8Array | string, kind: Fi
 // no place was chosen.
 export type Pieces = { write(piece: Uint8Array): Promise<void>; done(): Promise<Saved> }
 
+const PIECE = 1 << 20
+
+// A long text as pieces to write one after another, each made when it is asked for. A piece
+// never ends between the two halves of a character that is written as two: each half alone
+// would be written as a sign that means nothing.
+export function* textPieces(text: string, size = PIECE): Generator<Uint8Array> {
+    const encoder = new TextEncoder()
+    for (let at = 0; at < text.length; ) {
+        let to = Math.min(text.length, at + size)
+        if (to < text.length && (text.charCodeAt(to) & 0xfc00) === 0xdc00) to++
+        yield encoder.encode(text.slice(at, to))
+        at = to
+    }
+}
+
 export async function savePieces(name: string, kind: FileKind): Promise<Pieces | null> {
     if (!inDesktop()) {
         const kept: BlobPart[] = []

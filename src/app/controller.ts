@@ -10,14 +10,15 @@ import { onSongLink } from '../desktop/links'
 import { openInBrowser } from '../desktop/browser'
 import { installMenus } from '../desktop/menu'
 import { chooseFile } from '../desktop/open'
-import { saveFile, savePieces, type FileKind, type Saved } from '../desktop/save'
+import { saveFile, savePieces, textPieces, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, LEFT_PANELS, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type LeftPanel, type ViewMode } from '../library/layout'
-import { fitSoundName, readSongFile, readSource, renameSound, SONG_FILE, SOUND_NAME, soundsUsed, writeSongFile, type PackedSound } from '../library/songfile'
+import { fitSoundName, readSongFile, readSource, renameSound, SONG_FILE, SOUND_NAME, soundsUsed, writeSongFileInTurns, type PackedSound } from '../library/songfile'
 import { DEFAULT_MIX, fitMix, readMix, type Mix } from '../library/mix'
 import { prepareForPublishing, type Prepared } from '../library/publish'
 import { withoutLead } from '../library/shrink'
+import { turnWhenDue } from '../library/turn'
 import { startTake, whyNot, type NoTake, type Take } from '../library/recorder'
 import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
 import { readKey, writeKey, type Key } from '../song/scales'
@@ -2062,15 +2063,31 @@ async function soundsOfSong(code: string): Promise<PackedSound[]> {
     return kept.map((sound) => ({ name: sound.name, file: sound.file, type: sound.type, seconds: sound.seconds, data: new Uint8Array(sound.data) }))
 }
 
-// The song as one file with the sounds of your own that it uses inside it, as they are.
+// The song as one file with the sounds of your own that it uses inside it, as they are. With
+// some minutes of sound in it the file is tens of megabytes, so where it goes is asked first,
+// and then it is made and written a piece at a time, with a turn for the playing song between.
 export async function saveSongFile() {
-    if (!current) return
+    if (!current || exporting()) return
     const name = fileName(current.name, SONG_KIND.extension)
+    const song = { name: current.name, code: engine.getCode(), keys: current.keys ?? {}, ...(current.source ? { source: current.source } : {}) }
+    setExporting(true)
+    setExportNote('Choose where to save it.')
     try {
-        const code = engine.getCode()
-        setExportNote(told(await saveFile(name, writeSongFile({ name: current.name, code, keys: current.keys ?? {}, sounds: await soundsOfSong(code), ...(current.source ? { source: current.source } : {}) }), SONG_KIND), name))
+        const pieces = await savePieces(name, SONG_KIND)
+        if (!pieces) return void setExportNote('Not saved.')
+        setExportNote('Writing the song file.')
+        const turn = turnWhenDue()
+        const text = await writeSongFileInTurns({ ...song, sounds: await soundsOfSong(song.code) })
+        for (const piece of textPieces(text)) {
+            await turn()
+            await pieces.write(piece)
+        }
+        await turn()
+        setExportNote(told(await pieces.done(), name))
     } catch (err) {
         setExportNote(`The file could not be saved: ${String((err as Error)?.message ?? err)}`)
+    } finally {
+        setExporting(false)
     }
 }
 

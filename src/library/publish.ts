@@ -1,7 +1,7 @@
 import { checkSong } from '../guard/check'
 import { checkSongFile, type FileRefused } from '../guard/file'
 import { shrinkSounds, type Decoded } from './shrink'
-import { SONG_LIMIT, writeSongFile, type SongFile } from './songfile'
+import { SONG_LIMIT, songFileLength, writeSongFileInTurns, type SongFile } from './songfile'
 
 // A song as the file that goes to the site, or why it cannot go. The code is looked at first:
 // a song that holds anything but music code is not published, and there is no way round that.
@@ -19,8 +19,8 @@ export async function prepareForPublishing(
 ): Promise<Prepared> {
     const code = checkSong(song.code)
     if (code) return { ok: false, refused: { why: 'code', what: code.what, line: code.line } }
-    const shrunk = await shrinkSounds(song.sounds, (sounds) => writeSongFile({ ...song, sounds }).length, decode, encode, limit)
-    const text = writeSongFile({ ...song, sounds: shrunk.sounds })
+    const shrunk = await shrinkSounds(song.sounds, (sounds) => songFileLength({ ...song, sounds }), decode, encode, limit)
+    const text = await writeSongFileInTurns({ ...song, sounds: shrunk.sounds })
     const refused = checkSongFile(text, limit)
     if (!refused) return { ok: true, text, kbps: shrunk.kbps }
     const largest = [...shrunk.sounds].sort((a, b) => b.data.length - a.data.length)[0]

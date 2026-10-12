@@ -12,3 +12,17 @@ export const giveTurn = (): Promise<void> =>
         }
         port2.postMessage(null)
     })
+
+const DUE_MS = 8
+
+// For long work that is done a step at a time. Asked after every step, it gives a turn when a
+// few thousandths of a second have passed since the last one, and nothing before that: how long
+// a step takes depends on the machine and on what is in it.
+export function turnWhenDue(): () => Promise<void> {
+    let since = performance.now()
+    return async () => {
+        if (performance.now() - since < DUE_MS) return
+        await giveTurn()
+        since = performance.now()
+    }
+}

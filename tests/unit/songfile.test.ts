@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { fitSoundName, readSongFile, renameSound, soundRenames, soundsUsed, writeSongFile, type SongFile } from '../../src/library/songfile'
+import { describe, expect, it, vi } from 'vitest'
+import { fitSoundName, readSongFile, renameSound, songFileLength, soundRenames, soundsUsed, writeSongFile, writeSongFileInTurns, type SongFile } from '../../src/library/songfile'
 
 const SONG: SongFile = {
     name: 'Late one',
@@ -18,6 +18,24 @@ describe('a song file', () => {
         const data = Uint8Array.from({ length: 100_000 }, (_, at) => (at * 7) % 256)
         const back = readSongFile(writeSongFile({ ...SONG, sounds: [{ ...SONG.sounds[0], data }] }), 'x.weft')
         expect(back?.sounds[0].data).toEqual(data)
+    })
+
+    it('is the same text when it is made a little at a time, and as long as it is said to be before it is made', async () => {
+        const bytes = (length: number) => Uint8Array.from({ length }, (_, at) => (at * 7) % 256)
+        const sounds = [100_001, 65_536, 4, 0].map((length, at) => ({ ...SONG.sounds[0], name: `take_${at}`, data: bytes(length), ...(at ? { onset: 0.01 } : {}) }))
+        const song: SongFile = { ...SONG, name: 'Caf\u00e9 \u{1F3B9}', sounds, source: { id: 'ab12cd', name: 'Low sun', by: 'Mara' } }
+        const text = writeSongFile(song)
+        // A clock that says a long time has passed whenever it is asked, so a turn is given after every step.
+        let now = 0
+        const clock = vi.spyOn(performance, 'now').mockImplementation(() => (now += 100))
+        try {
+            expect(await writeSongFileInTurns(song)).toBe(text)
+        } finally {
+            clock.mockRestore()
+        }
+        expect(await writeSongFileInTurns(song)).toBe(text)
+        expect(songFileLength(song)).toBe(text.length)
+        expect(songFileLength({ ...SONG, sounds: [] })).toBe(writeSongFile({ ...SONG, sounds: [] }).length)
     })
 
     it('takes any other file as code, named after the file', () => {

@@ -1,3 +1,5 @@
+import { turnWhenDue } from './turn'
+
 // A song as one file, to keep somewhere safe or to give to someone: its name, its code, the keys
 // of its patterns and the audio files of your own that it uses, so that it plays wherever it is opened.
 // `onset` is only there for a sound that was made smaller for the file: where the sound it was
@@ -28,6 +30,17 @@ function toBase64(bytes: Uint8Array): string {
     return btoa(text)
 }
 
+// The same, for a sound that may be long. Some minutes of sound take most of a second, so the
+// screen and the playing song get their turns while it is made.
+async function toBase64InTurns(bytes: Uint8Array, turn: () => Promise<void>): Promise<string> {
+    let text = ''
+    for (let at = 0; at < bytes.length; at += CHUNK) {
+        text += String.fromCharCode(...bytes.subarray(at, at + CHUNK))
+        await turn()
+    }
+    return btoa(text)
+}
+
 export function fromBase64(text: string): Uint8Array {
     const raw = atob(text)
     const bytes = new Uint8Array(raw.length)
@@ -35,15 +48,38 @@ export function fromBase64(text: string): Uint8Array {
     return bytes
 }
 
-export function writeSongFile(song: SongFile): string {
+// The text of the file, with what each sound holds written by whoever asks.
+function assemble(song: SongFile, written: (data: Uint8Array, at: number) => string): string {
     return JSON.stringify({
         weft: VERSION,
         name: song.name,
         keys: song.keys,
         code: song.code,
-        sounds: song.sounds.map(({ data, ...rest }) => ({ ...rest, data: toBase64(data) })),
+        sounds: song.sounds.map(({ data, ...rest }, at) => ({ ...rest, data: written(data, at) })),
         ...(song.source ? { source: song.source } : {}),
     })
+}
+
+export function writeSongFile(song: SongFile): string {
+    return assemble(song, toBase64)
+}
+
+// The same file, made without holding up the window. This is the one the app uses: a song with
+// some minutes of your own sound in it is tens of megabytes of text.
+export async function writeSongFileInTurns(song: SongFile): Promise<string> {
+    const turn = turnWhenDue()
+    const texts: string[] = []
+    for (const sound of song.sounds) {
+        texts.push(await toBase64InTurns(sound.data, turn))
+        await turn()
+    }
+    return assemble(song, (_, at) => texts[at])
+}
+
+// How long the text of the file is, without making it: a sound is written as four letters for
+// every three bytes it holds.
+export function songFileLength(song: SongFile): number {
+    return assemble(song, () => '').length + song.sounds.reduce((sum, sound) => sum + 4 * Math.ceil(sound.data.length / 3), 0)
 }
 
 const baseName = (file: string) => file.replace(/\.[a-z0-9]{1,8}$/i, '').trim() || 'Song'
