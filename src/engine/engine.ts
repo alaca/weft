@@ -132,12 +132,6 @@ const STRETCH = 2
 const LEAD = 0.05
 // How many bars before its start a recording that starts later in the song is made from.
 const RUN_UP = 2
-// The clock of such a recording starts on a multiple of this many seconds of the song. That is
-// a whole number of the stretches sounds are handed over in and, at the rates a file is made
-// at, of the blocks of samples the clock works in. So every sound is handed over as long before
-// it starts, and falls on the same sample of the same block, as in a recording from the first
-// bar, and comes out the same.
-const START_ON = 32
 // Where the limiter of the desk begins to hold back, in decibels, and how hard.
 const LIMIT_AT = -2
 const LIMIT_BY = 20
@@ -962,8 +956,10 @@ export function createEngine(): Engine {
         // handed to an audio clock that is not the one you listen on, and that clock then runs
         // through the song as fast as the machine can. The song is evaluated from its first
         // bar for this, with nothing soloed, and put back as it was afterwards. For a recording
-        // that starts at a later bar the song is not moved: it is asked at its real bars, so
-        // that whatever goes by the bar is as it is there, and only the clock starts later.
+        // that starts at a later bar neither the song nor the clock is moved: the clock runs
+        // from the first moment of the song and the sounds from before are left out. So every
+        // sound is asked for at its real bar and falls at its real time, and whatever goes by
+        // either, a knob drawn over the song or an effect that sweeps, is as it is there.
         async render({ bars, from = 0, ringSeconds, sampleRate, only }, onProgress) {
             if (blank()) throw new Error('There is nothing in this song to play.')
             engine.stop()
@@ -996,16 +992,15 @@ export function createEngine(): Engine {
                 const pattern = mirror.repl.state.pattern
                 const cps: number = mirror.repl.scheduler.cps
                 const first = madeFrom(from, RUN_UP, (bar) => pattern.queryArc(bar, bar + 1, { _cps: cps }).flatMap((hap: any) => (hap.whole ? [hap.whole.begin.valueOf()] : [])))
-                const zero = Math.floor(first / cps / START_ON) * START_ON
                 // Nothing sounds on the clock before the bar the recording is made from, and
                 // that takes no time to make, so it does not count in how far along it is.
-                const silent = first / cps - zero
-                const seconds = bars / cps - zero + ringSeconds
+                const silent = first / cps
+                const seconds = bars / cps + ringSeconds
                 const clock = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate)
                 setAudioContext(clock)
                 setSuperdoughAudioController(null)
                 await initAudio()
-                const startOf = (hap: any) => hap.whole.begin.valueOf() / cps - zero
+                const startOf = (hap: any) => hap.whole.begin.valueOf() / cps
                 const ducks = (hap: any) => hap.value?.duckorbit !== undefined && hap.value?.duckorbit !== null
                 const own = only === undefined ? null : pending.get(only)
                 const known = ducking?.code === code && ducking.cps === cps && ducking.bars === bars ? ducking.byBar : []
@@ -1021,7 +1016,7 @@ export function createEngine(): Engine {
                     if (only === undefined) return everything.map((hap) => ({ hap, heard: true }))
                     return [...hapsOf(own).map((hap) => ({ hap, heard: true })), ...found[bar].map((hap) => ({ hap, heard: false }))]
                 }
-                const due = barByBar(bars - first, cps, (bar) => inBar(first + bar), (sound) => startOf(sound.hap))
+                const due = barByBar(bars, cps, (bar) => (bar < first ? [] : inBar(bar)), (sound) => startOf(sound.hap))
                 // The sounds are handed over a stretch at a time, a little before they are
                 // due, with the clock standing still meanwhile, the way they arrive when the
                 // song plays. Handing over the whole song at once makes the clock carry every
@@ -1056,7 +1051,7 @@ export function createEngine(): Engine {
                 await pause(SETTLE)
                 if (failed) throw failed.why
                 ducking = { code, cps, bars, byBar: found }
-                const early = Math.round((from / cps) * sampleRate) - zero * sampleRate
+                const early = Math.round((from / cps) * sampleRate)
                 return { channels: [buffer.getChannelData(0).subarray(early), buffer.getChannelData(1).subarray(early)], sampleRate, secondsPerBar: 1 / cps, missed }
             } finally {
                 setAudioContext(live)

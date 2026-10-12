@@ -54,9 +54,9 @@ test('reports an error with its line and keeps the last good patterns', async ({
     expect(result.bass).toBe(7)
 })
 
-// Drums that differ from bar to bar, over notes that are four bars long, at a tempo whose bars
-// do not end on a sample.
-const LONG_NOTES = 'setcpm(146/4)\n\ndrums: s("<bd*2 bd*3>")\n  .bank("RolandTR909")\n\npad: note("<c3 e3>/4")\n  .s("triangle")\n'
+// Drums that differ from bar to bar, over notes that are four bars long and go through an
+// effect that sweeps by the clock, at a tempo whose bars do not end on a sample.
+const LONG_NOTES = 'setcpm(146/4)\n\ndrums: s("<bd*2 bd*3>")\n  .bank("RolandTR909")\n\npad: note("<c3 e3>/4")\n  .s("triangle")\n  .phaser(0.7)\n'
 
 test('a recording that starts at a later bar is the song from that bar on, with the note that began before it', async ({ page }) => {
     await page.addInitScript((value) => localStorage.setItem('weft.song', value), LONG_NOTES)
