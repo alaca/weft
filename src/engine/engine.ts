@@ -1,7 +1,7 @@
 import { history, isolateHistory, redo, undo } from '@codemirror/commands'
 import { Annotation, EditorState, Prec, StateEffect, Transaction } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
-import { BlockWidget, StrudelMirror, codemirrorSettings, sliderPlugin } from '@strudel/codemirror'
+import { BlockWidget, StrudelMirror, codemirrorSettings, sliderPlugin, sliderValues } from '@strudel/codemirror'
 import { Pattern, silence } from '@strudel/core'
 import { mini } from '@strudel/mini'
 import {
@@ -213,6 +213,10 @@ export function createEngine(): Engine {
     // A recording of one pattern needs nothing else from the rest of the song, so one that
     // follows a recording of the same song does not ask the whole song again.
     let ducking: { code: string; cps: number; bars: number; byBar: any[][] } | null = null
+    // A recording is of the song as it stood when the recording began, and in a jam the other
+    // person may go on changing the song meanwhile. Where the song is told to end while a
+    // recording is made is kept here, and holds from when the recording is done.
+    let endAfter: { endBar: number | null } | null = null
     let evaluated = false
     let lastCode = ''
     let mix: Mix = DEFAULT_MIX
@@ -943,7 +947,8 @@ export function createEngine(): Engine {
             replay()
         },
         setEnd(bar) {
-            endBar = bar
+            if (endAfter) endAfter.endBar = bar
+            else endBar = bar
         },
         // Setting bars to go round while the song plays jumps to the first of them; taking them
         // away lets the song go on from where it is.
@@ -971,6 +976,7 @@ export function createEngine(): Engine {
             dropSpare()
             if (renewing) await renewing
             const before = { soloIds, offset, endBar, loop, liveMode }
+            endAfter = before
             const live = getAudioContext()
             const liveController = getSuperdoughAudioController()
             // Strudel tidies up after each sound with a timer that takes for granted there is
@@ -994,6 +1000,19 @@ export function createEngine(): Engine {
                 const code: string = mirror.code
                 await mirror.repl.evaluate(code, false)
                 if (state.error) throw new Error(state.error.message)
+                // A knob in the code is read by the song when it is asked, and the song is
+                // asked for as long as the recording is made. So each time, the knobs are put
+                // where they stood when it began, and back where they stand now afterwards.
+                const knobs = { ...sliderValues }
+                const asItStood = <T>(ask: () => T): T => {
+                    const now = { ...sliderValues }
+                    Object.assign(sliderValues, knobs)
+                    try {
+                        return ask()
+                    } finally {
+                        Object.assign(sliderValues, now)
+                    }
+                }
                 const pattern = mirror.repl.state.pattern
                 const cps: number = mirror.repl.scheduler.cps
                 const first = madeFrom(from, RUN_UP, (bar) => pattern.queryArc(bar, bar + 1, { _cps: cps }).flatMap((hap: any) => (hap.whole ? [hap.whole.begin.valueOf()] : [])))
@@ -1013,7 +1032,7 @@ export function createEngine(): Engine {
                 // With one pattern asked for, the others are only there for what they do to it,
                 // and the whole song is asked for that only where it is not known yet.
                 const inBar = (bar: number): { hap: any; heard: boolean }[] => {
-                    const hapsOf = (from: any): any[] => (from ? from.queryArc(bar, Math.min(bar + 1, bars), { _cps: cps }).filter((hap: any) => hap.hasOnset()) : [])
+                    const hapsOf = (from: any): any[] => (from ? asItStood(() => from.queryArc(bar, Math.min(bar + 1, bars), { _cps: cps })).filter((hap: any) => hap.hasOnset()) : [])
                     if (bar < first) return hapsOf(only === undefined ? pattern : own).flatMap((hap) => (hap.value?.room > 0 ? [{ hap, heard: true }] : []))
                     const kept: any[] | undefined = only === undefined ? undefined : known[bar]
                     const everything = kept ? [] : hapsOf(pattern)
@@ -1101,6 +1120,7 @@ export function createEngine(): Engine {
             } finally {
                 setAudioContext(live)
                 setSuperdoughAudioController(liveController)
+                endAfter = null
                 soloIds = before.soloIds
                 offset = before.offset
                 endBar = before.endBar

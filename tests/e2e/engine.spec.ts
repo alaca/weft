@@ -109,3 +109,36 @@ test('a recording that starts at a later bar has the reverb the song has by then
     expect(rings.late).toBeGreaterThan(rings.song * 0.7)
     expect(rings.late).toBeLessThan(rings.song * 1.4)
 })
+
+// One note four times a bar, through a knob in the code.
+const KNOB = 'setcpm(120/4)\n\nlead: note("c4*4")\n  .s("triangle")\n  .gain(slider(0.5, 0, 1))\n'
+
+test('a recording is of the song as it stood when it began, whatever is changed while it is made', async ({ page }) => {
+    await page.addInitScript((value) => localStorage.setItem('weft.song', value), KNOB)
+    await page.goto('/')
+    await ready(page)
+    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
+    const made = await page.evaluate(async () => {
+        const { engine } = (window as any).__weft
+        const knob = engine.getCode().indexOf('0.5')
+        let changed = false
+        // What the other person in a jam does to the song: a knob turned down, the end moved in.
+        const heard = await engine.render({ bars: 16, ringSeconds: 0, sampleRate: 22050 }, (done: number) => {
+            if (changed || done < 0.3) return
+            changed = true
+            engine.moveSlider(knob, '0.1')
+            engine.setEnd(8)
+        })
+        const perBar = heard.secondsPerBar * heard.sampleRate
+        const loud = (bar: number) => {
+            let sum = 0
+            for (let at = Math.round(bar * perBar); at < Math.round((bar + 1) * perBar); at++) sum += heard.channels[0][at] * heard.channels[0][at]
+            return Math.sqrt(sum / perBar)
+        }
+        return { early: loud(1), late: loud(14), code: engine.getCode() as string }
+    })
+    expect(made.early).toBeGreaterThan(0.02)
+    expect(made.late).toBeGreaterThan(made.early * 0.9)
+    expect(made.late).toBeLessThan(made.early * 1.1)
+    expect(made.code).toContain('slider(0.1, 0, 1)')
+})
