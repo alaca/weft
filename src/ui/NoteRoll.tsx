@@ -1,11 +1,12 @@
 import { batch, createMemo, createSignal, For, Show } from 'solid-js'
-import { addNotesAt, chooseKey, convertNotes, hearNotes, moveNoteTo, newNoteLength, removeNoteAt, resizeNoteTo, setNotesLength, setNotesSteps } from '../app/controller'
+import { addNotesAt, canWriteNotes, chooseKey, convertNotes, hearNotes, moveNoteTo, newNoteLength, removeNoteAt, resizeNoteTo, setNotesLength, setNotesSteps } from '../app/controller'
 import { NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, roomAt, type Note, type NoteRef } from '../song/notes'
 import { chordOn, inKey, nearestInKey, ROOTS, SCALE_KINDS, SCALES, stepInKey, type ScaleKind } from '../song/scales'
 import type { PatternBlock } from '../song/types'
 import { noteName } from '../song/view'
 import { gridNotes, patternKeys, pianoFor, pianoOctave, pianoWrites, rollRanges, setPianoFor, setPianoWrites, stale } from '../stores/song'
 import { GridFooter } from './GridFooter'
+import { asksForMenu } from './keys'
 
 const ROW = 10
 const OCTAVE = 12
@@ -18,7 +19,9 @@ type Drag = { ref: NoteRef; resize: boolean; fromStep: number; fromMidi: number 
 // A note that is being drawn on an empty place. It begins where the pointer went down. Until
 // the pointer leaves that step it is as long as the last note made here, and from then on it
 // ends under the pointer. It is written once, when the pointer is let go.
-type Draw = { time: number; start: number; midis: number[]; length: number; dragged: boolean }
+type Draw = { x: number; time: number; start: number; midis: number[]; length: number; dragged: boolean }
+// A click whose pointer slips less than this many pixels is still a click, not a note drawn.
+const SLIP = 4
 type Range = { low: number; high: number }
 
 export function NoteRoll(props: {
@@ -32,6 +35,7 @@ export function NoteRoll(props: {
 }) {
     let gridEl!: HTMLDivElement
     let drag: Drag | null = null
+    let pointer = -1
     const [page, setPage] = createSignal(0)
     const [above, setAbove] = createSignal(0)
     const [below, setBelow] = createSignal(0)
@@ -141,20 +145,30 @@ export function NoteRoll(props: {
     const focusNote = (ref: NoteRef) => queueMicrotask(() => gridEl.querySelector<HTMLElement>(`.nt[data-start="${ref.start}"][data-midi="${ref.midi}"]`)?.focus())
 
     const onPointerDown = (event: PointerEvent) => {
-        if (stale() || event.button !== 0) return
+        if (stale() || event.button !== 0 || asksForMenu(event)) return
         const { cell, note, resize } = hit(event)
         if (!source() && note) {
             convertNotes(props.id)
             return
         }
+        // A pattern written some other way than as a grid counts its own steps, not the sixteen
+        // it is drawn with here. A note for it is not drawn first: it goes in at once, on the
+        // steps the pattern turns out to have.
+        if (!note && !source() && !silent()) {
+            addNotesAt(props.id, { page: shown(), time: cell.time, midis: put(cell.midi) })
+            return
+        }
+        pointer = event.pointerId
         if (!note) {
             const start = offset() + cell.step
             const midis = put(cell.midi).filter((midi) => room(start, midi) > 0)
-            if (!midis.length) return
+            if (!midis.length || (!source() && !canWriteNotes(props.id))) return
             hearNotes(props.id, midis)
-            setHeld(range())
+            // The rows stay as they are while it is drawn, but the rows of a chord's upper notes
+            // come first, or those notes would be drawn out of sight.
+            setHeld({ low: Math.min(range().low, ...midis), high: Math.max(range().high, ...midis) })
             setHeldPage(shown())
-            setDraw({ time: cell.time, start, midis, length: newNoteLength(props.id), dragged: false })
+            setDraw({ x: event.clientX, time: cell.time, start, midis, length: newNoteLength(props.id), dragged: false })
             gridEl.setPointerCapture(event.pointerId)
             return
         }
@@ -169,7 +183,7 @@ export function NoteRoll(props: {
         const drawing = draw()
         if (drawing) {
             const at = offset() + cellOf(event).step
-            if (!drawing.dragged && at === drawing.start) return
+            if (!drawing.dragged && (at === drawing.start || Math.abs(event.clientX - drawing.x) < SLIP)) return
             const length = Math.max(1, at - drawing.start + 1)
             if (!drawing.dragged || length !== drawing.length) setDraw({ ...drawing, length, dragged: true })
             return
@@ -187,6 +201,7 @@ export function NoteRoll(props: {
         if (moveNoteTo(props.id, drag.ref, to)) drag = { ...drag, ref: to, fromStep: at, fromMidi: to.midi === drag.ref.midi ? drag.fromMidi : cell.midi }
     }
 
+    // Also when the menu opens over a drag: WebKit then never tells the page the pointer was let go.
     const finish = (keep: boolean) => {
         const drawing = draw()
         if (drag) focusNote(drag.ref)
@@ -199,6 +214,7 @@ export function NoteRoll(props: {
             setHeldPage(null)
             if (added) focusNote(added)
         })
+        if (gridEl.hasPointerCapture(pointer)) gridEl.releasePointerCapture(pointer)
     }
 
     const removeAt = (event: MouseEvent) => {
@@ -261,6 +277,7 @@ export function NoteRoll(props: {
                     onLostPointerCapture={() => finish(false)}
                     onDblClick={removeAt}
                     onContextMenu={(event) => {
+                        finish(false)
                         if (removeAt(event)) event.preventDefault()
                     }}
                     onKeyDown={onKeyDown}
@@ -285,7 +302,7 @@ export function NoteRoll(props: {
                         )}
                     </For>
                     <For each={sketch()}>{(note) => <i class="nd" style={{ left: `${note.left * 100}%`, width: `${note.width * 100}%`, top: `${(range().high - note.midi) * ROW}px` }} />}</For>
-                    <Show when={props.playing}>
+                    <Show when={props.playing && shown() === props.cycle % cycles()}>
                         <div class="ph" style={{ left: `${props.position * 100}%` }} />
                     </Show>
                 </div>

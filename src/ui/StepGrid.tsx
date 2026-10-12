@@ -1,4 +1,5 @@
-import { batch, createSignal, For, Index, Show, type JSX } from 'solid-js'
+import { batch, createSignal, For, Index, onCleanup, Show, type JSX } from 'solid-js'
+import { asksForMenu } from './keys'
 
 export type StepRow = { name: string; steps: boolean[]; accents?: boolean[]; played?: boolean[]; muted?: boolean }
 
@@ -11,6 +12,9 @@ const upTo = (count: number) => Array.from({ length: count }, (_, at) => at)
 // put in when it began on an empty step, and taken out when it began on a hit.
 type Run = { sound: string; from: number; to: number; on: boolean }
 
+// A click whose pointer slips less than this many pixels is still a click on the one pad.
+const SLIP = 4
+
 export function StepGrid(props: {
     rows: StepRow[]
     playing: boolean
@@ -18,6 +22,7 @@ export function StepGrid(props: {
     disabled?: boolean
     onToggle?: (sound: string, step: number) => void
     onPaint?: (sound: string, from: number, to: number, on: boolean) => void
+    canPaint?: () => boolean
     onHold?: (held: boolean) => void
     onAccent?: (sound: string, step: number) => void
     onHear?: (sound: string) => void
@@ -33,7 +38,9 @@ export function StepGrid(props: {
 
     // The run is only drawn while the drag lasts, and written once, when the pointer is let go.
     const [run, setRun] = createSignal<Run | null>(null)
+    let root!: HTMLDivElement
     let lefts: number[] = []
+    let press = { x: 0, pointer: -1, moved: false }
     // The step under the pointer is the last pad that begins at or before it, so the gaps between
     // pads belong to the pad before them and a pointer past either end is on the pad at that end.
     const stepAt = (x: number) => {
@@ -43,20 +50,27 @@ export function StepGrid(props: {
     }
     const begin = (event: PointerEvent, row: StepRow) => {
         const pad = (event.target as HTMLElement).closest<HTMLButtonElement>('.pad')
-        if (!pad || pad.disabled || !props.onPaint || event.button !== 0 || (event.shiftKey && props.onAccent)) return
-        const track = event.currentTarget as HTMLElement
-        lefts = [...track.querySelectorAll('.pad')].map((each) => each.getBoundingClientRect().left)
-        const step = stepAt(event.clientX)
+        if (!pad || pad.disabled || !props.onPaint || event.button !== 0 || asksForMenu(event) || (event.shiftKey && props.onAccent)) return
+        if (props.canPaint && !props.canPaint()) return
+        const pads = [...(event.currentTarget as HTMLElement).querySelectorAll('.pad')]
+        lefts = pads.map((each) => each.getBoundingClientRect().left)
+        const step = pads.indexOf(pad)
+        // A pad's edge can fall inside a pixel. The press counts for the pad it landed on.
+        if (event.clientX < lefts[step]) lefts[step] = event.clientX
+        press = { x: event.clientX, pointer: event.pointerId, moved: false }
         props.onHold?.(true)
         setRun({ sound: row.name, from: step, to: step, on: !row.steps[step] })
-        track.setPointerCapture(event.pointerId)
+        // Held by the grid and not by the row, which leaves the page when a sound is removed.
+        root.setPointerCapture(event.pointerId)
     }
     const sweep = (event: PointerEvent) => {
         const going = run()
-        if (!going) return
+        if (!going || (!press.moved && Math.abs(event.clientX - press.x) < SLIP)) return
+        press.moved = true
         const to = stepAt(event.clientX)
         if (to !== going.to) setRun({ ...going, to })
     }
+    // Also when the menu opens over a run: WebKit then never tells the page the pointer was let go.
     const finish = (keep: boolean) => {
         const done = run()
         if (!done) return
@@ -65,13 +79,27 @@ export function StepGrid(props: {
             setRun(null)
             props.onHold?.(false)
         })
+        if (root.hasPointerCapture(press.pointer)) root.releasePointerCapture(press.pointer)
     }
+    onCleanup(() => {
+        if (run()) props.onHold?.(false)
+    })
     const drawn = (sound: string, step: number) => {
         const going = run()
         return going !== null && going.sound === sound && step >= Math.min(going.from, going.to) && step <= Math.max(going.from, going.to) ? going.on : null
     }
     return (
-        <div class="dg" classList={{ fine: count() > 16, edit: Boolean(props.onToggle), own: Boolean(props.controls) }} style={{ '--names': `${names()}px` }}>
+        <div
+            class="dg"
+            classList={{ fine: count() > 16, edit: Boolean(props.onToggle), own: Boolean(props.controls) }}
+            style={{ '--names': `${names()}px` }}
+            ref={root}
+            onPointerMove={sweep}
+            onPointerUp={() => finish(true)}
+            onPointerCancel={() => finish(false)}
+            onLostPointerCapture={() => finish(false)}
+            onContextMenu={() => finish(false)}
+        >
             <Show when={props.controls}>
                 <span />
                 <span />
@@ -99,15 +127,7 @@ export function StepGrid(props: {
                                 </button>
                             </Show>
                         </span>
-                        <div
-                            class="prow"
-                            classList={{ off: row().muted }}
-                            onPointerDown={(event) => begin(event, row())}
-                            onPointerMove={sweep}
-                            onPointerUp={() => finish(true)}
-                            onPointerCancel={() => finish(false)}
-                            onLostPointerCapture={() => finish(false)}
-                        >
+                        <div class="prow" classList={{ off: row().muted }} onPointerDown={(event) => begin(event, row())}>
                             <For each={upTo(Math.ceil(count() / beat()))}>
                                 {(group) => (
                                     <div class="grp" style={{ '--in': beat() }}>

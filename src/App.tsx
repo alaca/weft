@@ -50,7 +50,9 @@ export function App() {
         // A pattern that is played from the keyboard takes its letters before anything else does.
         if (pianoDown(event)) return void event.preventDefault()
         if (event.code !== 'Space') return
-        if (target?.closest('.cm-editor, input, textarea, button, [role="dialog"]')) return
+        // A note of a piano roll is a button that has no use for Space, and it has the focus after
+        // every note put in or moved, so Space on it still plays the song.
+        if (target?.closest('.cm-editor, input, textarea, button:not(.nt), [role="dialog"]')) return
         event.preventDefault()
         togglePlay()
     }

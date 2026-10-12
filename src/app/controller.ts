@@ -975,6 +975,22 @@ export function toggleStep(id: string, sound: string, step: number) {
     if (placed && !engineState().playing) previewSound(id, sound)
 }
 
+// Whether a pattern can be written as a grid of steps, or as a roll of notes. Asked before a
+// drag is drawn over one, and a pattern that cannot be says so in its strip.
+export function canWriteDrums(id: string): boolean {
+    const block = find(id)
+    const can = Boolean(block && (readKit(block) || editableGrid(block)))
+    setGridNotes({ ...gridNotes(), [id]: !can })
+    return can
+}
+
+export function canWriteNotes(id: string): boolean {
+    const block = find(id)
+    const can = Boolean(block && editableNotes(block))
+    setGridNotes({ ...gridNotes(), [id]: !can })
+    return can
+}
+
 // A run of steps of one sound put in, or taken out, by one drag along its row.
 export function paintSteps(id: string, sound: string, from: number, to: number, on: boolean) {
     const changed = changeDrums(id, (drums) => {
@@ -1040,7 +1056,14 @@ function editableNotes(block: PatternBlock): NoteSource | null {
     const direct = readNotes(block)
     if (direct) return direct
     const text = noteText(block)
-    if (!text || block.calls[1]?.name === 'slow') return null
+    if (!text) return null
+    const slow = block.calls[1]?.name === 'slow' ? block.calls[1] : null
+    if (slow) {
+        // One rest played slower is an empty roll of that many bars, as older songs have it.
+        const bars = slow.args[0]
+        if (text.text.trim() !== '~' || bars?.kind !== 'number' || ![2, 4].includes(bars.value)) return null
+        return { grid: { notes: [], steps: 16 * bars.value, cycles: bars.value, perCycle: 16 }, from: text.from, to: text.to, slow }
+    }
     const cycles = engine.miniEvents(text.text, 8)
     const found = cycles ? notesFromEvents(cycles) : null
     if (!found) return null
@@ -1079,10 +1102,12 @@ export const hearNotes = (id: string, midis: number[]) => midis.forEach((midi) =
 // made here, or as long as it was drawn: `span` is that length as a part of a bar, since the roll
 // that drew it may count other steps than the pattern is then written in. Where there is less
 // room than that, the note fills the room; where there is none it is left out, and the rest
-// still go in. `heard` says the roll sounded them already, when the pointer went down.
+// still go in. What is remembered for the next note is how long a drawn note came out, not how
+// far the pointer went. `heard` says the roll sounded them already, when the pointer went down.
 export function addNotesAt(id: string, at: { page: number; time: number; midis: number[]; span?: number; heard?: boolean }): NoteRef | null {
     let added: NoteRef | null = null
     let drawn: number | null = null
+    let longest = 0
     const placed: number[] = []
     changeNotes(id, (source) => {
         const { steps, perCycle, cycles } = source.grid
@@ -1090,15 +1115,17 @@ export function addNotesAt(id: string, at: { page: number; time: number; midis: 
         drawn = at.span === undefined ? null : Math.max(1, Math.round(at.span * perCycle))
         let notes = source.grid.notes
         for (const midi of at.midis) {
-            const next = addNote(notes, { start, midi, length: Math.min(drawn ?? newNoteLength(id), roomAt(notes, start, midi, steps)) }, steps)
+            const length = Math.min(drawn ?? newNoteLength(id), roomAt(notes, start, midi, steps))
+            const next = addNote(notes, { start, midi, length }, steps)
             if (!next) continue
+            longest = Math.max(longest, length)
             notes = next
             placed.push(midi)
             added ??= { start, midi }
         }
         return placed.length ? { notes, perCycle, cycles } : null
     })
-    if (drawn !== null && placed.length) lastLength.set(id, drawn)
+    if (drawn !== null && placed.length) lastLength.set(id, longest)
     if (!at.heard) hearNotes(id, placed)
     return added
 }

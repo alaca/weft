@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, Show } from 'solid-js'
-import { addRow, paintSteps, previewSound, removeGridRow, setLength, setMix, setStepsPerCycle, soundChoices, toggleAccent, togglePanel, toggleRowMute, toggleStep } from '../app/controller'
+import { addRow, canWriteDrums, paintSteps, previewSound, removeGridRow, setLength, setMix, setStepsPerCycle, soundChoices, toggleAccent, togglePanel, toggleRowMute, toggleStep } from '../app/controller'
 import { drumLabel } from '../controls/drums'
 import { panOf, volumeOf } from '../controls/views'
 import { DRUM_RESOLUTIONS, readGrid, resample, type Grid } from '../song/grid'
@@ -53,6 +53,9 @@ export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement
     // While a run of steps is dragged the bar in sight stays, though the song goes on to the next.
     const [held, setHeld] = createSignal<number | null>(null)
     const shown = () => Math.min(held() ?? (props.playing ? props.cycle % cycles() : page()), cycles() - 1)
+    // A bar that is held in sight while the song plays another one is not compared with what
+    // the song plays, and the light of the step that sounds does not run over it.
+    const inSight = () => shown() === props.cycle % cycles()
 
     const rows = createMemo((): StepRow[] => {
         const current = grid()
@@ -64,11 +67,11 @@ export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement
                   const accents = row.accents?.slice(from, from + perCycle())
                   const heard = props.played.find((other) => other.name === row.sound)?.steps
                   const muted = mutedRows().includes(row.sound)
-                  return { name: row.sound, steps, accents, muted, played: comparable && !muted ? (heard ?? steps.map(() => false)) : undefined }
+                  return { name: row.sound, steps, accents, muted, played: comparable && inSight() && !muted ? (heard ?? steps.map(() => false)) : undefined }
               })
             : props.played.map((row) => ({ name: row.name, steps: row.steps }))
         const extra = current && comparable ? props.played.filter((row) => !placed.some((other) => other.name === row.name)) : []
-        return [...placed, ...extra.map((row) => ({ name: row.name, steps: row.steps.map(() => false), played: row.steps }))]
+        return [...placed, ...extra.map((row) => ({ name: row.name, steps: row.steps.map(() => false), played: inSight() ? row.steps : undefined }))]
     })
 
     const choices = () => soundChoices(props.id, rows().map((row) => row.name))
@@ -77,11 +80,12 @@ export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement
             <Show when={rows().length} fallback={<p class="st-empty">No sounds yet. Add one below.</p>}>
                 <StepGrid
                     rows={rows()}
-                    playing={props.playing}
+                    playing={props.playing && inSight()}
                     position={props.position}
                     disabled={stale()}
                     onToggle={canEdit() ? (sound, step) => toggleStep(props.id, sound, shown() * perCycle() + step) : undefined}
                     onPaint={canEdit() ? (sound, from, to, on) => paintSteps(props.id, sound, shown() * perCycle() + from, shown() * perCycle() + to, on) : undefined}
+                    canPaint={() => grid() !== null || canWriteDrums(props.id)}
                     onHold={(on) => setHeld(on ? shown() : null)}
                     onAccent={canEdit() ? (sound, step) => toggleAccent(props.id, sound, shown() * perCycle() + step) : undefined}
                     onHear={(sound) => previewSound(props.id, sound)}
