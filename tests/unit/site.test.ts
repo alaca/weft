@@ -386,6 +386,16 @@ describe('publishing', () => {
         expect((await publish(await signIn('mara@example.com', 'Mara'))).status).toBe(201)
     })
 
+    it('checks thirty files from a person in a quarter of an hour and no more, whoever else publishes', async () => {
+        const token = await signIn()
+        for (let tries = 0; tries < 30; tries++) expect((await publish(token, { file: 'not a song' })).status).toBe(422)
+        expect(await told(publish(token))).toEqual([429, { why: 'wait', what: 'Too many tries. Wait a quarter of an hour and try again.' }])
+        expect(readdirSync(join(dataDir, 'songs'))).toEqual([])
+        expect((await publish(await signIn('mara@example.com', 'Mara'))).status).toBe(201)
+        clock += QUARTER
+        expect((await publish(token)).status).toBe(201)
+    })
+
     it('lets its maker change what is said about a song, within the same limits, and nothing else', async () => {
         const token = await signIn()
         const made = await (await publish(token)).json()

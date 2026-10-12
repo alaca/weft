@@ -66,6 +66,9 @@ const SESSION_FOR = 90 * 24 * 60 * 60 * 1000
 const ASKS = 10
 // How often one sender is handed a pass for the carrier of calls in that time: once a jam.
 const ICE_ASKS = 40
+// How often one person may send a song to be published in that time. Each one is checked in
+// full while everyone else waits, and one that is turned down uses none of the ten places.
+const PUBLISH_TRIES = 30
 const ASKS_WITHIN = 15 * 60 * 1000
 // How often the senders with no try left in that time are forgotten.
 const SENDERS_FORGOTTEN_EVERY = 10 * 1000
@@ -644,6 +647,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
 
     function published(person: Person, body: any): Answer {
         if (mine(person).length >= MOST_SONGS) return refuse(409, 'full', `All ${MOST_SONGS} of your songs are used. Delete one to make room for a new one.`)
+        if (tooMany(`publish by ${person.id}`, PUBLISH_TRIES)) return refuse(429, 'wait', WAIT)
         const text = typeof body?.file === 'string' ? body.file : ''
         const refused = checkSongFile(text, SONG_LIMIT)
         if (refused) return refuse(422, refused.why, refused.what, refused.line === undefined ? {} : { line: refused.line })
