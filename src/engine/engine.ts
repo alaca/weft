@@ -27,6 +27,7 @@ import { SOUND_DRAG, type RawSound } from '../sounds/catalog'
 import { addOwnSound, kitNames, loadModules, loadSamples, removeOwnSound, soundTaken } from './prebake'
 import { createSync, heard, syncSlot, type Sync } from './sync'
 import { registerTheme } from './theme'
+import { restUnpluggedWorklets } from './unplug'
 
 export type { BlockMark } from './marks'
 
@@ -149,6 +150,7 @@ function tellPicturesApart() {
 }
 
 export function createEngine(): Engine {
+    restUnpluggedWorklets()
     keepPartsToTheirClock()
     tellPicturesApart()
     let mirror: any = null
