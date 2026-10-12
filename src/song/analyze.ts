@@ -94,7 +94,11 @@ function callChain(expression: Node): Call[] {
 //
 // Read as one, its calls are those of the version that is shown and then the ones they all
 // share, so that everything that reads and changes a pattern works on the version in sight.
-const CHOICES = /^\s*<(\s*\d+(!\d+)?)+\s*>\s*$/
+//
+// The numbers of the row have a space between them. Were the space left to choice, a long
+// row that is no such row would be tried with its digits cut in every way there is, which
+// does not end.
+const CHOICES = /^\s*<\s*\d+(!\d+)?(\s+\d+(!\d+)?)*\s*>\s*$/
 
 function versions(expression: Node, shown: number): { variants: Variants; calls: Call[] } | null {
     let node: Node = expression

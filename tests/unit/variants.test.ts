@@ -75,4 +75,14 @@ describe('the versions of a pattern', () => {
         const other = PLAIN.replace('note(`\n  c2 ~  c2 ~\n`).slow(2)', '"<a b>".pick({ a: note("c2"), b: note("e2") })')
         expect(block(other, 'bass').variants).toBeUndefined()
     })
+
+    it('are read from a row whose numbers stand apart, and a long row that is no such row is turned down at once', () => {
+        const read = (row: string) => block(PLAIN.replace('note(`\n  c2 ~  c2 ~\n`).slow(2)', `"${row}".pick([note("c2"), note("e2")])`), 'bass').variants
+        expect(read('<0!2 1!2>')?.items).toHaveLength(2)
+        expect(read(' < 0  1!3 > ')?.items).toHaveLength(2)
+        expect(read('<0!21!2>')).toBeUndefined()
+        const from = performance.now()
+        expect(read(`<${'10 '.repeat(28)}x>`)).toBeUndefined()
+        expect(performance.now() - from).toBeLessThan(1000)
+    })
 })
