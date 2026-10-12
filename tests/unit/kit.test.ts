@@ -17,6 +17,8 @@ const change = (code: string, next: (rows: GridRow[]) => GridRow[]) => {
 const BD = '  s("bd").struct("x ~ ~ ~   x ~ ~ ~   x ~ ~ ~   x ~ ~ ~"),\n'
 const CP = '  s("cp").struct("~ ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~   x ~ ~ ~").hpf(slider(400, 20, 4000)).gain(0.6),\n'
 const HH = '  s("hh").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n'
+// What a sound that was just made has after it: how loud it is and where it sits.
+const MIX = '.mul(postgain(slider(1, 0, 1.5))).pan(slider(0.5, 0, 1))'
 const KIT = `drums: stack(\n${BD}${CP}${HH})\n  .bank("RolandTR909")\n  .room(slider(0.2, 0, 1))\n`
 
 describe('analyze', () => {
@@ -104,7 +106,7 @@ describe('readKit', () => {
 describe('kitText', () => {
     it('writes one line for each sound, with the steps in fours and lined up', () => {
         expect(kitText([row('bd', [0, 8]), row('perc', [4])])).toBe(
-            'stack(\n  s("bd")  .struct("x ~ ~ ~   ~ ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~"),\n  s("perc").struct("~ ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n)',
+            'stack(\n  s("bd")  .struct("x ~ ~ ~   ~ ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~")' + MIX + ',\n  s("perc").struct("~ ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~")' + MIX + ',\n)',
         )
         expect(structText([true, false, false, false, true, true, false, false])).toBe('x ~ ~ ~   x x ~ ~')
     })
@@ -129,14 +131,14 @@ describe('kitEdits', () => {
 
     it('adds a line for a new sound after the last one', () => {
         const next = change(KIT, (rows) => [...rows, row('oh', [])])
-        expect(next).toBe(KIT.replace(HH, `${HH}  s("oh").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n`))
+        expect(next).toBe(KIT.replace(HH, `${HH}  s("oh").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~")${MIX},\n`))
     })
 
     it('lines the sounds up again when a longer name comes or goes', () => {
         const longer = change(KIT, (rows) => [...rows, row('perc', [1])])
         expect(longer).toContain('  s("bd")  .struct("x ~ ~ ~')
         expect(longer).toContain('  s("cp")  .struct("~ ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~   x ~ ~ ~").hpf(slider(400, 20, 4000)).gain(0.6),\n')
-        expect(longer).toContain('  s("perc").struct("~ x ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n)\n')
+        expect(longer).toContain('  s("perc").struct("~ x ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~")' + MIX + ',\n)\n')
         expect(change(longer, (rows) => removeRow(rows, 'perc'))).toBe(KIT)
     })
 
@@ -149,7 +151,7 @@ describe('kitEdits', () => {
     it('adds the first sound to a kit that has none, and removes the last', () => {
         const empty = 'drums: stack(\n)\n  .bank("RolandTR909")\n'
         const one = change(empty, () => [row('bd', [])])
-        expect(one).toBe('drums: stack(\n  s("bd").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n)\n  .bank("RolandTR909")\n')
+        expect(one).toBe('drums: stack(\n  s("bd").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~")' + MIX + ',\n)\n  .bank("RolandTR909")\n')
         expect(change(one, () => [])).toBe(empty)
         expect(plain(change('drums: stack()\n', () => [row('bd', [0])]))).toEqual([row('bd', [0])])
     })
@@ -228,7 +230,7 @@ describe('convertEdits', () => {
         const block = first(code)
         const source = readGrid(block)!
         expect(applyEdits(code, convertEdits(block, source.slow, source.grid.rows, 1))).toBe(
-            'drums: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~   x ~ ~ ~   x ~ ~ ~"),\n  s("cp").struct("~ ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~   x ~ ~ ~"),\n)\n  .bank("RolandTR909")\n',
+            'drums: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~   x ~ ~ ~   x ~ ~ ~")' + MIX + ',\n  s("cp").struct("~ ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~   x ~ ~ ~")' + MIX + ',\n)\n  .bank("RolandTR909")\n',
         )
     })
 
@@ -236,7 +238,7 @@ describe('convertEdits', () => {
         const code = 'drums: s("bd*2, hh*4").bank("RolandTR909").room(0.2)\n'
         const rows = parseGrid('bd ~ bd ~, hh hh hh hh')!
         expect(applyEdits(code, convertEdits(first(code), null, rows, 1))).toBe(
-            'drums: stack(\n  s("bd").struct("x ~ x ~"),\n  s("hh").struct("x x x x"),\n).bank("RolandTR909").room(0.2)\n',
+            'drums: stack(\n  s("bd").struct("x ~ x ~")' + MIX + ',\n  s("hh").struct("x x x x")' + MIX + ',\n).bank("RolandTR909").room(0.2)\n',
         )
     })
 
@@ -245,12 +247,12 @@ describe('convertEdits', () => {
         const block = first(code)
         const source = readGrid(block)!
         const same = applyEdits(code, convertEdits(block, source.slow, source.grid.rows, 2))
-        expect(same).toBe('drums: stack(\n  s("bd").struct("x ~ ~ ~   ~ ~ ~ ~"),\n).slow(2)\n')
+        expect(same).toBe('drums: stack(\n  s("bd").struct("x ~ ~ ~   ~ ~ ~ ~")' + MIX + ',\n).slow(2)\n')
         const one = applyEdits(code, convertEdits(block, source.slow, resize(source.grid, 1), 1))
-        expect(one).toBe('drums: stack(\n  s("bd").struct("x ~ ~ ~"),\n)\n')
+        expect(one).toBe('drums: stack(\n  s("bd").struct("x ~ ~ ~")' + MIX + ',\n)\n')
         const plainCode = 'drums: s("bd ~ ~ ~")\n'
         const four = applyEdits(plainCode, convertEdits(first(plainCode), null, [row('bd', [0, 4], 8)], 2))
-        expect(four).toBe('drums: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~"),\n).slow(2)\n')
+        expect(four).toBe('drums: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~")' + MIX + ',\n).slow(2)\n')
     })
 })
 

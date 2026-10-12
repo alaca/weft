@@ -6,6 +6,7 @@ import {
     familyOf,
     filterTypeOf,
     findDef,
+    MIX_CONTROLS,
     soundKind,
     startersFor,
     writeNumber,
@@ -134,7 +135,7 @@ export function drawableIn(block: PatternBlock): ControlView[] {
     })
 }
 
-const MIX = ['volume', 'pan']
+const MIX = MIX_CONTROLS
 
 export function favourites(block: PatternBlock): ControlView[] {
     return present(block)

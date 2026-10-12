@@ -158,3 +158,16 @@ export function writeNumber(value: number, min: number, max: number): string {
     const digits = span >= 100 ? 0 : span >= 10 ? 1 : span >= 0.2 ? 2 : 3
     return String(Number(value.toFixed(digits)))
 }
+
+// A control as it is written into the code when it is added: on a slider, at where it starts.
+export function controlText(def: ControlDef, value = def.initial): string {
+    const [before, after] = def.wrap ?? ['', '']
+    const [open, close] = def.call ?? [`.${def.fn}(`, ')']
+    return `${open}${before}slider(${writeNumber(value, def.min, def.max)}, ${def.min}, ${def.max})${after}${close}`
+}
+
+// How loud a sound is and where it sits are in the code from the moment the sound is, at full
+// and in the middle: both knobs then turn at once, without the song being played again for
+// the first turn, and what they do can be read where the sound is written.
+export const MIX_CONTROLS = ['volume', 'pan']
+export const mixText = (): string[] => MIX_CONTROLS.map((fn) => controlText(CONTROLS.find((def) => def.fn === fn) as ControlDef))

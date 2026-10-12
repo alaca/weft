@@ -1,5 +1,5 @@
 import { batch, createEffect, createRoot } from 'solid-js'
-import { FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '../controls/catalog'
+import { controlText, FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '../controls/catalog'
 import { drumChoices } from '../controls/drums'
 import { firstMotion, motionText, readMotion, type Motion } from '../controls/motion'
 import { callFor, controlOf, valueArg, type ControlView } from '../controls/views'
@@ -578,10 +578,7 @@ export function addControl(id: string, fn: string, value?: number) {
     const block = forEdit(id)
     const def = findDef(fn)
     if (!block || !def || stale() || callFor(block, fn)) return
-    const start = writeNumber(value ?? def.initial, def.min, def.max)
-    const [before, after] = def.wrap ?? ['', '']
-    const [open, close] = def.call ?? [`.${def.fn}(`, ')']
-    engine.applyEdit(addCall(engine.getCode(), block, `${open}${before}slider(${start}, ${def.min}, ${def.max})${after}${close}`))
+    engine.applyEdit(addCall(engine.getCode(), block, controlText(def, value ?? def.initial)))
     replay()
 }
 

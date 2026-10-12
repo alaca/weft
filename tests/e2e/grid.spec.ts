@@ -5,7 +5,10 @@ const NONE = '~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~'
 const PERC = `perc: stack(\n  s("hh").struct("${HH}"),\n)\n`
 const OLD = 'old: s(`\n  hh ~  hh ~    hh ~  hh ~    hh ~  hh ~    hh ~  hh ~\n`)\n'
 const SONG = `setcpm(120/4)\n\ndrums: s("bd*4, [~ cp]*2")\n  .bank("RolandTR909")\n\n${PERC}\n${OLD}\nbass: note("d2 ~ d2 f2").s("sawtooth")\n`
-const DRUMS_KIT = 'drums: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~   x ~ ~ ~   x ~ ~ ~"),\n  s("cp").struct("~ ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~   x ~ ~ ~"),\n'
+// A sound that is made, also when a grid written as one text becomes a line for each sound,
+// has how loud it is and where it sits written after it.
+const MIX = '.mul(postgain(slider(1, 0, 1.5))).pan(slider(0.5, 0, 1))'
+const DRUMS_KIT = `drums: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~   x ~ ~ ~   x ~ ~ ~")${MIX},\n  s("cp").struct("~ ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~   x ~ ~ ~")${MIX},\n`
 
 const code = (page: Page) => page.evaluate(() => (window as any).__weft.engine.getCode() as string)
 
@@ -33,13 +36,13 @@ test('a sound can be added, given a hit, emptied and removed', async ({ page }) 
     await drums.getByRole('button', { name: 'Add a sound' }).click()
     await drums.getByRole('menuitem', { name: /Open hat/ }).click()
     await expect(drums.getByRole('button', { name: 'Hear oh' })).toBeVisible()
-    await expect.poll(() => code(page)).toContain(`${DRUMS_KIT}  s("oh").struct("${NONE}"),\n)\n  .bank("RolandTR909")`)
+    await expect.poll(() => code(page)).toContain(`${DRUMS_KIT}  s("oh").struct("${NONE}")${MIX},\n)\n  .bank("RolandTR909")`)
 
     const step = drums.getByRole('button', { name: 'oh step 3', exact: true })
     await step.click()
-    await expect.poll(() => code(page)).toContain('  s("oh").struct("~ ~ x ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n')
+    await expect.poll(() => code(page)).toContain(`  s("oh").struct("~ ~ x ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~")${MIX},\n`)
     await step.click()
-    await expect.poll(() => code(page)).toContain(`  s("oh").struct("${NONE}"),\n`)
+    await expect.poll(() => code(page)).toContain(`  s("oh").struct("${NONE}")${MIX},\n`)
     await expect(drums.getByRole('button', { name: 'Hear oh' })).toBeVisible()
 
     await drums.getByRole('button', { name: 'Hear oh' }).hover()

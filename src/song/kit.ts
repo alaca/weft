@@ -1,3 +1,4 @@
+import { mixText } from '../controls/catalog'
 import { DEFAULT_STEPS, lengthEdits, MAX_STEPS, sourceText, type GridRow } from './grid'
 import type { Arg, Call, PatternBlock, TextEdit } from './types'
 
@@ -98,7 +99,8 @@ const accentCall = (row: GridRow) => {
     return text ? `.${ACCENT}("${text}")` : ''
 }
 
-const rowText = (row: GridRow, width: number) => `s("${row.sound}")${' '.repeat(width - row.sound.length)}.struct("${structText(row.steps)}")${accentCall(row)}`
+// A new sound comes with how loud it is and where it sits written after it.
+const rowText = (row: GridRow, width: number) => `s("${row.sound}")${' '.repeat(width - row.sound.length)}.struct("${structText(row.steps)}")${accentCall(row)}${mixText().join('')}`
 const widthOf = (rows: GridRow[]) => Math.max(0, ...rows.map((row) => row.sound.length))
 
 export function kitText(rows: GridRow[]): string {

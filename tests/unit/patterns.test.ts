@@ -12,18 +12,20 @@ const blockOf = (code: string) => {
 }
 
 describe('starterCode', () => {
-    it('starts every pattern with nothing in it', () => {
+    it('starts every pattern with nothing in it, and every sound with how loud it is and where it sits', () => {
+        const mix = '.mul(postgain(slider(1, 0, 1.5))).pan(slider(0.5, 0, 1))'
+        const lines = '\n  .mul(postgain(slider(1, 0, 1.5)))\n  .pan(slider(0.5, 0, 1))'
         expect(starterCode('drums', 'drums2')).toBe(
             'drums2: stack(\n' +
-                '  s("bd").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n' +
-                '  s("sd").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n' +
-                '  s("cp").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n' +
-                '  s("hh").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n' +
+                `  s("bd").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~")${mix},\n` +
+                `  s("sd").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~")${mix},\n` +
+                `  s("cp").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~")${mix},\n` +
+                `  s("hh").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~")${mix},\n` +
                 ')\n  .bank("RolandTR909")',
         )
-        expect(starterCode('bass', 'bass')).toBe('bass: note("~")\n  .s("sawtooth")\n  .lpf(slider(900, 100, 8000))')
-        expect(starterCode('chords', 'chords')).toBe('chords: note("~")\n  .s("gm_epiano1")\n  .room(slider(0.3, 0, 1))')
-        expect(starterCode('melody', 'melody')).toBe('melody: note("~")\n  .s("triangle")\n  .delay(slider(0.25, 0, 1))')
+        expect(starterCode('bass', 'bass')).toBe(`bass: note("~")\n  .s("sawtooth")\n  .lpf(slider(900, 100, 8000))${lines}`)
+        expect(starterCode('chords', 'chords')).toBe(`chords: note("~")\n  .s("gm_epiano1")\n  .room(slider(0.3, 0, 1))${lines}`)
+        expect(starterCode('melody', 'melody')).toBe(`melody: note("~")\n  .s("triangle")\n  .delay(slider(0.25, 0, 1))${lines}`)
     })
 
     it('writes drums as a kit of four sounds with no hits, and the others for the piano roll', () => {

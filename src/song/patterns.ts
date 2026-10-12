@@ -1,3 +1,4 @@
+import { mixText } from '../controls/catalog'
 import { DEFAULT_STEPS } from './grid'
 import { kitText } from './kit'
 import type { PatternBlock, TextEdit } from './types'
@@ -23,16 +24,20 @@ export const PATTERN_STARTERS: Starter[] = [
     { kind: 'melody', label: 'Melody', name: 'melody', range: { low: 60, high: 79 } },
 ]
 
+// A pattern of notes comes with how loud it is and where it sits written at its end; in a kit
+// each sound has its own.
+const mixLines = () => mixText().map((call) => `\n  ${call}`).join('')
+
 export function starterCode(kind: StarterKind, name: string): string {
     switch (kind) {
         case 'drums':
             return `${name}: ${kitText(DRUM_SOUNDS.map((sound) => ({ sound, steps: Array<boolean>(DEFAULT_STEPS).fill(false) })))}\n  .bank("RolandTR909")`
         case 'bass':
-            return `${name}: note("~")\n  .s("sawtooth")\n  .lpf(slider(900, 100, 8000))`
+            return `${name}: note("~")\n  .s("sawtooth")\n  .lpf(slider(900, 100, 8000))${mixLines()}`
         case 'chords':
-            return `${name}: note("~")\n  .s("gm_epiano1")\n  .room(slider(0.3, 0, 1))`
+            return `${name}: note("~")\n  .s("gm_epiano1")\n  .room(slider(0.3, 0, 1))${mixLines()}`
         case 'melody':
-            return `${name}: note("~")\n  .s("triangle")\n  .delay(slider(0.25, 0, 1))`
+            return `${name}: note("~")\n  .s("triangle")\n  .delay(slider(0.25, 0, 1))${mixLines()}`
     }
 }
 
@@ -42,7 +47,7 @@ export type SoundStarter = { name: string; code: (name: string) => string; range
 
 export function soundStarter(sound: string, kind: 'kit' | 'notes' | 'sample'): SoundStarter {
     if (kind === 'kit') return { name: 'drums', code: (name) => `${name}: ${kitText(DRUM_SOUNDS.map((row) => ({ sound: row, steps: Array<boolean>(DEFAULT_STEPS).fill(false) })))}\n  .bank("${sound}")` }
-    const code = (name: string) => `${name}: note("~")\n  .s("${sound}")`
+    const code = (name: string) => `${name}: note("~")\n  .s("${sound}")${mixLines()}`
     return kind === 'sample' ? { name: 'sample', code, range: { low: 30, high: 42 } } : { name: 'melody', code, range: { low: 60, high: 79 } }
 }
 
