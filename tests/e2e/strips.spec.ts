@@ -106,3 +106,19 @@ test('while the song plays a strip draws a change once it is played, and a turne
     await page.getByRole('button', { name: /^Update/ }).click()
     await expect(notes).toHaveCount(3)
 })
+
+// At a new bar the strips do not all ask their patterns in the frame that begins it: each waits
+// for its turn. What a strip draws, large or small, still follows the song from bar to bar.
+test('while the song plays a strip draws the bar that is played, also when it is folded', async ({ page }) => {
+    await open(page, 'setcpm(120/4)\n\nkeys: n("<[0 2] [0 2 4]>").scale("C:major")\n\nbass: note("d2 ~ d2 f2")\n  .s("sawtooth")\n')
+    const notes = page.getByTestId('strip-keys').locator('.roll svg rect.n')
+    await expect(notes).toHaveCount(2)
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(notes).toHaveCount(3)
+    await expect(notes).toHaveCount(2)
+
+    await page.getByRole('button', { name: 'Sound controls for bass' }).click()
+    const small = page.getByTestId('strip-keys').locator('svg.mini rect')
+    await expect(small).toHaveCount(3)
+    await expect(small).toHaveCount(2)
+})

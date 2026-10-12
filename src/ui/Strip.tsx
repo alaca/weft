@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Index, onCleanup, onMount, Show } from 'solid-js'
+import { createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
 import { addVariantOf, colorAt, dropOnPattern, duplicatePattern, eventsOf, movePattern, openSounds, removePattern, removeVariantOf, renamePattern, restsNow, select, setControl, setMix, showVariant, songLengthNow, toggleMute, togglePanel, toggleSolo } from '../app/controller'
 import { MOST_VARIANTS, variantBars, variantName } from '../song/variants'
 import { writeNumber } from '../controls/catalog'
@@ -16,6 +16,7 @@ import { NoteRoll } from './NoteRoll'
 import { PianoRoll } from './PianoRoll'
 import { SoundPanel } from './SoundPanel'
 import { Rack } from './Rack'
+import { askSoon } from './askSoon'
 
 // Every evaluation asks each pattern again what it plays. Most of the time the answer is the
 // same, and saying so here spares the grid or roll below from being worked out again.
@@ -40,11 +41,43 @@ export function Strip(props: { id: string }) {
         return readKit(block())?.rows.find((row) => row.block.id === target)
     })
 
+    // The bar that is drawn. While the strip plays it is the bar of the song, a frame or a few
+    // late: at a new bar every playing strip would otherwise ask its pattern in the same frame,
+    // and the song stands still for as long as that takes. So each waits for its turn, one in
+    // sight before one that is scrolled away, and a folded one last. A grid or a roll of more
+    // than one bar turns its page with this bar, not with the song's, so what one bar plays is
+    // never laid over the steps of another.
+    let inSight = true
+    const sight = new IntersectionObserver((entries) => (inSight = entries[entries.length - 1].isIntersecting))
+    const watch = (section: HTMLElement) => {
+        sight.disconnect()
+        sight.observe(section)
+    }
+    const [bar, setBar] = createSignal(untrack(() => (playing() ? cycle() : 0)))
+    let turn = 0
+    createEffect(() => {
+        const next = playing() ? cycle() : 0
+        const mine = ++turn
+        if (next === untrack(bar)) return
+        askSoon(
+            () => {
+                // When another bar has begun meanwhile, that one is waiting for its turn instead.
+                if (mine === turn) setBar(next)
+                return true
+            },
+            untrack(folded) ? 'folded' : inSight ? 'seen' : 'unseen',
+        )
+    })
+    onCleanup(() => {
+        turn++
+        sight.disconnect()
+    })
+
     let seenRows: string[] = []
     let seenAt = -1
     const view = createMemo((): PatternView => {
         const at = revision()
-        const described = describe(eventsOf(props.id, playing() ? cycle() : 0))
+        const described = describe(eventsOf(props.id, bar()))
         if (at !== seenAt) {
             seenRows = []
             seenAt = at
@@ -116,6 +149,7 @@ export function Strip(props: { id: string }) {
         <Show when={block()}>
             {(current) => (
                 <section
+                    ref={watch}
                     class="st"
                     classList={{ sel: selected() === props.id, muted: current().muted, rest: resting() }}
                     style={{ '--h': colorAt(index()) }}
@@ -350,10 +384,10 @@ export function Strip(props: { id: string }) {
                         <div class="st-b two">
                             <div>
                                 <Show when={isRack()}>
-                                    <Rack id={props.id} block={current()} head={head} played={steps()?.rows ?? []} playing={playing()} position={position()} cycle={cycle()} />
+                                    <Rack id={props.id} block={current()} head={head} played={steps()?.rows ?? []} playing={playing()} position={position()} cycle={bar()} />
                                 </Show>
                                 <Show when={isRoll()}>
-                                    <NoteRoll id={props.id} block={current()} head={head} played={notes()?.notes ?? []} playing={playing()} position={position()} cycle={cycle()} />
+                                    <NoteRoll id={props.id} block={current()} head={head} played={notes()?.notes ?? []} playing={playing()} position={position()} cycle={bar()} />
                                 </Show>
                                 <Show when={!isRoll() && notes()}>
                                     {(roll) => (

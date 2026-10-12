@@ -9,6 +9,7 @@ import { sceneIsOn, SCENE_NAME_LIMIT } from '../song/scenes'
 import { variantBars, variantName } from '../song/variants'
 import { bpm, cycle, engineState, loopBars, playMode, position, revision, sceneWaiting, soloIds, song, stale, startBar, takingKnobs } from '../stores/song'
 import { Knob } from './Knob'
+import { askSoon } from './askSoon'
 
 // A clip shows what its pattern plays, bar by bar. The pattern is asked for no more bars than
 // this: beyond them the drawing repeats, which is true of every pattern that is not random.
@@ -34,28 +35,6 @@ const IN_SIGHT = 20
 // A pattern with versions plays differently from bar to bar, so its picture is drawn from
 // more of its bars before it is taken to repeat.
 const VERSION_BARS = 256
-
-// Asking a pattern what it plays is work on the thread the song is timed on, and a pattern with
-// versions is asked about every bar of the song: half a second for a busy one, which is heard
-// as the song stumbling. So the asking is done a few milliseconds at a time, with room for the
-// song between, and a picture follows when all of it has been asked.
-const ASK_FOR = 5
-const asks: (() => boolean)[] = []
-let askTimer = 0
-let asking = false
-function askOn() {
-    askTimer = 0
-    asking = true
-    const until = performance.now() + ASK_FOR
-    while (asks.length && performance.now() < until) if (asks[0]()) asks.shift()
-    asking = false
-    if (asks.length) askTimer = window.setTimeout(askOn, 0)
-}
-// `step` asks about one more bar and says whether that was the last.
-function askSoon(step: () => boolean) {
-    asks.push(step)
-    if (!askTimer && !asking) askOn()
-}
 
 // The stretches of bars, from `from` up to `to`, that take the same version.
 function runsOf(kinds: number[], from: number, to: number): { from: number; kind: number }[] {
