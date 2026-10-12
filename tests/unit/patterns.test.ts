@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { analyze } from '../../src/song/analyze'
-import { applyEdit, applyEdits } from '../../src/song/edits'
+import { applyEdit, applyEdits, setTempo } from '../../src/song/edits'
 import { readKit } from '../../src/song/kit'
 import { noteText, readNotes } from '../../src/song/notes'
-import { appendPattern, duplicateEdit, freeName, PATTERN_STARTERS, patternNameFrom, removePattern, renameEdit, starterCode, swapEdits } from '../../src/song/patterns'
+import { appendPattern, duplicateEdit, freeName, PATTERN_STARTERS, patternNameFrom, removePattern, renameEdit, starterCode, swapEdits, textOutside } from '../../src/song/patterns'
 
 const blockOf = (code: string) => {
     const song = analyze(code)
@@ -148,5 +148,34 @@ describe('renaming, duplicating and moving a pattern', () => {
         const next = applyEdits(CODE, swapEdits(CODE, blocks()[0], blocks()[1]))
         expect(next).toBe('setcpm(120/4)\n\n_bass: note("c2 e2")\n  .s("sawtooth")\n\n// the low end\ndrums: s("bd*4")\n  .bank("RolandTR909")\n\nlead_: note("c4")\n')
         expect(analyze(next).patterns.map((block) => block.id)).toEqual(['bass', 'drums', 'lead'])
+    })
+})
+
+describe('the code that belongs to no pattern, as it counts for what the patterns play', () => {
+    const SONG = 'setcpm(120/4)\n\n// scene One: drums\n\nconst lean = slider(0.1, 0, 0.5)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n\nbass: note("c2")\n  .s("sawtooth")\n'
+    const outside = (code: string) => textOutside(code, analyze(code))
+
+    it('is the same at another tempo', () => {
+        expect(outside(applyEdit(SONG, setTempo(analyze(SONG), 146)))).toBe(outside(SONG))
+        const inSeconds = SONG.replace('setcpm(120/4)', 'setcps(0.5)')
+        expect(outside(applyEdit(inSeconds, setTempo(analyze(inSeconds), 146)))).toBe(outside(inSeconds))
+    })
+
+    it('is the same after a pattern is added, taken out or changed', () => {
+        expect(outside(applyEdit(SONG, appendPattern(SONG, 'lead: note("c4")')))).toBe(outside(SONG))
+        for (const block of analyze(SONG).patterns) expect(outside(applyEdit(SONG, removePattern(SONG, block)))).toBe(outside(SONG))
+        expect(outside(SONG.replace('bd*4', 'bd*8'))).toBe(outside(SONG))
+    })
+
+    it('is the same whatever the remarks say', () => {
+        expect(outside(SONG.replace('// scene One: drums', '// scene One: drums bass\n  // scene Two: bass'))).toBe(outside(SONG))
+    })
+
+    it('is another when something in it changes that a pattern can play by', () => {
+        expect(outside(SONG.replace('slider(0.1', 'slider(0.2'))).not.toBe(outside(SONG))
+        expect(outside(`${SONG}\nall((pattern) => pattern.fast(2))\n`)).not.toBe(outside(SONG))
+        // A tempo that the code works out is not a number the song is written at.
+        const worked = SONG.replace('setcpm(120/4)', 'const speed = 120\nsetcpm(speed/4)')
+        expect(outside(worked.replace('speed = 120', 'speed = 146'))).not.toBe(outside(worked))
     })
 })

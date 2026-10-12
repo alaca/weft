@@ -1,7 +1,7 @@
 import { mixText } from '../controls/catalog'
 import { DEFAULT_STEPS } from './grid'
 import { kitText } from './kit'
-import type { PatternBlock, TextEdit } from './types'
+import type { PatternBlock, Song, TextEdit } from './types'
 
 export type StarterKind = 'drums' | 'bass' | 'chords' | 'melody'
 
@@ -109,4 +109,22 @@ export function removePattern(code: string, block: PatternBlock): TextEdit {
     if (kept > 0) return { from: kept, to, insert: '' }
     const after = /^\s*/.exec(code.slice(to))?.[0].length ?? 0
     return { from: 0, to: to + after, insert: '' }
+}
+
+// The code that belongs to no pattern, as far as it can change what a pattern plays. Three
+// things in it cannot, and are left out: the lines that are only a remark, as the ones that
+// keep the scenes are, the empty lines, which come and go with the patterns between them,
+// and the number of the tempo, because a pattern is asked what it plays by the bar, however
+// long a bar lasts.
+export function textOutside(code: string, song: Song): string {
+    let outside = ''
+    let at = 0
+    for (const taken of [...song.patterns, ...(song.tempo ? [song.tempo] : [])].sort((a, b) => a.from - b.from)) {
+        outside += code.slice(at, taken.from)
+        at = taken.to
+    }
+    return (outside + code.slice(at))
+        .split('\n')
+        .filter((line) => !/^\s*(\/\/.*)?$/.test(line))
+        .join('\n')
 }

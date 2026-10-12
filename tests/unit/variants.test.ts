@@ -3,7 +3,7 @@ import { analyze } from '../../src/song/analyze'
 import { checkSong } from '../../src/guard/check'
 import { readKit } from '../../src/song/kit'
 import { readNotes } from '../../src/song/notes'
-import { addVariant, chooseEdit, removeVariant, variantBars } from '../../src/song/variants'
+import { addVariant, barKeys, chooseEdit, removeVariant, variantBars } from '../../src/song/variants'
 
 const PLAIN = `setcpm(120/4)
 
@@ -84,5 +84,42 @@ describe('the versions of a pattern', () => {
         const from = performance.now()
         expect(read(`<${'10 '.repeat(28)}x>`)).toBeUndefined()
         expect(performance.now() - from).toBeLessThan(1000)
+    })
+})
+
+describe('the bars a picture of a pattern is asked about', () => {
+    const VERSIONS = 'acid: "<1!5 0!4 1!2 0!33 1!4 0!48>".pick([\n  note("a1 a2").slow(4),\n  note("a1 d2").slow(4),\n])\n  .s("sawtooth")'
+    const keys = (code: string, length: number) => barKeys(analyze(code).patterns[0], length, 16)
+    const asked = (code: string, length: number) => new Set(keys(code, length)).size
+
+    it('are the sixteen after which a pattern is taken to repeat, however long the song is', () => {
+        const plain = 'bass: note("c2 e2").slow(4).s("sawtooth")'
+        expect(asked(plain, 16)).toBe(16)
+        expect(asked(plain, 96)).toBe(16)
+    })
+
+    it('are sixteen places for each version, and only the places a version is played at', () => {
+        const all = keys(VERSIONS, 96)
+        expect(new Set(all).size).toBe(27)
+        expect(all[32]).toBe(all[16])
+        expect(all[17]).not.toBe(all[16])
+        // Bars 1 and 17 are at the same place, and take different versions.
+        expect(all[16]).not.toBe(all[0])
+        expect(all[60]).not.toBe(all[44])
+    })
+
+    it('are no more for a knob that only changes the sound, drawn over the song', () => {
+        const drawn = `${VERSIONS}\n  .lpq("<4!14 3.7 29.4 14.6!80>")\n  .decay("<1.26!4 0.88 0.8!91>")\n  .mul(postgain("<1!48 0.5!48>"))\n  .mask("<1!95 0>")`
+        expect(keys(drawn, 96)).toEqual(keys(VERSIONS, 96))
+    })
+
+    it('are more for a list that can move a note', () => {
+        const skipped = keys(`${VERSIONS}\n  .degradeBy("<0!32 0.5!64>")`, 96)
+        expect(skipped[27]).toBe(skipped[11])
+        expect(skipped[64]).toBe(skipped[48])
+        expect(skipped[32]).not.toBe(skipped[16])
+        const moved = keys('bass: note("c2 e2").s("sawtooth").transpose("<0!4 5!4 7!8>")', 16)
+        expect(new Set(moved).size).toBe(16)
+        expect(asked(`${VERSIONS}\n  .transpose("<0!48 5!48>")`, 96)).toBe(11 + 16 + 16)
     })
 })

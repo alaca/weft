@@ -1,4 +1,5 @@
-import { curveText, parseCurve } from './curves'
+import { findDef } from '../controls/catalog'
+import { curvesOf, curveText, parseCurve } from './curves'
 import { setString } from './edits'
 import type { PatternBlock, TextEdit } from './types'
 
@@ -13,6 +14,19 @@ export function variantBars(block: PatternBlock, length: number): number[] {
     const written = block.variants ? (parseCurve(block.variants.chooser.value) ?? []).map(Number) : []
     const most = (block.variants?.items.length ?? 1) - 1
     return Array.from({ length }, (_, bar) => (written.length ? Math.min(most, written[bar % written.length]) : 0))
+}
+
+// A picture of a pattern is asked for bar by bar, and two bars that are sure to play the same
+// notes need asking once. Such bars have the same key: they take the same version, stand at
+// the same place in the `round` bars after which a pattern is taken to repeat, and have the
+// same value in every list that is written bar by bar and can move a note. The knobs that
+// only change the sound, as Decay or Resonance, move none, and are not looked at. A list in
+// a call that is no knob at all is taken to move notes.
+export function barKeys(block: PatternBlock, length: number, round: number): string[] {
+    const lists = curvesOf(block)
+        .filter((curve) => (findDef(curve.call.name)?.group ?? 'pattern') === 'pattern')
+        .map((curve) => curve.values)
+    return variantBars(block, length).map((kind, bar) => [kind, bar % round, ...lists.map((values) => values[bar % values.length])].join(' '))
 }
 
 export const choiceText = (bars: number[]): string => curveText(bars.map(String))

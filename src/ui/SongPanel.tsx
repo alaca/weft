@@ -6,7 +6,7 @@ import { barsOf, clips, paint, type Clip } from '../song/arrange'
 import { MAX_BARS } from '../song/bars'
 import type { PatternEvent } from '../song/types'
 import { sceneIsOn, SCENE_NAME_LIMIT } from '../song/scenes'
-import { variantBars, variantName } from '../song/variants'
+import { barKeys, variantBars, variantName } from '../song/variants'
 import { bpm, cycle, engineState, loopBars, playMode, position, revision, sceneWaiting, soloIds, song, stale, startBar, takingKnobs } from '../stores/song'
 import { Knob } from './Knob'
 import { askSoon } from './askSoon'
@@ -98,7 +98,9 @@ function Lane(props: { id: string; index: number; view: View }) {
     const [played, setPlayed] = createSignal<Played>({ perBar: [], low: 0, high: 0, sounds: [] })
     createEffect(() => {
         revision()
-        const count = Math.min(props.view.length, untrack(block)?.variants ? VERSION_BARS : DRAWN_BARS)
+        const current = untrack(block)
+        if (!current) return
+        const count = Math.min(props.view.length, current.variants ? VERSION_BARS : DRAWN_BARS)
         const text = untrack(() => patternText(props.id))
         if (text === drawnFrom && drawnBars === count) return
         // Until the code has been evaluated the patterns still answer for the code before it,
@@ -108,10 +110,15 @@ function Lane(props: { id: string; index: number; view: View }) {
         drawnBars = count
         const mine = ++asked
         const perBar: PatternEvent[][] = []
+        // A bar that is sure to play what a bar before it plays is not asked about: it takes
+        // that bar's answer.
+        const keys = barKeys(current, count, DRAWN_BARS)
+        const answers = new Map<string, PatternEvent[]>()
         askSoon(() => {
             // Something changed again meanwhile, and that is being asked about instead.
             if (mine !== asked) return true
-            if (perBar.length < count) perBar.push(eventsOf(props.id, perBar.length))
+            if (perBar.length < count) answers.set(keys[perBar.length], eventsOf(props.id, perBar.length))
+            while (perBar.length < count && answers.has(keys[perBar.length])) perBar.push(answers.get(keys[perBar.length])!)
             if (perBar.length < count) return false
             const pitches = perBar.flat().flatMap((event) => (event.midi === null ? [] : [event.midi]))
             setPlayed({
