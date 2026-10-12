@@ -27,7 +27,10 @@ export function Strip(props: { id: string }) {
     const index = createMemo(() => song().patterns.findIndex((p) => p.id === props.id))
     const block = createMemo(() => song().patterns[index()])
     const resting = () => restsNow(props.id)
-    const playing = () => engineState().playing && !block()?.muted && !resting()
+    // Whether it plays is read from things that change with every change of the code, yet the
+    // answer is nearly always the same. Kept as a yes or a no, it does not make the strip ask
+    // its pattern again until the answer is another one.
+    const playing = createMemo(() => engineState().playing && !block()?.muted && !resting())
     const panelOwner = () => openPanel()?.split('/')[0] ?? null
     const open = () => openPanel() === props.id
     const folded = () => panelOwner() !== null && panelOwner() !== props.id && !unfolded().includes(props.id)

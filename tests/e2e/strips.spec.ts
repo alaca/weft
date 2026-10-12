@@ -66,3 +66,43 @@ test('draws read-only piano rolls in pixel-scale units, which WebKit needs to re
     expect(Number(await first.getAttribute('width'))).toBeGreaterThan(100)
     expect(Number(await first.getAttribute('height'))).toBeGreaterThan(5)
 })
+
+// A strip asks its pattern what it plays, and the answer is another one only after the song has
+// been played again. A bar lasts a minute here, so that no new bar begins in between.
+test('while the song plays a strip draws a change once it is played, and a turned knob asks no pattern again', async ({ page }) => {
+    await open(page, 'setcpm(4/4)\n\nkeys: n("0 2 4 2").scale("C:major")\n\nbass: note("d2 ~ d2 f2")\n  .s("sawtooth")\n  .lpf(slider(1200, 200, 4000))\n')
+    // How many times a pattern is asked what it plays in the course of each move of a knob.
+    await page.evaluate(() => {
+        const engine = (window as any).__weft.engine
+        const events = engine.events.bind(engine)
+        const move = engine.moveSlider.bind(engine)
+        let asks = 0
+        ;(window as any).__asked = []
+        engine.events = (...args: unknown[]) => ((asks += 1), events(...args))
+        engine.moveSlider = (...args: unknown[]) => {
+            const before = asks
+            const moved = move(...args)
+            ;(window as any).__asked.push(asks - before)
+            return moved
+        }
+    })
+    const notes = page.getByTestId('strip-keys').locator('.roll svg rect.n')
+    await expect(notes).toHaveCount(4)
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+
+    const cutoff = page.getByTestId('strip-bass').getByRole('slider', { name: 'Cutoff' })
+    await cutoff.focus()
+    await page.keyboard.press('ArrowUp')
+    await page.keyboard.press('ArrowUp')
+    await expect.poll(async () => Number(await cutoff.getAttribute('aria-valuenow'))).toBeGreaterThan(1238)
+    expect(await page.evaluate(() => (window as any).__asked)).toEqual([0, 0])
+
+    await page.evaluate(() => {
+        const engine = (window as any).__weft.engine
+        const at = engine.getCode().indexOf('0 2 4 2')
+        engine.applyEdit({ from: at, to: at + 7, insert: '0 2 4' })
+    })
+    await page.getByRole('button', { name: /^Update/ }).click()
+    await expect(notes).toHaveCount(3)
+})
