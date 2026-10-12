@@ -25,10 +25,10 @@ import { lightNotes } from './lights'
 import { answerLists, transpile } from './lists'
 import { marksField, setMarks, type BlockMark } from './marks'
 import { maskSliders } from './mask'
+import { useOwnWorklets } from './ownWorklets'
 import { SOUND_DRAG, type RawSound } from '../sounds/catalog'
 import { addOwnSound, kitNames, loadModules, loadSamples, removeOwnSound, soundTaken } from './prebake'
 import { createReplay } from './replay'
-import { useOwnSupersaw } from './supersaw'
 import { createSync, heard, syncSlot, type Sync } from './sync'
 import { registerTheme } from './theme'
 import { startTicking, stopTicking } from './ticker'
@@ -168,7 +168,7 @@ function tellPicturesApart() {
 
 export function createEngine(): Engine {
     restUnpluggedWorklets()
-    useOwnSupersaw()
+    useOwnWorklets()
     keepPartsToTheirClock()
     tellPicturesApart()
     let mirror: any = null
