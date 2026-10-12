@@ -10,6 +10,7 @@ import { DEFAULT_SONG, songLength } from '../src/song/arrange'
 import { docsPage, downloadPage, homePage, licencePage, makerPage, notePage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type Named, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
 import { songPicture } from './picture'
 import { senderOf } from './sender'
+import { createTries } from './tries'
 
 // The site that songs are published to. It has two sides. The pages are for everyone and know
 // nobody: the songs, each song's own page, the downloads of the app. The API is for the app,
@@ -66,6 +67,8 @@ const ASKS = 10
 // How often one sender is handed a pass for the carrier of calls in that time: once a jam.
 const ICE_ASKS = 40
 const ASKS_WITHIN = 15 * 60 * 1000
+// How often the senders with no try left in that time are forgotten.
+const SENDERS_FORGOTTEN_EVERY = 10 * 1000
 const DESCRIPTION_LIMIT = 500
 const STYLE_LIMIT = 30
 const NAME_LIMIT = 24
@@ -340,19 +343,13 @@ export function createSite(options: SiteOptions): Promise<Site> {
     const built = (): Build[] => [...buildsNow()].map(([platform, build]) => ({ platform, version: build.version, bytes: build.bytes }))
     // The codes for choosing a new password that are out, by the address each was sent to.
     const codes = new Map<string, Code>()
-    const asked = new Map<string, number[]>()
+    const tries = createTries(ASKS_WITHIN, now)
     const facts = new Map<string, Facts | null>()
     const pictures = new Map<string, Buffer>()
     const allowed = new Set(options.allow ?? APP_ORIGINS)
     let origin = options.origin ?? ''
 
-    const tooMany = (who: string, most = options.asks ?? ASKS): boolean => {
-        const since = now() - ASKS_WITHIN
-        const times = (asked.get(who) ?? []).filter((at) => at > since)
-        times.push(now())
-        asked.set(who, times)
-        return times.length > most
-    }
+    const tooMany = (who: string, most = options.asks ?? ASKS): boolean => tries.tooMany(who, most)
 
     const bearerOf = (request: IncomingMessage) => /^Bearer (.+)$/.exec(request.headers.authorization ?? '')?.[1]
     const personOf = (request: IncomingMessage): Person | null => {
@@ -907,9 +904,12 @@ export function createSite(options: SiteOptions): Promise<Site> {
             origin ||= `http://127.0.0.1:${port}`
             const counting = setInterval(keepCounts, COUNTS_KEPT_EVERY)
             counting.unref()
+            const forgetting = setInterval(tries.forget, SENDERS_FORGOTTEN_EVERY)
+            forgetting.unref()
             const close = () => {
                 closing = true
                 clearInterval(counting)
+                clearInterval(forgetting)
                 keepCounts()
                 return new Promise<void>((done) => server.close(() => done()))
             }
