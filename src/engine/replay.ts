@@ -42,5 +42,7 @@ export function createReplay(run: () => void) {
     const replayHeld = () => {
         if (heldSince !== null) replay()
     }
-    return { replay, replayHeld, dropReplay }
+    // Whether a change still waits for the song to be played again.
+    const replayWaits = () => timer !== undefined
+    return { replay, replayHeld, dropReplay, replayWaits }
 }

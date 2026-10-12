@@ -102,6 +102,20 @@ describe('playing the song again after a change', () => {
         expect(played).toBe(1)
     })
 
+    it('says whether a change still waits, until the song is played again by it or by other means', () => {
+        expect(song.replayWaits()).toBe(false)
+        song.replay(true)
+        pass(100)
+        expect(song.replayWaits()).toBe(true)
+        pass(150)
+        expect(played).toBe(1)
+        expect(song.replayWaits()).toBe(false)
+
+        song.replay(true)
+        song.dropReplay()
+        expect(song.replayWaits()).toBe(false)
+    })
+
     it('is dropped when the song was played by other means, and what is held after that is a run of its own', () => {
         song.replay(true)
         pass(100)

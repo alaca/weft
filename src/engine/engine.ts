@@ -494,7 +494,7 @@ export function createEngine(): Engine {
     // The code is evaluated in a turn of its own as well, after the screen has followed the
     // change. Everything that asks for it in the same turn is answered by one evaluation: a
     // change to the code, a bar to start from, bars to go round, a solo.
-    const { replay, replayHeld, dropReplay } = createReplay(() => void (state.playing ? engine.evaluate() : engine.refresh()))
+    const { replay, replayHeld, dropReplay, replayWaits } = createReplay(() => void (state.playing ? engine.evaluate() : engine.refresh()))
 
     // Strudel throws when it is given no code at all, so an empty song is handled here:
     // nothing plays, nothing is registered and there is no error to show.
@@ -808,7 +808,11 @@ export function createEngine(): Engine {
         startSync(version, by, send) {
             sync = createSync(mirror.editor.state.doc, version, by, send, {
                 changed: followSliders,
-                heard: () => void window.setTimeout(() => void reevaluate(), 0),
+                // A change of your own may still be waiting to be played when the other person
+                // says they played theirs. The song is then played again the way that change
+                // would have had it played, which tells them. Answered by itself, the change
+                // would sound here without being said, and the other would never hear it.
+                heard: () => void window.setTimeout(() => (replayWaits() ? replay() : void reevaluate()), 0),
             })
             mirror.editor.dispatch({ effects: syncSlot.reconfigure(sync.extension) })
         },

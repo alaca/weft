@@ -536,16 +536,6 @@ export const inStep = (): boolean => engine.inStep()
 // A strip draws its pattern in every bar, also in the bars where the song lets it rest.
 export const eventsOf = (id: string, whichCycle: number): PatternEvent[] => engine.events(id, whichCycle, true)
 
-let evaluateTimer: number | undefined
-
-function scheduleEvaluate() {
-    if (evaluateTimer !== undefined) return
-    evaluateTimer = window.setTimeout(() => {
-        evaluateTimer = undefined
-        replay()
-    }, 120)
-}
-
 export function setControl(id: string, fn: string, value: number) {
     const block = find(id)
     if (!block || stale()) return
@@ -560,9 +550,11 @@ export function setControl(id: string, fn: string, value: number) {
     if (def && !def.wrap && arg === callFor(block, fn)?.args[0]) takeDown(id, fn, arg.value, Number(text))
     if (arg.kind === 'slider' && engine.moveSlider(arg.valueFrom, text)) return
     if (Number(text) === arg.value) return
+    // A slider the editor does not know yet is only heard changed when the song is played
+    // again. The turn is a run of such changes, so they are held.
     if (arg.kind === 'slider') {
         engine.applyEdit(setNumber(arg, text))
-        return scheduleEvaluate()
+        return replay(true)
     }
     // A plain number can only be heard changed by playing the song again. At its first turn
     // it is put on a slider, with the song played again once, and every turn after that is
