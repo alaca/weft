@@ -68,6 +68,21 @@ function strudel(song: Note[] = []) {
 
 const root = {} as HTMLElement
 
+// What comes back says whether the code is in sight, as the browser would.
+function sight(): (shown: boolean) => void {
+    let tell: (entries: { isIntersecting: boolean }[]) => void = () => undefined
+    vi.stubGlobal(
+        'IntersectionObserver',
+        class {
+            constructor(heard: typeof tell) {
+                tell = heard
+            }
+            observe() {}
+        },
+    )
+    return (shown) => tell([{ isIntersecting: shown }])
+}
+
 afterEach(() => vi.unstubAllGlobals())
 
 describe('the notes lit in the code', () => {
@@ -124,16 +139,7 @@ describe('the notes lit in the code', () => {
     })
 
     it('are neither kept nor said while the code is out of sight, and asked for when it comes back', () => {
-        let see: (shown: boolean) => void = () => undefined
-        vi.stubGlobal(
-            'IntersectionObserver',
-            class {
-                constructor(tell: (entries: { isIntersecting: boolean }[]) => void) {
-                    see = (shown) => tell([{ isIntersecting: shown }])
-                }
-                observe() {}
-            },
-        )
+        const see = sight()
         const { mirror, drawer, asked, lit, frame } = strudel([new Note(0.55, 0.75)])
         const heard = lightNotes(mirror, root)
         see(false)
@@ -152,6 +158,26 @@ describe('the notes lit in the code', () => {
         ])
         frame(0.56)
         expect(lit).toEqual([[0.55]])
+    })
+
+    it('are still handed to a picture while the code is out of sight, for one drawn over the whole window, and not said to the editor', () => {
+        const see = sight()
+        const { mirror, drawer, scheduler, asked, lit, drawn, frame } = strudel([new Note(0.25, 0.5)])
+        const heard = lightNotes(mirror, root)
+        drawer.painters = [() => undefined]
+        see(false)
+        heard(new Note(0, 0.25))
+        frame(0.1)
+        expect(drawn).toEqual([[0]])
+        scheduler.lastEnd = 0.4
+        drawer.invalidate(scheduler, 0.12)
+        frame(0.3)
+        expect(drawn).toEqual([[0], [0.25]])
+        expect(asked).toEqual([
+            [0.12, 0.22],
+            [0.22, 0.4],
+        ])
+        expect(lit).toEqual([])
     })
 
     it('do not pile up when no frame is drawn', () => {

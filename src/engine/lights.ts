@@ -27,13 +27,16 @@ export function lightNotes(mirror: any, root: HTMLElement): (hap: any) => void {
     if (!known) return () => undefined
 
     let shown = true
+    // A picture can be drawn over the whole window, where it stays in sight when the code does
+    // not. So there is nothing to do only when the code is out of sight and no picture is drawn.
+    const idle = () => !shown && !drawer.painters.length
     let lit: any[] | null = null
     let most = MOST
     let owed: [number, number] | null = null
     const notEnded = (time: number) => (hap: any) => hap.whole && hap.endClipped >= time
 
     drawer.framer.onFrame = () => {
-        if (!shown) return
+        if (idle()) return
         const time: number = scheduler.now()
         let held: any[] = drawer.visibleHaps
         if (owed) {
@@ -45,7 +48,7 @@ export function lightNotes(mirror: any, root: HTMLElement): (hap: any) => void {
         drawer.visibleHaps = kept
         const sounding = kept.filter((hap) => hap.whole.begin <= time)
         // The editor is only told when other notes sound than the ones it was told of last.
-        if (!lit || lit.length !== sounding.length || sounding.some((hap, at) => hap !== lit![at])) {
+        if (shown && (!lit || lit.length !== sounding.length || sounding.some((hap, at) => hap !== lit![at]))) {
             lit = sounding
             mirror.highlight(sounding, time)
         }
@@ -64,12 +67,13 @@ export function lightNotes(mirror: any, root: HTMLElement): (hap: any) => void {
         ask(from, at)
         lit = null
         const asked = Math.max(at + drawer.drawTime[1] + 0.1, 0)
-        owed = shown && from.lastEnd > asked ? [asked, from.lastEnd] : null
-        if (!shown) drawer.visibleHaps = []
+        owed = !idle() && from.lastEnd > asked ? [asked, from.lastEnd] : null
+        if (idle()) drawer.visibleHaps = []
     }
 
-    // The code is out of sight when only the controls are shown. Nothing is kept or lit then,
-    // and when it comes back the song is asked what sounds at that moment.
+    // The code is out of sight when only the controls are shown. Nothing is lit then, and
+    // nothing kept unless a picture is drawn. When the code comes back the song is asked what
+    // sounds at that moment.
     if (typeof IntersectionObserver !== 'undefined') {
         new IntersectionObserver((entries) => {
             const now = entries[entries.length - 1].isIntersecting
@@ -82,7 +86,7 @@ export function lightNotes(mirror: any, root: HTMLElement): (hap: any) => void {
     }
 
     return (hap) => {
-        if (!shown) return
+        if (idle()) return
         // The sound engine writes into the note it is handed, among other things its length in
         // seconds where Strudel reads a length in bars. The note is kept as it was before that.
         const value = hap.value
