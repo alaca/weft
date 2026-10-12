@@ -28,7 +28,7 @@ describe('a value written bar by bar', () => {
     })
 
     it('is nothing else: no notes, no words, no steps, nothing outside the brackets', () => {
-        for (const text of ['<c2 e2>', '400 900', '<400 [900 1200]>', '<>', '<400*2>', '<400!0>', '<1e3>', 'x ~ x ~']) expect(parseCurve(text), text).toBeNull()
+        for (const text of ['<c2 e2>', '400 900', '<400 [900 1200]>', '<>', '<400*2>', '<400!0>', '<400!04>', '<1e3>', 'x ~ x ~']) expect(parseCurve(text), text).toBeNull()
     })
 
     it('is found on the calls of a pattern, and the bars the pattern plays in are not one', () => {

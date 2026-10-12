@@ -12,17 +12,35 @@ import type { Arg, Call, PatternBlock, TextEdit } from './types'
 // shorter comes out with the same numbers it went in with.
 export type Curve = { call: Call; arg: Extract<Arg, { kind: 'string' }>; values: string[] }
 
-const TOKEN = /^(-?(?:\d+\.?\d*|\.\d+))(?:!(\d+))?$/
+// A count is written as Strudel reads one, with no nought in front: "0!04" is not four bars
+// of 0 to it.
+const TOKEN = /^(-?(?:\d+\.?\d*|\.\d+))(?:!([1-9]\d*))?$/
+
+// A list as it is written: every value with the bars it stays for and where it stands in the
+// text. What plays a list reads it here as well, so that a list is never one thing to the
+// controls and another to the ear.
+export type Run = { value: string; count: number; from: number; to: number }
+
+export function readRuns(text: string): Run[] | null {
+    const list = /^(\s*<)([^<>]*)>\s*$/.exec(text)
+    if (!list) return null
+    const runs: Run[] = []
+    for (const word of list[2].matchAll(/\S+/g)) {
+        const token = TOKEN.exec(word[0])
+        if (!token) return null
+        const from = list[1].length + word.index
+        runs.push({ value: token[1], count: token[2] ? Number(token[2]) : 1, from, to: from + token[1].length })
+    }
+    return runs.length ? runs : null
+}
 
 export function parseCurve(text: string): string[] | null {
-    const inner = /^\s*<([^<>]*)>\s*$/.exec(text)
-    if (!inner || !inner[1].trim()) return null
+    const runs = readRuns(text)
+    if (!runs) return null
     const values: string[] = []
-    for (const token of inner[1].trim().split(/\s+/)) {
-        const match = TOKEN.exec(token)
-        const count = match?.[2] ? Number(match[2]) : 1
-        if (!match || count < 1 || values.length + count > MAX_BARS) return null
-        for (let i = 0; i < count; i++) values.push(match[1])
+    for (const run of runs) {
+        if (values.length + run.count > MAX_BARS) return null
+        for (let i = 0; i < run.count; i++) values.push(run.value)
     }
     return values
 }

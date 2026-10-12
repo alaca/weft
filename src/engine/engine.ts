@@ -4,7 +4,6 @@ import { EditorView, keymap, tooltips } from '@codemirror/view'
 import { BlockWidget, StrudelMirror, codemirrorSettings, sliderPlugin } from '@strudel/codemirror'
 import { Pattern, silence } from '@strudel/core'
 import { mini } from '@strudel/mini'
-import { transpiler } from '@strudel/transpiler'
 import {
     getAudioContext,
     getSuperdoughAudioController,
@@ -21,6 +20,7 @@ import type { SentUpdate } from '../jam/protocol'
 import { DEFAULT_MIX, fitMix, type Mix } from '../library/mix'
 import type { PatternEvent, TextEdit } from '../song/types'
 import { toEvents } from './events'
+import { answerLists, transpile } from './lists'
 import { marksField, setMarks, type BlockMark } from './marks'
 import { maskSliders } from './mask'
 import { SOUND_DRAG, type RawSound } from '../sounds/catalog'
@@ -318,7 +318,7 @@ export function createEngine(): Engine {
     const prepare = (code: string, options: unknown) => {
         const refused = guarded ? checkSong(code) : null
         if (refused) throw Object.assign(new Error(refused.what), { loc: { line: refused.line }, guard: true })
-        return (transpiler as unknown as (code: string, options: unknown) => unknown)(code, options)
+        return transpile(code, options)
     }
     const cursorFns = new Set<(offset: number) => void>()
     const dropFns = new Set<(offset: number, name: string) => void>()
@@ -638,6 +638,7 @@ export function createEngine(): Engine {
             )
             await mirror.prebaked
             keepUnmasked()
+            answerLists()
             if (!blank()) await mirror.repl.evaluate(mirror.code, false)
         },
         getCode: () => mirror?.code ?? lastCode,
