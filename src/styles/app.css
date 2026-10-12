@@ -370,7 +370,7 @@ svg.mini rect { fill: var(--h); }
 .sb-i:hover .rx, .sb-i .rx:focus-visible { opacity: 1; }
 .sb-own { display: flex; align-items: center; gap: 10px; margin: 0 12px 10px; color: var(--linen-3); font-size: 11.5px; line-height: 1.4; }
 .sb-own .btn { flex: none; }
-.sb-own .btn:disabled { opacity: 0.45; cursor: default; }
+.sb-own .btn:disabled, .sb-own .btn[aria-disabled='true'] { opacity: 0.45; cursor: default; }
 .sb-p { display: flex; align-items: baseline; gap: 9px; min-width: 0; padding: 8px 6px 8px 10px; text-align: left; border-radius: 8px; }
 .sb-p svg { width: 9px; height: 9px; flex: none; align-self: center; fill: var(--linen-3); }
 .sb-p:hover svg { fill: var(--linen); }

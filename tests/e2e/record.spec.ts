@@ -59,6 +59,8 @@ test('a press on Record while the microphone is still opening does not start a s
     await browser(page).getByRole('button', { name: 'Record', exact: true }).click()
     const opening = browser(page).getByRole('button', { name: 'Opening', exact: true })
     await expect(opening).toBeDisabled()
+    // The keyboard stays on the button, so that the next press of a key is on Record again.
+    await expect(opening).toBeFocused()
     await opening.evaluate((button: HTMLButtonElement) => button.click())
     const stop = browser(page).getByRole('button', { name: 'Stop recording', exact: true })
     await expect(stop).toBeVisible()

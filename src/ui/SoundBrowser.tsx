@@ -153,7 +153,10 @@ export function SoundBrowser() {
                         <Show
                             when={takeSince() !== null}
                             fallback={
-                                <button class="btn" disabled={loaded() === 'loading' || takeOpening()} title={takeOpening() ? 'The microphone is opening' : 'Makes a sound of your own from the microphone'} onClick={() => void recordTake()}>
+                                // A button that is switched off loses the keyboard. While the microphone
+                                // opens Record only says that it takes no press, so that after a
+                                // microphone that failed the same key presses Record again.
+                                <button class="btn" disabled={loaded() === 'loading'} aria-disabled={takeOpening() ? 'true' : 'false'} title={takeOpening() ? 'The microphone is opening' : 'Makes a sound of your own from the microphone'} onClick={() => void recordTake()}>
                                     <i class="rec" />
                                     {takeOpening() ? 'Opening' : 'Record'}
                                 </button>
