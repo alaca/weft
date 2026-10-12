@@ -19,6 +19,10 @@ const INK = 'rgba(22, 22, 24, 0.5)'
 // A song can be thousands of bars long. Only the bars in sight, and a few on either side, are
 // in the page; the rest is empty width to scroll through.
 const ZOOMS = [6, 12, 24, 48, 96]
+// Zoomed in, the rows are taller as well as the bars wider, a little: what a pattern plays
+// is then drawn with room to read it. They are never lower than the knobs that stand in them.
+const ROWS: Record<number, number> = { 48: 36, 96: 44 }
+const rowHeight = (barWidth: number): number => ROWS[barWidth] ?? 30
 const SPARE = 4
 const EDGE = 28
 
@@ -728,7 +732,7 @@ export function SongPanel() {
             <Show when={playMode() === 'live' && song().patterns.length > 0}>
                 <Scenes />
             </Show>
-            <div class="sg-g">
+            <div class="sg-g" style={{ '--row': `${rowHeight(barWidth())}px` }}>
                 <div class="sg-names">
                     <div class="sg-nh" aria-hidden="true">
                         <span>Vol</span>
