@@ -104,6 +104,10 @@ describe('readKit', () => {
 })
 
 describe('kitText', () => {
+    it('writes twelve steps in threes, a beat to a group', () => {
+        expect(kitText([row('bd', [0, 3, 6, 9], 12)])).toBe('stack(\n  s("bd").struct("x ~ ~   x ~ ~   x ~ ~   x ~ ~")' + MIX + ',\n)')
+    })
+
     it('writes one line for each sound, with the steps in fours and lined up', () => {
         expect(kitText([row('bd', [0, 8]), row('perc', [4])])).toBe(
             'stack(\n  s("bd")  .struct("x ~ ~ ~   ~ ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~")' + MIX + ',\n  s("perc").struct("~ ~ ~ ~   x ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~")' + MIX + ',\n)',

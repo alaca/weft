@@ -25,6 +25,14 @@ const bassNotes = [
 ]
 
 describe('parseNoteGrid', () => {
+    it('takes one line of rests as an empty roll that keeps its number of steps', () => {
+        expect(parseNoteGrid('~ ~ ~   ~ ~ ~   ~ ~ ~   ~ ~ ~')).toEqual({ notes: [], steps: 12 })
+        expect(parseNoteGrid('~ ~ ~ ~, ~ ~ ~ ~')).toBeNull()
+        expect(formatNoteGrid([], 12)).toBe('`\n  ~ ~ ~   ~ ~ ~   ~ ~ ~   ~ ~ ~\n`')
+        expect(formatNoteGrid([], 16)).toBe('"~"')
+        expect(formatNoteGrid([], 32, 16)).toBe('"~"')
+    })
+
     it('reads notes, silences and holds', () => {
         expect(parseNoteGrid('d2 _ ~ ~ f2 ~ ~ ~ ~ ~ ~ ~ a1 _ _ _')).toEqual({ notes: bassNotes, steps: 16 })
     })
@@ -47,7 +55,6 @@ describe('parseNoteGrid', () => {
         expect(parseNoteGrid('c e g e')).toBeNull()
         expect(parseNoteGrid('c3 e3 g3')).toBeNull()
         expect(parseNoteGrid('_ c3 ~ ~')).toBeNull()
-        expect(parseNoteGrid('~ ~ ~ ~')).toBeNull()
         expect(parseNoteGrid('c3 ~ ~ ~, e3 ~')).toBeNull()
         expect(parseNoteGrid('<c3 e3> ~ ~ ~')).toBeNull()
         expect(parseNoteGrid('bd ~ ~ ~')).toBeNull()
@@ -179,6 +186,12 @@ describe('changing notes', () => {
     it('will not make the grid coarser when a note would not fit it', () => {
         expect(resampleNotes({ notes: bassNotes, steps: 16, cycles: 1, perCycle: 16 }, 4)).toBeNull()
     })
+
+    it('goes to twelve steps when every note starts and ends on a beat, and not otherwise', () => {
+        const onBeats = { notes: [{ start: 4, length: 8, midi: 60 }], steps: 16, cycles: 1, perCycle: 16 }
+        expect(resampleNotes(onBeats, 12)).toEqual([{ start: 3, length: 6, midi: 60 }])
+        expect(resampleNotes({ notes: [{ start: 2, length: 2, midi: 60 }], steps: 16, cycles: 1, perCycle: 16 }, 12)).toBeNull()
+    })
 })
 
 describe('notesFromEvents', () => {
@@ -227,7 +240,9 @@ describe('notesFromEvents', () => {
         const b = cycle([[0, 1, 'e3']])
         const c = cycle([[0, 1, 'g3']])
         expect(notesFromEvents([a, b, c, a, b, c, a, b])).toBeNull()
-        expect(notesFromEvents(times([cycle([[1 / 3, 1 / 3, 'c3']])], 8))).toBeNull()
+        expect(notesFromEvents(times([cycle([[1 / 5, 1 / 5, 'c3']])], 8))).toBeNull()
+        // Thirds of a bar are held by twelve steps.
+        expect(notesFromEvents(times([cycle([[1 / 3, 1 / 3, 'c3']])], 8))).toMatchObject({ perCycle: 12, notes: [{ start: 4, length: 4 }] })
         expect(notesFromEvents(times([cycle([[0, 1, 'bd']])], 8))).toBeNull()
         expect(notesFromEvents([a])).toBeNull()
     })

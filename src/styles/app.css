@@ -125,7 +125,7 @@ button.rn:hover { border-color: var(--linen-3); }
 .prow .pad.skip { opacity: 0.35; }
 .prow .pad.ghost { background: color-mix(in srgb, var(--h) 14%, transparent); box-shadow: inset 0 0 0 1.5px var(--h); }
 .prow { display: flex; gap: 8px; }
-.grp { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.grp { flex: 1; display: grid; grid-template-columns: repeat(var(--in, 4), 1fr); gap: 4px; }
 .grp:nth-child(even) .pad { background: rgba(236, 230, 214, 0.09); }
 .prow .pad.on { background: var(--h); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28); }
 .prow .pad.now { outline: 1px solid rgba(236, 230, 214, 0.5); outline-offset: 1px; }

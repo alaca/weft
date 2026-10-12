@@ -92,3 +92,36 @@ test('a hit can be made louder with Shift, or the A key, and plain again the sam
     await expect.poll(() => code(page)).not.toContain('.postgain(')
     expect(await code(page)).toContain('  s("hh").struct("x ~ x ~   x ~ x ~   x ~ x ~   x ~ x ~"),\n')
 })
+
+// Twelve and twenty-four steps to the bar are for music counted in threes: a shuffle, a 6/8.
+test('a grid and a roll can be put on twelve steps to the bar, when what they hold sits on the beats', async ({ page }) => {
+    await open(page)
+    const drums = page.getByTestId('strip-drums')
+    await drums.getByRole('button', { name: '12 steps a cycle', exact: true }).click()
+    await expect.poll(() => code(page)).toContain(`drums: stack(\n  s("bd").struct("x ~ ~   x ~ ~   x ~ ~   x ~ ~")${MIX},\n  s("cp").struct("~ ~ ~   x ~ ~   ~ ~ ~   x ~ ~")${MIX},\n)`)
+    // The pads stand a beat to a group: four groups of three.
+    await expect(drums.locator('.prow').first().locator('.grp')).toHaveCount(4)
+    await expect(drums.locator('.prow').first().locator('.pad')).toHaveCount(12)
+    // Every pad is the step it says it is, also the ones that were in the page before the change.
+    await drums.getByRole('button', { name: 'bd step 12', exact: true }).click()
+    await drums.getByRole('button', { name: 'bd step 5', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('s("bd").struct("x ~ ~   x x ~   x ~ ~   x ~ x")')
+    await expect(drums.getByRole('button', { name: 'bd step 13', exact: true })).toHaveCount(0)
+
+    // Hats on every second sixteenth fall between the beats of three, so they cannot go there.
+    const twelve = page.getByTestId('strip-perc').getByRole('button', { name: '12 steps a cycle', exact: true })
+    await expect(twelve).toBeDisabled()
+    await expect(twelve).toHaveAttribute('title', 'Something sits between these steps. Move or remove it first.')
+
+    const bass = page.getByTestId('strip-bass')
+    await bass.getByRole('button', { name: '12 steps a cycle', exact: true }).click()
+    await expect(bass.locator('.nr-g')).toHaveAttribute('data-steps', '12')
+    await expect.poll(() => code(page)).toMatch(/bass: note\(`\n  d2 _ +_ +~ +~ +~ +d2 _ +_ +f2 _ +_\n`\)/)
+
+    // A roll with nothing in it yet keeps the number of steps it is given.
+    await page.getByTestId('add-pattern').getByRole('button', { name: 'Melody', exact: true }).click()
+    const melody = page.getByTestId('strip-melody')
+    await melody.getByRole('button', { name: '12 steps a cycle', exact: true }).click()
+    await expect(melody.locator('.nr-g')).toHaveAttribute('data-steps', '12')
+    await expect.poll(() => code(page)).toContain('melody: note(`\n  ~ ~ ~   ~ ~ ~   ~ ~ ~   ~ ~ ~\n`)')
+})

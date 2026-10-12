@@ -2,8 +2,10 @@ import { For, Index, Show, type JSX } from 'solid-js'
 
 export type StepRow = { name: string; steps: boolean[]; accents?: boolean[]; played?: boolean[]; muted?: boolean }
 
-const groupsOf = (count: number) => Array.from({ length: Math.ceil(count / 4) }, (_, group) => group)
-const INSIDE = [0, 1, 2, 3]
+// The pads stand in groups of a beat: four to a group, or three or six where the bar is
+// counted in threes (12 or 24 steps).
+const beatOf = (count: number) => (count % 3 === 0 ? Math.max(3, count / 4) : 4)
+const upTo = (count: number) => Array.from({ length: count }, (_, at) => at)
 
 export function StepGrid(props: {
     rows: StepRow[]
@@ -17,6 +19,7 @@ export function StepGrid(props: {
     controls?: (sound: () => string) => JSX.Element
 }) {
     const count = () => props.rows[0]?.steps.length ?? 16
+    const beat = () => beatOf(count())
     const now = () => (props.playing ? Math.min(count() - 1, Math.floor(props.position * count())) : -1)
     // The names of a kit's own sounds are a few letters. A sound of your own can have a longer
     // name, and the column of names is then made wide enough to read it, up to a point.
@@ -51,34 +54,36 @@ export function StepGrid(props: {
                             </Show>
                         </span>
                         <div class="prow" classList={{ off: row().muted }}>
-                            <For each={groupsOf(count())}>
+                            <For each={upTo(Math.ceil(count() / beat()))}>
                                 {(group) => (
-                                    <div class="grp">
-                                        <For each={INSIDE}>
+                                    <div class="grp" style={{ '--in': beat() }}>
+                                        <For each={upTo(beat())}>
                                             {(inside) => {
-                                                const step = group * 4 + inside
-                                                const on = () => row().steps[step]
-                                                const played = () => row().played?.[step]
+                                                // Which step a pad is depends on how many stand in a group, and that changes when
+                                                // the grid is put on another number of steps while the pad stays in the page.
+                                                const step = () => group * beat() + inside
+                                                const on = () => row().steps[step()]
+                                                const played = () => row().played?.[step()]
                                                 return (
                                                     <button
                                                         class="pad"
                                                         classList={{
                                                             on: on(),
-                                                            loud: on() && Boolean(row().accents?.[step]),
-                                                            now: now() === step,
+                                                            loud: on() && Boolean(row().accents?.[step()]),
+                                                            now: now() === step(),
                                                             skip: on() && played() === false,
                                                             ghost: !on() && played() === true,
                                                         }}
-                                                        aria-label={`${row().name} step ${step + 1}`}
+                                                        aria-label={`${row().name} step ${step() + 1}`}
                                                         aria-pressed={on()}
-                                                        data-loud={on() && row().accents?.[step] ? '' : undefined}
+                                                        data-loud={on() && row().accents?.[step()] ? '' : undefined}
                                                         title={props.onAccent ? 'Click for a hit. Shift click, or the A key, for a louder one.' : undefined}
                                                         disabled={props.disabled || !props.onToggle}
-                                                        onClick={(event) => (event.shiftKey && props.onAccent ? props.onAccent(row().name, step) : props.onToggle?.(row().name, step))}
+                                                        onClick={(event) => (event.shiftKey && props.onAccent ? props.onAccent(row().name, step()) : props.onToggle?.(row().name, step()))}
                                                         onKeyDown={(event) => {
                                                             if (event.key.toLowerCase() !== 'a' || event.metaKey || event.ctrlKey || !props.onAccent) return
                                                             event.preventDefault()
-                                                            props.onAccent(row().name, step)
+                                                            props.onAccent(row().name, step())
                                                         }}
                                                     />
                                                 )

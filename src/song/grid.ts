@@ -7,6 +7,11 @@ export type Grid = { rows: GridRow[]; steps: number; cycles: number; perCycle: n
 export type GridSource = { grid: Grid; from: number; to: number; slow: Call | null }
 
 export const DEFAULT_STEPS = 16
+// The numbers of steps to a bar a drum grid can be put on. Twelve and twenty-four are for music
+// counted in threes: four beats of three, a shuffle, a 6/8 or a 12/8.
+export const DRUM_RESOLUTIONS = [12, 16, 24, 32]
+// Steps are written, and shown, in groups: threes where the bar is counted in threes, else fours.
+export const groupOf = (steps: number): number => (steps % 3 === 0 ? 3 : 4)
 // Four cycles of 32 steps is the longest and finest grid the controls offer.
 export const MAX_STEPS = 128
 
@@ -87,16 +92,28 @@ export function resize(grid: Grid, cycles: number): GridRow[] {
     return grid.rows.map((row) => mapped(row, (list) => Array.from({ length: total }, (_, i) => list[i % list.length])))
 }
 
+// A grid on another number of steps to the bar. Every hit keeps its place in the bar, so when
+// one would fall between two of the new steps the grid cannot be put on them, and nothing is
+// given back.
 export function resample(grid: Grid, perCycle: number): GridRow[] | null {
     if (perCycle === grid.perCycle) return copy(grid.rows)
-    if (perCycle === grid.perCycle * 2) {
-        return grid.rows.map((row) => mapped(row, (list) => list.flatMap((on) => [on, false])))
+    const total = (grid.steps / grid.perCycle) * perCycle
+    let fits = true
+    const moved = (list: boolean[]) => {
+        const next = Array<boolean>(total).fill(false)
+        list.forEach((on, at) => {
+            if (!on) return
+            const to = (at * perCycle) / grid.perCycle
+            if (Number.isInteger(to)) next[to] = true
+            else fits = false
+        })
+        return next
     }
-    if (perCycle * 2 === grid.perCycle) {
-        if (grid.rows.some((row) => row.steps.some((on, i) => on && i % 2 === 1))) return null
-        return grid.rows.map((row) => mapped(row, (list) => list.filter((_, i) => i % 2 === 0)))
-    }
-    return null
+    const rows = grid.rows.map((row) => {
+        const accents = row.accents?.map((loud, at) => loud && row.steps[at])
+        return { sound: row.sound, steps: moved(row.steps), ...(accents ? { accents: moved(accents) } : {}) }
+    })
+    return fits ? rows : null
 }
 
 export function gridFromEvents(cycles: { start: number; value: unknown }[][]): GridRow[] | null {
@@ -107,7 +124,7 @@ export function gridFromEvents(cycles: { start: number; value: unknown }[][]): G
             .sort()
             .join('|')
     if (cycles.some((events) => key(events) !== key(cycles[0]))) return null
-    for (const perCycle of [DEFAULT_STEPS, DEFAULT_STEPS * 2]) {
+    for (const perCycle of [DEFAULT_STEPS, 12, DEFAULT_STEPS * 2, 24]) {
         const rows: GridRow[] = []
         let fits = true
         for (const event of cycles[0]) {

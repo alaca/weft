@@ -109,6 +109,21 @@ describe('changing a grid', () => {
         const odd = parseGrid('bd bd ~ ~ ~ ~ ~ ~')!
         expect(resample({ rows: odd, steps: 8, cycles: 1, perCycle: 8 }, 4)).toBeNull()
     })
+
+    it('goes between fours and threes when every hit is on a beat, keeping louder hits', () => {
+        const beats = [{ sound: 'bd', steps: parseGrid('bd ~ ~ ~   bd ~ ~ ~   bd ~ ~ ~   bd ~ ~ ~')![0].steps, accents: [true, ...Array<boolean>(15).fill(false)] }]
+        const threes = resample({ rows: beats, steps: 16, cycles: 1, perCycle: 16 }, 12)!
+        expect(threes[0].steps).toHaveLength(12)
+        expect(hits(threes[0].steps)).toEqual([0, 3, 6, 9])
+        expect(hits(threes[0].accents!)).toEqual([0])
+        expect(hits(resample({ rows: threes, steps: 12, cycles: 1, perCycle: 12 }, 24)![0].steps)).toEqual([0, 6, 12, 18])
+        expect(hits(resample({ rows: threes, steps: 12, cycles: 1, perCycle: 12 }, 16)![0].steps)).toEqual([0, 4, 8, 12])
+    })
+
+    it('will not go to threes when a hit sits between the beats', () => {
+        const off = parseGrid('bd ~ bd ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~')!
+        expect(resample({ rows: off, steps: 16, cycles: 1, perCycle: 16 }, 12)).toBeNull()
+    })
 })
 
 describe('gridFromEvents', () => {
@@ -136,7 +151,7 @@ describe('gridFromEvents', () => {
 
     it('refuses events that change from cycle to cycle, fall off the grid, or are not sound names', () => {
         expect(gridFromEvents([cycle, cycle.slice(1)])).toBeNull()
-        const off = [{ start: 1 / 3, value: 'hh' }]
+        const off = [{ start: 1 / 5, value: 'hh' }]
         expect(gridFromEvents([off, off])).toBeNull()
         const odd = [{ start: 0, value: ['hh', 2] }]
         expect(gridFromEvents([odd, odd])).toBeNull()
@@ -144,5 +159,13 @@ describe('gridFromEvents', () => {
 
     it('gives no rows for silence', () => {
         expect(gridFromEvents([[], []])).toEqual([])
+    })
+
+    it('puts hits counted in threes on twelve steps, and finer ones on twenty-four', () => {
+        const threes = [0, 1 / 3, 2 / 3].map((start) => ({ start, value: 'hh' }))
+        expect(gridFromEvents([threes, threes])!.map((row) => hits(row.steps))).toEqual([[0, 4, 8]])
+        expect(gridFromEvents([threes, threes])![0].steps).toHaveLength(12)
+        const fine = [0, 1 / 24].map((start) => ({ start, value: 'hh' }))
+        expect(gridFromEvents([fine, fine])![0].steps).toHaveLength(24)
     })
 })

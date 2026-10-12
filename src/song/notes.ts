@@ -1,4 +1,4 @@
-import { lengthEdits } from './grid'
+import { groupOf, lengthEdits } from './grid'
 import { noteNameToMidi } from './pitch'
 import type { Call, PatternBlock, TextEdit } from './types'
 import { noteName } from './view'
@@ -8,7 +8,9 @@ export type NoteRef = { start: number; midi: number }
 export type NoteGrid = { notes: Note[]; steps: number; cycles: number; perCycle: number }
 export type NoteSource = { grid: NoteGrid; from: number; to: number; slow: Call | null }
 
-export const NOTE_RESOLUTIONS = [4, 8, 16, 32]
+// Twelve and twenty-four are for music counted in threes. They stand in order of fineness, and
+// a pattern read from other code is put on the first of these that holds all its notes.
+export const NOTE_RESOLUTIONS = [4, 8, 12, 16, 24, 32]
 
 // Silence fits every grid. It gets the one an empty roll is drawn with.
 const EMPTY_STEPS = 16
@@ -44,13 +46,21 @@ export function parseNoteGrid(text: string): { notes: Note[]; steps: number } | 
             notes.push(held)
             sounded = true
         }
-        if (!sounded) return null
+        // A single line of rests is an empty roll that keeps its number of steps.
+        if (!sounded) return lines.length === 1 ? { notes: [], steps } : null
     }
     return { notes: inOrder(notes), steps }
 }
 
-export function formatNoteGrid(notes: Note[], steps: number): string {
-    if (!notes.length) return '"~"'
+// An empty roll on the usual sixteen steps is written as one rest. On any other number of steps
+// it is written as that many rests, or the number chosen would be forgotten with the last note.
+export function formatNoteGrid(notes: Note[], steps: number, perCycle = steps): string {
+    if (!notes.length) {
+        if (perCycle === EMPTY_STEPS) return '"~"'
+        const size = groupOf(steps)
+        const groups = Array.from({ length: steps / size }, () => Array<string>(size).fill('~').join(' '))
+        return `\`\n  ${groups.join('   ')}\n\``
+    }
     const voices: Note[][] = []
     for (const note of inOrder(notes)) {
         const voice = voices.find((line) => {
@@ -71,10 +81,11 @@ export function formatNoteGrid(notes: Note[], steps: number): string {
     const width = Math.max(...rows.flat().map((cell) => cell.length))
     const lines = rows.map((cells) => {
         const groups: string[] = []
-        for (let i = 0; i < cells.length; i += 4) {
+        const size = groupOf(cells.length)
+        for (let i = 0; i < cells.length; i += size) {
             groups.push(
                 cells
-                    .slice(i, i + 4)
+                    .slice(i, i + size)
                     .map((cell) => cell.padEnd(width))
                     .join(' '),
             )
@@ -175,5 +186,5 @@ export function notesFromEvents(cycles: Sounded[][]): { notes: Note[]; cycles: n
 }
 
 export function noteEdits(block: PatternBlock, source: NoteSource, notes: Note[], steps: number, cycles: number): TextEdit[] {
-    return [{ from: source.from, to: source.to, insert: formatNoteGrid(notes, steps) }, ...lengthEdits(block, source.slow, cycles)]
+    return [{ from: source.from, to: source.to, insert: formatNoteGrid(notes, steps, steps / cycles) }, ...lengthEdits(block, source.slow, cycles)]
 }

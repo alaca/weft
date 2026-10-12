@@ -1,5 +1,5 @@
 import { mixText } from '../controls/catalog'
-import { DEFAULT_STEPS, lengthEdits, MAX_STEPS, sourceText, type GridRow } from './grid'
+import { DEFAULT_STEPS, groupOf, lengthEdits, MAX_STEPS, sourceText, type GridRow } from './grid'
 import type { Arg, Call, PatternBlock, TextEdit } from './types'
 
 // A drum kit is written with one line for each sound, so that each sound can have its own
@@ -68,10 +68,11 @@ export const isDrums = (block: PatternBlock): boolean => sourceText(block) !== n
 
 export function structText(steps: boolean[]): string {
     const groups: string[] = []
-    for (let i = 0; i < steps.length; i += 4) {
+    const size = groupOf(steps.length)
+    for (let i = 0; i < steps.length; i += size) {
         groups.push(
             steps
-                .slice(i, i + 4)
+                .slice(i, i + size)
                 .map((on) => (on ? 'x' : '~'))
                 .join(' '),
         )
@@ -79,14 +80,15 @@ export function structText(steps: boolean[]): string {
     return groups.join('   ')
 }
 
-// The level of every step, in the same groups of four as the steps. Null when no hit is louder.
+// The level of every step, in the same groups as the steps. Null when no hit is louder.
 export function accentText(row: GridRow): string | null {
     if (!row.accents?.some((loud, at) => loud && row.steps[at])) return null
     const groups: string[] = []
-    for (let i = 0; i < row.steps.length; i += 4) {
+    const size = groupOf(row.steps.length)
+    for (let i = 0; i < row.steps.length; i += size) {
         groups.push(
             row.steps
-                .slice(i, i + 4)
+                .slice(i, i + size)
                 .map((on, at) => (on && row.accents?.[i + at] ? String(LOUDER) : '1'))
                 .join(' '),
         )

@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, Show } from 'solid-js'
 import { addRow, previewSound, removeGridRow, setLength, setMix, setStepsPerCycle, soundChoices, toggleAccent, togglePanel, toggleRowMute, toggleStep } from '../app/controller'
 import { drumLabel } from '../controls/drums'
 import { panOf, volumeOf } from '../controls/views'
-import { readGrid, resample, type Grid } from '../song/grid'
+import { DRUM_RESOLUTIONS, readGrid, resample, type Grid } from '../song/grid'
 import { isDrums, readKit, rowTarget } from '../song/kit'
 import type { PatternBlock } from '../song/types'
 import { gridNotes, openPanel, stale } from '../stores/song'
@@ -10,7 +10,6 @@ import { GridFooter } from './GridFooter'
 import { Knob } from './Knob'
 import { StepGrid, type StepRow } from './StepGrid'
 
-const RESOLUTIONS = [16, 32]
 const NO_CONTROLS: PatternBlock = { id: '', label: '', muted: false, labelFrom: 0, labelTo: 0, from: 0, to: 0, lineFrom: 0, lineTo: 0, soundName: null, calls: [] }
 
 function RowControls(props: { id: string; sound: string; block: PatternBlock | undefined; muted: boolean }) {
@@ -95,7 +94,7 @@ export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement
                     head={props.head}
                     cycles={cycles()}
                     perCycle={perCycle()}
-                    resolutions={RESOLUTIONS}
+                    resolutions={DRUM_RESOLUTIONS}
                     canUse={(resolution) => {
                         const current = grid()
                         return !current || resample(current, resolution) !== null
