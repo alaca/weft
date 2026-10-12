@@ -27,6 +27,7 @@ import { SOUND_DRAG, type RawSound } from '../sounds/catalog'
 import { addOwnSound, kitNames, loadModules, loadSamples, removeOwnSound, soundTaken } from './prebake'
 import { createSync, heard, syncSlot, type Sync } from './sync'
 import { registerTheme } from './theme'
+import { startTicking, stopTicking } from './ticker'
 import { restUnpluggedWorklets } from './unplug'
 
 // A number as a slider in the code holds it.
@@ -517,6 +518,8 @@ export function createEngine(): Engine {
                 return webaudioOutput(hap, deadline, duration, cps, time)
             },
             getTime: () => getAudioContext().currentTime,
+            setInterval: startTicking,
+            clearInterval: stopTicking,
             transpiler: prepare,
             root,
             initialCode,
