@@ -563,13 +563,16 @@ svg.mini rect { fill: var(--h); }
 .menu.single { grid-template-columns: 1fr; width: 150px; left: auto; right: 0; top: 24px; }
 .menu.single button:disabled { opacity: 0.4; cursor: default; }
 
-/* A knob that moves by itself, the small button that sets one moving, and the box that says how. */
+/* A knob that moves by itself, the small button that sets one moving, and the box that says how.
+   Its line sways only while the song plays and the knob is in sight: an animation that runs
+   keeps the window drawing, whether anyone can see it or not. */
 .kn.moving .kn-d { cursor: pointer; padding: 0; }
 .kn.moving .kn-d:disabled { cursor: default; }
 .sp .kn.moving b { white-space: normal; max-width: 58px; text-align: center; line-height: 1.25; }
-.kn.moving .kv { stroke-dasharray: 3 4; animation: sway 2.4s ease-in-out infinite alternate; }
+.kn.moving .kv { stroke-dasharray: 3 4; }
+.app[data-playing='yes'] .kn.moving.seen .kv { animation: sway 2.4s ease-in-out infinite alternate-reverse; }
 @keyframes sway { from { opacity: 0.45; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .kn.moving .kv { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .app[data-playing='yes'] .kn.moving.seen .kv { animation: none; } }
 .kn-x.kn-go { right: auto; left: -7px; }
 .kn-x.kn-go svg { width: 10px; height: 8px; }
 .mv { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 8px; z-index: 30; width: 232px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px; background: var(--cloth-2); border: 1px solid #4c4c54; border-radius: 10px; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6); }

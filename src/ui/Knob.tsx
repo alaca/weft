@@ -7,6 +7,14 @@ import { cycle } from '../stores/song'
 const ARC = 94.25
 const KEY_STEPS: Record<string, number> = { ArrowUp: 0.01, ArrowRight: 0.01, ArrowDown: -0.01, ArrowLeft: -0.01, PageUp: 0.1, PageDown: -0.1 }
 
+// A knob that moves by itself is marked while it is in sight, and only then may its line sway.
+let sight: IntersectionObserver | undefined
+function watch(knob: HTMLDivElement) {
+    sight ??= new IntersectionObserver((entries) => entries.forEach((entry) => entry.target.classList.toggle('seen', entry.isIntersecting)))
+    sight.observe(knob)
+    onCleanup(() => sight?.unobserve(knob))
+}
+
 function Dial(props: { unit: number }) {
     return (
         <svg viewBox="0 0 48 48">
@@ -85,7 +93,7 @@ export function Knob(props: {
         <Switch>
             <Match when={props.view.state === 'moving' && props.view.motion}>
                 {(motion) => (
-                    <div class="kn moving" classList={{ big: props.big, small: props.small }} ref={box}>
+                    <div class="kn moving" classList={{ big: props.big, small: props.small }} ref={(knob) => watch((box = knob))}>
                         <button
                             class="kn-d"
                             aria-label={`${props.name ?? props.view.label} moves by itself`}
@@ -143,7 +151,7 @@ export function Knob(props: {
                 )}
             </Match>
             <Match when={props.view.state === 'drawn'}>
-                <div class="kn moving drawn" classList={{ big: props.big, small: props.small }} ref={box}>
+                <div class="kn moving drawn" classList={{ big: props.big, small: props.small }} ref={(knob) => watch((box = knob))}>
                     <button
                         class="kn-d"
                         aria-label={`${props.name ?? props.view.label} is drawn over the song`}

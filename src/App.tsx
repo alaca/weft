@@ -3,7 +3,7 @@ import { play, redoChange, saveSong, stop, togglePlay, undoChange } from './app/
 import { pianoDown, pianoUp } from './app/piano'
 import { SOUNDS_WIDTH } from './library/layout'
 import { jamsOpen } from './stores/jam'
-import { codeWidth, mixerOpen, soundsOpen, soundsWidth, startOpen, viewMode } from './stores/song'
+import { codeWidth, engineState, mixerOpen, soundsOpen, soundsWidth, startOpen, viewMode } from './stores/song'
 import { CodePane } from './ui/CodePane'
 import { ExportDialog } from './ui/ExportDialog'
 import { LeftColumn } from './ui/LeftColumn'
@@ -70,6 +70,7 @@ export function App() {
             class="app"
             data-view={viewMode()}
             data-left={soundsOpen() || jamsOpen() || mixerOpen() ? 'shown' : 'hidden'}
+            data-playing={engineState().playing ? 'yes' : 'no'}
             style={{ '--sounds-w': `${soundsWidth() ?? SOUNDS_WIDTH}px`, '--code-w': codeWidth() === null ? undefined : `${codeWidth()}px` }}
         >
             <TopBar />
