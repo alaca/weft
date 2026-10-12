@@ -1,3 +1,5 @@
+import { turnWhenDue } from './turn'
+
 // A recording as a WAV file, the channels side by side: whole numbers of 16 or 24 bits a
 // sample, or 32 bit floating point.
 export type Depth = 16 | 24 | 32
@@ -33,9 +35,10 @@ export function peakOf(channels: Float32Array[], length = channels[0]?.length ??
 // just enough to fit. A quieter one is left as it is.
 export const levelFor = (peak: number): number => (peak > 1 ? HEADROOM / peak : 1)
 
-export function encodeWav(channels: Float32Array[], sampleRate: number, options: { length?: number; level?: number; depth?: Depth } = {}): Uint8Array {
-    const { length = channels[0]?.length ?? 0, level = 1, depth = 16 } = options
-    const count = channels.length
+type Options = { length?: number; level?: number; depth?: Depth }
+
+// The file with its head written and room for the samples after it.
+function headed(count: number, sampleRate: number, length: number, depth: Depth): Uint8Array {
     const width = depth / 8
     const size = length * count * width
     const bytes = new Uint8Array(HEADER + size)
@@ -54,23 +57,55 @@ export function encodeWav(channels: Float32Array[], sampleRate: number, options:
     view.setUint16(34, depth, true)
     text(36, 'data')
     view.setUint32(40, size, true)
-    const full = depth === 16 ? 0x7fff : 0x7fffff
-    let at = HEADER
-    for (let sample = 0; sample < length; sample++) {
-        for (let channel = 0; channel < count; channel++) {
-            const value = Math.max(-1, Math.min(1, channels[channel][sample] * level))
-            if (depth === 32) {
-                view.setFloat32(at, value, true)
-            } else if (depth === 16) {
-                view.setInt16(at, Math.round(value * full), true)
-            } else {
-                const whole = Math.round(value * full)
-                view.setUint8(at, whole & 0xff)
-                view.setUint8(at + 1, (whole >> 8) & 0xff)
-                view.setUint8(at + 2, (whole >> 16) & 0xff)
+    return bytes
+}
+
+// The samples from one place in the sound up to another, written where they belong in the file.
+// They go in a channel at a time, through a row of numbers laid over the file's own memory,
+// and 24 bit ones a byte at a time: asking for every sample to be written by itself takes many
+// times as long. Such a row keeps the low byte of a number first on every machine the app is
+// made for, which is how a WAV file has it. The `| 0` says that the rounded number is a whole
+// one: without it WebKit takes seven times as long over the 16 bit ones.
+function write(bytes: Uint8Array, channels: Float32Array[], from: number, to: number, level: number, depth: Depth) {
+    const count = channels.length
+    for (let channel = 0; channel < count; channel++) {
+        const heard = channels[channel]
+        if (depth === 16) {
+            const out = new Int16Array(bytes.buffer, HEADER)
+            for (let sample = from, at = from * count + channel; sample < to; sample++, at += count) out[at] = Math.round(Math.max(-1, Math.min(1, heard[sample] * level)) * 0x7fff) | 0
+        } else if (depth === 32) {
+            const out = new Float32Array(bytes.buffer, HEADER)
+            for (let sample = from, at = from * count + channel; sample < to; sample++, at += count) out[at] = Math.max(-1, Math.min(1, heard[sample] * level))
+        } else {
+            for (let sample = from, at = HEADER + (from * count + channel) * 3; sample < to; sample++, at += count * 3) {
+                const whole = Math.round(Math.max(-1, Math.min(1, heard[sample] * level)) * 0x7fffff) | 0
+                bytes[at] = whole
+                bytes[at + 1] = whole >> 8
+                bytes[at + 2] = whole >> 16
             }
-            at += width
         }
+    }
+}
+
+export function encodeWav(channels: Float32Array[], sampleRate: number, options: Options = {}): Uint8Array {
+    const { length = channels[0]?.length ?? 0, level = 1, depth = 16 } = options
+    const bytes = headed(channels.length, sampleRate, length, depth)
+    write(bytes, channels, 0, length, level, depth)
+    return bytes
+}
+
+const STRETCH = 1 << 15
+
+// The same file, written a stretch at a time, with a turn for the window whenever one is due.
+// For a sound that is written while a song may be playing: a long one written in one go would
+// make the song stumble.
+export async function encodeWavInTurns(channels: Float32Array[], sampleRate: number, options: Options = {}): Promise<Uint8Array> {
+    const { length = channels[0]?.length ?? 0, level = 1, depth = 16 } = options
+    const bytes = headed(channels.length, sampleRate, length, depth)
+    const turn = turnWhenDue()
+    for (let from = 0; from < length; from += STRETCH) {
+        write(bytes, channels, from, Math.min(length, from + STRETCH), level, depth)
+        await turn()
     }
     return bytes
 }

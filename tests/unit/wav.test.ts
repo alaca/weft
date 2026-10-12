@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { encodeWav, fileName, levelFor, peakOf, soundingLength } from '../../src/library/wav'
+import { encodeWav, encodeWavInTurns, fileName, levelFor, peakOf, soundingLength } from '../../src/library/wav'
 
 const text = (bytes: Uint8Array, at: number, length: number) => String.fromCharCode(...bytes.slice(at, at + length))
 
@@ -62,6 +62,35 @@ describe('other sample sizes', () => {
         expect(view.getUint16(34, true)).toBe(32)
         expect(view.getFloat32(44, true)).toBe(0.5)
         expect(view.getFloat32(48, true)).toBe(-1)
+    })
+})
+
+describe('a file written a stretch at a time', () => {
+    const frames = 70000
+
+    it('has every sample where it belongs, past the first stretch as well', async () => {
+        const left = new Float32Array(frames)
+        const right = new Float32Array(frames)
+        left[40000] = 0.5
+        right[40000] = -1
+        left[frames - 1] = 2
+        const narrow = new DataView((await encodeWavInTurns([left, right], 44100)).buffer)
+        expect([79999, 80000, 80001, 80002].map((at) => narrow.getInt16(44 + at * 2, true))).toEqual([0, 16384, -32767, 0])
+        expect(narrow.getInt16(44 + (frames - 1) * 4, true)).toBe(32767)
+        const wide = await encodeWavInTurns([left, right], 44100, { depth: 24 })
+        expect(Array.from(wide.slice(44 + 79999 * 3, 44 + 80003 * 3))).toEqual([0, 0, 0, 0x00, 0x00, 0x40, 0x01, 0x00, 0x80, 0, 0, 0])
+        const float = new DataView((await encodeWavInTurns([left, right], 44100, { depth: 32 })).buffer)
+        expect([79999, 80000, 80001, 80002].map((at) => float.getFloat32(44 + at * 4, true))).toEqual([0, 0.5, -1, 0])
+    })
+
+    it('is the same file as one written in one go', async () => {
+        const left = Float32Array.from({ length: frames }, (_, at) => Math.sin(at / 7) * 1.2)
+        const right = Float32Array.from({ length: frames }, (_, at) => Math.cos(at / 11) * 0.3)
+        for (const depth of [16, 24, 32] as const) {
+            const options = { depth, level: 0.8, length: frames - 7 }
+            const turned = await encodeWavInTurns([left, right], 48000, options)
+            expect(Buffer.compare(turned, encodeWav([left, right], 48000, options))).toBe(0)
+        }
     })
 })
 

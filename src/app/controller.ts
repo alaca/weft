@@ -24,7 +24,7 @@ import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
 import { readKey, writeKey, type Key } from '../song/scales'
 import { gradeOf, readAudio, RING_SECONDS, sizeOf, type AudioOptions, type Format } from '../library/audio'
 import { encodeMp3 } from '../library/mp3'
-import { encodeWav, fileName, levelFor, peakOf, soundingLength } from '../library/wav'
+import { encodeWav, encodeWavInTurns, fileName, levelFor, peakOf, soundingLength } from '../library/wav'
 import { ZIP_LIMIT, zipWriter } from '../library/zip'
 import { analyze } from '../song/analyze'
 import { arrangeEdit, arrangeSong, barsOf, readArrangement, removeEdits, repeatEdits, songLength, spaceEdits } from '../song/arrange'
@@ -1514,7 +1514,7 @@ export async function keepTake() {
         const peak = peakOf(heard.channels)
         if (peak < QUIET_TAKE) return void setOwnSoundNote(NO_TAKE.silent)
         const level = Math.min(MOST_GAIN, TAKE_LEVEL / peak)
-        const bytes = encodeWav(heard.channels, heard.sampleRate, { level })
+        const bytes = await encodeWavInTurns(heard.channels, heard.sampleRate, { level })
         await addOwnSounds([new File([bytes.buffer as ArrayBuffer], 'recording.wav', { type: 'audio/wav' })])
     } catch (err) {
         const refused = whyNot(err)
@@ -1573,7 +1573,7 @@ export async function keepTrim() {
     const to = Math.round(now.to * heard.sampleRate)
     if (from > 0 || to < heard.channels[0].length) {
         const channels = heard.channels.map((channel) => channel.subarray(from, to))
-        const bytes = encodeWav(channels, heard.sampleRate)
+        const bytes = await encodeWavInTurns(channels, heard.sampleRate)
         const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
         const next: OwnSound = { ...sound, file: sound.file.replace(/\.[^.]+$/, '') + '.wav', type: 'audio/wav', seconds: (to - from) / heard.sampleRate, data }
         await ownSoundStore.put(next)
@@ -2243,7 +2243,7 @@ async function restored(packed: PackedSound): Promise<Pick<PackedSound, 'file' |
     const heard = await engine.decodeAudio(packed.data.slice().buffer)
     const cut = heard ? withoutLead(heard, packed.onset) : null
     if (!cut) return packed
-    return { file: packed.file.replace(/\.mp3$/i, '.wav'), type: 'audio/wav', data: encodeWav(cut.channels, cut.sampleRate) }
+    return { file: packed.file.replace(/\.mp3$/i, '.wav'), type: 'audio/wav', data: await encodeWavInTurns(cut.channels, cut.sampleRate) }
 }
 
 export const dismissSongNote = () => setSongNote(null)
