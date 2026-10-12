@@ -77,6 +77,8 @@ const A_PAGE = 24
 const MOST_MADE = 12
 // How many songs' pictures are held ready at a time. One is about nine kilobytes.
 const MOST_PICTURES = 400
+// How long a play or a download may wait in memory before it is written.
+const COUNTS_KEPT_EVERY = 30 * 1000
 const APP_ORIGINS = ['http://localhost:5180', 'tauri://localhost', 'https://tauri.localhost', 'http://tauri.localhost']
 const PLATFORM_NAMES: Record<Platform, string> = { macos: 'macOS', windows: 'Windows', linux: 'Linux' }
 // A page may load only what this site serves itself, and may run nothing written into it.
@@ -273,10 +275,32 @@ export function createSite(options: SiteOptions): Promise<Site> {
             throw new Error(`${keptFile} cannot be read. It is left as it is; move it away to start afresh.`)
         }
     }
+    // A play or a download is only counted in memory: writing everything the site knows for
+    // each one would keep everybody else waiting. The counts are written with whatever is kept
+    // next, by a timer when nothing else is, and when the site is closed, so a site that is
+    // stopped in the ordinary way loses none. One that is killed loses the plays and downloads
+    // since the last write, which is half a minute of them at most.
+    let counted = false
+    let closing = false
     // What is kept holds emails, so it is for the site's own user to read and nobody else.
     const keep = () => {
         writeFileSync(`${keptFile}.new`, JSON.stringify(kept), { mode: 0o600 })
         renameSync(`${keptFile}.new`, keptFile)
+        counted = false
+    }
+    const keepCounts = () => {
+        if (!counted) return
+        try {
+            keep()
+        } catch {
+            // They stay counted, and are written the next time.
+        }
+    }
+    const count = (song: Song, what: 'plays' | 'downloads') => {
+        song[what]++
+        counted = true
+        // Nothing comes after a site that is closing, so what it still counts is written at once.
+        if (closing) keepCounts()
     }
     const fixed = fixedFiles()
     // An address is only written into a page when it begins the way a web address does.
@@ -744,9 +768,8 @@ export function createSite(options: SiteOptions): Promise<Site> {
             if (asset[2] === 'png') return { status: 200, file: { bytes: pictureOf(song), type: 'image/png' } }
             const stored = join(songsDir, `${song.id}.${asset[2]}`)
             if (!existsSync(stored)) return refuse(404, 'missing', 'The file is gone.')
-            if (asset[2] === 'weft') song.downloads++
-            else if (!request.headers.range || /^bytes=0-/.test(request.headers.range)) song.plays++
-            keep()
+            if (asset[2] === 'weft') count(song, 'downloads')
+            else if (!request.headers.range || /^bytes=0-/.test(request.headers.range)) count(song, 'plays')
             if (asset[2] === 'mp3') return { status: 200, file: { bytes: readFileSync(stored), type: 'audio/mpeg' } }
             return { status: 200, file: { bytes: Buffer.from(handedOut(song, readFileSync(stored, 'utf8'))), type: 'application/json', name: `${fileNameOf(song.name)}.weft` } }
         }
@@ -882,7 +905,15 @@ export function createSite(options: SiteOptions): Promise<Site> {
             const address = server.address()
             const port = typeof address === 'object' && address ? address.port : options.port
             origin ||= `http://127.0.0.1:${port}`
-            resolve({ port, origin, close: () => new Promise<void>((done) => server.close(() => done())) })
+            const counting = setInterval(keepCounts, COUNTS_KEPT_EVERY)
+            counting.unref()
+            const close = () => {
+                closing = true
+                clearInterval(counting)
+                keepCounts()
+                return new Promise<void>((done) => server.close(() => done()))
+            }
+            resolve({ port, origin, close })
         })
     })
 }

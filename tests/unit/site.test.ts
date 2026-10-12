@@ -1,8 +1,9 @@
 import { createHmac } from 'node:crypto'
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { request } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSite, type Site, type SiteOptions } from '../../server/site'
 import { writeSongFile, type SongFile } from '../../src/library/songfile'
 
@@ -48,6 +49,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
     await site.close()
+    vi.useRealTimers()
     rmSync(dataDir, { recursive: true, force: true })
 })
 
@@ -438,6 +440,44 @@ describe('publishing', () => {
         expect(await (await ask('/api/me', { token })).json()).toMatchObject({ name: 'Ante', used: 1 })
         expect((await fetch(`${site.origin}/songs/${made.id}.weft`)).status).toBe(200)
         expect((await enter('ante@example.com', PASSWORD)).status).toBe(200)
+    })
+
+    it('counts a play or a download at once, and writes the counts on a timer, not for each one', async () => {
+        await site.close()
+        vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+        await start()
+        const made = await (await publish(await signIn())).json()
+        const counts = (songs: { plays: number; downloads: number }[]) => songs.map((one) => [one.plays, one.downloads])
+        await fetch(made.preview)
+        await fetch(made.preview)
+        await fetch(made.file)
+        expect(counts((await (await ask('/api/songs')).json()).songs)).toEqual([[2, 1]])
+        expect(counts(kept().songs)).toEqual([[0, 0]])
+        vi.advanceTimersByTime(30_000)
+        expect(counts(kept().songs)).toEqual([[2, 1]])
+        // A part of a preview from further in is no play, so the timer finds nothing to write.
+        writeFileSync(join(dataDir, 'site.json'), 'as it was left')
+        await fetch(made.preview, { headers: { Range: 'bytes=1000-' } })
+        vi.advanceTimersByTime(30_000)
+        expect(readFileSync(join(dataDir, 'site.json'), 'utf8')).toBe('as it was left')
+    })
+
+    it('writes the counts when it is closed, with what it still counts while it closes', async () => {
+        const made = await (await publish(await signIn())).json()
+        await fetch(made.preview)
+        expect(kept().songs[0]).toMatchObject({ plays: 0, downloads: 0 })
+        // A download that the site has begun to take when it is told to close.
+        const late = request(made.file, { agent: false, headers: { Expect: '100-continue', 'Transfer-Encoding': 'chunked' } })
+        await new Promise((taken) => late.once('continue', taken))
+        const closed = site.close()
+        expect(kept().songs[0]).toMatchObject({ plays: 1, downloads: 0 })
+        const answered = new Promise<number | undefined>((done) => late.once('response', (answer) => answer.resume().once('end', () => done(answer.statusCode))))
+        late.end()
+        expect(await answered).toBe(200)
+        await closed
+        expect(kept().songs[0]).toMatchObject({ plays: 1, downloads: 1 })
+        await start()
+        expect((await (await ask('/api/songs')).json()).songs[0]).toMatchObject({ plays: 1, downloads: 1 })
     })
 
     it('answers the app from where the app runs, and nobody else\'s pages', async () => {
