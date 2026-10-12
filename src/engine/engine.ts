@@ -367,15 +367,21 @@ export function createEngine(): Engine {
         const bar = liveMode && state.playing ? comeIn : null
         const sounded = sounding
         comeIn = null
+        // Two patterns can have one name, so a pattern that sounded is known by its name and by
+        // which one of that name it is.
+        const named = new Map<string, number>()
         Pattern.prototype.p = function (this: any, id: unknown) {
             if (typeof id !== 'string') return original.call(this, id)
             const bare = bareId(id)
             const key = bare.includes('$') ? `pattern ${++anonymous}` : bare
+            const nth = (named.get(key) ?? 0) + 1
+            named.set(key, nth)
+            const place = `${key} ${nth}`
             pending.set(key, this)
             pendingUnmasked.set(key, this[BEFORE_MASK] ?? this)
             if (soloIds.length && !soloIds.includes(key)) return silence
             const muted = id !== bare
-            if (!muted) pendingSounding.add(key)
+            if (!muted) pendingSounding.add(place)
             // Strudel looks a little ahead, so the bar after the last one would already have
             // started to sound by the time the song is stopped at its end. Nothing that starts
             // at or after the end is let through. The end is read as it is now, not as it was
@@ -383,7 +389,12 @@ export function createEngine(): Engine {
             const shift = offset
             if (liveMode) {
                 const whole = this[BEFORE_MASK] ?? this
-                const switched = bar !== null && muted === sounded.has(key)
+                // Strudel takes a name that starts with a capital S as solo, and leaves the
+                // other patterns out for as long as it is handed that name, also where the
+                // pattern itself is cut to silence. Such a pattern is switched the moment the
+                // code is evaluated, not on the bar.
+                const takenAsSolo = bare.length > 1 && bare.startsWith('S')
+                const switched = bar !== null && !takenAsSolo && muted === sounded.has(place)
                 const round = switched ? new Pattern(cutAt((asked: unknown) => whole.query(asked), bar, muted ? 'before' : 'from')) : whole
                 // Strudel plays nothing under a muted name, so a pattern that is switched off
                 // is handed over under its bare one.

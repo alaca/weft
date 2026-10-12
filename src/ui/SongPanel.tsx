@@ -553,7 +553,7 @@ function Scenes() {
                                     classList={{ on: on(), wait: sceneWaiting() === name }}
                                     aria-pressed={on()}
                                     disabled={stale()}
-                                    title={sceneWaiting() === name ? 'Comes in with the next bar' : `Plays ${scene()?.on.join(', ') || 'nothing'}. Double click to change the name.`}
+                                    title={sceneWaiting() === name ? 'Comes in on the first beat of a bar' : `Plays ${scene()?.on.join(', ') || 'nothing'}. Double click to change the name.`}
                                     onClick={() => chooseScene(name)}
                                     onDblClick={() => !stale() && setNaming(name)}
                                 >
