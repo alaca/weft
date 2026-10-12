@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, randomInt, scrypt, timingSafeEqual } from 'node:crypto'
-import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { closeSync, createReadStream, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -88,6 +88,14 @@ const PLATFORM_NAMES: Record<Platform, string> = { macos: 'macOS', windows: 'Win
 const PAGE_RULES = "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; media-src 'self'; font-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 const KEPT_AN_HOUR = 'public, max-age=3600'
 const KEPT_A_MONTH = 'public, max-age=2592000'
+// The files of a published song stay as they are, so the browser of whoever asked for one may
+// keep it. Nobody on the way may: a copy kept there would answer in the site's place, with no
+// play counted and with a song that has been hidden since. A browser's own copy still plays
+// after its song is hidden or deleted, which is why it is kept for an hour and no longer.
+const KEPT_BY_A_BROWSER = { 'Cache-Control': 'private, max-age=3600', Vary: 'Origin' }
+// A browser may first ask for the two bytes a preview begins with, to learn whether the site
+// hands out parts of it. That is no play.
+const A_PROBE = 2
 
 const PASSWORD_LEAST = 8
 const PASSWORD_MOST = 200
@@ -135,7 +143,7 @@ type Report = { song: string; reason: string; at: number }
 type Kept = { people: Person[]; sessions: Session[]; songs: Song[]; reports: Report[] }
 type Code = { hash: string; until: number; wrong: number }
 type Kind = { bytes: Buffer; type: string; kept: string }
-type Answer = { status: number; body?: unknown; html?: string; file?: { bytes: Buffer; type: string; name?: string }; fixed?: Kind; build?: { file: string; bytes: number } }
+type Answer = { status: number; body?: unknown; html?: string; file?: { bytes?: Buffer; type: string; name?: string; head?: Record<string, string> }; fixed?: Kind; build?: { file: string; bytes: number } }
 // What a song file says about its song once it is read.
 type Facts = { bars: number; parts: Part[]; sounds: OwnSound[] }
 
@@ -192,6 +200,19 @@ const NOBODY = ['scrypt', SCRYPT.N, SCRYPT.r, SCRYPT.p, Buffer.alloc(SALT_BYTES)
 const peaksOf = (value: unknown): number[] | undefined =>
     Array.isArray(value) && value.length > 0 && value.length <= MOST_PEAKS && value.every((peak) => typeof peak === 'number' && peak >= 0 && peak <= 1) ? value.map((peak: number) => Math.round(peak * 100) / 100) : undefined
 const secondsOf = (value: unknown): number | undefined => (typeof value === 'number' && value > 0 && value <= MOST_SECONDS ? Math.round(value * 10) / 10 : undefined)
+
+// The bytes of a file that a request names in its Range header, from the first to the last.
+// Null when it asks for the whole file, or in a way that is answered with the whole, and 'none'
+// when what it asks for lies past the end.
+function partAsked(range: string | undefined, size: number): { from: number; to: number } | 'none' | null {
+    const asked = /^bytes=(\d*)-(\d*)$/i.exec(range ?? '')
+    if (!asked || (!asked[1] && !asked[2])) return null
+    // Without a first byte the number is how many bytes are wanted from the end.
+    const from = asked[1] ? Number(asked[1]) : Math.max(0, size - Number(asked[2]))
+    const to = asked[1] && asked[2] ? Number(asked[2]) : Infinity
+    if (to < from) return null
+    return from < size ? { from, to: Math.min(to, size - 1) } : 'none'
+}
 
 const KINDS: Record<string, string> = { mpeg: 'MP3', mp3: 'MP3', wav: 'WAV', wave: 'WAV', 'x-wav': 'WAV', ogg: 'Ogg', flac: 'FLAC', 'x-flac': 'FLAC', aiff: 'AIFF', aif: 'AIFF', 'x-aiff': 'AIFF', mp4: 'MP4', m4a: 'MP4', 'x-m4a': 'MP4', aac: 'AAC', webm: 'WebM' }
 const kindOf = (type: string, file: string) => KINDS[type.replace(/^audio\//, '').toLowerCase()] ?? KINDS[/\.([a-z0-9]+)$/i.exec(file)?.[1]?.toLowerCase() ?? ''] ?? 'Audio'
@@ -692,6 +713,33 @@ export function createSite(options: SiteOptions): Promise<Site> {
         }
     }
 
+    // The preview of a song, or the part of it that was asked for. It goes out with a mark that
+    // says which file it is, and a browser that sends the mark back has the file already and is
+    // told so, with no bytes. A play is counted when the preview is asked for from its first
+    // byte on, whatever is then sent.
+    function previewOf(song: Song, stored: string, request: IncomingMessage): Answer {
+        const size = statSync(stored).size
+        const mark = `"${song.published.toString(36)}-${size.toString(36)}"`
+        const head = { ...KEPT_BY_A_BROWSER, 'Accept-Ranges': 'bytes', ETag: mark }
+        const type = 'audio/mpeg'
+        const part = partAsked(request.headers.range, size)
+        if (!part || (part !== 'none' && part.from === 0 && part.to >= A_PROBE)) count(song, 'plays')
+        const sent = (request.headers['if-none-match'] ?? '').split(',').map((one) => one.trim().replace(/^W\//, ''))
+        if (sent.includes(mark)) return { status: 304, file: { type, head } }
+        // A browser that names the file it has the rest of is sent a part only of that file.
+        const other = request.headers['if-range'] !== undefined && request.headers['if-range'] !== mark
+        if (!part || other) return { status: 200, file: { bytes: readFileSync(stored), type, head } }
+        if (part === 'none') return { status: 416, file: { bytes: Buffer.alloc(0), type, head: { 'Accept-Ranges': 'bytes', 'Content-Range': `bytes */${size}` } } }
+        const bytes = Buffer.alloc(part.to - part.from + 1)
+        const file = openSync(stored, 'r')
+        try {
+            readSync(file, bytes, 0, bytes.length, part.from)
+        } finally {
+            closeSync(file)
+        }
+        return { status: 206, file: { bytes, type, head: { ...head, 'Content-Range': `bytes ${part.from}-${part.to}/${size}` } } }
+    }
+
     const note = (status: number, heading: string, lines: string[], go?: { href: string; label: string }): Answer => ({ status, html: notePage(around, `${heading}, Weft`, heading, lines, go) })
     const nothing = () => note(404, 'There is nothing at this address', ['The page may have moved, or the address may be mistyped.'], { href: '/', label: 'Go to the first page' })
     const noSong = () => note(404, 'No such song', ['It may have been hidden or deleted by whoever made it.'], { href: '/songs', label: 'See all songs' })
@@ -762,13 +810,12 @@ export function createSite(options: SiteOptions): Promise<Site> {
                 const more = kept.songs.filter((one) => one.by === song.by && one !== song && !one.hidden).sort(newestFirst)
                 return { status: 200, html: songPage(around, shownOnPage(song), more.map(listed)) }
             }
-            if (asset[2] === 'png') return { status: 200, file: { bytes: pictureOf(song), type: 'image/png' } }
+            if (asset[2] === 'png') return { status: 200, file: { bytes: pictureOf(song), type: 'image/png', head: KEPT_BY_A_BROWSER } }
             const stored = join(songsDir, `${song.id}.${asset[2]}`)
             if (!existsSync(stored)) return refuse(404, 'missing', 'The file is gone.')
-            if (asset[2] === 'weft') count(song, 'downloads')
-            else if (!request.headers.range || /^bytes=0-/.test(request.headers.range)) count(song, 'plays')
-            if (asset[2] === 'mp3') return { status: 200, file: { bytes: readFileSync(stored), type: 'audio/mpeg' } }
-            return { status: 200, file: { bytes: Buffer.from(handedOut(song, readFileSync(stored, 'utf8'))), type: 'application/json', name: `${fileNameOf(song.name)}.weft` } }
+            if (asset[2] === 'mp3') return previewOf(song, stored, request)
+            count(song, 'downloads')
+            return { status: 200, file: { bytes: Buffer.from(handedOut(song, readFileSync(stored, 'utf8'))), type: 'application/json', name: `${fileNameOf(song.name)}.weft`, head: KEPT_BY_A_BROWSER } }
         }
 
         // The page of one person's songs is only there while a song of theirs is shown, and
@@ -868,8 +915,9 @@ export function createSite(options: SiteOptions): Promise<Site> {
                 .pipe(response)
         }
         if (given.file) {
-            response.writeHead(given.status, { ...headers, 'Content-Type': given.file.type, 'Content-Length': String(given.file.bytes.length), ...(given.file.name ? { 'Content-Disposition': `attachment; filename="${given.file.name}"` } : {}) })
-            return response.end(given.file.bytes)
+            const { bytes, type, name, head } = given.file
+            response.writeHead(given.status, { ...headers, ...head, 'Content-Type': type, ...(bytes ? { 'Content-Length': String(bytes.length) } : {}), ...(name ? { 'Content-Disposition': `attachment; filename="${name}"` } : {}) })
+            return response.end(bytes)
         }
         if (given.html !== undefined) {
             response.writeHead(given.status, { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': PAGE_RULES })

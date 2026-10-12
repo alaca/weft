@@ -480,6 +480,48 @@ describe('publishing', () => {
         expect((await (await ask('/api/songs')).json()).songs[0]).toMatchObject({ plays: 1, downloads: 1 })
     })
 
+    it('hands out the part of a preview that is asked for, and counts a play only when it is asked for from its first byte on', async () => {
+        const sound = Buffer.from(Uint8Array.from({ length: 2000 }, (_, at) => (at === 0 ? 0xff : at === 1 ? 0xfb : at % 251)))
+        const made = await (await publish(await signIn(), { preview: sound.toString('base64') })).json()
+        const part = async (range: string) => {
+            const answer = await fetch(made.preview, { headers: { Range: range } })
+            const bytes = Buffer.from(await answer.arrayBuffer())
+            return [answer.status, answer.headers.get('content-range'), bytes.toString('hex'), (await (await ask('/api/songs')).json()).songs[0].plays]
+        }
+        const hex = (from: number, to: number) => sound.subarray(from, to).toString('hex')
+        // The two bytes a browser asks for first, to learn whether parts are handed out.
+        expect(await part('bytes=0-1')).toEqual([206, 'bytes 0-1/2000', hex(0, 2), 0])
+        expect(await part('bytes=0-')).toEqual([206, 'bytes 0-1999/2000', hex(0, 2000), 1])
+        expect(await part('bytes=0-1999')).toEqual([206, 'bytes 0-1999/2000', hex(0, 2000), 2])
+        expect(await part('bytes=500-999')).toEqual([206, 'bytes 500-999/2000', hex(500, 1000), 2])
+        expect(await part('bytes=1990-9999')).toEqual([206, 'bytes 1990-1999/2000', hex(1990, 2000), 2])
+        expect(await part('bytes=-10')).toEqual([206, 'bytes 1990-1999/2000', hex(1990, 2000), 2])
+        expect(await part('bytes=2000-')).toEqual([416, 'bytes */2000', '', 2])
+        // Asked for in a way the site has no part for, the whole is sent.
+        expect(await part('bytes=0-1,500-999')).toEqual([200, null, hex(0, 2000), 3])
+    })
+
+    it('lets a browser keep a published file for an hour, and tells one that has the preview already that it has', async () => {
+        const token = await signIn()
+        const made = await (await publish(token)).json()
+        for (const address of [made.preview, made.file, `${made.url}.png`]) {
+            const answer = await fetch(address)
+            expect([address, answer.status, answer.headers.get('cache-control'), answer.headers.get('vary')]).toEqual([address, 200, 'private, max-age=3600', 'Origin'])
+        }
+        const first = await fetch(made.preview)
+        const mark = first.headers.get('etag')!
+        expect(first.headers.get('accept-ranges')).toBe('bytes')
+        const again = await fetch(made.preview, { headers: { 'If-None-Match': mark } })
+        expect([again.status, again.headers.get('cache-control'), again.headers.get('etag'), (await again.arrayBuffer()).byteLength]).toEqual([304, 'private, max-age=3600', mark, 0])
+        // A part is only sent to a browser that has the rest of this very file.
+        expect((await fetch(made.preview, { headers: { Range: 'bytes=1000-', 'If-Range': mark } })).status).toBe(206)
+        expect((await fetch(made.preview, { headers: { Range: 'bytes=1000-', 'If-Range': '"another"' } })).status).toBe(200)
+        // A song that is hidden is gone for whoever asks, whatever their browser has of it.
+        await ask(`/api/songs/${made.id}/hide`, { token, method: 'POST' })
+        const hidden = await fetch(made.preview, { headers: { 'If-None-Match': mark } })
+        expect([hidden.status, hidden.headers.get('cache-control')]).toEqual([404, 'no-store'])
+    })
+
     it('answers the app from where the app runs, and nobody else\'s pages', async () => {
         const mine = await ask('/api/songs', { headers: { Origin: 'tauri://localhost' } })
         expect(mine.headers.get('access-control-allow-origin')).toBe('tauri://localhost')
