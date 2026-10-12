@@ -63,6 +63,31 @@ test('a note can be dragged to another step and pitch', async ({ page }) => {
     await expect.poll(() => code(page)).toContain('b1 _  _  _')
 })
 
+// Drawn while the pointer is down and written once, when it is let go: also the first note of
+// a roll that is still empty, and never over a note of the same pitch.
+test('a press on an empty place and a drag to the right draws a note as long as the drag', async ({ page }) => {
+    await open(page, 'setcpm(120/4)\n\nbass: note("~")\n  .s("sawtooth")\n')
+    const bass = page.getByTestId('strip-bass')
+    const draw = async (first: number, last: number, midi: number) => {
+        const from = await point(bass, stepTime(first), midi)
+        const to = await point(bass, stepTime(last), midi + 3)
+        await page.mouse.move(from.x, from.y)
+        await page.mouse.down()
+        await page.mouse.move(to.x, to.y, { steps: 4 })
+    }
+    await draw(5, 8, 50)
+    await expect(bass.locator('.nd')).toHaveCount(1)
+    expect(await code(page)).toContain('note("~")')
+    await page.mouse.up()
+    await expect.poll(() => code(page)).toContain('  ~  ~  ~  ~    d3 _  _  _    ~  ~  ~  ~    ~  ~  ~  ~\n')
+    await expect(note(bass, 'd3, step 5, 4 steps')).toBeFocused()
+    await expect(bass.locator('.nd')).toHaveCount(0)
+
+    await draw(2, 9, 50)
+    await page.mouse.up()
+    await expect.poll(() => code(page)).toContain('  ~  d3 _  _    d3 _  _  _    ~  ~  ~  ~    ~  ~  ~  ~\n')
+})
+
 test('every pattern of the starter song can be edited by clicking', async ({ page }) => {
     await page.goto('/')
     await page.waitForFunction(() => Boolean((window as any).__weft))

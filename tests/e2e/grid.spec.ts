@@ -93,6 +93,42 @@ test('a hit can be made louder with Shift, or the A key, and plain again the sam
     expect(await code(page)).toContain('  s("hh").struct("x ~ x ~   x ~ x ~   x ~ x ~   x ~ x ~"),\n')
 })
 
+// As a drag along a lane of the Song panel fills bars: it is drawn while the pointer is down
+// and written once, when it is let go. Space on a pad still puts in the one hit.
+test('a drag along a row puts a hit on every step it passes, and one that begins on a hit takes them out', async ({ page }) => {
+    await open(page)
+    const perc = page.getByTestId('strip-perc')
+    const step = (at: number) => perc.getByRole('button', { name: `hh step ${at}`, exact: true })
+    const middle = async (at: number) => {
+        const box = (await step(at).boundingBox())!
+        return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+    }
+    const drag = async (from: number, to: number) => {
+        const a = await middle(from)
+        const b = await middle(to)
+        await page.mouse.move(a.x, a.y)
+        await page.mouse.down()
+        await page.mouse.move(b.x, b.y + 40, { steps: 6 })
+    }
+    await step(1).scrollIntoViewIfNeeded()
+
+    await drag(2, 6)
+    await expect(step(4)).toHaveAttribute('aria-pressed', 'true')
+    await expect(step(8)).toHaveAttribute('aria-pressed', 'false')
+    expect(await code(page)).toContain(PERC)
+    await page.mouse.up()
+    await expect.poll(() => code(page)).toContain('  s("hh").struct("x x x x   x x x ~   x ~ x ~   x ~ x ~"),\n')
+
+    await drag(13, 9)
+    await expect(step(11)).toHaveAttribute('aria-pressed', 'false')
+    await page.mouse.up()
+    await expect.poll(() => code(page)).toContain('  s("hh").struct("x x x x   x x x ~   ~ ~ ~ ~   ~ ~ x ~"),\n')
+
+    await step(8).focus()
+    await page.keyboard.press('Space')
+    await expect.poll(() => code(page)).toContain('  s("hh").struct("x x x x   x x x x   ~ ~ ~ ~   ~ ~ x ~"),\n')
+})
+
 // Twelve and twenty-four steps to the bar are for music counted in threes: a shuffle, a 6/8.
 test('a grid and a roll can be put on twelve steps to the bar, when what they hold sits on the beats', async ({ page }) => {
     await open(page)

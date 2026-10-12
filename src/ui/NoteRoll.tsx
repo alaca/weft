@@ -1,6 +1,6 @@
-import { createMemo, createSignal, For, Show } from 'solid-js'
-import { addNotesAt, chooseKey, convertNotes, moveNoteTo, removeNoteAt, resizeNoteTo, setNotesLength, setNotesSteps } from '../app/controller'
-import { NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, type NoteRef } from '../song/notes'
+import { batch, createMemo, createSignal, For, Show } from 'solid-js'
+import { addNotesAt, chooseKey, convertNotes, hearNotes, moveNoteTo, newNoteLength, removeNoteAt, resizeNoteTo, setNotesLength, setNotesSteps } from '../app/controller'
+import { NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, roomAt, type Note, type NoteRef } from '../song/notes'
 import { chordOn, inKey, nearestInKey, ROOTS, SCALE_KINDS, SCALES, stepInKey, type ScaleKind } from '../song/scales'
 import type { PatternBlock } from '../song/types'
 import { noteName } from '../song/view'
@@ -15,6 +15,10 @@ const EMPTY_RANGE = { low: 48, high: 60 }
 
 type Drawn = { left: number; width: number; midi: number; start: number; length: number }
 type Drag = { ref: NoteRef; resize: boolean; fromStep: number; fromMidi: number }
+// A note that is being drawn on an empty place. It begins where the pointer went down. Until
+// the pointer leaves that step it is as long as the last note made here, and from then on it
+// ends under the pointer. It is written once, when the pointer is let go.
+type Draw = { time: number; start: number; midis: number[]; length: number; dragged: boolean }
 type Range = { low: number; high: number }
 
 export function NoteRoll(props: {
@@ -34,7 +38,9 @@ export function NoteRoll(props: {
     const source = createMemo(() => readNotes(props.block))
     const cycles = () => source()?.grid.cycles ?? 1
     const perCycle = () => source()?.grid.perCycle ?? 16
-    const shown = () => (props.playing ? props.cycle % cycles() : Math.min(page(), cycles() - 1))
+    // While anything is dragged the bar in sight stays, though the song goes on to the next.
+    const [heldPage, setHeldPage] = createSignal<number | null>(null)
+    const shown = () => Math.min(heldPage() ?? (props.playing ? props.cycle % cycles() : page()), cycles() - 1)
     const offset = () => shown() * perCycle()
 
     // A pattern written as silence has no notes to fit the rows to, so its rows are the ones it
@@ -114,28 +120,60 @@ export function NoteRoll(props: {
         return { cell, note, resize: note !== undefined && fromEdge <= EDGE && note.width * box.width > EDGE * 2 }
     }
 
+    const [draw, setDraw] = createSignal<Draw | null>(null)
+    // How long a new note can be where it begins. A roll that is not written as a grid yet has
+    // only what it plays to go by, which is counted here in the steps it is drawn with.
+    const room = (start: number, midi: number) => {
+        const grid = source()?.grid
+        const around: Note[] = grid ? grid.notes : drawn().map((note) => ({ start: note.left * perCycle(), length: note.width * perCycle(), midi: note.midi }))
+        return roomAt(around, start, midi, grid ? grid.steps : perCycle())
+    }
+    const sketch = createMemo(() => {
+        const drawing = draw()
+        if (!drawing) return []
+        const from = offset()
+        return drawing.midis.map((midi) => {
+            const end = Math.min(drawing.start + Math.min(drawing.length, room(drawing.start, midi)), from + perCycle())
+            return { midi, left: (drawing.start - from) / perCycle(), width: (end - drawing.start) / perCycle() }
+        })
+    })
+
     const focusNote = (ref: NoteRef) => queueMicrotask(() => gridEl.querySelector<HTMLElement>(`.nt[data-start="${ref.start}"][data-midi="${ref.midi}"]`)?.focus())
 
     const onPointerDown = (event: PointerEvent) => {
         if (stale() || event.button !== 0) return
         const { cell, note, resize } = hit(event)
-        if (!source()) {
-            if (note) convertNotes(props.id)
-            else addNotesAt(props.id, { page: shown(), time: cell.time, midis: put(cell.midi) })
+        if (!source() && note) {
+            convertNotes(props.id)
             return
         }
         if (!note) {
-            const added = addNotesAt(props.id, { page: shown(), time: cell.time, midis: put(cell.midi) })
-            if (added) focusNote(added)
+            const start = offset() + cell.step
+            const midis = put(cell.midi).filter((midi) => room(start, midi) > 0)
+            if (!midis.length) return
+            hearNotes(props.id, midis)
+            setHeld(range())
+            setHeldPage(shown())
+            setDraw({ time: cell.time, start, midis, length: newNoteLength(props.id), dragged: false })
+            gridEl.setPointerCapture(event.pointerId)
             return
         }
         drag = { ref: { start: note.start, midi: note.midi }, resize, fromStep: offset() + cell.step, fromMidi: cell.midi }
         setHeld(range())
+        setHeldPage(shown())
         gridEl.setPointerCapture(event.pointerId)
         focusNote(drag.ref)
     }
 
     const onPointerMove = (event: PointerEvent) => {
+        const drawing = draw()
+        if (drawing) {
+            const at = offset() + cellOf(event).step
+            if (!drawing.dragged && at === drawing.start) return
+            const length = Math.max(1, at - drawing.start + 1)
+            if (!drawing.dragged || length !== drawing.length) setDraw({ ...drawing, length, dragged: true })
+            return
+        }
         if (!drag) return
         const cell = cellOf(event)
         const at = offset() + cell.step
@@ -149,10 +187,18 @@ export function NoteRoll(props: {
         if (moveNoteTo(props.id, drag.ref, to)) drag = { ...drag, ref: to, fromStep: at, fromMidi: to.midi === drag.ref.midi ? drag.fromMidi : cell.midi }
     }
 
-    const onPointerUp = () => {
+    const finish = (keep: boolean) => {
+        const drawing = draw()
         if (drag) focusNote(drag.ref)
         drag = null
-        setHeld(null)
+        batch(() => {
+            const span = drawing?.dragged ? drawing.length / perCycle() : undefined
+            const added = drawing && keep ? addNotesAt(props.id, { page: shown(), time: drawing.time, midis: drawing.midis, span, heard: true }) : null
+            setDraw(null)
+            setHeld(null)
+            setHeldPage(null)
+            if (added) focusNote(added)
+        })
     }
 
     const removeAt = (event: MouseEvent) => {
@@ -210,8 +256,9 @@ export function NoteRoll(props: {
                     style={{ height: `${rows().length * ROW}px`, '--steps': perCycle() }}
                     onPointerDown={onPointerDown}
                     onPointerMove={onPointerMove}
-                    onPointerUp={onPointerUp}
-                    onPointerCancel={onPointerUp}
+                    onPointerUp={() => finish(true)}
+                    onPointerCancel={() => finish(false)}
+                    onLostPointerCapture={() => finish(false)}
                     onDblClick={removeAt}
                     onContextMenu={(event) => {
                         if (removeAt(event)) event.preventDefault()
@@ -237,6 +284,7 @@ export function NoteRoll(props: {
                             </button>
                         )}
                     </For>
+                    <For each={sketch()}>{(note) => <i class="nd" style={{ left: `${note.left * 100}%`, width: `${note.width * 100}%`, top: `${(range().high - note.midi) * ROW}px` }} />}</For>
                     <Show when={props.playing}>
                         <div class="ph" style={{ left: `${props.position * 100}%` }} />
                     </Show>

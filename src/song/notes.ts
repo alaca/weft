@@ -121,6 +121,14 @@ function fits(notes: Note[], candidate: Note, skip: number, steps: number): bool
     return !notes.some((note, i) => i !== skip && overlap(note, candidate))
 }
 
+// How long a new note that starts here can be: up to the next note of its pitch, or to the end.
+// Nothing where a note of that pitch already sounds.
+export function roomAt(notes: Note[], start: number, midi: number, steps: number): number {
+    const here = notes.filter((note) => note.midi === midi)
+    if (start < 0 || start >= steps || here.some((note) => note.start <= start && start < note.start + note.length)) return 0
+    return Math.min(steps, ...here.filter((note) => note.start > start).map((note) => note.start)) - start
+}
+
 export function addNote(notes: Note[], note: Note, steps: number): Note[] | null {
     const candidate = { ...note, length: Math.min(note.length, steps - note.start) }
     return fits(notes, candidate, -1, steps) ? inOrder([...notes, candidate]) : null

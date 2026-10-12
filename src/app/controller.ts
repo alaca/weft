@@ -31,6 +31,7 @@ import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tem
 import {
     gridFromEvents,
     lengthEdits,
+    paintSteps as paintGridSteps,
     readGrid,
     removeRow,
     resample,
@@ -54,6 +55,7 @@ import {
     resampleNotes,
     resizeNote,
     resizeNotes,
+    roomAt,
     type Note,
     type NoteRef,
     type NoteSource,
@@ -973,6 +975,15 @@ export function toggleStep(id: string, sound: string, step: number) {
     if (placed && !engineState().playing) previewSound(id, sound)
 }
 
+// A run of steps of one sound put in, or taken out, by one drag along its row.
+export function paintSteps(id: string, sound: string, from: number, to: number, on: boolean) {
+    const changed = changeDrums(id, (drums) => {
+        const rows = paintGridSteps(drums.rows, sound, from, to, on, drums.steps)
+        return rows ? { rows, cycles: drums.cycles } : null
+    })
+    if (changed && on && !engineState().playing) previewSound(id, sound)
+}
+
 // A louder hit on this step, or an ordinary one again.
 export function toggleAccent(id: string, sound: string, step: number) {
     changeDrums(id, (drums) => ({ rows: toggleGridAccent(drums.rows, sound, step, drums.steps), cycles: drums.cycles }))
@@ -1058,17 +1069,28 @@ export function convertNotes(id: string) {
     changeNotes(id, (source) => ({ notes: source.grid.notes, perCycle: source.grid.perCycle, cycles: source.grid.cycles }))
 }
 
-// One note, or several that start together, as a chord does. A note that has no room where it
-// would go is left out; the rest still go in.
-export function addNotesAt(id: string, at: { page: number; time: number; midis: number[] }): NoteRef | null {
+// How long a note put into this roll is when nothing says otherwise: as long as the last one
+// that was given a length here.
+export const newNoteLength = (id: string) => lastLength.get(id) ?? 1
+
+export const hearNotes = (id: string, midis: number[]) => midis.forEach((midi) => previewNoteOf(id, midi))
+
+// One note, or several that start together, as a chord does. Each is as long as the last one
+// made here, or as long as it was drawn: `span` is that length as a part of a bar, since the roll
+// that drew it may count other steps than the pattern is then written in. Where there is less
+// room than that, the note fills the room; where there is none it is left out, and the rest
+// still go in. `heard` says the roll sounded them already, when the pointer went down.
+export function addNotesAt(id: string, at: { page: number; time: number; midis: number[]; span?: number; heard?: boolean }): NoteRef | null {
     let added: NoteRef | null = null
+    let drawn: number | null = null
     const placed: number[] = []
     changeNotes(id, (source) => {
         const { steps, perCycle, cycles } = source.grid
         const start = Math.min(steps - 1, (at.page % cycles) * perCycle + Math.floor(at.time * perCycle))
+        drawn = at.span === undefined ? null : Math.max(1, Math.round(at.span * perCycle))
         let notes = source.grid.notes
         for (const midi of at.midis) {
-            const next = addNote(notes, { start, midi, length: lastLength.get(id) ?? 1 }, steps)
+            const next = addNote(notes, { start, midi, length: Math.min(drawn ?? newNoteLength(id), roomAt(notes, start, midi, steps)) }, steps)
             if (!next) continue
             notes = next
             placed.push(midi)
@@ -1076,7 +1098,8 @@ export function addNotesAt(id: string, at: { page: number; time: number; midis: 
         }
         return placed.length ? { notes, perCycle, cycles } : null
     })
-    for (const midi of placed) previewNoteOf(id, midi)
+    if (drawn !== null && placed.length) lastLength.set(id, drawn)
+    if (!at.heard) hearNotes(id, placed)
     return added
 }
 

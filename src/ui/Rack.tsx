@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, Show } from 'solid-js'
-import { addRow, previewSound, removeGridRow, setLength, setMix, setStepsPerCycle, soundChoices, toggleAccent, togglePanel, toggleRowMute, toggleStep } from '../app/controller'
+import { addRow, paintSteps, previewSound, removeGridRow, setLength, setMix, setStepsPerCycle, soundChoices, toggleAccent, togglePanel, toggleRowMute, toggleStep } from '../app/controller'
 import { drumLabel } from '../controls/drums'
 import { panOf, volumeOf } from '../controls/views'
 import { DRUM_RESOLUTIONS, readGrid, resample, type Grid } from '../song/grid'
@@ -50,7 +50,9 @@ export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement
     const mutedRows = createMemo(() => (kit()?.rows ?? []).flatMap((row) => (row.muted ? [row.sound] : [])))
     const cycles = () => grid()?.cycles ?? 1
     const perCycle = () => grid()?.perCycle ?? props.played[0]?.steps.length ?? 16
-    const shown = () => (props.playing ? props.cycle % cycles() : Math.min(page(), cycles() - 1))
+    // While a run of steps is dragged the bar in sight stays, though the song goes on to the next.
+    const [held, setHeld] = createSignal<number | null>(null)
+    const shown = () => Math.min(held() ?? (props.playing ? props.cycle % cycles() : page()), cycles() - 1)
 
     const rows = createMemo((): StepRow[] => {
         const current = grid()
@@ -79,6 +81,8 @@ export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement
                     position={props.position}
                     disabled={stale()}
                     onToggle={canEdit() ? (sound, step) => toggleStep(props.id, sound, shown() * perCycle() + step) : undefined}
+                    onPaint={canEdit() ? (sound, from, to, on) => paintSteps(props.id, sound, shown() * perCycle() + from, shown() * perCycle() + to, on) : undefined}
+                    onHold={(on) => setHeld(on ? shown() : null)}
                     onAccent={canEdit() ? (sound, step) => toggleAccent(props.id, sound, shown() * perCycle() + step) : undefined}
                     onHear={(sound) => previewSound(props.id, sound)}
                     onRemove={canEdit() ? (sound) => removeGridRow(props.id, sound) : undefined}

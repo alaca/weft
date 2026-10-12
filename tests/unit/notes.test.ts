@@ -14,6 +14,7 @@ import {
     resampleNotes,
     resizeNote,
     resizeNotes,
+    roomAt,
 } from '../../src/song/notes'
 
 const first = (code: string) => analyze(code).patterns[0]
@@ -134,6 +135,13 @@ describe('changing notes', () => {
     it('refuses a note that overlaps one of the same pitch', () => {
         expect(addNote(bassNotes, { start: 1, length: 1, midi: 38 }, 16)).toBeNull()
         expect(addNote(bassNotes, { start: 1, length: 1, midi: 45 }, 16)).not.toBeNull()
+    })
+
+    it('knows how long a new note can be: to the next of its pitch, or to the end', () => {
+        expect(roomAt(bassNotes, 8, 33, 16)).toBe(4)
+        expect(roomAt(bassNotes, 8, 40, 16)).toBe(8)
+        expect(roomAt(bassNotes, 1, 38, 16)).toBe(0)
+        expect(roomAt(bassNotes, 2, 38, 16)).toBe(14)
     })
 
     it('removes a note', () => {

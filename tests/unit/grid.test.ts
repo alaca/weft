@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { analyze } from '../../src/song/analyze'
-import { gridFromEvents, parseGrid, readGrid, removeRow, resample, resize, sourceText, toggleStep } from '../../src/song/grid'
+import { gridFromEvents, paintSteps, parseGrid, readGrid, removeRow, resample, resize, sourceText, toggleAccent, toggleStep } from '../../src/song/grid'
 
 const first = (code: string) => analyze(code).patterns[0]
 const hits = (steps: boolean[]) => steps.flatMap((on, i) => (on ? [i] : []))
@@ -86,6 +86,21 @@ describe('changing a grid', () => {
 
     it('removes a row', () => {
         expect(removeRow(rows, 'bd').map((r) => r.sound)).toEqual(['cp'])
+    })
+
+    it('puts in every step of a run, whichever end it is given from, and leaves the rest', () => {
+        const wide = parseGrid('bd ~ ~ ~ ~ ~ bd ~, ~ ~ cp ~ ~ ~ ~ ~')!
+        expect(hits(paintSteps(wide, 'bd', 4, 2, true, 8)![0].steps)).toEqual([0, 2, 3, 4, 6])
+        expect(paintSteps(wide, 'bd', 2, 4, true, 8)![1]).toEqual(wide[1])
+        expect(paintSteps(wide, 'bd', 0, 0, true, 8)).toBeNull()
+    })
+
+    it('takes out every step of a run, and what made a hit louder goes with it', () => {
+        const loud = toggleAccent(parseGrid('bd bd bd ~, ~ ~ cp ~')!, 'bd', 1, 4)
+        const next = paintSteps(loud, 'bd', 1, 3, false, 4)!
+        expect(hits(next[0].steps)).toEqual([0])
+        expect(hits(next[0].accents!)).toEqual([])
+        expect(paintSteps(next, 'bd', 1, 3, false, 4)).toBeNull()
     })
 
     it('repeats the steps when the pattern gets longer and cuts them when shorter', () => {

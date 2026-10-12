@@ -68,6 +68,25 @@ export function toggleStep(rows: GridRow[], sound: string, step: number, length:
     return next
 }
 
+// Every step from one to another put in, or taken out, as a drag along a row leaves them.
+// Null when they already are as asked.
+export function paintSteps(rows: GridRow[], sound: string, from: number, to: number, on: boolean, length: number): GridRow[] | null {
+    const next = copy(rows)
+    let row = next.find((candidate) => candidate.sound === sound)
+    if (!row) {
+        row = { sound, steps: Array<boolean>(length).fill(false) }
+        next.push(row)
+    }
+    let changed = false
+    for (let step = Math.max(0, Math.min(from, to)); step <= Math.min(length - 1, Math.max(from, to)); step++) {
+        if (row.steps[step] === on) continue
+        row.steps[step] = on
+        if (!on && row.accents) row.accents[step] = false
+        changed = true
+    }
+    return changed ? next : null
+}
+
 // A louder hit, or an ordinary one again. On an empty step it puts a louder hit in.
 export function toggleAccent(rows: GridRow[], sound: string, step: number, length: number): GridRow[] {
     const next = copy(rows)
