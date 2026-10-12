@@ -2084,11 +2084,16 @@ export async function exportCode() {
 
 const SONG_KIND: FileKind = { extension: SONG_FILE, label: 'Weft song', type: 'application/json' }
 
-// The sounds of your own that the song's code names, as they go into a file.
+// The sounds of your own that the song's code names, as they go into a file. Only those are
+// read from where they are kept, one at a time, in the order they are kept in.
 async function soundsOfSong(code: string): Promise<PackedSound[]> {
-    const used = soundsUsed(code, ownSounds().map((sound) => sound.name))
-    const kept = used.length ? (await ownSoundStore.all()).filter((sound) => used.includes(sound.name)) : []
-    return kept.map((sound) => ({ name: sound.name, file: sound.file, type: sound.type, seconds: sound.seconds, data: new Uint8Array(sound.data) }))
+    const used = soundsUsed(code, ownSounds().map((sound) => sound.name)).sort()
+    const packed: PackedSound[] = []
+    for (const name of used) {
+        const sound = await ownSoundStore.get(name)
+        if (sound) packed.push({ name: sound.name, file: sound.file, type: sound.type, seconds: sound.seconds, data: new Uint8Array(sound.data) })
+    }
+    return packed
 }
 
 // The song as one file with the sounds of your own that it uses inside it, as they are. With
@@ -2274,7 +2279,7 @@ export async function openSongFile(file: File): Promise<boolean> {
         let added = 0
         // What is asked is what is kept, not what happens to be loaded at this moment: a file
         // opened while the app is still starting must not write over a sound of yours.
-        const stored = new Set((await ownSoundStore.all()).map((sound) => sound.name))
+        const stored = new Set(await ownSoundStore.names())
         for (const packed of read.sounds) {
             if (!SOUND_NAME.test(packed.name) || stored.has(packed.name)) continue
             const name = soundNameFor(packed.name, (wanted) => engine.soundTaken(wanted) || stored.has(wanted) || !fitSoundName(wanted))

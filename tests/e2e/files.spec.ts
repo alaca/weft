@@ -92,4 +92,9 @@ test('a song file is opened as a new song, with its sounds and its key', async (
 
     await name(page).click()
     await expect(page.getByTestId('your-songs').locator('.sm-o b')).toHaveText(['From afar', 'Untitled'])
+
+    // Opened once more, its sound is already yours and is not added a second time.
+    await openFile(page, { name: 'From afar.weft', buffer: songFile('far_voice', text) })
+    await expect(page.getByTestId('song-note')).toHaveText('Opened From afar 2.')
+    await expect(page.getByTestId('sound-browser').locator('.sb-i code')).toHaveText(['far_voice'])
 })

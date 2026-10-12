@@ -56,6 +56,7 @@ async function within<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore)
 
 export const ownSoundStore = {
     all: () => within<OwnSound[]>('readonly', (store) => store.getAll()),
+    names: () => within<IDBValidKey[]>('readonly', (store) => store.getAllKeys()).then((keys) => keys as string[]),
     get: (name: string) => within<OwnSound | undefined>('readonly', (store) => store.get(name)).then((sound) => sound ?? null),
     put: (sound: OwnSound) => within('readwrite', (store) => store.put(sound)).then(() => undefined),
     remove: (name: string) => within('readwrite', (store) => store.delete(name)).then(() => undefined),
