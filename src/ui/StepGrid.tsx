@@ -1,4 +1,4 @@
-import { batch, createSignal, For, Index, onCleanup, Show, type JSX } from 'solid-js'
+import { batch, createMemo, createSelector, createSignal, For, Index, onCleanup, Show, type JSX } from 'solid-js'
 import { asksForMenu } from './keys'
 
 export type StepRow = { name: string; steps: boolean[]; accents?: boolean[]; played?: boolean[]; muted?: boolean }
@@ -31,7 +31,10 @@ export function StepGrid(props: {
 }) {
     const count = () => props.rows[0]?.steps.length ?? 16
     const beat = () => beatOf(count())
-    const now = () => (props.playing ? Math.min(count() - 1, Math.floor(props.position * count())) : -1)
+    // Where the song is changes with every frame, the step it is on only a few times a beat, and
+    // a pad is only worked out again when it becomes that step or stops being it.
+    const now = createMemo(() => (props.playing ? Math.min(count() - 1, Math.floor(props.position * count())) : -1))
+    const isNow = createSelector(now)
     // The names of a kit's own sounds are a few letters. A sound of your own can have a longer
     // name, and the column of names is then made wide enough to read it, up to a point.
     const names = () => Math.min(170, Math.max(74, Math.max(0, ...props.rows.map((row) => row.name.length)) * 6.6 + 46))
@@ -146,7 +149,7 @@ export function StepGrid(props: {
                                                         classList={{
                                                             on: on(),
                                                             loud: on() && Boolean(row().accents?.[step()]),
-                                                            now: now() === step(),
+                                                            now: isNow(step()),
                                                             skip: on() && played() === false,
                                                             ghost: !on() && played() === true,
                                                         }}

@@ -26,7 +26,7 @@ const forcesSolo = (block: PatternBlock) => block.label.length > 1 && block.labe
 export function Strip(props: { id: string }) {
     const index = createMemo(() => song().patterns.findIndex((p) => p.id === props.id))
     const block = createMemo(() => song().patterns[index()])
-    const resting = () => restsNow(props.id)
+    const resting = createMemo(() => restsNow(props.id))
     // Whether it plays is read from things that change with every change of the code, yet the
     // answer is nearly always the same. Kept as a yes or a no, it does not make the strip ask
     // its pattern again until the answer is another one.

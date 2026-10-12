@@ -46,7 +46,7 @@ export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement
     const [menu, setMenu] = createSignal(false)
     const kit = createMemo(() => readKit(props.block))
     const grid = createMemo((): Grid | null => kit() ?? readGrid(props.block)?.grid ?? null)
-    const canEdit = () => isDrums(props.block)
+    const canEdit = createMemo(() => isDrums(props.block))
     const mutedRows = createMemo(() => (kit()?.rows ?? []).flatMap((row) => (row.muted ? [row.sound] : [])))
     const cycles = () => grid()?.cycles ?? 1
     const perCycle = () => grid()?.perCycle ?? props.played[0]?.steps.length ?? 16
