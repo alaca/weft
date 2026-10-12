@@ -236,6 +236,30 @@ test('a line that drops in the middle of a jam comes back by itself, and each ge
     await expect.poll(() => code(mara)).toContain('"x x x x   x x x x   x ~ x ~   x ~ x x"')
 })
 
+test('someone whose line was down plays what the other made sound meanwhile, though the other is in the middle of typing a line', async ({ browser }) => {
+    const ante = await person(browser, 'Ante', SONG)
+    const line = await fragile(browser, 'Mara', OTHER)
+    const mara = line.page
+    await join(mara, await invite(ante))
+    await expect(mara.getByRole('heading', { name: 'Jam with Ante', exact: true })).toBeVisible()
+    const hats = (page: Page) => page.evaluate(() => (window as any).__weft.engine.events('perc', 0).length as number)
+    await expect.poll(() => hats(mara)).toBe(8)
+
+    await line.cut()
+    await expect(lineNote(mara)).toContainText('The line was lost.')
+    await ante.getByTestId('strip-perc').getByRole('button', { name: 'hh step 2', exact: true }).click()
+    await expect.poll(() => hats(ante)).toBe(9)
+    await ante.locator('.cm-content').click()
+    await ante.keyboard.press('ControlOrMeta+End')
+    await ante.keyboard.type('\nlead: 1 +')
+
+    line.mend()
+    await expect(chat(mara)).toContainText('You are back in the jam.')
+    await expect.poll(() => code(mara)).toContain('lead: 1 +')
+    await expect.poll(() => hats(mara)).toBe(9)
+    await expect(mara.getByTestId('code-status')).toHaveText('Changed')
+})
+
 test('someone who joins while the song plays is put where it is, and a song that was stopped while their line was down stops when it is back', async ({ browser }) => {
     const ante = await person(browser, 'Ante', SONG)
     const line = await fragile(browser, 'Mara', OTHER)

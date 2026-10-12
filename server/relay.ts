@@ -73,6 +73,9 @@ const aboutOf = (value: unknown): About => {
     return { bpm: Number.isFinite(bpm) && bpm >= 1 && bpm <= 999 ? Math.round(bpm) : null, patterns: Number.isInteger(patterns) && patterns >= 0 && patterns <= 999 ? patterns : 0 }
 }
 
+// A change to the code can carry the word that its maker made the song sound as it then read.
+const saysHeard = (update: unknown): boolean => typeof update === 'object' && update !== null && (update as { heard?: unknown }).heard === true
+
 const nameOf = (value: unknown): string => textOf(value).replace(/\s+/g, ' ').trim().slice(0, NAME_LIMIT) || 'Someone'
 const codeOf = (value: unknown): string => textOf(value).toUpperCase().replace(/[^A-Z0-9]/g, '')
 
@@ -213,13 +216,17 @@ export function createRelay(options: RelayOptions): Promise<Relay> {
         say(socket, { t: 'back', there: !room.away[partner] })
         // What was missed goes out in one piece, so that it is worked through once. Whoever gets
         // a message takes all of it for their own or all of it for the other's, so a change of
-        // their own that they never heard was taken goes first, by itself.
+        // their own that they never heard was taken goes first, by itself. What was changed
+        // after the song was last made to sound goes by itself as well: it may be a line that
+        // is half typed, and the song is to sound as it read before that.
+        const all = missed.flatMap((batch) => batch.updates.map((update) => ({ by: batch.by, update })))
+        const sounded = all.map(({ update }) => saysHeard(update)).lastIndexOf(true)
         const pieces: { by: Role; updates: unknown[] }[] = []
-        for (const batch of missed) {
+        all.forEach(({ by, update }, at) => {
             const last = pieces[pieces.length - 1]
-            if (last?.by === batch.by) for (const update of batch.updates) last.updates.push(update)
-            else pieces.push({ by: batch.by, updates: [...batch.updates] })
-        }
+            if (last?.by === by && at !== sounded + 1) last.updates.push(update)
+            else pieces.push({ by, updates: [update] })
+        })
         for (const piece of pieces) say(socket, { t: 'updates', updates: piece.updates })
         say(role === 'host' ? room.guest : room.host, { t: 'returned' })
     }

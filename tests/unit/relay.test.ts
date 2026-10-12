@@ -328,6 +328,26 @@ describe('a line that drops in the middle of a jam', () => {
         expect(again.heard).toEqual([])
     })
 
+    it('sends what was changed after the song was last made to sound apart from all that came before it', async () => {
+        const { host, guest, guestKey } = await pair()
+        const sounded = (text: string) => ({ ...change(text), heard: true })
+        guest.socket.terminate()
+        await host.next('away')
+        host.send({ t: 'push', v: 0, updates: [change('a'), sounded('b')] })
+        await host.next('updates')
+        host.send({ t: 'push', v: 2, updates: [sounded('c'), change('d')] })
+        await host.next('updates')
+        host.send({ t: 'push', v: 4, updates: [change('e')] })
+        await host.next('updates')
+        const again = await person()
+        again.send({ t: 'back', key: guestKey, v: 0 })
+        await again.next('back')
+        expect(await again.next('updates')).toEqual({ t: 'updates', updates: [change('a'), sounded('b'), sounded('c')] })
+        expect(await again.next('updates')).toEqual({ t: 'updates', updates: [change('d'), change('e')] })
+        await quiet()
+        expect(again.heard).toEqual([])
+    })
+
     it('holds the place of each when both lines drop, and says to the first one back that the other is not there yet', async () => {
         const { host, guest, hostKey, guestKey } = await pair()
         host.socket.terminate()

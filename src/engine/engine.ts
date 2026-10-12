@@ -545,15 +545,34 @@ export function createEngine(): Engine {
         if (!state.playing) offset = startingAt()
         await mirror.repl.evaluate(mirror.code, false)
     }
-    // Word that they did so can come several times in one turn, as when a line that dropped is
-    // back. The song is then made to sound once, as the code reads after the last of them.
+    // That is done in a turn of its own, as the code reads when word of it comes. What arrives
+    // before it is done was changed after they made the song sound, and may be a line that is
+    // half typed. It is kept, and taken in after, in a turn of its own.
     // A change of your own may still be waiting to be played when the word comes. The song is
     // then played again the way that change would have had it played, which tells them. Answered
     // by itself, the change would sound here without being said, and the other would never hear it.
     let reheard = 0
+    const kept: SentUpdate[][] = []
+    const take = (updates: SentUpdate[]) => {
+        if (!sync) return
+        receiving = true
+        try {
+            sync.receive(mirror.editor, updates)
+        } finally {
+            receiving = false
+        }
+    }
+    const takeKept = () => {
+        while (kept.length && !reheard) take(kept.shift()!)
+    }
     const hearSoon = () => {
         window.clearTimeout(reheard)
-        reheard = window.setTimeout(() => (replayWaits() ? replay() : void reevaluate()), 0)
+        reheard = window.setTimeout(() => {
+            reheard = 0
+            if (replayWaits()) replay()
+            else void reevaluate()
+            window.setTimeout(takeKept, 0)
+        }, 0)
     }
 
     // A control writes a whole value again: all the steps of a row, all the notes of a roll. Only
@@ -825,17 +844,15 @@ export function createEngine(): Engine {
         stopSync() {
             if (!sync) return
             sync = null
+            kept.length = 0
             mirror.editor.dispatch({ effects: syncSlot.reconfigure([]) })
         },
-        syncVersion: () => (sync ? sync.version(mirror.editor) : 0),
+        // What is kept has arrived and goes into the code before anything that comes after it,
+        // so it counts.
+        syncVersion: () => (sync ? sync.version(mirror.editor) + kept.reduce((sum, updates) => sum + updates.length, 0) : 0),
         receive(updates) {
-            if (!sync) return
-            receiving = true
-            try {
-                sync.receive(mirror.editor, updates)
-            } finally {
-                receiving = false
-            }
+            if (reheard || kept.length) return void kept.push(updates)
+            take(updates)
         },
         // Strudel always starts counting cycles at nought, so playing from another bar is done
         // by moving every pattern earlier. While it plays, the same move makes the song jump.
