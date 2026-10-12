@@ -1,7 +1,7 @@
 import { history, isolateHistory, redo, undo } from '@codemirror/commands'
 import { Annotation, EditorState, Prec, StateEffect } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
-import { BlockWidget, StrudelMirror, codemirrorSettings } from '@strudel/codemirror'
+import { BlockWidget, StrudelMirror, codemirrorSettings, sliderPlugin } from '@strudel/codemirror'
 import { Pattern, silence } from '@strudel/core'
 import { mini } from '@strudel/mini'
 import { transpiler } from '@strudel/transpiler'
@@ -28,6 +28,9 @@ import { addOwnSound, kitNames, loadModules, loadSamples, removeOwnSound, soundT
 import { createSync, heard, syncSlot, type Sync } from './sync'
 import { registerTheme } from './theme'
 import { restUnpluggedWorklets } from './unplug'
+
+// A number as a slider in the code holds it.
+const NUMBER = /^-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/i
 
 export type { BlockMark } from './marks'
 
@@ -662,19 +665,28 @@ export function createEngine(): Engine {
         // changes is the one memory there is, whatever made the change.
         undo: () => undo(mirror.editor),
         redo: () => redo(mirror.editor),
+        // A slider in the code changes what is heard without the code being played again. The
+        // editor only draws the sliders of the lines that are in sight, so the one that is meant
+        // is looked for among all the sliders it knows of, drawn or not.
         moveSlider(from, text) {
-            type Widget = HTMLInputElement & { from: number; originalFrom: number; originalValue: string }
-            const inputs = mirror.root.querySelectorAll('.cm-slider input') as NodeListOf<Widget>
-            for (const input of inputs) {
-                if (input.from !== from) continue
-                const changes = tighten({ from, to: from + input.originalValue.length, insert: text })
-                if (changes) mirror.editor.dispatch({ changes, annotations: step() })
-                input.originalValue = text
-                input.value = text
-                window.postMessage({ type: 'cm-slider', value: Number(text), id: `slider_${input.originalFrom}` })
-                return true
+            type Drawn = HTMLInputElement & { originalValue: string }
+            type Known = { originalFrom: number; value: string; slider?: Drawn }
+            let meant: Known | undefined
+            mirror.editor.plugin(sliderPlugin)?.decorations.between(from, from, (at: number, _to: number, mark: { widget?: Known }) => {
+                if (at === from && mark.widget) meant = mark.widget
+            })
+            const now = meant && NUMBER.exec(mirror.editor.state.sliceDoc(from, from + 32))?.[0]
+            if (!meant || !now) return false
+            const changes = tighten({ from, to: from + now.length, insert: text })
+            if (changes) mirror.editor.dispatch({ changes, annotations: step() })
+            // One that is drawn later starts from what it is given here.
+            meant.value = text
+            if (meant.slider) {
+                meant.slider.originalValue = text
+                meant.slider.value = text
             }
-            return false
+            window.postMessage({ type: 'cm-slider', value: Number(text), id: `slider_${meant.originalFrom}` })
+            return true
         },
         async evaluate() {
             wakeAudio()

@@ -1539,14 +1539,18 @@ export function patternText(id: string): string {
     if (!block) return ''
     const code = engine.getCode()
     const bars = readArrangement(block)
-    const own = bars ? code.slice(block.from, bars.call.from) + code.slice(bars.call.to, block.to) : code.slice(block.from, block.to)
+    // Muted or not, a pattern plays the same notes, so the mark that mutes it is left out.
+    const from = block.labelFrom >= block.from && block.labelTo <= block.to ? code.slice(block.from, block.labelFrom) + block.label.replace(/^_+|_+$/g, '') : ''
+    const begin = from ? block.labelTo : block.from
+    const own = from + (bars ? code.slice(begin, bars.call.from) + code.slice(bars.call.to, block.to) : code.slice(begin, block.to))
     let outside = ''
     let at = 0
     for (const other of song().patterns) {
         outside += code.slice(at, other.from)
         at = other.to
     }
-    return `${own}\u0000${outside}${code.slice(at)}`
+    // Lines that are only a remark, as the ones that keep the scenes are, change no pattern.
+    return `${own}\u0000${(outside + code.slice(at)).replace(/^[ \t]*\/\/.*$/gm, '')}`
 }
 
 const lanes = (): PatternBlock[] => {
