@@ -115,9 +115,17 @@ function textSpans(code: string): [number, number][] {
 }
 
 const word = (name: string) => new RegExp(`(?<![A-Za-z0-9_])${name.replace(/[^A-Za-z0-9_]/g, '\\$&')}(?![A-Za-z0-9_])`, 'g')
+// Where a name stands in the text of the code. The places it stands at and the texts both come
+// in rising order, so the two are walked together, once.
 const found = (code: string, name: string): number[] => {
     const spans = textSpans(code)
-    return [...code.matchAll(word(name))].map((match) => match.index).filter((at) => spans.some(([from, to]) => at >= from && at + name.length <= to))
+    let span = 0
+    return [...code.matchAll(word(name))]
+        .map((match) => match.index)
+        .filter((at) => {
+            while (span < spans.length && spans[span][1] < at + name.length) span++
+            return span < spans.length && at >= spans[span][0]
+        })
 }
 
 // The sounds of your own that a song's code names.

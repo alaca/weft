@@ -54,6 +54,16 @@ describe('the sounds a song names', () => {
         expect(soundsUsed('s("a.b")', ['a.b', '.*', '(', 'a+'])).toEqual(['a.b'])
     })
 
+    it('are told apart inside and outside text all along the code, and code made up of tens of thousands of texts is answered at once', () => {
+        const code = 'take: s("take").bank(take) // "take"\nlead: s(\'x take\', `take`) /* \'take\' */ + take("mistake take_2 take")'
+        expect(renameSound(code, 'take', 'loop')).toBe('take: s("loop").bank(take) // "take"\nlead: s(\'x loop\', `loop`) /* \'take\' */ + take("mistake take_2 loop")')
+        const long = `/* ${'take '.repeat(40000)}*/\n${'s("take");\n'.repeat(40000)}take`
+        const from = performance.now()
+        expect(soundRenames(long, 'take', 'loop')).toHaveLength(40000)
+        expect(soundsUsed(long, ['take', 'gone'])).toEqual(['take'])
+        expect(performance.now() - from).toBeLessThan(2000)
+    })
+
     it('go by a name that cannot be taken for a note or for a letter that patterns are written with', () => {
         expect(['kick_2', 'take', 'bass', 'note', 'stack'].map(fitSoundName)).toEqual([true, true, true, true, true])
         expect(['s', 'c3', 'eb', 'x', 'bd', 'Take', 'a b', '2nd', ''].map(fitSoundName)).toEqual(Array(9).fill(false))
