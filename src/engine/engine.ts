@@ -7,9 +7,11 @@ import { mini } from '@strudel/mini'
 import {
     getAudioContext,
     getDefaultValue,
+    getSampleInfo,
     getSuperdoughAudioController,
     initAudio,
     initAudioOnFirstClick,
+    loadBuffer,
     setAudioContext,
     setSuperdoughAudioController,
     soundMap,
@@ -20,6 +22,7 @@ import { checkSong } from '../guard/check'
 import type { SentUpdate } from '../jam/protocol'
 import { DEFAULT_MIX, fitMix, type Mix } from '../library/mix'
 import type { PatternEvent, TextEdit } from '../song/types'
+import { loadAhead } from './ahead'
 import { barByBar } from './barByBar'
 import { cutAt } from './cut'
 import { toEvents } from './events'
@@ -685,10 +688,34 @@ export function createEngine(): Engine {
         if (sync && evaluatedCode !== mirror.code) mirror.editor.dispatch({ effects: heard.of(null) })
     }
 
+    // The file of a sample is fetched when a pattern is first asked about a note that plays it,
+    // which is long before the song is played. That is for listening: while a song is made
+    // into a file the clock in use is the file's own, at a rate of its own, and the fetching
+    // waits for the next time a pattern is asked.
+    const ahead = loadAhead({
+        sounds: () => soundMap.get(),
+        fileOf: (value, files) => getSampleInfo(value, files).url,
+        load: (url) => {
+            const context: BaseAudioContext = getAudioContext()
+            return context instanceof OfflineAudioContext ? null : loadBuffer(url, context)
+        },
+    })
+    // The lists of sounds come a moment after the app has started, and a sound of your own
+    // later still. Each makes many sounds known in one turn, and is looked at once, after it.
+    let soundsChanged = 0
+    soundMap.listen(() => {
+        soundsChanged ||= window.setTimeout(() => {
+            soundsChanged = 0
+            ahead.again()
+        }, 0)
+    })
+
     const query = (pattern: any, cycle: number): PatternEvent[] => {
         if (!pattern) return []
         try {
-            return toEvents(pattern.queryArc(cycle, cycle + 1), cycle)
+            const haps = pattern.queryArc(cycle, cycle + 1)
+            ahead.note(haps)
+            return toEvents(haps, cycle)
         } catch {
             return []
         }
