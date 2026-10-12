@@ -61,6 +61,7 @@ export interface Engine {
     moveSlider(from: number, text: string): boolean
     evaluate(): Promise<void>
     refresh(): Promise<void>
+    replay(): void
     pause(): void
     stop(): void
     setSolo(ids: string[]): void
@@ -118,6 +119,7 @@ const LEAD = 0.05
 const LIMIT_AT = -2
 const LIMIT_BY = 20
 const BEFORE_MASK = '__weftBeforeMask'
+const STRUDELS_OWN = '__weftStrudelsOwn'
 
 function toEvalError(err: unknown): EvalError {
     const e = err as { message?: string; loc?: { line?: number }; guard?: boolean }
@@ -338,7 +340,9 @@ export function createEngine(): Engine {
     }
 
     const wrapRegistration = () => {
-        const original = Pattern.prototype.p
+        // Two evaluations that overlap find each other's wrapper here. Wrapping that one would
+        // move every pattern twice, so what is wrapped is always Strudel's own.
+        const original = Pattern.prototype.p[STRUDELS_OWN] ?? Pattern.prototype.p
         let anonymous = 0
         pending = new Map()
         pendingUnmasked = new Map()
@@ -359,6 +363,7 @@ export function createEngine(): Engine {
             const within = (hap: any) => endBar === null || (hap.whole ?? hap.part).begin.valueOf() + shift < endBar
             return original.call((shift ? this.early(shift) : this).filterHaps(within), id)
         }
+        Pattern.prototype.p[STRUDELS_OWN] = original
     }
 
     // The bars a pattern plays in are written as a mask at the end of it. A strip still has to
@@ -443,6 +448,16 @@ export function createEngine(): Engine {
     const announce = () => {
         window.clearTimeout(announced)
         announced = window.setTimeout(() => evaluatedFns.forEach((fn) => fn()), 0)
+    }
+
+    // The code is evaluated in a turn of its own as well, after the screen has followed the
+    // change: two short stretches of work are not heard where one long one is. Everything that
+    // asks for it in the same turn is answered by one evaluation: a change to the code, a bar
+    // to start from, bars to go round, a solo.
+    let replayTimer = 0
+    const replay = () => {
+        window.clearTimeout(replayTimer)
+        replayTimer = window.setTimeout(() => void (state.playing ? engine.evaluate() : engine.refresh()), 0)
     }
 
     // Strudel throws when it is given no code at all, so an empty song is handled here:
@@ -710,6 +725,7 @@ export function createEngine(): Engine {
             sayHeard()
             await mirror.repl.evaluate(mirror.code, false)
         },
+        replay,
         pause() {
             if (!state.playing) return
             const at = engine.now()
@@ -764,7 +780,7 @@ export function createEngine(): Engine {
             if (state.paused) setState({ paused: false })
             if (!state.playing || blank() || liveMode) return
             offset = bar - Math.floor(mirror.repl.scheduler.now())
-            void mirror.evaluate(true)
+            replay()
         },
         setEnd(bar) {
             endBar = bar
@@ -779,7 +795,7 @@ export function createEngine(): Engine {
             if (!state.playing || blank() || liveMode) return
             const counted = mirror.repl.scheduler.now()
             offset = range ? -Math.floor(counted) : Math.floor(at) - Math.floor(counted)
-            void mirror.evaluate(true)
+            replay()
         },
         // The song as a recording, made faster than it plays: every sound of the song is
         // handed to an audio clock that is not the one you listen on, and that clock then runs
@@ -877,7 +893,7 @@ export function createEngine(): Engine {
         },
         setSolo(ids) {
             soloIds = ids
-            if (state.playing) void mirror.evaluate(true)
+            if (state.playing) replay()
         },
         now: () => {
             if (liveMode) return mirror?.repl.scheduler.started ? mirror.repl.scheduler.now() + offset : (resumeAt ?? 0)

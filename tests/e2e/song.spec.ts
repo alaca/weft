@@ -160,6 +160,28 @@ test('dragging across bar numbers makes those bars go round', async ({ page }) =
     await expect(page.getByTestId('code-status')).toHaveText('Stopped', { timeout: 8000 })
 })
 
+test('a bar number clicked while bars go round makes the song play on from that bar', async ({ page }) => {
+    // The bass plays a note of its own in every bar, so the note that sounds says which bar it is.
+    const notes = Array.from({ length: 24 }, (_, at) => 24 + at).join(' ')
+    await open(page, `setcpm(120/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n  .mask("<1!24>")\n\nbass: note("<${notes}>")\n  .s("sawtooth")\n`)
+    await dragNumbers(page, 9, 12)
+    await expect(page.getByTestId('loop')).toContainText('Bars 9 to 12 go round')
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect.poll(() => now(page)).toBeGreaterThan(8.2)
+    await number(page, 21).click()
+    await expect(page.getByTestId('loop')).toHaveCount(0)
+    await expect.poll(() => now(page)).toBeGreaterThanOrEqual(20)
+    // How many bars lie between the bar that sounds and the bar the playhead is in.
+    const apart = () =>
+        page.evaluate(() => {
+            const engine = (window as any).__weft.engine
+            const shown = Math.floor(engine.now())
+            const bass = (engine.audible(shown) as { sound: string; midi: number }[]).filter((event) => event.sound === 'sawtooth')
+            return bass.map((event) => event.midi - 24 - shown)
+        })
+    await expect.poll(apart).toEqual([0])
+})
+
 test('the bars that go round can be put in once more, have empty bars put in before them, and be taken out, in every pattern', async ({ page }) => {
     await open(page, 'setcpm(120/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n  .mask("<1!2 0!2 1!4>")\n\nbass: note("c2 e2")\n  .s("sawtooth")\n  .mask("<0!3 1!5>")\n\nlead: note("c4")\n')
     await dragNumbers(page, 3, 4)

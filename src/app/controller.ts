@@ -473,16 +473,10 @@ export function redoChange() {
     if (engine.redo()) replay()
 }
 
-// The code is evaluated in a turn of its own, after the screen has followed the change. Both
-// are work on the thread that Strudel keeps time on, and two short stretches are not heard
-// where one long one is. Changes made in the same turn are evaluated once.
-let replayTimer = 0
+// The song made to sound as its code now reads. The engine does it in a turn of its own, and
+// once for a change that also moves the start, the bars that go round or a solo.
 function replay() {
-    window.clearTimeout(replayTimer)
-    replayTimer = window.setTimeout(() => {
-        if (engineState().playing) play()
-        else void engine.refresh()
-    }, 0)
+    engine.replay()
 }
 
 // Stop goes back to the beginning of the song, and pause keeps its place. Bars that go round
