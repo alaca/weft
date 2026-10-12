@@ -1,7 +1,8 @@
 import * as core from '@strudel/core'
 import { evalScope } from '@strudel/core'
-import { aliasBank, registerSynthSounds, registerZZFXSounds, samples, soundMap } from '@strudel/webaudio'
+import { aliasBank, getAudioContext, onceEnded, registerSound, registerSynthSounds, registerZZFXSounds, releaseAudioNode, samples, soundMap } from '@strudel/webaudio'
 import { INSTRUMENT_TAG, KIT_TAG, YOURS_TAG } from '../sounds/catalog'
+import { builtKey, keepUpTo, MOST_KEPT } from './zzfx'
 
 const DOUGH = 'https://raw.githubusercontent.com/felixroos/dough-samples/main'
 const ALIASES = 'https://raw.githubusercontent.com/todepond/samples/main'
@@ -13,6 +14,43 @@ let kits: string[] = []
 // that still has a kit's name as it is written in code, so the names are read from it.
 export const kitNames = (): string[] => kits
 
+const ZZFX = ['zzfx', 'z_sine', 'z_sawtooth', 'z_triangle', 'z_square', 'z_tan', 'z_noise']
+const built = keepUpTo<AudioBuffer>(MOST_KEPT)
+
+// Strudel's own way of playing a ZZFX synth works the note out and plays it. A note that is not
+// kept yet is still played that way, and what was worked out for it is kept from there. A note
+// that is kept is played the way Strudel plays one it has just worked out.
+function keepBuiltNotes(): void {
+    const known = soundMap.get()
+    for (const name of ZZFX) {
+        const sound = known[name]
+        if (!sound) continue
+        registerSound(
+            name,
+            (t: number, value: Record<string, unknown>, onended: () => void) => {
+                const context: BaseAudioContext = getAudioContext()
+                const key = builtKey({ s: name, ...value }, context.sampleRate)
+                const kept = key === null ? undefined : built.find(key)
+                if (!kept) {
+                    const made = sound.onTrigger(t, value, onended)
+                    const buffer: AudioBuffer | undefined = made?.node?.buffer
+                    if (key !== null && buffer) built.keep(key, buffer, buffer.length)
+                    return made
+                }
+                const node = context.createBufferSource()
+                node.buffer = kept
+                node.start(t)
+                onceEnded(node, () => {
+                    releaseAudioNode(node)
+                    onended()
+                })
+                return { node, nodes: { source: [node] }, stop: () => {} }
+            },
+            sound.data,
+        )
+    }
+}
+
 export async function loadModules(): Promise<void> {
     await evalScope(
         core,
@@ -23,6 +61,7 @@ export async function loadModules(): Promise<void> {
         import('@strudel/codemirror'),
     )
     await Promise.all([registerSynthSounds(), registerZZFXSounds()])
+    keepBuiltNotes()
 }
 
 export async function loadSamples(): Promise<void> {

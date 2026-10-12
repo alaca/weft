@@ -127,3 +127,35 @@ test('a song that was stopped after very many effects plays on a new audio clock
     await expect.poll(loudest, { timeout: 20_000 }).toBeGreaterThan(0.01)
     expect(await page.evaluate(() => (window as any).__weft.engine.mix())).toMatchObject({ volume: 0.4, pan: -0.5 })
 })
+
+// A chord on a ZZFX synth in the first half of each of two bars.
+const CHORD = 'setcpm(120/4)\n\npad: note("[c3,e3,g3] ~")\n  .s("z_sawtooth")\n'
+
+test('a chord on a ZZFX synth is worked out once, and sounds the same when it comes round again', async ({ page }) => {
+    await page.addInitScript((value) => localStorage.setItem('weft.song', value), CHORD)
+    await page.goto('/')
+    await ready(page)
+    const heard = await page.evaluate(async () => {
+        // A note that is worked out is handed to the audio clock as a buffer of its own.
+        let workedOut = 0
+        const make = BaseAudioContext.prototype.createBuffer
+        BaseAudioContext.prototype.createBuffer = function (this: BaseAudioContext, ...given: [number, number, number]) {
+            workedOut++
+            return make.apply(this, given)
+        }
+        const made = await (window as any).__weft.engine.render({ bars: 2, ringSeconds: 0, sampleRate: 44100 })
+        BaseAudioContext.prototype.createBuffer = make
+        const left: Float32Array = made.channels[0]
+        const bar = left.length / 2
+        let loudest = 0
+        let apart = 0
+        for (let at = 0; at < bar; at++) {
+            loudest = Math.max(loudest, Math.abs(left[at]))
+            apart = Math.max(apart, Math.abs(left[at] - left[at + bar]))
+        }
+        return { workedOut, loudest, apart }
+    })
+    expect(heard.loudest).toBeGreaterThan(0.1)
+    expect(heard.apart).toBeLessThan(0.0001)
+    expect(heard.workedOut).toBe(3)
+})
