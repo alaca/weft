@@ -32,6 +32,7 @@ import { useOwnWorklets } from './ownWorklets'
 import { SOUND_DRAG, type RawSound } from '../sounds/catalog'
 import { addOwnSound, kitNames, loadModules, loadSamples, removeOwnSound, soundTaken } from './prebake'
 import { createReplay } from './replay'
+import { inSharedRoom, type Rooms } from './room'
 import { createSync, heard, syncSlot, type Sync } from './sync'
 import { registerTheme } from './theme'
 import { startTicking, stopTicking } from './ticker'
@@ -476,6 +477,22 @@ export function createEngine(): Engine {
         }
     }
 
+    // The clock a song is listened on and the clock a file is made on each have mixing channels
+    // of their own, and so rooms of their own.
+    const roomsOf = new WeakMap<object, Rooms>()
+    const rooms = (): Rooms => {
+        const controller = getSuperdoughAudioController()
+        let known = roomsOf.get(controller)
+        if (!known) roomsOf.set(controller, (known = new Map()))
+        return known
+    }
+    const inRoom = (hap: any, time: number) => {
+        const value = hap.value
+        if (!value || typeof value !== 'object') return hap
+        const fitted = inSharedRoom(rooms(), value, time)
+        return fitted === value ? hap : hap.withValue(() => fitted)
+    }
+
     // Strudel ducks a channel from a timer that asks what time it is when it goes off, a moment
     // before the sound. On the clock a file is made on, time runs as fast as the machine can,
     // so that moment has no meaning there and the ducking would land anywhere. For a file the
@@ -685,7 +702,7 @@ export function createEngine(): Engine {
                 toLight(hap)
                 if (guarded && carriesCode(hap.value)) return
                 readyToDuck(hap.value)
-                return webaudioOutput(hap, deadline, duration, cps, time)
+                return webaudioOutput(inRoom(hap, time), deadline, duration, cps, time)
             },
             getTime: () => getAudioContext().currentTime,
             setInterval: startTicking,
@@ -1090,7 +1107,7 @@ export function createEngine(): Engine {
                         }
                         const { duckorbit, ...value } = hap.value
                         if (duckorbit !== undefined && duckorbit !== null && (only === undefined || !heard)) duckAt(hap.value, startOf(hap))
-                        if (heard) await superdough(value, startOf(hap), hap.duration.valueOf() / cps, cps, hap.whole.begin.valueOf()).catch(() => void missed++)
+                        if (heard) await superdough(inSharedRoom(rooms(), value, startOf(hap)), startOf(hap), hap.duration.valueOf() / cps, cps, hap.whole.begin.valueOf()).catch(() => void missed++)
                     }
                     await reverbsSound()
                 }
