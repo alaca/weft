@@ -2081,7 +2081,7 @@ async function prepareToPublish(): Promise<Prepared | null> {
     const code = engine.getCode()
     return prepareForPublishing(
         { name: current.name, code, keys: current.keys ?? {}, sounds: await soundsOfSong(code), ...(current.source ? { source: current.source } : {}) },
-        (bytes) => engine.decodeAudio(bytes.slice().buffer),
+        (bytes, sampleRate) => engine.decodeAudio(bytes.slice().buffer, sampleRate),
         (sound, kbps) => encodeMp3(sound.channels, sound.sampleRate, kbps),
     )
 }

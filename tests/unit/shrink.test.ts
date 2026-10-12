@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { encodeMp3 } from '../../src/library/mp3'
 import { onsetOf, shrinkSounds, withoutLead, type Decoded } from '../../src/library/shrink'
 import type { PackedSound } from '../../src/library/songfile'
 
@@ -74,5 +75,44 @@ describe('shrinkSounds', () => {
         expect(result.sounds[1]).toBe(broken)
         expect(result.sounds[2].type).toBe('audio/mpeg')
         expect(result.fits).toBe(true)
+    })
+
+    // Two seconds of a tone with noise on it. An MP3 of that has next to no bytes that are 0;
+    // one of silence is nearly all 0.
+    const noisy = (rate: number, count: number): Decoded => {
+        let seed = 1
+        const channel = Float32Array.from({ length: rate * 2 }, (_, at) => {
+            seed = (seed * 16807) % 2147483647
+            return Math.sin((at / rate) * 2 * Math.PI * 220) * 0.5 + (seed / 2147483647 - 0.5) * 0.3
+        })
+        return { channels: Array.from({ length: count }, () => channel), sampleRate: rate }
+    }
+    const zeros = (bytes: Uint8Array) => bytes.reduce((sum, byte) => sum + (byte === 0 ? 1 : 0), 0) / bytes.length
+
+    it('makes MP3s that hold the sound at every quality, with the encoder the app uses', async () => {
+        for (const rate of [44100, 48000, 88200]) {
+            for (const count of [2, 1]) {
+                for (const [kbps, limit] of [[128, 40000], [96, 28000], [64, 20000]]) {
+                    const asked: (number | undefined)[] = []
+                    const read = async (_: Uint8Array, wanted?: number) => (asked.push(wanted), noisy(wanted ?? rate, count))
+                    const result = await shrinkSounds([packed('take', 400000)], sizeWith, read, (sound, step) => encodeMp3(sound.channels, sound.sampleRate, step), limit)
+                    expect([rate, count, result.kbps]).toEqual([rate, count, kbps])
+                    expect(zeros(result.sounds[0].data)).toBeLessThan(0.2)
+                    // A sound of one channel at a rate an MP3 can have is read once, as it is.
+                    if (count === 1 && rate <= 48000) expect(asked).toEqual([undefined])
+                }
+            }
+        }
+    }, 60000)
+
+    it('leaves a sound as it is at a quality it cannot be read for, and never hands it over at another rate', async () => {
+        const seen: [number, number][] = []
+        const both = Float32Array.from([0, 1])
+        const read = async (_: Uint8Array, wanted?: number) => (wanted ? null : { channels: [both, both], sampleRate: 44100 })
+        const big = packed('big', 5000)
+        const result = await shrinkSounds([big], sizeWith, read, async (heard, kbps) => (seen.push([kbps, heard.sampleRate]), new Uint8Array(2000)), 1000)
+        expect(seen).toEqual([[128, 44100]])
+        expect(result.fits).toBe(false)
+        expect(result.sounds[0]).toBe(big)
     })
 })

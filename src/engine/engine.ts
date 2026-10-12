@@ -84,7 +84,7 @@ export interface Engine {
     removeSound(name: string): void
     soundTaken(name: string): boolean
     audioLength(bytes: ArrayBuffer): Promise<number | null>
-    decodeAudio(bytes: ArrayBuffer): Promise<{ channels: Float32Array[]; sampleRate: number } | null>
+    decodeAudio(bytes: ArrayBuffer, sampleRate?: number): Promise<{ channels: Float32Array[]; sampleRate: number } | null>
     setLive(on: boolean): void
     setGuard(on: boolean): void
     playAt(position: number): void
@@ -946,10 +946,13 @@ export function createEngine(): Engine {
                 return null
             }
         },
-        // A file as the sound in it, or null when it is not sound this machine can read.
-        async decodeAudio(bytes) {
+        // A file as the sound in it, or null when it is not sound this machine can read. It
+        // comes at the rate of the clock that reads it: the one you listen on, or, when a rate
+        // is asked for, one of that rate that is made for this and never runs.
+        async decodeAudio(bytes, sampleRate) {
             try {
-                const heard = await getAudioContext().decodeAudioData(bytes)
+                const clock = sampleRate ? new OfflineAudioContext(1, 1, sampleRate) : getAudioContext()
+                const heard = await clock.decodeAudioData(bytes)
                 return { channels: Array.from({ length: heard.numberOfChannels }, (_, at) => heard.getChannelData(at)), sampleRate: heard.sampleRate }
             } catch {
                 return null

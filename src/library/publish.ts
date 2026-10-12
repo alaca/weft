@@ -13,7 +13,7 @@ export type Prepared =
 
 export async function prepareForPublishing(
     song: SongFile,
-    decode: (bytes: Uint8Array) => Promise<Decoded | null>,
+    decode: (bytes: Uint8Array, sampleRate?: number) => Promise<Decoded | null>,
     encode: (sound: Decoded, kbps: number) => Promise<Uint8Array>,
     limit = SONG_LIMIT,
 ): Promise<Prepared> {

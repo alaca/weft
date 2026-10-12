@@ -9,6 +9,14 @@ export const SHRINK_STEPS = [128, 96, 64]
 export type Decoded = { channels: Float32Array[]; sampleRate: number }
 export type Shrunk = { sounds: PackedSound[]; fits: boolean; kbps: number | null }
 
+// The rate a sound is handed to the encoder at: the one the encoder writes it at. What the
+// encoder makes of a sound it has to bring to another rate itself is silence, so the sound is
+// read again at that rate first. Under 128 kbps two channels are written at a lower rate than
+// sounds come in, and nothing is written above 48000 Hz. Anything else keeps the rate it has.
+const STEREO_RATES: Record<number, number> = { 96: 32000, 64: 24000 }
+const MOST_RATE = 48000
+const rateFor = (sound: Decoded, kbps: number): number => (sound.channels.length > 1 ? STEREO_RATES[kbps] : undefined) ?? Math.min(sound.sampleRate, MOST_RATE)
+
 const START = 0.1
 
 // Where a sound starts, in seconds: the first moment it is a tenth as loud as it ever gets. An
@@ -38,7 +46,7 @@ const mp3Name = (file: string) => `${file.replace(/\.[a-z0-9]{1,5}$/i, '')}.mp3`
 export async function shrinkSounds(
     sounds: PackedSound[],
     sizeWith: (sounds: PackedSound[]) => number,
-    decode: (bytes: Uint8Array) => Promise<Decoded | null>,
+    decode: (bytes: Uint8Array, sampleRate?: number) => Promise<Decoded | null>,
     encode: (sound: Decoded, kbps: number) => Promise<Uint8Array>,
     limit = SONG_LIMIT,
 ): Promise<Shrunk> {
@@ -49,7 +57,9 @@ export async function shrinkSounds(
         made = []
         for (const [at, sound] of sounds.entries()) {
             const decoded = heard[at]
-            const small = decoded ? await encode(decoded, kbps) : null
+            const rate = decoded ? rateFor(decoded, kbps) : 0
+            const fit = decoded && rate !== decoded.sampleRate ? await decode(sound.data, rate) : decoded
+            const small = fit ? await encode(fit, kbps) : null
             made.push(small && decoded && small.length < sound.data.length ? { ...sound, file: mp3Name(sound.file), type: 'audio/mpeg', data: small, onset: onsetOf(decoded) } : sound)
         }
         if (sizeWith(made) <= limit) return { sounds: made, fits: true, kbps }
