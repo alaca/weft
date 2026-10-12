@@ -1203,8 +1203,12 @@ function addStarter(base: string, code: (name: string) => string, range?: { low:
     lastLength.delete(name)
     if (patternKeys()[name]) keepKeys(without(patternKeys(), name))
     const length = songLengthNow()
-    engine.applyEdit(appendPattern(engine.getCode(), code(name)))
-    restEverywhere(name, length)
+    // The pattern is written and then put to rest in every bar, which is two changes of the
+    // code. What the window does after a change of the code is done once, after both.
+    batch(() => {
+        engine.applyEdit(appendPattern(engine.getCode(), code(name)))
+        restEverywhere(name, length)
+    })
     replay()
     select(name)
     return name
@@ -1280,8 +1284,10 @@ export function duplicatePattern(id: string): string | null {
     if (rollRanges()[id]) setRollRanges({ ...rollRanges(), [name]: rollRanges()[id] })
     keepKeys(patternKeys()[id] ? { ...patternKeys(), [name]: patternKeys()[id] } : without(patternKeys(), name))
     const length = songLengthNow()
-    engine.applyEdit(duplicateEdit(engine.getCode(), block, name))
-    restEverywhere(name, length)
+    batch(() => {
+        engine.applyEdit(duplicateEdit(engine.getCode(), block, name))
+        restEverywhere(name, length)
+    })
     replay()
     select(name)
     return name
