@@ -31,7 +31,7 @@ describe('parseNoteGrid', () => {
         expect(parseNoteGrid('~ ~ ~ ~, ~ ~ ~ ~')).toBeNull()
         expect(formatNoteGrid([], 12)).toBe('`\n  ~ ~ ~   ~ ~ ~   ~ ~ ~   ~ ~ ~\n`')
         expect(formatNoteGrid([], 16)).toBe('"~"')
-        expect(formatNoteGrid([], 32, 16)).toBe('"~"')
+        expect(formatNoteGrid([], 32, 16)).toBe('`\n  ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~\n`')
     })
 
     it('reads notes, silences and holds', () => {

@@ -52,11 +52,12 @@ export function parseNoteGrid(text: string): { notes: Note[]; steps: number } | 
     return { notes: inOrder(notes), steps }
 }
 
-// An empty roll on the usual sixteen steps is written as one rest. On any other number of steps
-// it is written as that many rests, or the number chosen would be forgotten with the last note.
+// An empty roll of one bar on the usual sixteen steps is written as one rest. On any other
+// number of steps, or over more bars, it is written as that many rests, or what was chosen
+// would be forgotten with the last note.
 export function formatNoteGrid(notes: Note[], steps: number, perCycle = steps): string {
     if (!notes.length) {
-        if (perCycle === EMPTY_STEPS) return '"~"'
+        if (steps === EMPTY_STEPS && perCycle === EMPTY_STEPS) return '"~"'
         const size = groupOf(steps)
         const groups = Array.from({ length: steps / size }, () => Array<string>(size).fill('~').join(' '))
         return `\`\n  ${groups.join('   ')}\n\``
