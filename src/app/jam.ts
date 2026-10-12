@@ -921,6 +921,8 @@ async function sendSound(name: string) {
 }
 
 function pieceArrived(frame: ArrayBuffer) {
+    // A line that brings a piece of a sound carries, as one that brings a message does.
+    heardAt = performance.now()
     const piece = readPiece(frame)
     const waiting = piece ? incoming.get(piece.name) : undefined
     if (!piece || !waiting || piece.parts !== piecesOf(waiting.offer.bytes) || waiting.parts[piece.part]) return

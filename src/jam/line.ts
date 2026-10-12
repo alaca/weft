@@ -1,11 +1,13 @@
-import type { FromRelay } from './protocol'
+import { PIECE, type FromRelay } from './protocol'
 
 // The line to the relay of a jam. One jam, one line: it is opened to invite or to join, and
 // closed when the jam is over.
 export type Line = { send(message: object): void; sendBytes(bytes: Uint8Array): Promise<void>; close(): void }
 export type LineEvents = { message(message: FromRelay): void; bytes(frame: ArrayBuffer): void; closed(): void }
 
-const FULL = 1024 * 1024
+// Whatever waits in the line is ahead of all that is said after it, so of a long sound no more
+// than about two pieces wait there at a time.
+const FULL = 2 * PIECE
 const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))
 
 export function openLine(url: string, on: LineEvents): Promise<Line> {

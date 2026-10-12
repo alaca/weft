@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { openLine } from '../../src/jam/line'
 import { aboutText, arrivedAt, cleanName, cleanSay, digestOf, HELD_UP, heldUp, listAddress, packPiece, PIECE, piecesOf, quickest, readInvite, readOpenJams, readPiece, showInvite, TRIPS_KEPT, withTrip } from '../../src/jam/protocol'
 import { soundRenames } from '../../src/library/songfile'
 
@@ -84,6 +85,60 @@ describe('pieces of a sound', () => {
         expect(readPiece(wrong.buffer as ArrayBuffer)).toBeNull()
         const text = new TextEncoder().encode('not json')
         expect(readPiece(Uint8Array.from([0, text.length, ...text]).buffer)).toBeNull()
+    })
+})
+
+describe('a long sound on the line', () => {
+    afterEach(() => {
+        vi.useRealTimers()
+        vi.unstubAllGlobals()
+    })
+
+    it('has no more than two pieces waiting there, so that what is said is not far behind', async () => {
+        vi.useFakeTimers()
+        const handed: (string | Uint8Array)[] = []
+        let carried = 0
+        class FakeSocket {
+            static OPEN = 1
+            static made: FakeSocket
+            readyState = 1
+            bufferedAmount = 0
+            onopen: (() => void) | null = null
+            constructor() {
+                FakeSocket.made = this
+                queueMicrotask(() => this.onopen?.())
+            }
+            send(data: string | Uint8Array) {
+                handed.push(data)
+                this.bufferedAmount += data.length
+            }
+            close() {}
+        }
+        // The line has carried the next thing that waited in it.
+        const carry = () => (FakeSocket.made.bufferedAmount -= handed[carried++].length)
+        vi.stubGlobal('WebSocket', FakeSocket)
+        vi.stubGlobal('window', globalThis)
+
+        const line = await openLine('ws://relay', { message() {}, bytes() {}, closed() {} })
+        const bytes = new Uint8Array(PIECE * 6)
+        const parts = piecesOf(bytes.length)
+        const sound = (async () => {
+            for (let part = 0; part < parts; part++) await line.sendBytes(packPiece({ name: 'take', part, parts, bytes: bytes.subarray(part * PIECE, (part + 1) * PIECE) }))
+        })()
+        await vi.advanceTimersByTimeAsync(200)
+        expect(handed).toHaveLength(2)
+
+        line.send({ t: 'tell', d: { k: 'say', text: 'hello' } })
+        expect(typeof handed[2]).toBe('string')
+
+        const pieces = (some: (string | Uint8Array)[]) => some.filter((one) => typeof one !== 'string').length
+        while (carried < handed.length) {
+            carry()
+            await vi.advanceTimersByTimeAsync(20)
+            expect(pieces(handed.slice(carried))).toBeLessThanOrEqual(2)
+        }
+        await sound
+        expect(pieces(handed)).toBe(parts)
     })
 })
 
