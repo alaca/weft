@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { checkSong } from '../../src/guard/check'
 import { drumFor, readKey } from '../../src/library/midi'
 
 describe('what a MIDI keyboard says', () => {
@@ -32,5 +33,12 @@ describe('a pad or a key on a drum grid', () => {
         expect(drumFor(39, rows)).toBe('my_clap')
         expect(drumFor(37, rows)).toBe('hh')
         expect(drumFor(60, rows)).toBeNull()
+    })
+})
+
+describe('a song from someone else', () => {
+    it('is asked about before it may send notes to your MIDI devices', () => {
+        expect(checkSong('lead: note("c e").midi()\n')).not.toBeNull()
+        expect(checkSong('lead: note("c e").s("triangle")\n')).toBeNull()
     })
 })
