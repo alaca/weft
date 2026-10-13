@@ -74,7 +74,7 @@ export const CONTROLS: ControlDef[] = [
     control('room', 'Room', 'effects', 0, 1, 0.3, 'How much reverb is added'),
     // The room is built again from nothing for every new size, and what rang in it is gone, so
     // a size that never stands still would be heard as a reverb that keeps breaking off.
-    control('roomsize', 'Room size', 'effects', 0, 10, 2, 'How large the reverb space sounds. Patterns on one mixing channel share one room', {
+    control('roomsize', 'Room size', 'effects', 0, 10, 2, 'How large the reverb space sounds. Patterns on one mixing channel share one room: the first of them in the code that plays sets its size', {
         names: ['roomsize', 'size', 'sz', 'rsize'],
         steady: true,
     }),

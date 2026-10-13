@@ -35,7 +35,7 @@ import { useOwnWorklets } from './ownWorklets'
 import { SOUND_DRAG, type RawSound } from '../sounds/catalog'
 import { addOwnSound, kitNames, loadModules, loadSamples, removeOwnSound, soundTaken } from './prebake'
 import { createReplay } from './replay'
-import { inSharedRoom, type Rooms } from './room'
+import { inSharedRoom, type From, type Rooms } from './room'
 import { createSync, heard, syncSlot, type Sync } from './sync'
 import { registerTheme } from './theme'
 import { startTicking, stopTicking } from './ticker'
@@ -146,6 +146,11 @@ const LIMIT_AT = -2
 const LIMIT_BY = 20
 const BEFORE_MASK = '__weftBeforeMask'
 const STRUDELS_OWN = '__weftStrudelsOwn'
+// Every note carries the pattern it is of and where that pattern stands in the code. A note
+// of no named pattern counts as one of a pattern after all the others.
+const FROM = '__weftFrom'
+const NOBODY: From = { name: '', place: Number.MAX_SAFE_INTEGER }
+const fromOf = (hap: any): From => hap.context?.[FROM] ?? NOBODY
 
 function toEvalError(err: unknown): EvalError {
     const e = err as { message?: string; loc?: { line?: number }; guard?: boolean }
@@ -413,6 +418,8 @@ export function createEngine(): Engine {
             if (soloIds.length && !soloIds.includes(key)) return silence
             const muted = id !== bare
             if (!muted) pendingSounding.add(place)
+            const from: From = { name: key, place: [...pending.keys()].indexOf(key) }
+            const tagged = (pattern: any) => pattern.withContext((context: object) => ({ ...context, [FROM]: from }))
             // Strudel looks a little ahead, so the bar after the last one would already have
             // started to sound by the time the song is stopped at its end. Nothing that starts
             // at or after the end is let through. The end is read as it is now, not as it was
@@ -429,11 +436,11 @@ export function createEngine(): Engine {
                 const round = switched ? new Pattern(cutAt((asked: unknown) => whole.query(asked), bar, muted ? 'before' : 'from')) : whole
                 // Strudel plays nothing under a muted name, so a pattern that is switched off
                 // is handed over under its bare one.
-                return original.call(shift ? round.early(shift) : round, switched ? bare : id)
+                return original.call(tagged(shift ? round.early(shift) : round), switched ? bare : id)
             }
-            if (loop) return original.call(this.ribbon(loop.from, loop.to - loop.from).early(shift), id)
+            if (loop) return original.call(tagged(this.ribbon(loop.from, loop.to - loop.from).early(shift)), id)
             const within = (hap: any) => endBar === null || (hap.whole ?? hap.part).begin.valueOf() + shift < endBar
-            return original.call((shift ? this.early(shift) : this).filterHaps(within), id)
+            return original.call(tagged((shift ? this.early(shift) : this).filterHaps(within)), id)
         }
         Pattern.prototype.p[STRUDELS_OWN] = original
     }
@@ -489,10 +496,10 @@ export function createEngine(): Engine {
         if (!known) roomsOf.set(controller, (known = new Map()))
         return known
     }
-    const inRoom = (hap: any, time: number) => {
+    const inRoom = (hap: any, time: number, cps: number) => {
         const value = hap.value
         if (!value || typeof value !== 'object') return hap
-        const fitted = inSharedRoom(rooms(), value, time)
+        const fitted = inSharedRoom(rooms(), value, time, fromOf(hap), 1 / cps)
         return fitted === value ? hap : hap.withValue(() => fitted)
     }
 
@@ -729,7 +736,7 @@ export function createEngine(): Engine {
                 toLight(hap)
                 if (guarded && carriesCode(hap.value)) return
                 readyToDuck(hap.value)
-                return webaudioOutput(inRoom(hap, time), deadline, duration, cps, time)
+                return webaudioOutput(inRoom(hap, time, cps), deadline, duration, cps, time)
             },
             getTime: () => getAudioContext().currentTime,
             setInterval: startTicking,
@@ -1070,20 +1077,27 @@ export function createEngine(): Engine {
                 await initAudio()
                 const startOf = (hap: any) => hap.whole.begin.valueOf() / cps
                 const ducks = (hap: any) => hap.value?.duckorbit !== undefined && hap.value?.duckorbit !== null
+                const rings = (hap: any) => Number(hap.value?.room) > 0
                 const own = only === undefined ? null : pending.get(only)
+                const alone: From | null = only === undefined ? null : { name: only, place: [...pending.keys()].indexOf(only) }
                 const known = ducking?.code === code && ducking.cps === cps && ducking.bars === bars ? ducking.byBar : []
                 const found: any[][] = []
-                // With one pattern asked for, the others are only there for what they do to it,
-                // and the whole song is asked for that only where it is not known yet.
-                const inBar = (bar: number): { hap: any; heard: boolean }[] => {
-                    const hapsOf = (from: any): any[] => (from ? asItStood(() => from.queryArc(bar, Math.min(bar + 1, bars), { _cps: cps })).filter((hap: any) => hap.hasOnset()) : [])
-                    if (bar < first) return hapsOf(only === undefined ? pattern : own).flatMap((hap) => (hap.value?.room > 0 ? [{ hap, heard: true }] : []))
-                    const kept: any[] | undefined = only === undefined ? undefined : known[bar]
+                type Sounded = { hap: any; heard: boolean; of: From }
+                // Sounds that start together come in the order their patterns stand in the code.
+                const inOrder = (sounds: Sounded[]) => sounds.sort((a, b) => a.of.place - b.of.place)
+                // With one pattern asked for, the others are only there for what they do to it:
+                // they push it down, and they have their say in the room it plays in. The whole
+                // song is asked for that only where it is not known yet.
+                const inBar = (bar: number): Sounded[] => {
+                    const hapsOf = (source: any): any[] => (source ? asItStood(() => source.queryArc(bar, Math.min(bar + 1, bars), { _cps: cps })).filter((hap: any) => hap.hasOnset()) : [])
+                    const kept: any[] | undefined = alone === null ? undefined : known[bar]
                     const everything = kept ? [] : hapsOf(pattern)
-                    everything.forEach((hap: any) => hap.ensureObjectValue())
-                    found[bar] = kept ?? everything.filter(ducks)
-                    if (only === undefined) return everything.map((hap) => ({ hap, heard: true }))
-                    return [...hapsOf(own).map((hap) => ({ hap, heard: true })), ...found[bar].map((hap) => ({ hap, heard: false }))]
+                    if (bar >= first) everything.forEach((hap: any) => hap.ensureObjectValue())
+                    found[bar] = kept ?? everything.filter((hap) => ducks(hap) || rings(hap))
+                    const mine: Sounded[] = alone === null ? everything.map((hap) => ({ hap, heard: true, of: fromOf(hap) })) : hapsOf(own).map((hap) => ({ hap, heard: true, of: alone }))
+                    const others: Sounded[] = alone === null ? [] : found[bar].filter((hap) => ducks(hap) || fromOf(hap).name !== alone.name).map((hap) => ({ hap, heard: false, of: fromOf(hap) }))
+                    // Before the bar a recording is made from, only what a sound does to a room counts.
+                    return inOrder([...mine, ...others].filter((sound) => bar >= first || rings(sound.hap)))
                 }
                 const due = barByBar(bars, cps, inBar, (sound) => startOf(sound.hap))
                 // A reverb keeps what a sound last gave it, its size above all, however long
@@ -1124,17 +1138,19 @@ export function createEngine(): Engine {
                 // due, with the clock standing still meanwhile, the way they arrive when the
                 // song plays. Handing over the whole song at once makes the clock carry every
                 // sound of it from the first moment, and it then runs slower than the song.
-                const handOver = async (sounds: { hap: any; heard: boolean }[]) => {
-                    for (const { hap, heard } of sounds) {
+                const handOver = async (sounds: Sounded[]) => {
+                    for (const { hap, heard, of } of sounds) {
                         hap.ensureObjectValue()
                         if (guarded && carriesCode(hap.value)) continue
-                        if (hap.whole.begin.valueOf() < first) {
-                            await leaveRoom(hap.value, startOf(hap))
-                            continue
-                        }
+                        const before = hap.whole.begin.valueOf() < first
                         const { duckorbit, ...value } = hap.value
-                        if (duckorbit !== undefined && duckorbit !== null && (only === undefined || !heard)) duckAt(hap.value, startOf(hap))
-                        if (heard) await superdough(inSharedRoom(rooms(), value, startOf(hap)), startOf(hap), hap.duration.valueOf() / cps, cps, hap.whole.begin.valueOf()).catch(() => void missed++)
+                        if (!before && duckorbit !== undefined && duckorbit !== null && (only === undefined || !heard)) duckAt(hap.value, startOf(hap))
+                        // The pattern asked for is in the list once more for what it pushes down.
+                        if (!heard && of.name === only) continue
+                        const fitted = inSharedRoom(rooms(), value, startOf(hap), of, 1 / cps)
+                        if (!heard) continue
+                        if (before) await leaveRoom(fitted, startOf(hap))
+                        else await superdough(fitted, startOf(hap), hap.duration.valueOf() / cps, cps, hap.whole.begin.valueOf()).catch(() => void missed++)
                     }
                     await reverbsSound()
                 }
