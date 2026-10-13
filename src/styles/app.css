@@ -918,3 +918,20 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .meter { appearance: none; -webkit-appearance: none; background: none; border: 0; color: var(--linen); font: 500 14px/1.15 var(--mono); font-stretch: 87%; padding: 0; width: 46px; cursor: pointer; }
 .meter:disabled { opacity: 0.5; cursor: default; }
 .meter:focus-visible { outline: 2px solid var(--linen); outline-offset: 3px; border-radius: 4px; }
+
+/* The chords of the song: a lane of bars with the chord named where it begins, the row the
+   chord is chosen in, and the grid of a pattern that follows them. */
+.sg-cd { cursor: pointer; }
+.sg-ch { position: relative; min-width: 0; height: 100%; background: color-mix(in srgb, var(--linen-3) 14%, transparent); border-left: 1px solid transparent; }
+.sg-ch.begins { border-left-color: var(--linen-3); }
+.sg-ch.drawn { background: color-mix(in srgb, var(--linen) 30%, transparent); }
+.sg-ch b { position: absolute; left: 5px; top: 50%; transform: translateY(-50%); font: 600 11px/1 var(--mono); font-stretch: 87%; color: var(--linen); white-space: nowrap; pointer-events: none; z-index: 1; }
+.sg-ch:focus-visible { outline: 2px solid var(--linen); outline-offset: -2px; z-index: 2; }
+.sg-cp { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 9px; padding: 0 14px 9px 17px; }
+.sg-cp .seg.s button { min-width: 24px; padding: 0 6px; font: 500 11px/1 var(--ui); }
+.sg-cb { min-width: 44px; height: 23px; padding: 0 8px; border-radius: 7px; background: var(--linen); color: var(--vat); display: inline-flex; align-items: center; justify-content: center; font: 600 12px/1 var(--mono); font-stretch: 87%; }
+.cr-n { color: var(--linen-3); font-size: 11.5px; margin: 0 0 9px; }
+.cr-n b { color: var(--linen); font-weight: 600; }
+.cr .dg { row-gap: 3px; }
+.cr .pad { height: 18px; }
+.cr .rn { height: 18px; font-size: 10px; }

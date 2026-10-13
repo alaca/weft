@@ -1,9 +1,10 @@
 import { createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { addVariantOf, colorAt, dropOnPattern, duplicatePattern, eventsOf, movePattern, openSounds, removePattern, removeVariantOf, renamePattern, restsNow, select, setControl, setMix, showVariant, songLengthNow, toggleMute, togglePanel, toggleSolo } from '../app/controller'
+import { codeNow, addVariantOf, colorAt, dropOnPattern, duplicatePattern, eventsOf, movePattern, openSounds, removePattern, removeVariantOf, renamePattern, restsNow, select, setControl, setMix, showVariant, songLengthNow, toggleMute, togglePanel, toggleSolo } from '../app/controller'
 import { MOST_VARIANTS, variantBars, variantName } from '../song/variants'
 import { writeNumber } from '../controls/catalog'
 import { favourites, panOf, volumeOf, type ControlView } from '../controls/views'
 import { isDrums, readKit } from '../song/kit'
+import { readFollower } from '../song/chords'
 import { readSlices } from '../song/slices'
 import { noteText } from '../song/notes'
 import type { PatternBlock, PatternView } from '../song/types'
@@ -15,6 +16,7 @@ import { Knob } from './Knob'
 import { MiniView } from './MiniView'
 import { NoteRoll } from './NoteRoll'
 import { PianoRoll } from './PianoRoll'
+import { ChordRack } from './ChordRack'
 import { SliceRack } from './SliceRack'
 import { SoundPanel } from './SoundPanel'
 import { Rack } from './Rack'
@@ -104,7 +106,8 @@ export function Strip(props: { id: string }) {
 
     const isRoll = () => block() !== undefined && noteText(block()) !== null
     const isSliced = () => block() !== undefined && readSlices(block()) !== null
-    const isRack = () => !isSliced() && !isRoll() && notes() === null && block() !== undefined && (steps() !== null || isDrums(block()))
+    const isFollower = () => block() !== undefined && readFollower(codeNow(), block()) !== null
+    const isRack = () => !isSliced() && !isFollower() && !isRoll() && notes() === null && block() !== undefined && (steps() !== null || isDrums(block()))
 
     // Where the grid or the roll of this strip puts its length, steps and cycle.
     let head!: HTMLSpanElement
@@ -387,6 +390,9 @@ export function Strip(props: { id: string }) {
                     <Show when={!folded()}>
                         <div class="st-b two">
                             <div>
+                                <Show when={isFollower()}>
+                                    <ChordRack id={props.id} block={current()} head={head} playing={playing()} position={position()} cycle={bar()} />
+                                </Show>
                                 <Show when={isSliced()}>
                                     <SliceRack id={props.id} block={current()} head={head} playing={playing()} position={position()} cycle={bar()} />
                                 </Show>
@@ -396,7 +402,7 @@ export function Strip(props: { id: string }) {
                                 <Show when={isRoll()}>
                                     <NoteRoll id={props.id} block={current()} head={head} played={notes()?.notes ?? []} playing={playing()} position={position()} cycle={bar()} />
                                 </Show>
-                                <Show when={!isRoll() && notes()}>
+                                <Show when={!isRoll() && !isFollower() && notes()}>
                                     {(roll) => (
                                         <>
                                             <PianoRoll lowest={roll().lowest} highest={roll().highest} notes={roll().notes} playing={playing()} position={position()} />

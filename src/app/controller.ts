@@ -14,6 +14,7 @@ import { saveFile, savePieces, textPieces, type FileKind, type Saved } from '../
 import { createEngine } from '../engine/engine'
 import { DEMO } from '../demo/demo'
 import { MAX_BARS } from '../song/bars'
+import { chordAt, chordsEdit, followerCode, followerEdits, FOLLOW_KINDS, readChords, readFollower, registerEdit, TONES, USUAL_CHORD, type Follower, type FollowKind, type Register } from '../song/chords'
 import { meterEdits, meterNow, METERS, readMeter, setMeterNow, sliceSteps } from '../song/meter'
 import { fitTempo, readTempoLane, secondsOf, tempoAt, tempoLaneEdit } from '../song/tempo'
 import { cleanPresetName, LIBRARY, presetCalls, presetEdits, previewText, PREVIEW_PITCH, readPresets, soundCalls, withPreset, writePresets, type Preset } from '../sounds/presets'
@@ -169,10 +170,12 @@ import {
     setLinkAsk,
     type PlayMode,
     setTakeOpening,
+    setChordLane,
     setMeter,
     setTakeSince,
     setTempoLane,
     takeOpening,
+    chordLane,
     takeSince,
     tempoLane,
     setSongs,
@@ -301,6 +304,7 @@ function onCode(code: string) {
     setMeterNow(counted)
     setMeter(counted)
     engine.setQuarters(counted.quarters)
+    setChordLane(readChords(code))
     const lane = readTempoLane(code)
     setTempoLane(lane)
     engine.setTempoLane(lane ? lane.values.map((bpm) => bpm / (60 * counted.quarters)) : null)
@@ -864,6 +868,100 @@ export function chooseMeter(label: string) {
     const edits = meterEdits(engine.getCode(), song(), wanted)
     if (!edits.length) return
     engine.applyEdit(edits)
+    replay()
+}
+
+// ---- chords for the patterns to follow: one for every bar, written once.
+export function addChords(): boolean {
+    if (stale()) return false
+    if (chordLane()) return true
+    const edit = chordsEdit(engine.getCode(), song(), Array.from({ length: songLengthNow() }, () => USUAL_CHORD))
+    if (!edit) return false
+    engine.applyEdit(edit)
+    replay()
+    return true
+}
+
+// The bars from one to another given a chord, as one drag over them leaves them.
+export function paintChords(from: number, to: number, chord: string) {
+    const lane = chordLane()
+    if (stale() || !lane) return
+    const length = Math.max(songLengthNow(), lane.values.length)
+    const values = Array.from({ length }, (_, bar) => (bar >= Math.min(from, to) && bar <= Math.max(from, to) ? chord : chordAt(lane, bar)))
+    const edit = chordsEdit(engine.getCode(), song(), values)
+    if (!edit) return
+    engine.applyEdit(edit)
+    replay()
+}
+
+// The chords taken out. The patterns that followed them have nothing to follow until there
+// are chords again, and say so as an error in the code.
+export function removeChords() {
+    if (stale() || !chordLane()) return
+    const edit = chordsEdit(engine.getCode(), song(), null)
+    if (!edit) return
+    engine.applyEdit(edit)
+    replay()
+}
+
+function followChords(before: number, change: (values: string[]) => string[]): TextEdit[] {
+    const lane = chordLane()
+    if (!lane || lane.values.length !== before) return []
+    const edit = chordsEdit(engine.getCode(), song(), change(lane.values).slice(0, MAX_BARS))
+    return edit ? [edit] : []
+}
+
+// A new pattern that follows the chords. Without chords there are some first.
+export function addFollower(kind: FollowKind): string | null {
+    if (!addChords()) return null
+    const made = FOLLOW_KINDS.find((one) => one.kind === kind)
+    return made ? addStarter(made.name, (name) => followerCode(name, kind, mixText())) : null
+}
+
+const followerOf = (id: string): { block: PatternBlock; follower: Follower } | null => {
+    const block = find(id)
+    const follower = block ? readFollower(engine.getCode(), block) : null
+    return block && follower ? { block, follower } : null
+}
+
+const toneRows = (cells: number[][]): GridRow[] => Array.from({ length: TONES }, (_, tone) => ({ sound: String(tone + 1), steps: cells.map((cell) => cell.includes(tone)) }))
+
+function changeFollower(id: string, change: (grid: Grid) => { rows: GridRow[]; cycles: number } | null): boolean {
+    const found = followerOf(id)
+    if (!found || stale()) return false
+    const { block, follower } = found
+    const next = change({ rows: toneRows(follower.cells), steps: follower.steps, cycles: follower.cycles, perCycle: follower.perCycle })
+    if (!next) return false
+    const edits = [...followerEdits(follower, cellsOf(next.rows)), ...lengthEdits(block, follower.slow, next.cycles)]
+    if (!edits.length) return true
+    engine.applyEdit(edits)
+    replay()
+    return true
+}
+
+export const toggleTone = (id: string, tone: number, step: number) => void changeFollower(id, (grid) => ({ rows: toggleGridStep(grid.rows, String(tone + 1), step, grid.steps), cycles: grid.cycles }))
+
+export function paintTones(id: string, tone: number, from: number, to: number, on: boolean) {
+    changeFollower(id, (grid) => {
+        const rows = paintGridSteps(grid.rows, String(tone + 1), from, to, on, grid.steps)
+        return rows ? { rows, cycles: grid.cycles } : null
+    })
+}
+
+export const setFollowerLength = (id: string, cycles: number) => void changeFollower(id, (grid) => (grid.cycles === cycles ? null : { rows: resize(grid, cycles), cycles }))
+
+export function setFollowerSteps(id: string, perCycle: number) {
+    changeFollower(id, (grid) => {
+        const rows = resample(grid, perCycle)
+        return rows && perCycle !== grid.perCycle ? { rows, cycles: grid.cycles } : null
+    })
+}
+
+export function setRegister(id: string, register: Register) {
+    const found = followerOf(id)
+    const edit = found && !stale() ? registerEdit(engine.getCode(), found.block, found.follower, register) : null
+    if (!edit) return
+    engine.applyEdit(edit)
     replay()
 }
 
@@ -1919,7 +2017,7 @@ export function setBars(id: string, bars: boolean[], painted?: { from: number; t
     const before = songLengthNow()
     const { edits, length } = arrangeSong(engine.getCode(), lanes(), id, bars, before)
     // What is drawn over the song is as long as the song, and stays so.
-    if (length !== before) edits.push(...followTempo(before, (values) => stretched(values, length)), ...followSong(lanes(), before, (values) => stretched(values, length)), ...followChoices(lanes(), before, (kinds) => stretched(kinds.map(String), length).map(Number), painted ? id : undefined))
+    if (length !== before) edits.push(...followChords(before, (values) => stretched(values, length)), ...followTempo(before, (values) => stretched(values, length)), ...followSong(lanes(), before, (values) => stretched(values, length)), ...followChoices(lanes(), before, (kinds) => stretched(kinds.map(String), length).map(Number), painted ? id : undefined))
     if (painted && block.variants) {
         const kinds = stretched(variantBars(block, before).map(String), length).map(Number)
         const choice = chooseEdit(
@@ -1989,7 +2087,7 @@ export function repeatLoop() {
     const before = songLengthNow()
     const { edits, length } = repeatEdits(engine.getCode(), lanes(), range.from, range.to, before)
     const again = <T,>(values: T[]) => [...values.slice(0, range.to), ...values.slice(range.from, range.to), ...values.slice(range.to)].slice(0, length)
-    edits.push(...followTempo(before, again), ...followSong(lanes(), before, again), ...followChoices(lanes(), before, again))
+    edits.push(...followChords(before, again), ...followTempo(before, again), ...followSong(lanes(), before, again), ...followChoices(lanes(), before, again))
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
     const moved = { from: range.to, to: Math.min(length, range.to + (range.to - range.from)) }
@@ -2008,7 +2106,7 @@ export function removeLoop() {
     if (!range || stale() || range.to - range.from >= before) return
     const { edits, length } = removeEdits(engine.getCode(), lanes(), range.from, range.to, before)
     const without = <T,>(values: T[]) => [...values.slice(0, range.from), ...values.slice(range.to)]
-    edits.push(...followTempo(before, without), ...followSong(lanes(), before, without), ...followChoices(lanes(), before, without))
+    edits.push(...followChords(before, without), ...followTempo(before, without), ...followSong(lanes(), before, without), ...followChoices(lanes(), before, without))
     clearLoop()
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
@@ -2025,7 +2123,7 @@ export function spaceLoop() {
     if (!range || stale()) return
     const { edits, length } = spaceEdits(engine.getCode(), lanes(), range.from, range.to, before)
     const spaced = <T,>(values: T[]) => [...values.slice(0, range.from), ...Array.from({ length: range.to - range.from }, () => values[range.from]), ...values.slice(range.from)].slice(0, length)
-    edits.push(...followTempo(before, spaced), ...followSong(lanes(), before, spaced), ...followChoices(lanes(), before, spaced))
+    edits.push(...followChords(before, spaced), ...followTempo(before, spaced), ...followSong(lanes(), before, spaced), ...followChoices(lanes(), before, spaced))
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
     replay()

@@ -1,5 +1,5 @@
 import { batch, createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { chooseScene, clearLoop, codeNow, colorAt, drawControl, drawTempo, eventsOf, inStep, keepSceneNow, loopBetween, nameScene, patternText, removeLoop, removeScene, repeatLoop, scenesOf, select, setBars, setCurve, setMix, setMotion, setTempoCurve, songLengthNow, spaceLoop, startFrom, stillTempo, takeKnobs, toggleBar, toggleMute, toggleSolo } from '../app/controller'
+import { addChords, addFollower, chooseScene, clearLoop, codeNow, colorAt, drawControl, drawTempo, eventsOf, paintChords, removeChords, inStep, keepSceneNow, loopBetween, nameScene, patternText, removeLoop, removeScene, repeatLoop, scenesOf, select, setBars, setCurve, setMix, setMotion, setTempoCurve, songLengthNow, spaceLoop, startFrom, stillTempo, takeKnobs, toggleBar, toggleMute, toggleSolo } from '../app/controller'
 import { fromUnit, toUnit } from '../controls/catalog'
 import { drawableIn, drawnIn, panOf, volumeOf, type ControlView } from '../controls/views'
 import { barsOf, clips, paint, type Clip } from '../song/arrange'
@@ -7,8 +7,9 @@ import { MAX_BARS } from '../song/bars'
 import type { PatternEvent } from '../song/types'
 import { sceneIsOn, SCENE_NAME_LIMIT } from '../song/scenes'
 import { barKeys, variantBars, variantName } from '../song/variants'
+import { chordAt, FOLLOW_KINDS, KINDS, ROOTS } from '../song/chords'
 import { secondsOf, TEMPO_LEAST, TEMPO_MOST, type TempoLane } from '../song/tempo'
-import { bpm, cycle, engineState, loopBars, playMode, position, revision, sceneWaiting, soloIds, song, stale, startBar, takingKnobs, tempoLane } from '../stores/song'
+import { bpm, cycle, engineState, loopBars, playMode, position, revision, sceneWaiting, soloIds, song, stale, startBar, takingKnobs, tempoLane, chordLane } from '../stores/song'
 import { Knob } from './Knob'
 import { MixStrips } from './MixStrips'
 import { askSoon } from './askSoon'
@@ -624,6 +625,128 @@ function Scenes() {
     )
 }
 
+// The chord that is put on the bars that are pressed or dragged over: a note and a kind of
+// chord, chosen in the row over the lanes.
+const [brushRoot, setBrushRoot] = createSignal('C')
+const [brushKind, setBrushKind] = createSignal('')
+const brush = () => `${brushRoot()}${brushKind()}`
+
+// The chords of the song, a bar to a cell. A press or a drag over bars gives them the chosen
+// chord, drawn as it goes and written once. A chord is named where it begins.
+function ChordsLane(props: { view: View }) {
+    let track!: HTMLDivElement
+    let from: number | null = null
+    const [run, setRun] = createSignal<{ from: number; to: number } | null>(null)
+    const written = (bar: number) => {
+        const lane = chordLane()
+        return lane ? chordAt(lane, bar) : ''
+    }
+    const inRun = (bar: number) => {
+        const going = run()
+        return going !== null && bar >= Math.min(going.from, going.to) && bar <= Math.max(going.from, going.to)
+    }
+    const nameAt = (bar: number) => (inRun(bar) ? brush() : written(bar))
+    const barAt = (x: number) => Math.min(props.view.length - 1, Math.max(0, Math.floor((x - track.getBoundingClientRect().left) / props.view.barWidth)))
+    const cells = () => Array.from({ length: Math.max(0, props.view.last - props.view.first) })
+    const finish = (keep: boolean) => {
+        const done = run()
+        from = null
+        batch(() => {
+            if (keep && done) paintChords(done.from, done.to, brush())
+            setRun(null)
+        })
+    }
+    return (
+        <div
+            class="sg-l sg-cd"
+            ref={track}
+            data-testid="chords-lane"
+            onPointerDown={(event) => {
+                const bar = Math.floor((event.clientX - track.getBoundingClientRect().left) / props.view.barWidth)
+                if (stale() || event.button !== 0 || bar < 0 || bar >= props.view.length) return
+                from = bar
+                track.setPointerCapture(event.pointerId)
+                setRun({ from: bar, to: bar })
+            }}
+            onPointerMove={(event) => {
+                if (from !== null) setRun({ from, to: barAt(event.clientX) })
+            }}
+            onPointerUp={() => finish(true)}
+            onPointerCancel={() => finish(false)}
+        >
+            <div class="sg-cells" style={{ left: `${props.view.first * props.view.barWidth}px`, 'grid-template-columns': `repeat(${cells().length}, ${props.view.barWidth}px)` }}>
+                <Index each={cells()}>
+                    {(_, at) => {
+                        const bar = () => props.view.first + at
+                        const begins = () => bar() === 0 || nameAt(bar()) !== nameAt(bar() - 1)
+                        return (
+                            <Show when={bar() < props.view.length} fallback={<span />}>
+                                <div
+                                    class="sg-ch"
+                                    classList={{ begins: begins(), drawn: inRun(bar()) }}
+                                    role="button"
+                                    tabindex="0"
+                                    aria-label={`Chord of bar ${bar() + 1}: ${nameAt(bar())}`}
+                                    aria-disabled={stale() ? 'true' : 'false'}
+                                    title={`Bar ${bar() + 1}: ${nameAt(bar())}. Press, or drag over bars, to put ${brush()} here.`}
+                                    onKeyDown={(event) => {
+                                        if (stale() || (event.key !== 'Enter' && event.key !== ' ')) return
+                                        event.preventDefault()
+                                        paintChords(bar(), bar(), brush())
+                                    }}
+                                >
+                                    <Show when={begins()}>
+                                        <b>{nameAt(bar())}</b>
+                                    </Show>
+                                </div>
+                            </Show>
+                        )
+                    }}
+                </Index>
+            </div>
+        </div>
+    )
+}
+
+// The row the chord for the lane is chosen in, with the ways to start a pattern that follows.
+function ChordPalette() {
+    return (
+        <div class="sg-cp" data-testid="chord-palette">
+            <span class="cap">Chord</span>
+            <div class="seg s" role="radiogroup" aria-label="Note of the chord">
+                <For each={ROOTS}>
+                    {(root) => (
+                        <button role="radio" classList={{ on: brushRoot() === root }} aria-checked={brushRoot() === root} onClick={() => setBrushRoot(root)}>
+                            {root}
+                        </button>
+                    )}
+                </For>
+            </div>
+            <div class="seg s" role="radiogroup" aria-label="Kind of chord">
+                <For each={KINDS}>
+                    {(kind) => (
+                        <button role="radio" classList={{ on: brushKind() === kind.sign }} aria-checked={brushKind() === kind.sign} onClick={() => setBrushKind(kind.sign)}>
+                            {kind.label}
+                        </button>
+                    )}
+                </For>
+            </div>
+            <span class="sg-cb" data-testid="chord-brush" title="Press or drag over bars in the Chords lane to put this chord there">
+                {brush()}
+            </span>
+            <span class="grow" />
+            <span class="cap">Follow them with</span>
+            <For each={FOLLOW_KINDS}>
+                {(made) => (
+                    <button class="chip tgl" disabled={stale()} title={`A new pattern that follows the chords. ${made.about}.`} onClick={() => addFollower(made.kind)}>
+                        + {made.label}
+                    </button>
+                )}
+            </For>
+        </div>
+    )
+}
+
 // The tempo of every bar as something a lane draws, the way it draws a knob.
 const tempoDrawn: Drawn = {
     hue: 'var(--linen-2)',
@@ -756,6 +879,11 @@ export function SongPanel() {
                     )}
                 </Show>
                 <span class="grow" />
+                <Show when={!chordLane()}>
+                    <button class="chip tgl" classList={{ away: mixing() }} disabled={stale()} title="Gives the song chords, one for every bar, that patterns can follow: change a chord in one place and every pattern that follows plays the new one" onClick={addChords}>
+                        Add chords
+                    </button>
+                </Show>
                 <Show when={playMode() === 'song' && !tempoLane()}>
                     <button class="chip tgl" classList={{ away: mixing() }} disabled={stale() || song().tempoLocked} title="Gives every bar a tempo of its own, drawn over the song the way a knob is: for a song that speeds up, slows down or changes tempo" onClick={drawTempo}>
                         Draw the tempo
@@ -784,6 +912,9 @@ export function SongPanel() {
             <Show when={playMode() === 'live' && song().patterns.length > 0}>
                 <Scenes />
             </Show>
+            <Show when={chordLane() && !mixing()}>
+                <ChordPalette />
+            </Show>
             <Show when={mixing()}>
                 <MixStrips />
             </Show>
@@ -793,6 +924,16 @@ export function SongPanel() {
                         <span>Vol</span>
                         <span>Pan</span>
                     </div>
+                    <Show when={chordLane()}>
+                        <div class="sg-kn sg-tn" data-testid="chords-name">
+                            <span title="The chord of every bar. Patterns that follow the chords play notes of it.">Chords</span>
+                            <button class="rx" aria-label="Take the chords out of the song" title="Take the chords out of the song" disabled={stale()} onClick={removeChords}>
+                                <svg viewBox="0 0 8 8">
+                                    <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
+                                </svg>
+                            </button>
+                        </div>
+                    </Show>
                     <Show when={playMode() === 'song' && tempoLane()}>
                         <div class="sg-kn sg-tn" data-testid="tempo-name">
                             <span title="The tempo of every bar, in beats a minute. Drag to draw it, with Shift held for a straight line.">Tempo</span>
@@ -862,6 +1003,9 @@ export function SongPanel() {
                                 }}
                             </Index>
                         </div>
+                        <Show when={chordLane()}>
+                            <ChordsLane view={view()} />
+                        </Show>
                         <Show when={playMode() === 'song' && tempoLane()}>
                             <CurveLane id="Tempo" fn="tempo" index={0} view={view()} drawn={tempoDrawn} />
                         </Show>

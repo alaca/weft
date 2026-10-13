@@ -6,6 +6,7 @@ import type { SongInfo, SongRecord } from '../library/shelf'
 import type { ViewMode } from '../library/layout'
 import type { OwnSoundInfo } from '../library/sounds'
 import type { Key } from '../song/scales'
+import type { ChordLane } from '../song/chords'
 import { USUAL, type Meter } from '../song/meter'
 import type { TempoLane } from '../song/tempo'
 import type { Song } from '../song/types'
@@ -28,6 +29,8 @@ export const [songShown, setSongShown] = createSignal(true)
 export const [soundsWidth, setSoundsWidth] = createSignal<number | null>(null)
 export const [codeWidth, setCodeWidth] = createSignal<number | null>(null)
 export const [soloIds, setSoloIds] = createSignal<string[]>([])
+// The chord of every bar, where the song has chords for its patterns to follow.
+export const [chordLane, setChordLane] = createSignal<ChordLane | null>(null, { equals: (a, b) => a === b || (a !== null && b !== null && a.from === b.from && a.to === b.to && a.values.join(' ') === b.values.join(' ')) })
 // How the song's bar is counted.
 export const [meter, setMeter] = createSignal<Meter>(USUAL)
 // The tempo of every bar, where the tempo changes along the song.
