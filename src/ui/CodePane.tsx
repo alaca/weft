@@ -12,8 +12,33 @@ export function CodePane() {
     let pane!: HTMLElement
     let timer = 0
     const [copied, setCopied] = createSignal(false)
-    onMount(() => void mount(root))
-    onCleanup(() => window.clearTimeout(timer))
+    // A picture written into the code, a pianoroll or a scope, is drawn by Strudel on a canvas
+    // it finds by this name, and when there is none it makes one over the whole window. This
+    // one lies behind the code, where the picture belongs, and is as large as the code is.
+    const picture = document.createElement('canvas')
+    picture.id = 'test-canvas'
+    picture.className = 'ed-p'
+    picture.setAttribute('aria-hidden', 'true')
+    const fit = () => {
+        const dots = window.devicePixelRatio || 1
+        const wide = Math.round(root.clientWidth * dots)
+        const high = Math.round(root.clientHeight * dots)
+        if (picture.width !== wide || picture.height !== high) {
+            picture.width = wide
+            picture.height = high
+        }
+    }
+    const fitted = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit)
+    onMount(() => {
+        root.prepend(picture)
+        fit()
+        fitted?.observe(root)
+        void mount(root)
+    })
+    onCleanup(() => {
+        window.clearTimeout(timer)
+        fitted?.disconnect()
+    })
 
     const copy = async () => {
         if (!(await copyCode())) return

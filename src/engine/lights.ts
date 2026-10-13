@@ -27,9 +27,8 @@ export function lightNotes(mirror: any, root: HTMLElement): (hap: any) => void {
     if (!known) return () => undefined
 
     let shown = true
-    // A picture can be drawn over the whole window, where it stays in sight when the code does
-    // not. So there is nothing to do only when the code is out of sight and no picture is drawn.
-    const idle = () => !shown && !drawer.painters.length
+    // A picture is drawn behind the code, so with the code out of sight there is nothing to do.
+    const idle = () => !shown
     let lit: any[] | null = null
     let most = MOST
     let owed: [number, number] | null = null
@@ -72,8 +71,7 @@ export function lightNotes(mirror: any, root: HTMLElement): (hap: any) => void {
     }
 
     // The code is out of sight when only the controls are shown. Nothing is lit then, and
-    // nothing kept unless a picture is drawn. When the code comes back the song is asked what
-    // sounds at that moment.
+    // nothing kept. When the code comes back the song is asked what sounds at that moment.
     if (typeof IntersectionObserver !== 'undefined') {
         new IntersectionObserver((entries) => {
             const now = entries[entries.length - 1].isIntersecting

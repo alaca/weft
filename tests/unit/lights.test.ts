@@ -160,7 +160,7 @@ describe('the notes lit in the code', () => {
         expect(lit).toEqual([[0.55]])
     })
 
-    it('are still handed to a picture while the code is out of sight, for one drawn over the whole window, and not said to the editor', () => {
+    it('are not handed to a picture while the code is out of sight: the picture is behind the code, and out of sight with it', () => {
         const see = sight()
         const { mirror, drawer, scheduler, asked, lit, drawn, frame } = strudel([new Note(0.25, 0.5)])
         const heard = lightNotes(mirror, root)
@@ -168,16 +168,13 @@ describe('the notes lit in the code', () => {
         see(false)
         heard(new Note(0, 0.25))
         frame(0.1)
-        expect(drawn).toEqual([[0]])
         scheduler.lastEnd = 0.4
         drawer.invalidate(scheduler, 0.12)
         frame(0.3)
-        expect(drawn).toEqual([[0], [0.25]])
-        expect(asked).toEqual([
-            [0.12, 0.22],
-            [0.22, 0.4],
-        ])
+        expect(drawn).toEqual([])
+        expect(asked).toEqual([[0.12, 0.22]])
         expect(lit).toEqual([])
+        expect(drawer.visibleHaps).toEqual([])
     })
 
     it('do not pile up when no frame is drawn', () => {
