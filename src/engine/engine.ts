@@ -10,7 +10,6 @@ import {
     getSampleInfo,
     getSuperdoughAudioController,
     initAudio,
-    initAudioOnFirstClick,
     loadBuffer,
     setAudioContext,
     setSuperdoughAudioController,
@@ -463,6 +462,17 @@ export function createEngine(): Engine {
     // WebKit leaves the audio clock stopped until it is told to run from inside a click or a
     // key press, and Strudel never tells it. A sound that starts usually wakes it, but a song
     // whose first bars are silent has none, and then the song would stand still.
+    // Strudel loads what its synths and effects run on at the first press of the mouse. A song
+    // can be started by that same press, or by a key before any press, and a note that falls due
+    // before it is all loaded is lost. So it is loaded when the app starts, and a song that is
+    // started sooner waits for it. Not for long: a song that starts with a note missing is
+    // better than one that does not start.
+    const LOADED_WITHIN = 2000
+    let audioLoading: Promise<unknown> | null = null
+    let audioLoaded = false
+    const loadAudio = () => (audioLoading ??= initAudio().then(() => void (audioLoaded = true), () => undefined))
+    const audioIsLoaded = () => Promise.race([loadAudio(), new Promise((done) => window.setTimeout(done, LOADED_WITHIN))])
+
     const wakeAudio = () => {
         try {
             const context = getAudioContext()
@@ -778,7 +788,7 @@ export function createEngine(): Engine {
             window.addEventListener('pointerdown', () => gesture++, true)
             window.addEventListener('keydown', () => gesture++, true)
             registerTheme()
-            initAudioOnFirstClick()
+            void loadAudio()
             lastCode = initialCode
             // A song that is opened needs an editor with no undo steps from the song before it,
             // and the only way to get one is a fresh state. Strudel does not hand out the list
@@ -923,6 +933,7 @@ export function createEngine(): Engine {
             dropReplay()
             wakeAudio()
             if (blank()) return silence()
+            if (!state.playing && !audioLoaded) await audioIsLoaded()
             if (!state.playing) {
                 offset = startingAt()
                 moved({ k: 'play', at: liveMode ? 0 : loop ? loop.from + offset : offset })
