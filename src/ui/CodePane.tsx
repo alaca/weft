@@ -1,11 +1,17 @@
-import { createSignal, onCleanup, onMount, Show } from 'solid-js'
-import { copyCode, dragCode, mount, play, trustSong, usualWidth } from '../app/controller'
+import { createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js'
+import { codeNow, copyCode, dragCode, mount, play, trustSong, usualWidth } from '../app/controller'
 import { DEMO } from '../demo/demo'
 import { jamming } from '../stores/jam'
-import { engineState } from '../stores/song'
+import { engineState, song } from '../stores/song'
 import { Divider } from './Divider'
 import { MOD } from './keys'
 
+
+// The pictures Strudel draws on its one large canvas. The ones with a line in front, _pianoroll
+// and the like, are drawn in the code itself and need no room of their own.
+const PICTURES = /\.(pianoroll|punchcard|wordfall|spiral|pitchwheel|scope|tscope|fscope|spectrum|draw|onPaint|animate)\s*\(/
+// A line that is switched off with two slashes asks for nothing.
+const drawsAPicture = (code: string): boolean => code.split('\n').some((line) => PICTURES.test(line.replace(/(^|[^:])\/\/.*$/, '$1')))
 
 export function CodePane() {
     let root!: HTMLDivElement
@@ -14,15 +20,14 @@ export function CodePane() {
     const [copied, setCopied] = createSignal(false)
     // A picture written into the code, a pianoroll or a scope, is drawn by Strudel on a canvas
     // it finds by this name, and when there is none it makes one over the whole window. This
-    // one lies behind the code, where the picture belongs, and is as large as the code is.
-    const picture = document.createElement('canvas')
-    picture.id = 'test-canvas'
-    picture.className = 'ed-p'
-    picture.setAttribute('aria-hidden', 'true')
+    // one is in a strip under the code, which is only there while the code asks for a picture.
+    let strip!: HTMLDivElement
+    let picture!: HTMLCanvasElement
+    const pictured = createMemo(() => (song(), drawsAPicture(codeNow())))
     const fit = () => {
         const dots = window.devicePixelRatio || 1
-        const wide = Math.round(root.clientWidth * dots)
-        const high = Math.round(root.clientHeight * dots)
+        const wide = Math.round(strip.clientWidth * dots)
+        const high = Math.round(strip.clientHeight * dots)
         if (picture.width !== wide || picture.height !== high) {
             picture.width = wide
             picture.height = high
@@ -30,9 +35,8 @@ export function CodePane() {
     }
     const fitted = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit)
     onMount(() => {
-        root.prepend(picture)
         fit()
-        fitted?.observe(root)
+        fitted?.observe(strip)
         void mount(root)
     })
     onCleanup(() => {
@@ -100,6 +104,9 @@ export function CodePane() {
                 </div>
             </Show>
             <div class="ed" ref={root} />
+            <div class="ed-v" classList={{ on: pictured() }} ref={strip} data-testid="code-picture">
+                <canvas id="test-canvas" class="ed-p" aria-hidden="true" ref={picture} />
+            </div>
         </section>
     )
 }
