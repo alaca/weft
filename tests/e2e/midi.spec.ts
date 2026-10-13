@@ -102,3 +102,51 @@ test('a pattern is sent out over MIDI in place of being played by the app, on th
     await played.selectOption({ label: 'Weft Loom' })
     await expect.poll(() => code(page)).not.toContain('midi')
 })
+
+test('a pad writes hits into a drum grid, a note sounds for as long as its key is held, and a controller knob turns a knob of the app', async ({ page }) => {
+    await page.addInitScript(() => {
+        localStorage.setItem('weft.song', 'setcpm(120/4)\n\ndrums: stack(\n  s("bd").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n  s("sd").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n)\n  .bank("RolandTR909")\n\nlead: note(`\n  ~ ~ ~ ~   ~ ~ ~ ~\n`)\n  .s("triangle")\n  .lpf(slider(700, 100, 8000))\n')
+        const input: { name: string; state: string; onmidimessage: ((event: { data: Uint8Array }) => void) | null } = { name: 'Test pads', state: 'connected', onmidimessage: null }
+        ;(window as any).__keys = { send: (bytes: number[]) => input.onmidimessage?.({ data: new Uint8Array(bytes) }) }
+        ;(navigator as any).requestMIDIAccess = async () => ({ inputs: new Map([['one', input]]), onstatechange: null })
+    })
+    await page.goto('/')
+    await page.waitForFunction(() => Boolean((window as any).__weft))
+    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
+    const turn = (value: number) => page.evaluate((v) => (window as any).__keys.send([0xb0, 74, v]), value)
+
+    // Keys on at the drum grid: while the song plays, the pad for the kick puts a hit in its row.
+    await page.getByRole('button', { name: 'Play drums on the keyboard', exact: true }).click()
+    await expect(page.getByTestId('pad-note')).toContainText('A MIDI pad or keyboard plays them too')
+    await page.getByRole('button', { name: 'Live', exact: true }).click()
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await press(page, 36)
+    await expect.poll(() => code(page)).toMatch(/s\("bd"\)\.struct\("[~ ]*x/)
+    expect(await code(page)).toMatch(/s\("sd"\)\.struct\("[~ ]+"\)/)
+    await page.getByRole('button', { name: 'Stop', exact: true }).click()
+
+    // A key of the piano roll sounds until it is let go.
+    await page.getByRole('button', { name: 'Play lead on the keyboard', exact: true }).click()
+    await page.waitForTimeout(600)
+    await press(page, 60)
+    await page.waitForTimeout(900)
+    expect(await heard(page)).toBeGreaterThan(0.01)
+    await letGo(page, 60)
+    await expect.poll(() => heard(page)).toBeLessThan(0.001)
+
+    // A knob of the controller is taught to turn the cutoff of the lead, and then turns it.
+    await page.getByRole('button', { name: 'Mixer', exact: true }).click()
+    await page.getByTestId('mixer').getByRole('button', { name: 'Devices', exact: true }).click()
+    await page.getByRole('button', { name: 'Learn the knobs of a controller', exact: true }).click()
+    await expect(page.getByTestId('knob-learn')).toContainText('Press a knob in the app')
+    await page.getByTestId('strip-lead').getByRole('slider', { name: 'Cutoff', exact: true }).click()
+    await expect(page.getByTestId('knob-learn')).toContainText('for Cutoff of lead')
+    await turn(64)
+    await expect(page.getByTestId('knob-learn')).toContainText('Cutoff of lead is turned by knob 74.')
+    await page.getByTestId('knob-learn').getByRole('button', { name: 'Done', exact: true }).click()
+    await turn(0)
+    await expect.poll(() => code(page)).toContain('.lpf(slider(100, 100, 8000))')
+    await turn(127)
+    await expect.poll(() => code(page)).toContain('.lpf(slider(8000, 100, 8000))')
+})

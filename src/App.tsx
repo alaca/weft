@@ -1,6 +1,6 @@
 import { onCleanup, onMount, Show } from 'solid-js'
 import { play, redoChange, saveSong, stop, togglePlay, undoChange } from './app/controller'
-import { hearKeyboards, pianoDown, pianoUp } from './app/piano'
+import { hearKeyboards, keysLetGo, pianoDown, pianoUp } from './app/piano'
 import { DEMO } from './demo/demo'
 import { SOUNDS_WIDTH } from './library/layout'
 import { jamsOpen } from './stores/jam'
@@ -18,6 +18,7 @@ import { StatusBar } from './ui/StatusBar'
 import { StripList } from './ui/StripList'
 import { TooNarrow } from './ui/TooNarrow'
 import { TopBar } from './ui/TopBar'
+import { KnobLearn } from './ui/KnobLearn'
 import { SoundDialog } from './ui/SoundDialog'
 import { TrimDialog } from './ui/TrimDialog'
 import { UpdateCard } from './ui/UpdateCard'
@@ -62,6 +63,8 @@ export function App() {
     onMount(() => {
         document.addEventListener('keydown', onKey)
         document.addEventListener('keyup', pianoUp)
+        // A window that is left with keys down is never told that they came up.
+        window.addEventListener('blur', keysLetGo)
         // The desktop app hears a MIDI keyboard from the start. A browser asks first, so there
         // it is left until a keyboard is asked for.
         if ('__TAURI_INTERNALS__' in window) void hearKeyboards()
@@ -69,6 +72,7 @@ export function App() {
     onCleanup(() => {
         document.removeEventListener('keydown', onKey)
         document.removeEventListener('keyup', pianoUp)
+        window.removeEventListener('blur', keysLetGo)
     })
 
     return (
@@ -93,6 +97,7 @@ export function App() {
                 <ExportDialog />
                 <TrimDialog />
                 <SoundDialog />
+                <KnobLearn />
                 <PublishDialog />
                 <AccountDialog />
             </Show>

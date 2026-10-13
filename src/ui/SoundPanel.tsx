@@ -212,6 +212,7 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
                                         <Show when={items(group.id).find((item) => item.fn === fn)}>
                                             {(view) => (
                                                 <Knob
+                                                    of={props.id}
                                                     view={view()}
                                                     disabled={stale()}
                                                     onChange={(value) => setControl(props.id, fn, value)}

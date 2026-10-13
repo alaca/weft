@@ -6,7 +6,8 @@ import { DRUM_RESOLUTIONS, readGrid, resample, STEP_KINDS, stepKind, stepValues,
 import { isDrums, readKit, rowTarget } from '../song/kit'
 import type { PatternBlock } from '../song/types'
 import { drumSteps, USUAL } from '../song/meter'
-import { gridNotes, meter, openPanel, stale } from '../stores/song'
+import { hearKeyboards } from '../app/piano'
+import { gridNotes, meter, midiKeyboards, openPanel, pianoFor, pianoWrites, setPianoFor, setPianoWrites, stale } from '../stores/song'
 import { GridFooter } from './GridFooter'
 import { Knob } from './Knob'
 import { StepGrid, type ShownLane, type StepRow } from './StepGrid'
@@ -21,8 +22,8 @@ function RowControls(props: { id: string; sound: string; block: PatternBlock | u
             <button class="rm" classList={{ on: props.muted }} aria-label={`Mute ${props.sound}`} aria-pressed={props.muted} title={`Mute ${name()} only`} disabled={stale()} onClick={() => toggleRowMute(props.id, props.sound)}>
                 M
             </button>
-            <Knob small name={`Volume of ${props.sound}`} view={volumeOf(props.block ?? NO_CONTROLS)} disabled={stale()} onChange={(value) => setMix(target(), 'volume', value)} />
-            <Knob small name={`Pan of ${props.sound}`} view={panOf(props.block ?? NO_CONTROLS)} disabled={stale()} onChange={(value) => setMix(target(), 'pan', value)} />
+            <Knob small name={`Volume of ${props.sound}`} of={target()} view={volumeOf(props.block ?? NO_CONTROLS)} disabled={stale()} onChange={(value) => setMix(target(), 'volume', value)} />
+            <Knob small name={`Pan of ${props.sound}`} of={target()} view={panOf(props.block ?? NO_CONTROLS)} disabled={stale()} onChange={(value) => setMix(target(), 'pan', value)} />
             <button
                 class="rs"
                 classList={{ on: openPanel() === target() }}
@@ -213,7 +214,32 @@ export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement
                             </div>
                         </Show>
                     </div>
+                    <button
+                        class="chip tgl"
+                        classList={{ on: pianoFor() === props.id }}
+                        aria-pressed={pianoFor() === props.id}
+                        aria-label={`Play ${props.id} on the keyboard`}
+                        title="Play the sounds of this grid on the computer's keyboard, or on a MIDI pad or keyboard"
+                        onClick={() => {
+                            setPianoFor(pianoFor() === props.id ? null : props.id)
+                            void hearKeyboards()
+                        }}
+                    >
+                        Keys
+                    </button>
+                    <Show when={pianoFor() === props.id}>
+                        <button class="chip tgl" classList={{ on: pianoWrites() }} aria-pressed={pianoWrites()} aria-label="Write what is played" title="While the song plays, what you play is written into this grid" onClick={() => setPianoWrites(!pianoWrites())}>
+                            Write
+                        </button>
+                    </Show>
                 </GridFooter>
+                <Show when={pianoFor() === props.id}>
+                    <p class="rk-n" data-testid="pad-note">
+                        A S D F G H J K L are the sounds of this grid, from the top one down.{' '}
+                        <Show when={midiKeyboards()?.length}>A MIDI pad or keyboard plays them too: the kick on the low C, the snare on D, the closed hat on F sharp, as on a drum machine. </Show>
+                        {pianoWrites() ? 'While the song plays, what you play is written in.' : 'Nothing is written in: you only hear what you play.'}
+                    </p>
+                </Show>
                 <Show when={gridNotes()[props.id]}>
                     <p class="rk-n">This pattern changes from cycle to cycle or uses notation a grid cannot show, so it cannot be edited as a grid. Edit it in the code.</p>
                 </Show>

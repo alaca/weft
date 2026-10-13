@@ -93,7 +93,7 @@ export function MixStrips() {
                                             />
                                         </div>
                                         <b class="ms-v">{volumeOf(now()).state === 'faint' ? '1' : volumeOf(now()).text}</b>
-                                        <Knob small name={`Pan of ${id}`} view={panOf(now())} disabled={stale()} onChange={(value) => setMix(id, 'pan', value)} />
+                                        <Knob small name={`Pan of ${id}`} of={id} view={panOf(now())} disabled={stale()} onChange={(value) => setMix(id, 'pan', value)} />
                                         <span class="cap">Pan</span>
                                         <div class="ms-k">
                                             <For each={KNOBS}>
@@ -101,6 +101,7 @@ export function MixStrips() {
                                                     <span>
                                                         <Knob
                                                             small
+                                                            of={id}
                                                             name={`${findDef(fn)?.label} of ${id}`}
                                                             view={controlOf(now(), fn)}
                                                             disabled={stale()}

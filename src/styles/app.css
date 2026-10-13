@@ -918,6 +918,19 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .sp-m .sd-s { height: 26px; font-size: 12px; max-width: 240px; }
 .sp-m .sp-c { width: 58px; }
 .sp-mn { flex-basis: 100%; color: var(--linen-3); font-size: 11.5px; }
+/* The knobs of a controller: the line that says what learning waits for, the mark on a knob that
+   can be chosen, and the list of what was learnt. */
+.kl { position: fixed; left: 50%; bottom: 44px; transform: translateX(-50%); z-index: 70; display: flex; align-items: center; gap: 14px; max-width: calc(100% - 40px); padding: 10px 12px 10px 16px; border-radius: 12px; background: var(--cloth-3); border: 1px solid var(--linen-3); box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5); font-size: 12.5px; color: var(--linen); }
+.kl b { font-weight: 600; white-space: nowrap; }
+.kl span { color: var(--linen-2); }
+.kn.learn .kn-d { cursor: pointer; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--saffron); }
+.kn.learn.waits .kn-d { box-shadow: 0 0 0 3px var(--saffron); }
+.kn-cc { position: absolute; top: -5px; right: -3px; min-width: 16px; padding: 1px 4px; border-radius: 7px; background: var(--saffron); color: var(--vat); font: 600 9px/1.3 var(--mono); font-style: normal; text-align: center; }
+.sd-b { justify-self: start; grid-column: 2 / -1; }
+.sd-k { list-style: none; margin: 0 0 0 96px; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.sd-k li { display: flex; align-items: center; gap: 8px; min-height: 22px; font-size: 12px; color: var(--linen-2); }
+.sd-k li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd-k .rx { opacity: 1; }
 .sd-t { margin-left: 96px; color: var(--linen-3); font-size: 11.5px; line-height: 1.45; }
 .sd-t button { color: var(--linen); text-decoration: underline; text-underline-offset: 2px; }
 

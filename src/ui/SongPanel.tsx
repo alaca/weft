@@ -482,7 +482,7 @@ function NameRows(props: { id: string; index: number }) {
                 </button>
                 <span class="mix">
                     <For each={mix().map((knob) => knob.fn)}>
-                        {(fn) => <Show when={mix().find((knob) => knob.fn === fn)}>{(knob) => <Knob small name={knob().name} view={knob().view} disabled={stale()} onChange={(value) => setMix(props.id, fn, value)} />}</Show>}
+                        {(fn) => <Show when={mix().find((knob) => knob.fn === fn)}>{(knob) => <Knob small name={knob().name} of={props.id} view={knob().view} disabled={stale()} onChange={(value) => setMix(props.id, fn, value)} />}</Show>}
                     </For>
                 </span>
                 <button

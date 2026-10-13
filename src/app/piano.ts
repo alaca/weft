@@ -4,7 +4,8 @@ import { DEMO } from '../demo/demo'
 import { canHearMidi, drumFor, hearMidi, readKey } from '../library/midi'
 import { readKit } from '../song/kit'
 import { bpm, midiKeyboards, patternKeys, pianoFor, pianoOctave, pianoWrites, selected, setMidiKeyboards, setPianoFor, setPianoOctave, song, stale } from '../stores/song'
-import { previewSound, putNote, resizeNoteTo, rollPlace, soundNote } from './controller'
+import { gridPlace, holdNote, letNoteGo, previewSound, putHit, putNote, resizeNoteTo, rollPlace } from './controller'
+import { knobHeard } from './knobs'
 
 // A pattern of notes played from the computer's keyboard. The two rows of letters are the keys
 // of a piano, laid out the way most music programs do it: A S D F G H J K are the white keys
@@ -17,6 +18,8 @@ import { previewSound, putNote, resizeNoteTo, rollPlace, soundNote } from './con
 const NOTES: Record<string, number> = { KeyA: 0, KeyW: 1, KeyS: 2, KeyE: 3, KeyD: 4, KeyF: 5, KeyT: 6, KeyG: 7, KeyY: 8, KeyH: 9, KeyU: 10, KeyJ: 11, KeyK: 12, KeyO: 13, KeyL: 14, KeyP: 15 }
 const LOWEST = 0
 const HIGHEST = 7
+// The sounds of a drum grid, from the top one down.
+export const DRUM_KEYS = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyH', 'KeyJ', 'KeyK', 'KeyL']
 
 type Held = { id: string; midi: number; start: number | null; at: number; perCycle: number; room: number }
 const held = new Map<string, Held>()
@@ -26,28 +29,43 @@ const typing = (event: KeyboardEvent) => Boolean((event.target as HTMLElement | 
 
 export const firstNote = (): number => 12 * (pianoOctave() + 1)
 
-// A key goes down: its note sounds, and is written when the song plays and writing is on.
-// `key` is what tells this key from every other that is held, and `force` how hard it was
-// pressed, where the keyboard says.
+// A key goes down: its note sounds until the key is let go, and is written when the song plays
+// and writing is on for that pattern. `key` is what tells this key from every other that is
+// held, and `force` how hard it was pressed, where the keyboard says.
 function down(key: string, id: string, note: number, force?: number) {
     // A pattern that keeps to a key takes the nearest note of it, as its roll does.
     const midi = nearestInKey(note, patternKeys()[id] ?? null)
-    soundNote(id, midi, force)
-    const place = pianoWrites() && !stale() ? rollPlace(id) : null
+    holdNote(key, id, midi, force)
+    const place = id === pianoFor() && pianoWrites() && !stale() ? rollPlace(id) : null
     const written = place !== null && putNote(id, place.step, midi)
     held.set(key, { id, midi, start: written ? place.step : null, at: performance.now(), perCycle: place?.perCycle ?? 0, room: place ? place.steps - place.step : 0 })
 }
 
-// A key is let go: the note that was written for it is as long as the key was held.
+// A key is let go: its note ends, and the one that was written for it is as long as the key
+// was held.
 function up(key: string): boolean {
     const was = held.get(key)
     if (!was) return false
     held.delete(key)
+    letNoteGo(key)
     if (was.start === null) return true
     const cycles = (((performance.now() - was.at) / 1000) * bpm()) / (60 * meterNow().quarters)
     const length = Math.min(was.room, Math.max(1, Math.round(cycles * was.perCycle)))
     if (length > 1) resizeNoteTo(was.id, { start: was.start, midi: was.midi }, length, true)
     return true
+}
+
+// One sound of a drum grid, hit: it is heard, and while the song plays and writing is on for
+// that grid a hit is put on the step the song is at.
+function hit(id: string, sound: string) {
+    previewSound(id, sound)
+    const place = id === pianoFor() && pianoWrites() && !stale() ? gridPlace(id) : null
+    if (place) putHit(id, sound, place.step)
+}
+
+const rowsOf = (id: string): string[] | null => {
+    const block = song().patterns.find((one) => one.id === id)
+    return block ? (readKit(block)?.rows.map((row) => row.sound) ?? null) : null
 }
 
 // Gives back whether the key was the piano's, so that nothing else is done with it.
@@ -57,6 +75,14 @@ export function pianoDown(event: KeyboardEvent): boolean {
     if (!song().patterns.some((block) => block.id === id)) {
         setPianoFor(null)
         return false
+    }
+    // On a drum grid the middle row of letters are its sounds, from the top one down.
+    const rows = rowsOf(id)
+    if (rows) {
+        const row = DRUM_KEYS.indexOf(event.code)
+        if (row < 0 || row >= rows.length) return false
+        if (!event.repeat) hit(id, rows[row])
+        return true
     }
     if (event.code === 'KeyZ' || event.code === 'KeyX') {
         if (!event.repeat) setPianoOctave(Math.min(HIGHEST, Math.max(LOWEST, pianoOctave() + (event.code === 'KeyX' ? 1 : -1))))
@@ -71,26 +97,31 @@ export function pianoDown(event: KeyboardEvent): boolean {
 
 export const pianoUp = (event: KeyboardEvent): boolean => up(event.code)
 
+// Every key that is held is let go: the window was left with keys down, and will not be told
+// that they came up.
+export function keysLetGo() {
+    for (const key of [...held.keys()]) up(key)
+}
+
 // A MIDI keyboard plays the pattern whose Keys are on, and when none is, the pattern that is
-// chosen: its notes when it plays notes, its rows when it is a drum grid. Only a pattern whose
-// Keys are on is written into. The keys of a MIDI keyboard are the notes they are, so nothing
-// here follows the octave of the computer's keyboard.
+// chosen: its notes when it plays notes, its sounds when it is a drum grid. Only a pattern
+// whose Keys are on is written into. The keys of a MIDI keyboard are the notes they are, so
+// nothing here follows the octave of the computer's keyboard.
 export function midiHeard(bytes: Uint8Array) {
+    if (knobHeard(bytes)) return
     const key = readKey(bytes)
     if (!key) return
     const name = `midi:${key.note}`
     if (key.kind === 'up') return void up(name)
     const id = pianoFor() ?? selected()
-    const block = id ? song().patterns.find((one) => one.id === id) : undefined
-    if (!id || !block || held.has(name)) return
-    const rows = readKit(block)?.rows.map((row) => row.sound)
+    if (!id || !song().patterns.some((one) => one.id === id) || held.has(name)) return
+    const rows = rowsOf(id)
     if (rows) {
         const sound = drumFor(key.note, rows)
-        if (sound) previewSound(id, sound)
+        if (sound) hit(id, sound)
         return
     }
-    if (id === pianoFor()) down(name, id, key.note, key.force)
-    else soundNote(id, nearestInKey(key.note, patternKeys()[id] ?? null), key.force)
+    down(name, id, key.note, key.force)
 }
 
 // Starts listening for MIDI keyboards, once. The desktop app does so when it starts. A browser

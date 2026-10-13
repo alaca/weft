@@ -424,13 +424,13 @@ export function Strip(props: { id: string }) {
                             </div>
                             <div class="st-r" onClick={(event) => event.stopPropagation()}>
                                 <For each={mix().map((knob) => knob.fn)}>
-                                    {(fn) => <Show when={mix().find((knob) => knob.fn === fn)}>{(knob) => <Knob name={knob().name} view={knob().view} disabled={stale()} onChange={(value) => setMix(props.id, fn, value)} />}</Show>}
+                                    {(fn) => <Show when={mix().find((knob) => knob.fn === fn)}>{(knob) => <Knob name={knob().name} of={props.id} view={knob().view} disabled={stale()} onChange={(value) => setMix(props.id, fn, value)} />}</Show>}
                                 </For>
                                 <Show when={showKnobs()}>
                                     <For each={knobs().map((knob) => knob.fn)}>
                                         {(fn) => (
                                             <Show when={knobs().find((knob) => knob.fn === fn)}>
-                                                {(knob) => <Knob view={knob()} disabled={stale()} onChange={(value) => setControl(props.id, fn, value)} />}
+                                                {(knob) => <Knob of={props.id} view={knob()} disabled={stale()} onChange={(value) => setControl(props.id, fn, value)} />}
                                             </Show>
                                         )}
                                     </For>

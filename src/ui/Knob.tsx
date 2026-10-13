@@ -2,6 +2,7 @@ import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from 'soli
 import { fromUnit, toUnit, type Scale } from '../controls/catalog'
 import { MOTION_BARS, MOTION_SHAPES, type Motion } from '../controls/motion'
 import type { ControlView } from '../controls/views'
+import { boundTo, knobName, learning, pickKnob } from '../app/knobs'
 import { cycle } from '../stores/song'
 
 const ARC = 94.25
@@ -31,6 +32,9 @@ export function Knob(props: {
     big?: boolean
     small?: boolean
     name?: string
+    // The pattern, or the one sound of a drum grid, that the knob belongs to. Given, a knob of
+    // a MIDI controller can be taught to turn it.
+    of?: string
     disabled?: boolean
     onChange: (value: number) => void
     onAdd?: () => void
@@ -52,7 +56,16 @@ export function Knob(props: {
         startUnit = unit()
         startScale = props.view.scale
     }
+    // While the knobs of a controller are being learnt, a press on a knob of the app chooses it
+    // and does not turn it.
+    const learns = () => learning() !== null && Boolean(props.of)
+    const waits = () => {
+        const now = learning()
+        return now !== null && now !== 'picking' && now.id === props.of && now.fn === props.view.fn
+    }
+    const bound = () => (props.of ? boundTo(props.of, props.view.fn) : null)
     const onPointerDown = (event: PointerEvent) => {
+        if (learns()) return void pickKnob({ id: props.of as string, fn: props.view.fn, label: props.name ?? `${props.view.label} of ${props.of}` })
         if (props.disabled) return
         ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
         startFrom(event.clientY)
@@ -203,7 +216,7 @@ export function Knob(props: {
                 </div>
             </Match>
             <Match when={true}>
-                <div class="kn" classList={{ big: props.big, small: props.small, ghost: props.view.state === 'faint' }}>
+                <div class="kn" classList={{ big: props.big, small: props.small, ghost: props.view.state === 'faint', learn: learns(), waits: waits() }}>
                     <div
                         class="kn-d"
                         role="slider"
@@ -223,6 +236,9 @@ export function Knob(props: {
                     </div>
                     <b>{props.view.text}</b>
                     <span class="cap">{props.view.label}</span>
+                    <Show when={learns() && bound()}>
+                        <i class="kn-cc">{knobName(bound() as string).replace('knob ', '')}</i>
+                    </Show>
                     <Show when={props.onStartMotion && props.view.state !== 'faint'}>
                         <button class="kn-x kn-go" aria-label={`Let ${props.view.label} move by itself`} title="Let it move by itself" disabled={props.disabled} onClick={() => props.onStartMotion?.()}>
                             <svg viewBox="0 0 10 8">

@@ -727,6 +727,13 @@ export function removeControl(id: string, fn: string) {
 }
 
 // A knob that is turned whether or not its line is in the code yet: turned, it is.
+// A knob of a pattern as it stands, for whatever turns it from outside: null when the pattern
+// is gone or has no such knob.
+export function knobAsItStands(id: string, fn: string): ControlView | null {
+    const block = find(id)
+    return block && findDef(fn) ? controlOf(block, fn) : null
+}
+
 export function turnControl(id: string, fn: string, value: number) {
     const block = find(id)
     if (block && callFor(block, fn)) setControl(id, fn, value)
@@ -1652,6 +1659,29 @@ export function addNotesAt(id: string, at: { page: number; time: number; midis: 
 // and a note put on a step.
 // `force` is how hard the key was pressed, from 0 to 1, where a keyboard says.
 export const soundNote = (id: string, midi: number, force?: number) => engine.previewNote(midi, find(id)?.soundName ?? null, undefined, force)
+
+// A note that sounds for as long as a key is held, under the name of that key.
+export const holdNote = (key: string, id: string, midi: number, force?: number) => engine.holdNote(key, midi, find(id)?.soundName ?? null, force)
+export const letNoteGo = (key: string) => engine.letNoteGo(key)
+export const letNotesGo = () => engine.letNotesGo()
+
+// Where the song is in a drum grid: the step that is nearest.
+export function gridPlace(id: string): { step: number; steps: number } | null {
+    const block = find(id)
+    const kit = block && engineState().playing ? readKit(block) : null
+    if (!kit || !kit.steps) return null
+    const at = ((engine.now() % kit.cycles) + kit.cycles) % kit.cycles
+    return { step: Math.round((at * kit.steps) / kit.cycles) % kit.steps, steps: kit.steps }
+}
+
+// A hit put on a step of one sound of a drum grid, where there is none yet.
+export function putHit(id: string, sound: string, step: number): boolean {
+    return changeDrums(id, (drums) => {
+        const row = drums.rows.find((one) => one.sound === sound)
+        if (!row || row.steps[step]) return null
+        return { rows: drums.rows.map((one) => (one === row ? { ...one, steps: one.steps.map((on, at) => on || at === step) } : one)), cycles: drums.cycles }
+    })
+}
 
 export function rollPlace(id: string): { step: number; perCycle: number; steps: number } | null {
     const block = find(id)

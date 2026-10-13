@@ -121,6 +121,10 @@ export interface Engine {
     // How many of the jam's changes are in the code here, in the relay's count.
     syncVersion(): number
     previewNote(midi: number, sound: string | null, seconds?: number, force?: number): void
+    // A note that sounds for as long as its key is held: begun under a name, and let go by it.
+    holdNote(key: string, midi: number, sound: string | null, force?: number): void
+    letNoteGo(key: string): void
+    letNotesGo(): void
     // The tempo of every bar, in bars a second, where the tempo changes along the song. A list
     // shorter than the song goes round. Null when the song has one tempo.
     setTempoLane(barsPerSecond: number[] | null): void
@@ -720,6 +724,58 @@ export function createEngine(): Engine {
         fire()
             .then((missed) => (missed ? fire() : false))
             .catch(() => undefined)
+    }
+
+    // A note played from a keyboard sounds until its key is let go. The sound engine gives no
+    // hold on a note it has started, only to the sound that makes it, so the making of a sound
+    // is listened in on: a note that carries the name of a key leaves what stops it under that
+    // name. A key that is let go before its note has even begun is remembered, and the note is
+    // stopped as it begins.
+    const HELD_MOST = 20
+    const LET_GO = 0.07
+    type Voice = { node?: { gain?: AudioParam }; stop?: (at: number) => void }
+    const heldNotes = new Map<string, { voice: Voice | null; gone: boolean }>()
+    const endVoice = (voice: Voice | null) => {
+        if (!voice) return
+        const now = getAudioContext().currentTime
+        try {
+            const level = voice.node?.gain
+            if (level) {
+                level.cancelScheduledValues(now)
+                level.setValueAtTime(level.value, now)
+                level.linearRampToValueAtTime(0, now + LET_GO)
+            }
+            voice.stop?.(now + LET_GO + 0.01)
+        } catch {
+            // A voice that has ended by itself needs no ending.
+        }
+    }
+    const listenIn = (name: string) => {
+        const sound = soundMap.get()[name.toLowerCase()] as { onTrigger?: ((...given: any[]) => unknown) & { heard?: boolean } } | undefined
+        const make = sound?.onTrigger
+        if (!sound || !make || make.heard) return
+        const heard = async (...given: any[]) => {
+            const voice = (await make(...given)) as Voice | undefined
+            const key = given[1]?.weftKey
+            const slot = typeof key === 'string' ? heldNotes.get(key) : undefined
+            if (slot) {
+                slot.voice = voice ?? null
+                if (slot.gone) {
+                    heldNotes.delete(key)
+                    endVoice(slot.voice)
+                }
+            }
+            return voice
+        }
+        heard.heard = true
+        sound.onTrigger = heard
+    }
+    const letGo = (key: string) => {
+        const slot = heldNotes.get(key)
+        if (!slot) return
+        if (!slot.voice) return void (slot.gone = true)
+        heldNotes.delete(key)
+        endVoice(slot.voice)
     }
 
     // Strudel keeps time on the same thread as everything else and looks only a tenth of a second
@@ -1545,6 +1601,17 @@ export function createEngine(): Engine {
         previewNote(midi, sound, seconds = 0.3, force) {
             // A key pressed softly is quieter, and never so quiet that it is not heard.
             audition(() => ({ note: midi, s: sound ?? 'triangle', ...(force === undefined ? {} : { gain: 0.25 + 0.75 * Math.min(1, Math.max(0, force)) }) }), seconds)
+        },
+        holdNote(key, midi, sound, force) {
+            const name = sound ?? 'triangle'
+            letGo(key)
+            listenIn(name)
+            heldNotes.set(key, { voice: null, gone: false })
+            audition(() => ({ note: midi, s: name, weftKey: key, ...(force === undefined ? {} : { gain: 0.25 + 0.75 * Math.min(1, Math.max(0, force)) }) }), HELD_MOST)
+        },
+        letNoteGo: letGo,
+        letNotesGo() {
+            for (const key of [...heldNotes.keys()]) letGo(key)
         },
         setTempoLane(barsPerSecond) {
             tempoLane = barsPerSecond?.length ? barsPerSecond : null
