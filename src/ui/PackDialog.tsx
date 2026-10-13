@@ -4,7 +4,7 @@ import { lengthText } from '../library/sounds'
 import { ownPresets, ownSounds } from '../stores/song'
 
 // A pack is made from sounds and presets of your own: which of them, under what name and by
-// whom. It is saved as one file, to give away or to sell, and whoever adds it to their app has
+// whom. It is saved as one file to give to others, and whoever adds it to their app has
 // its sounds in every song.
 export function PackDialog(props: { onClose: () => void }) {
     const mine = () => ownSounds().filter((sound) => !sound.pack)

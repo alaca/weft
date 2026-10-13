@@ -6,8 +6,8 @@ import { turnWhenDue } from './turn'
 // A pack is sounds and presets that someone made for others to use, as one file. Added to the
 // app, its sounds are in the Sounds like the ones the app comes with, in any song. Unlike a
 // sound of your own, a sound of a pack does not travel with a song: a song that uses one says
-// which pack it needs, and whoever opens it adds that pack themselves. That is what lets a
-// pack be something its maker gives away or sells.
+// which pack it needs, and whoever opens it adds that pack themselves. A pack stays its
+// maker's to hand out, and a song that uses a big one stays small.
 //
 // Every sound of a pack has the pack's own short name in front of its own, `dust_break_1`, so
 // that it can never be taken for a sound of another pack or for one of yours.
