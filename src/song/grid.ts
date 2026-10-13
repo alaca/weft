@@ -2,7 +2,11 @@ import { removeCall, setNumber } from './edits'
 import type { Call, PatternBlock, TextEdit } from './types'
 
 // `accents` says which of the hits are louder than the rest. A row that has none leaves it out.
-export type GridRow = { sound: string; steps: boolean[]; accents?: boolean[] }
+// A step can also have more of its own, each left out by a row that has none of it:
+// `repeats`, how many times its hit sounds within the step; `chances`, how likely the hit is to
+// sound, from 0 to 1; and `lanes`, a value for every step of something that is otherwise one
+// knob for the whole row, under the name of its call.
+export type GridRow = { sound: string; steps: boolean[]; accents?: boolean[]; repeats?: number[]; chances?: number[]; lanes?: Record<string, number[]> }
 export type Grid = { rows: GridRow[]; steps: number; cycles: number; perCycle: number }
 export type GridSource = { grid: Grid; from: number; to: number; slow: Call | null }
 
@@ -53,8 +57,23 @@ export function readGrid(block: PatternBlock): GridSource | null {
     return { grid: { rows, steps, cycles, perCycle: steps / cycles }, from: text.from, to: text.to, slow }
 }
 
-const copy = (rows: GridRow[]): GridRow[] => rows.map((row) => ({ sound: row.sound, steps: [...row.steps], ...(row.accents ? { accents: [...row.accents] } : {}) }))
-const mapped = (row: GridRow, each: (list: boolean[]) => boolean[]): GridRow => ({ sound: row.sound, steps: each(row.steps), ...(row.accents ? { accents: each(row.accents) } : {}) })
+// Every list of a row put through the same change, step for step.
+const mapped = (row: GridRow, each: <T>(list: T[]) => T[]): GridRow => ({
+    sound: row.sound,
+    steps: each(row.steps),
+    ...(row.accents ? { accents: each(row.accents) } : {}),
+    ...(row.repeats ? { repeats: each(row.repeats) } : {}),
+    ...(row.chances ? { chances: each(row.chances) } : {}),
+    ...(row.lanes ? { lanes: Object.fromEntries(Object.entries(row.lanes).map(([fn, values]) => [fn, each(values)])) } : {}),
+})
+const copy = (rows: GridRow[]): GridRow[] => rows.map((row) => mapped(row, (list) => [...list]))
+
+// A step that is no hit any more is an ordinary step again: not louder, sounding once, always.
+function clear(row: GridRow, step: number) {
+    if (row.accents) row.accents[step] = false
+    if (row.repeats) row.repeats[step] = 1
+    if (row.chances) row.chances[step] = 1
+}
 
 export function toggleStep(rows: GridRow[], sound: string, step: number, length: number): GridRow[] {
     const next = copy(rows)
@@ -64,7 +83,7 @@ export function toggleStep(rows: GridRow[], sound: string, step: number, length:
         next.push(row)
     }
     row.steps[step] = !row.steps[step]
-    if (!row.steps[step] && row.accents) row.accents[step] = false
+    if (!row.steps[step]) clear(row, step)
     return next
 }
 
@@ -81,7 +100,7 @@ export function paintSteps(rows: GridRow[], sound: string, from: number, to: num
     for (let step = Math.max(0, Math.min(from, to)); step <= Math.min(length - 1, Math.max(from, to)); step++) {
         if (row.steps[step] === on) continue
         row.steps[step] = on
-        if (!on && row.accents) row.accents[step] = false
+        if (!on) clear(row, step)
         changed = true
     }
     return changed ? next : null
@@ -99,6 +118,99 @@ export function toggleAccent(rows: GridRow[], sound: string, step: number, lengt
     accents[step] = row.steps[step] ? !accents[step] : true
     row.steps[step] = true
     row.accents = accents
+    // Where every step has a level of its own, louder is one of those levels.
+    const levels = row.lanes?.[LEVEL]
+    if (levels) levels[step] = accents[step] ? LOUDER : 1
+    return next
+}
+
+// Louder hits are written as a level for every step, and so is a level drawn step by step.
+export const LEVEL = 'postgain'
+export const LOUDER = 1.5
+export const MOST_REPEATS = 4
+
+// What a step can have of its own. `fn` is the call a value for every step is written with;
+// chance and repeats are written into the steps themselves.
+export type StepWhat = 'level' | 'chance' | 'repeats' | 'pan' | 'speed' | 'lpf' | 'delay'
+export type StepKind = { what: StepWhat; label: string; fn?: string; min: number; max: number; usual: number; log?: boolean; about: string }
+export const STEP_KINDS: StepKind[] = [
+    { what: 'level', label: 'Level', fn: LEVEL, min: 0, max: 1.5, usual: 1, about: 'How loud each hit is' },
+    { what: 'chance', label: 'Chance', min: 0, max: 1, usual: 1, about: 'How likely each hit is to sound, every time round' },
+    { what: 'repeats', label: 'Repeats', min: 1, max: MOST_REPEATS, usual: 1, about: 'How many times each hit sounds within its step: a roll' },
+    { what: 'pan', label: 'Pan', fn: 'pan', min: 0, max: 1, usual: 0.5, about: 'Where each hit sits, left to right' },
+    { what: 'speed', label: 'Pitch', fn: 'speed', min: 0.5, max: 2, usual: 1, about: 'How fast, and so how high, each hit is played' },
+    { what: 'lpf', label: 'Cutoff', fn: 'lpf', min: 100, max: 8000, usual: 8000, log: true, about: 'How bright each hit is' },
+    { what: 'delay', label: 'Echo', fn: 'delay', min: 0, max: 1, usual: 0, about: 'How much of each hit is sent to the echo' },
+]
+export const stepKind = (what: StepWhat): StepKind => STEP_KINDS.find((kind) => kind.what === what) as StepKind
+
+// The value every step of a row has for one of those things. `base` is what a step has where
+// nothing was written step by step yet: what the row's knob stands on.
+export function stepValues(row: GridRow, what: StepWhat, base?: number): number[] {
+    const kind = stepKind(what)
+    if (what === 'chance') return row.chances ? [...row.chances] : row.steps.map(() => 1)
+    if (what === 'repeats') return row.repeats ? [...row.repeats] : row.steps.map(() => 1)
+    const written = row.lanes?.[kind.fn as string]
+    if (written) return [...written]
+    if (what === 'level') return row.steps.map((_, at) => (row.accents?.[at] ? LOUDER : 1))
+    return row.steps.map(() => base ?? kind.usual)
+}
+
+const fitted = (kind: StepKind, value: number): number => {
+    const within = Math.min(kind.max, Math.max(kind.min, value))
+    if (kind.what === 'repeats') return Math.round(within)
+    if (kind.what === 'chance') return Math.round(within * 20) / 20
+    const span = kind.max - kind.min
+    const digits = span >= 100 ? 0 : 2
+    return Number(within.toFixed(digits))
+}
+
+// A run of steps of one row given values of their own, from one step on. Only a hit can have
+// one, so the other steps of the run are passed over. Null when nothing changes.
+export function setSteps(rows: GridRow[], sound: string, what: StepWhat, from: number, values: number[], base?: number): GridRow[] | null {
+    const next = copy(rows)
+    const row = next.find((candidate) => candidate.sound === sound)
+    if (!row) return null
+    const kind = stepKind(what)
+    const all = stepValues(row, what, base)
+    let changed = false
+    values.forEach((value, at) => {
+        const step = from + at
+        if (step < 0 || step >= row.steps.length || !row.steps[step]) return
+        const fit = fitted(kind, value)
+        if (all[step] === fit) return
+        all[step] = fit
+        changed = true
+    })
+    if (!changed) return null
+    if (what === 'chance') row.chances = all
+    else if (what === 'repeats') row.repeats = all
+    else row.lanes = { ...row.lanes, [kind.fn as string]: all }
+    if (what === 'level') row.accents = all.map((level, at) => level > 1 && row.steps[at])
+    return next
+}
+
+// Every step of a row as it was before anything was written step by step for one of those
+// things. Null when there was nothing.
+export function clearSteps(rows: GridRow[], sound: string, what: StepWhat): GridRow[] | null {
+    const next = copy(rows)
+    const row = next.find((candidate) => candidate.sound === sound)
+    if (!row) return null
+    const kind = stepKind(what)
+    if (what === 'chance') {
+        if (!row.chances?.some((chance) => chance < 1)) return null
+        delete row.chances
+    } else if (what === 'repeats') {
+        if (!row.repeats?.some((count) => count > 1)) return null
+        delete row.repeats
+    } else {
+        const fn = kind.fn as string
+        if (!row.lanes?.[fn] && !(what === 'level' && row.accents?.some(Boolean))) return null
+        const { [fn]: _, ...rest } = row.lanes ?? {}
+        if (Object.keys(rest).length) row.lanes = rest
+        else delete row.lanes
+        if (what === 'level') delete row.accents
+    }
     return next
 }
 
@@ -128,9 +240,27 @@ export function resample(grid: Grid, perCycle: number): GridRow[] | null {
         })
         return next
     }
-    const rows = grid.rows.map((row) => {
+    // What a hit has of its own goes with the hit. A value for every step is read off the step
+    // that stood at the same place in the bar.
+    const along = <T>(list: T[], usual: T): T[] => {
+        const next = Array<T>(total).fill(usual)
+        list.forEach((value, at) => {
+            const to = (at * perCycle) / grid.perCycle
+            if (grid.rows.length && Number.isInteger(to)) next[to] = value
+        })
+        return next
+    }
+    const sampled = (list: number[]): number[] => Array.from({ length: total }, (_, at) => list[Math.min(list.length - 1, Math.floor((at * grid.perCycle) / perCycle))])
+    const rows = grid.rows.map((row): GridRow => {
         const accents = row.accents?.map((loud, at) => loud && row.steps[at])
-        return { sound: row.sound, steps: moved(row.steps), ...(accents ? { accents: moved(accents) } : {}) }
+        return {
+            sound: row.sound,
+            steps: moved(row.steps),
+            ...(accents ? { accents: moved(accents) } : {}),
+            ...(row.repeats ? { repeats: along(row.repeats, 1) } : {}),
+            ...(row.chances ? { chances: along(row.chances, 1) } : {}),
+            ...(row.lanes ? { lanes: Object.fromEntries(Object.entries(row.lanes).map(([fn, values]) => [fn, sampled(values)])) } : {}),
+        }
     })
     return fits ? rows : null
 }

@@ -1,7 +1,13 @@
 import { batch, createMemo, createSelector, createSignal, For, Index, onCleanup, Show, type JSX } from 'solid-js'
+import type { StepKind } from '../song/grid'
 import { asksForMenu } from './keys'
+import { StepLane } from './StepLane'
 
-export type StepRow = { name: string; steps: boolean[]; accents?: boolean[]; played?: boolean[]; muted?: boolean }
+export type StepRow = { name: string; steps: boolean[]; accents?: boolean[]; repeats?: number[]; chances?: number[]; played?: boolean[]; muted?: boolean }
+
+// One row's values step by step, shown under that row: what it is of, the value of every step
+// in sight, and what stands over the bars to choose another or to clear them.
+export type ShownLane = { sound: string; kind: StepKind; values: number[]; head: JSX.Element; onDraw: (from: number, values: number[]) => void }
 
 // The pads stand in groups of a beat: four to a group, or three or six where the bar is
 // counted in threes (12 or 24 steps).
@@ -28,6 +34,7 @@ export function StepGrid(props: {
     onHear?: (sound: string) => void
     onRemove?: (sound: string) => void
     controls?: (sound: () => string) => JSX.Element
+    lane?: ShownLane
 }) {
     const count = () => props.rows[0]?.steps.length ?? 16
     const beat = () => beatOf(count())
@@ -111,6 +118,7 @@ export function StepGrid(props: {
                     <span class="cap">Vol</span>
                     <span class="cap">Pan</span>
                     <span />
+                    <span />
                 </span>
             </Show>
             <Index each={props.rows}>
@@ -143,6 +151,8 @@ export function StepGrid(props: {
                                                 const on = () => inRun() ?? row().steps[step()]
                                                 // What the song plays is not compared with a run that is not written yet.
                                                 const played = () => (inRun() === null ? row().played?.[step()] : undefined)
+                                                const repeats = () => (on() ? (row().repeats?.[step()] ?? 1) : 1)
+                                                const chance = () => (on() ? (row().chances?.[step()] ?? 1) : 1)
                                                 return (
                                                     <button
                                                         class="pad"
@@ -152,10 +162,13 @@ export function StepGrid(props: {
                                                             now: isNow(step()),
                                                             skip: on() && played() === false,
                                                             ghost: !on() && played() === true,
+                                                            maybe: chance() < 1,
                                                         }}
                                                         aria-label={`${row().name} step ${step() + 1}`}
                                                         aria-pressed={on()}
                                                         data-loud={on() && row().accents?.[step()] ? '' : undefined}
+                                                        data-rep={repeats() > 1 ? repeats() : undefined}
+                                                        data-chance={chance() < 1 ? Math.round(chance() * 100) : undefined}
                                                         title={props.onAccent ? 'Click for a hit, drag along the row for several. Shift click, or the A key, for a louder one.' : undefined}
                                                         disabled={props.disabled || !props.onToggle}
                                                         onClick={(event) => {
@@ -178,6 +191,22 @@ export function StepGrid(props: {
                             </For>
                         </div>
                         <Show when={props.controls}>{(controls) => controls()(() => row().name)}</Show>
+                        <Show when={props.lane?.sound === row().name ? props.lane : undefined}>
+                            {(lane) => (
+                                <>
+                                    <span />
+                                    <div class="ln-t">{lane().head}</div>
+                                    <Show when={props.controls}>
+                                        <span />
+                                    </Show>
+                                    <span class="rh ln-n">{lane().kind.label}</span>
+                                    <StepLane name={row().name} kind={lane().kind} hits={row().steps} values={lane().values} beat={beat()} disabled={props.disabled} onDraw={lane().onDraw} onHold={props.onHold} />
+                                    <Show when={props.controls}>
+                                        <span />
+                                    </Show>
+                                </>
+                            )}
+                        </Show>
                     </>
                 )}
             </Index>

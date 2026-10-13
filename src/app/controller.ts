@@ -33,6 +33,7 @@ import { analyze } from '../song/analyze'
 import { arrangeEdit, arrangeSong, barsOf, readArrangement, removeEdits, repeatEdits, songLength, spaceEdits } from '../song/arrange'
 import { addCall, removeCall, renameCalls, setNumber, setString, setTempo as tempoEdit, toggleMute as muteEdit } from '../song/edits'
 import {
+    clearSteps,
     gridFromEvents,
     lengthEdits,
     paintSteps as paintGridSteps,
@@ -40,12 +41,15 @@ import {
     removeRow,
     resample,
     resize,
+    setSteps,
     sourceText,
+    stepKind,
     toggleAccent as toggleGridAccent,
     toggleStep as toggleGridStep,
     type Grid,
     type GridRow,
     type GridSource,
+    type StepWhat,
 } from '../song/grid'
 import { convertEdits, isDrums, kitEdits, MUTE, readKit, rowTarget } from '../song/kit'
 import {
@@ -983,7 +987,7 @@ function changeDrums(id: string, change: (drums: Grid) => { rows: GridRow[]; cyc
     if (!block || stale()) return false
     const kit = readKit(block)
     const legacy = kit ? null : editableGrid(block)
-    const drums: Grid | null = kit ? { ...kit, rows: kit.rows.map(({ sound, steps, accents }) => ({ sound, steps, ...(accents ? { accents } : {}) })) } : (legacy?.grid ?? null)
+    const drums: Grid | null = kit ? { ...kit, rows: kit.rows.map(({ block: _, muted: __, ...row }) => row) } : (legacy?.grid ?? null)
     const next = drums ? change(drums) : null
     setGridNotes({ ...gridNotes(), [id]: !drums })
     if (!drums || !next) return false
@@ -1043,6 +1047,35 @@ export function paintSteps(id: string, sound: string, from: number, to: number, 
 export function toggleAccent(id: string, sound: string, step: number) {
     changeDrums(id, (drums) => ({ rows: toggleGridAccent(drums.rows, sound, step, drums.steps), cycles: drums.cycles }))
     if (!engineState().playing) previewSound(id, sound)
+}
+
+// ---- what a step has of its own: how loud, how likely, how many times, and a value of its own
+// for a few of the row's knobs.
+
+// What the knob of a row stands on for one of those things, which is what every step has until
+// a step is given a value of its own.
+const knobOf = (id: string, sound: string, what: StepWhat): number | undefined => {
+    const fn = stepKind(what).fn
+    const row = find(rowTarget(id, sound))
+    const arg = fn && row ? valueArg(callFor(row, fn)) : null
+    return arg?.value
+}
+
+export function setStepValues(id: string, sound: string, what: StepWhat, from: number, values: number[]) {
+    // A row that is still written the older way is written with a line of its own first.
+    forEdit(rowTarget(id, sound))
+    const base = knobOf(id, sound, what)
+    changeDrums(id, (drums) => {
+        const rows = setSteps(drums.rows, sound, what, from, values, base)
+        return rows ? { rows, cycles: drums.cycles } : null
+    })
+}
+
+export function clearStepValues(id: string, sound: string, what: StepWhat) {
+    changeDrums(id, (drums) => {
+        const rows = clearSteps(drums.rows, sound, what)
+        return rows ? { rows, cycles: drums.cycles } : null
+    })
 }
 
 export function addRow(id: string, sound: string) {

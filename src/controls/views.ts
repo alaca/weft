@@ -108,7 +108,9 @@ function viewOfCall(call: Call): ControlView | null {
         const text = low === high ? withUnit(writeNumber(high, min, max), unit) : `${writeNumber(low, min, max)} to ${withUnit(writeNumber(high, min, max), unit)}`
         return { ...base, state: 'drawn', curve: numbers, value: high, min, max, scale: def.scale, text }
     }
-    return { ...base, state: 'locked', value: def.initial, min: def.min, max: def.max, scale: def.scale, text: 'in code' }
+    // One sound of a drum kit can have a value for every step: a number for each, in one text.
+    const stepped = arg.kind === 'string' && /^\s*-?\d*\.?\d+(\s+-?\d*\.?\d+)+\s*$/.test(arg.value)
+    return { ...base, state: 'locked', value: def.initial, min: def.min, max: def.max, scale: def.scale, text: stepped ? 'per step' : 'in code' }
 }
 
 function present(block: PatternBlock): ControlView[] {

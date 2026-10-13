@@ -133,6 +133,21 @@ button.rn:hover { border-color: var(--linen-3); }
 .prow .pad.on.now { background: color-mix(in srgb, var(--h) 68%, white); }
 /* A louder hit: brighter, with a bar along its top. */
 .prow .pad.on.loud { background: color-mix(in srgb, var(--h) 78%, white); box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.85); }
+/* What a hit has of its own shows on its pad: stripes where it only sounds some of the times,
+   and the number of times it sounds within its step where that is more than once. */
+.pad { position: relative; }
+.prow .pad.on.maybe { background: repeating-linear-gradient(135deg, var(--h) 0 4px, color-mix(in srgb, var(--h) 42%, transparent) 4px 8px); }
+.prow .pad.on[data-rep]::after { content: attr(data-rep); position: absolute; right: 3px; bottom: 2px; font: 700 9px/1 var(--mono); color: var(--vat); }
+.ln-t { display: flex; align-items: center; gap: 10px; min-width: 0; padding-top: 3px; }
+.ln-t .seg { flex: none; }
+.ln-a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--linen-3); font-size: 11px; }
+.ln-n { font: 600 9.5px/1 var(--ui); font-stretch: 85%; letter-spacing: 0.12em; text-transform: uppercase; color: var(--linen-3); }
+.prow.ln { height: 54px; margin-bottom: 6px; touch-action: none; cursor: ns-resize; }
+.prow.ln .grp { height: 100%; }
+.lb { position: relative; display: block; width: 100%; height: 100%; border-radius: 5px; background: rgba(236, 230, 214, 0.04); cursor: inherit; }
+.lb:disabled { cursor: default; }
+.lb i { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--v, 0) * 100%); border-radius: 4px; background: color-mix(in srgb, var(--h) 78%, transparent); pointer-events: none; }
+.lb.on:hover i, .lb:focus-visible i { background: var(--h); }
 
 .rw { display: grid; grid-template-columns: 44px 1fr; }
 .keys { position: relative; }
@@ -397,7 +412,7 @@ svg.mini rect { fill: var(--h); }
 .top .mix { --h: var(--linen-2); }
 .top .kn.small .kn-d { width: 28px; height: 28px; }
 .dg.own { grid-template-columns: var(--names, 74px) 1fr auto; }
-.rc { display: grid; grid-template-columns: 21px 24px 24px 22px; gap: 9px; align-items: center; justify-items: center; margin-left: 14px; }
+.rc { display: grid; grid-template-columns: 21px 24px 24px 22px 22px; gap: 9px; align-items: center; justify-items: center; margin-left: 14px; }
 .rm { width: 21px; height: 19px; border-radius: 5px; background: var(--cloth-3); display: grid; place-items: center; font: 600 9.5px/1 var(--ui); color: var(--linen-3); }
 .rm.on { background: var(--linen); color: var(--vat); }
 .rm:disabled { opacity: 0.4; cursor: default; }

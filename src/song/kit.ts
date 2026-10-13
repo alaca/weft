@@ -1,5 +1,5 @@
-import { mixText } from '../controls/catalog'
-import { DEFAULT_STEPS, groupOf, lengthEdits, MAX_STEPS, sourceText, type GridRow } from './grid'
+import { controlText, findDef, mixText } from '../controls/catalog'
+import { DEFAULT_STEPS, groupOf, lengthEdits, LEVEL, LOUDER, MAX_STEPS, MOST_REPEATS, sourceText, STEP_KINDS, type GridRow } from './grid'
 import type { Arg, Call, PatternBlock, TextEdit } from './types'
 
 // A drum kit is written with one line for each sound, so that each sound can have its own
@@ -19,9 +19,39 @@ const INDENT = '  '
 
 // Louder hits are written as a level for every step, after the steps themselves:
 //   s("hh").struct("x x x x").postgain("1 1.5 1 1")
-// The call is only there when a row has a louder hit.
-export const ACCENT = 'postgain'
-const LOUDER = 1.5
+// The call is only there when a row has a louder hit. Other things a step can have a value of
+// its own for are written the same way, each with its own call: .pan("0.5 0.2 0.5 0.8").
+// How often a hit sounds within its step and how likely it is to sound are written into the
+// steps, the way Strudel writes them: x*3 sounds three times, x? every other time, x?0.25
+// three times in four.
+export const ACCENT = LEVEL
+
+// The calls that can hold a value for every step, by the name the code may call them.
+const LANES = STEP_KINDS.flatMap((kind) => (kind.fn && kind.fn !== LEVEL ? [kind.fn] : []))
+const laneOf = (call: Call): string | null => {
+    const fn = findDef(call.name)?.fn ?? call.name
+    return LANES.includes(fn) ? fn : null
+}
+
+const STEP = /^x(?:\*([2-9]))?(?:\?(\d*\.?\d+)?)?$/
+type Cell = { on: boolean; repeats: number; chance: number }
+function readCell(text: string): Cell | null {
+    if (text === '~') return { on: false, repeats: 1, chance: 1 }
+    const found = STEP.exec(text)
+    if (!found) return null
+    const repeats = found[1] ? Number(found[1]) : 1
+    const left = text.includes('?') ? (found[2] === undefined ? 0.5 : Number(found[2])) : 0
+    if (repeats > MOST_REPEATS || !(left >= 0 && left <= 1)) return null
+    return { on: true, repeats, chance: Math.round((1 - left) * 100) / 100 }
+}
+
+// The numbers of a call that holds one for every step, when that is what it holds.
+const numbersOf = (call: Call | undefined, count: number): number[] | null => {
+    const arg = call?.args.length === 1 ? call.args[0] : undefined
+    if (!arg || arg.kind !== 'string') return null
+    const values = arg.value.trim().split(/\s+/).map(Number)
+    return values.length === count && values.every(Number.isFinite) ? values : null
+}
 
 // Strudel's own way to silence one pattern inside a stack.
 export const MUTE = 'hush'
@@ -42,14 +72,26 @@ export function readKit(block: PatternBlock): Kit | null {
         const sound = stringOf(arg.calls[0], SOURCES)
         const struct = stringOf(arg.calls[1], ['struct'])
         if (!sound || !struct || !SOUND.test(sound.value)) return null
-        const cells = struct.value.trim().split(/\s+/)
-        if (cells.some((cell) => cell !== 'x' && cell !== '~') || rows.some((row) => row.sound === sound.value)) return null
-        const levels = stringOf(arg.calls.find((call) => call.name === ACCENT), [ACCENT])?.value.trim().split(/\s+/).map(Number)
-        const accents = levels && levels.length === cells.length && levels.every(Number.isFinite) ? levels.map((level, at) => level > 1 && cells[at] === 'x') : null
+        const cells = struct.value.trim().split(/\s+/).map(readCell)
+        if (cells.some((cell) => !cell) || rows.some((row) => row.sound === sound.value)) return null
+        const read = cells as Cell[]
+        const levels = numbersOf(arg.calls.find((call) => call.name === ACCENT), read.length)
+        const accents = levels ? levels.map((level, at) => level > 1 && read[at].on) : null
+        // Levels that are only ordinary and louder are the louder hits and nothing more.
+        const drawn = levels?.some((level, at) => read[at].on && level !== 1 && level !== LOUDER) ? levels : null
+        const lanes: Record<string, number[]> = drawn ? { [LEVEL]: drawn } : {}
+        for (const call of arg.calls.slice(2)) {
+            const fn = laneOf(call)
+            const values = fn && !lanes[fn] ? numbersOf(call, read.length) : null
+            if (fn && values) lanes[fn] = values
+        }
         rows.push({
             sound: sound.value,
-            steps: cells.map((cell) => cell === 'x'),
+            steps: read.map((cell) => cell.on),
             ...(accents?.some(Boolean) ? { accents } : {}),
+            ...(read.some((cell) => cell.repeats > 1) ? { repeats: read.map((cell) => cell.repeats) } : {}),
+            ...(read.some((cell) => cell.chance < 1) ? { chances: read.map((cell) => cell.chance) } : {}),
+            ...(Object.keys(lanes).length ? { lanes } : {}),
             muted: arg.calls.some((call) => call.name === MUTE),
             block: { ...block, id: rowTarget(block.id, sound.value), from: arg.from, to: arg.to, calls: arg.calls, soundName: sound.value, inline: true },
         })
@@ -80,21 +122,42 @@ export function structText(steps: boolean[]): string {
     return groups.join('   ')
 }
 
-// The level of every step, in the same groups as the steps. Null when no hit is louder.
-export function accentText(row: GridRow): string | null {
-    if (!row.accents?.some((loud, at) => loud && row.steps[at])) return null
+const grouped = (cells: string[]): string => {
     const groups: string[] = []
-    const size = groupOf(row.steps.length)
-    for (let i = 0; i < row.steps.length; i += size) {
-        groups.push(
-            row.steps
-                .slice(i, i + size)
-                .map((on, at) => (on && row.accents?.[i + at] ? String(LOUDER) : '1'))
-                .join(' '),
-        )
-    }
+    const size = groupOf(cells.length)
+    for (let i = 0; i < cells.length; i += size) groups.push(cells.slice(i, i + size).join(' '))
     return groups.join('   ')
 }
+
+const left = (chance: number): string => {
+    const share = Math.round((1 - chance) * 100) / 100
+    return share === 0.5 ? '?' : `?${share}`
+}
+
+// The steps of a row as they are written, with what each hit has of its own.
+export function stepsText(row: GridRow): string {
+    return grouped(
+        row.steps.map((on, at) => {
+            if (!on) return '~'
+            const repeats = row.repeats?.[at] ?? 1
+            const chance = row.chances?.[at] ?? 1
+            return `x${repeats > 1 ? `*${repeats}` : ''}${chance < 1 ? left(chance) : ''}`
+        }),
+    )
+}
+
+// The level of every step, in the same groups as the steps. Null when no hit is louder and none
+// has a level of its own.
+export function accentText(row: GridRow): string | null {
+    const levels = row.lanes?.[LEVEL]
+    if (levels?.some((level, at) => row.steps[at] && level !== 1)) return grouped(levels.map((level, at) => (row.steps[at] ? String(level) : '1')))
+    if (!row.accents?.some((loud, at) => loud && row.steps[at])) return null
+    return grouped(row.steps.map((on, at) => (on && row.accents?.[at] ? String(LOUDER) : '1')))
+}
+
+// The value of every step for one of the other things a step can have its own of.
+const laneText = (values: number[]): string => grouped(values.map(String))
+const lanesOf = (row: GridRow): [string, number[]][] => Object.entries(row.lanes ?? {}).filter(([fn]) => fn !== LEVEL)
 
 const accentCall = (row: GridRow) => {
     const text = accentText(row)
@@ -102,7 +165,7 @@ const accentCall = (row: GridRow) => {
 }
 
 // A new sound comes with how loud it is and where it sits written after it.
-const rowText = (row: GridRow, width: number) => `s("${row.sound}")${' '.repeat(width - row.sound.length)}.struct("${structText(row.steps)}")${accentCall(row)}${mixText().join('')}`
+const rowText = (row: GridRow, width: number) => `s("${row.sound}")${' '.repeat(width - row.sound.length)}.struct("${stepsText(row)}")${accentCall(row)}${mixText().join('')}`
 const widthOf = (rows: GridRow[]) => Math.max(0, ...rows.map((row) => row.sound.length))
 
 export function kitText(rows: GridRow[]): string {
@@ -145,14 +208,37 @@ export function kitEdits(code: string, kit: Kit, rows: GridRow[]): TextEdit[] {
         const gap = `${' '.repeat(width - old.sound.length)}.`
         if (code.slice(sound.to, struct.nameFrom) !== gap) edits.push({ from: sound.to, to: struct.nameFrom, insert: gap })
         const arg = struct.args[0]
-        const text = structText(next.steps)
+        const text = stepsText(next)
         if (arg.kind === 'string' && arg.value !== text) edits.push({ from: arg.from + 1, to: arg.to - 1, insert: text })
         const written = old.block.calls.find((call) => call.name === ACCENT)
         const levels = stringOf(written, [ACCENT])
         const wanted = accentText(next)
+        // What is put in straight after the steps is gathered, so that it goes in as one edit.
+        let after = ''
         if (written && !wanted) edits.push({ from: written.from, to: written.to, insert: '' })
         else if (levels && wanted && levels.value !== wanted) edits.push({ from: levels.from + 1, to: levels.to - 1, insert: wanted })
-        else if (!written && wanted) edits.push({ from: struct.to, to: struct.to, insert: `.${ACCENT}("${wanted}")` })
+        else if (!written && wanted) after += `.${ACCENT}("${wanted}")`
+        // A value for every step takes the place of the knob the row had for it, and a knob
+        // comes back, standing where the first hit stood, when the steps have no values any more.
+        const count = old.steps.length
+        for (const [fn, values] of lanesOf(next)) {
+            const call = old.block.calls.slice(2).find((each) => laneOf(each) === fn)
+            const wide = laneText(values)
+            const was = call?.args.length === 1 ? call.args[0] : undefined
+            if (!call) after += `.${fn}("${wide}")`
+            else if (was?.kind === 'string' && numbersOf(call, count)) {
+                if (was.value !== wide) edits.push({ from: was.from + 1, to: was.to - 1, insert: wide })
+            } else edits.push({ from: call.from, to: call.to, insert: `.${fn}("${wide}")` })
+        }
+        for (const [fn, values] of lanesOf(old)) {
+            if (next.lanes?.[fn]) continue
+            const call = old.block.calls.slice(2).find((each) => laneOf(each) === fn && numbersOf(each, count))
+            const def = findDef(fn)
+            const stood = values[old.steps.indexOf(true)] ?? values[0]
+            if (call && def) edits.push({ from: call.from, to: call.to, insert: controlText(def, stood) })
+            else if (call) edits.push({ from: call.from, to: call.to, insert: '' })
+        }
+        if (after) edits.push({ from: struct.to, to: struct.to, insert: after })
     }
     const added = rows.filter((row) => !kit.rows.some((old) => old.sound === row.sound))
     if (added.length) edits.push(rowInsertion(code, kit, added, width))
