@@ -26,6 +26,7 @@ export function GridFooter(props: {
         <div class="rk-f">{props.children}</div>
       </Show>
       <Portal mount={props.head} ref={(made) => (made.className = "st-gp")}>
+        <span class="st-gi">
         <span class="cap">Length</span>
         <div class="seg s">
           <For each={LENGTHS}>
@@ -42,6 +43,8 @@ export function GridFooter(props: {
             )}
           </For>
         </div>
+        </span>
+        <span class="st-gi">
         <span class="cap">Steps</span>
         <div class="seg s">
           <For each={props.resolutions}>
@@ -63,7 +66,9 @@ export function GridFooter(props: {
             )}
           </For>
         </div>
+        </span>
         <Show when={props.cycles > 1}>
+          <span class="st-gi">
             <span class="cap">Cycle</span>
             <div class="seg s">
               <For each={Array.from({ length: props.cycles }, (_, i) => i)}>
@@ -79,6 +84,7 @@ export function GridFooter(props: {
                 )}
               </For>
             </div>
+          </span>
         </Show>
       </Portal>
     </>

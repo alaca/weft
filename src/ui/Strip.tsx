@@ -245,143 +245,144 @@ export function Strip(props: { id: string }) {
                         <Show when={folded()}>
                             <MiniView view={view()} />
                         </Show>
-                        <span class="grow" />
-                        <button
-                            class="rs"
-                            classList={{ on: open() }}
-                            aria-label={`Sound controls for ${props.id}`}
-                            aria-pressed={open()}
-                            title="Sound controls"
-                            onClick={(event) => {
-                                event.stopPropagation()
-                                togglePanel(props.id)
-                            }}
-                        >
-                            <svg viewBox="0 0 14 14" aria-hidden="true">
-                                <path d="M2 4.5h10M2 9.5h10" />
-                                <circle cx="5" cy="4.5" r="1.7" />
-                                <circle cx="9" cy="9.5" r="1.7" />
-                            </svg>
-                        </button>
-                        <span class="ms">
+                        <span class="st-e">
                             <button
-                                classList={{ on: current().muted }}
-                                aria-label={`Mute ${props.id}`}
-                                aria-pressed={current().muted}
-                                disabled={stale()}
+                                class="rs"
+                                classList={{ on: open() }}
+                                aria-label={`Sound controls for ${props.id}`}
+                                aria-pressed={open()}
+                                title="Sound controls"
                                 onClick={(event) => {
                                     event.stopPropagation()
-                                    toggleMute(props.id)
+                                    togglePanel(props.id)
                                 }}
                             >
-                                M
-                            </button>
-                            <button
-                                classList={{ on: soloIds().includes(props.id) }}
-                                aria-label={`Solo ${props.id}`}
-                                aria-pressed={soloIds().includes(props.id)}
-                                disabled={stale()}
-                                onClick={(event) => {
-                                    event.stopPropagation()
-                                    toggleSolo(props.id)
-                                }}
-                            >
-                                S
-                            </button>
-                        </span>
-                        <span class="st-more" ref={more} onClick={(event) => event.stopPropagation()}>
-                            <button class="st-x" aria-label={`More for ${props.id}`} aria-haspopup="menu" aria-expanded={menu()} title="Rename, duplicate, move" disabled={stale()} onClick={() => setMenu(!menu())}>
-                                <svg viewBox="0 0 12 12" class="dots">
-                                    <circle cx="2" cy="6" r="1.1" />
-                                    <circle cx="6" cy="6" r="1.1" />
-                                    <circle cx="10" cy="6" r="1.1" />
+                                <svg viewBox="0 0 14 14" aria-hidden="true">
+                                    <path d="M2 4.5h10M2 9.5h10" />
+                                    <circle cx="5" cy="4.5" r="1.7" />
+                                    <circle cx="9" cy="9.5" r="1.7" />
                                 </svg>
                             </button>
-                            <Show when={menu()}>
-                                <div class="menu single" role="menu">
-                                    <button
-                                        role="menuitem"
-                                        onClick={() => {
-                                            setMenu(false)
-                                            setRefused(false)
-                                            setNaming(true)
-                                        }}
-                                    >
-                                        Rename
-                                    </button>
-                                    <button
-                                        role="menuitem"
-                                        onClick={() => {
-                                            setMenu(false)
-                                            duplicatePattern(props.id)
-                                        }}
-                                    >
-                                        Duplicate
-                                    </button>
-                                    <Show
-                                        when={current().variants}
-                                        fallback={
-                                            <button
-                                                role="menuitem"
-                                                title="A second version of what this pattern plays, with the same sound and knobs, for another part of the song"
-                                                onClick={() => {
-                                                    setMenu(false)
-                                                    addVariantOf(props.id)
-                                                }}
-                                            >
-                                                Add a version
-                                            </button>
-                                        }
-                                    >
-                                        {(variants) => (
-                                            <button
-                                                role="menuitem"
-                                                onClick={() => {
-                                                    setMenu(false)
-                                                    removeVariantOf(props.id, variants().shown)
-                                                }}
-                                            >
-                                                Remove version {variantName(variants().shown)}
-                                            </button>
-                                        )}
-                                    </Show>
-                                    <button
-                                        role="menuitem"
-                                        disabled={place() <= 0}
-                                        onClick={() => {
-                                            setMenu(false)
-                                            movePattern(props.id, -1)
-                                        }}
-                                    >
-                                        Move up
-                                    </button>
-                                    <button
-                                        role="menuitem"
-                                        disabled={place() >= song().patterns.length - 1}
-                                        onClick={() => {
-                                            setMenu(false)
-                                            movePattern(props.id, 1)
-                                        }}
-                                    >
-                                        Move down
-                                    </button>
-                                </div>
-                            </Show>
+                            <span class="ms">
+                                <button
+                                    classList={{ on: current().muted }}
+                                    aria-label={`Mute ${props.id}`}
+                                    aria-pressed={current().muted}
+                                    disabled={stale()}
+                                    onClick={(event) => {
+                                        event.stopPropagation()
+                                        toggleMute(props.id)
+                                    }}
+                                >
+                                    M
+                                </button>
+                                <button
+                                    classList={{ on: soloIds().includes(props.id) }}
+                                    aria-label={`Solo ${props.id}`}
+                                    aria-pressed={soloIds().includes(props.id)}
+                                    disabled={stale()}
+                                    onClick={(event) => {
+                                        event.stopPropagation()
+                                        toggleSolo(props.id)
+                                    }}
+                                >
+                                    S
+                                </button>
+                            </span>
+                            <span class="st-more" ref={more} onClick={(event) => event.stopPropagation()}>
+                                <button class="st-x" aria-label={`More for ${props.id}`} aria-haspopup="menu" aria-expanded={menu()} title="Rename, duplicate, move" disabled={stale()} onClick={() => setMenu(!menu())}>
+                                    <svg viewBox="0 0 12 12" class="dots">
+                                        <circle cx="2" cy="6" r="1.1" />
+                                        <circle cx="6" cy="6" r="1.1" />
+                                        <circle cx="10" cy="6" r="1.1" />
+                                    </svg>
+                                </button>
+                                <Show when={menu()}>
+                                    <div class="menu single" role="menu">
+                                        <button
+                                            role="menuitem"
+                                            onClick={() => {
+                                                setMenu(false)
+                                                setRefused(false)
+                                                setNaming(true)
+                                            }}
+                                        >
+                                            Rename
+                                        </button>
+                                        <button
+                                            role="menuitem"
+                                            onClick={() => {
+                                                setMenu(false)
+                                                duplicatePattern(props.id)
+                                            }}
+                                        >
+                                            Duplicate
+                                        </button>
+                                        <Show
+                                            when={current().variants}
+                                            fallback={
+                                                <button
+                                                    role="menuitem"
+                                                    title="A second version of what this pattern plays, with the same sound and knobs, for another part of the song"
+                                                    onClick={() => {
+                                                        setMenu(false)
+                                                        addVariantOf(props.id)
+                                                    }}
+                                                >
+                                                    Add a version
+                                                </button>
+                                            }
+                                        >
+                                            {(variants) => (
+                                                <button
+                                                    role="menuitem"
+                                                    onClick={() => {
+                                                        setMenu(false)
+                                                        removeVariantOf(props.id, variants().shown)
+                                                    }}
+                                                >
+                                                    Remove version {variantName(variants().shown)}
+                                                </button>
+                                            )}
+                                        </Show>
+                                        <button
+                                            role="menuitem"
+                                            disabled={place() <= 0}
+                                            onClick={() => {
+                                                setMenu(false)
+                                                movePattern(props.id, -1)
+                                            }}
+                                        >
+                                            Move up
+                                        </button>
+                                        <button
+                                            role="menuitem"
+                                            disabled={place() >= song().patterns.length - 1}
+                                            onClick={() => {
+                                                setMenu(false)
+                                                movePattern(props.id, 1)
+                                            }}
+                                        >
+                                            Move down
+                                        </button>
+                                    </div>
+                                </Show>
+                            </span>
+                            <button
+                                class="st-x"
+                                aria-label={`Remove the pattern ${props.id}`}
+                                title="Remove this pattern"
+                                disabled={stale()}
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    removePattern(props.id)
+                                }}
+                            >
+                                <svg viewBox="0 0 8 8" aria-hidden="true">
+                                    <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
+                                </svg>
+                            </button>
                         </span>
-                        <button
-                            class="st-x"
-                            aria-label={`Remove the pattern ${props.id}`}
-                            title="Remove this pattern"
-                            disabled={stale()}
-                            onClick={(event) => {
-                                event.stopPropagation()
-                                removePattern(props.id)
-                            }}
-                        >
-                            <svg viewBox="0 0 8 8" aria-hidden="true">
-                                <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
-                            </svg>
-                        </button>
                     </div>
                     <Show when={!folded()}>
                         <div class="st-b two">
