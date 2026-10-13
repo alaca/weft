@@ -444,8 +444,11 @@ svg.mini rect { fill: var(--h); }
 .sp-o code { font: 500 10.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); }
 .sp.sub { border-top: 0; padding-top: 11px; }
 .sg { background: var(--cloth); border: 1px solid var(--seam); border-radius: 11px; flex: none; padding-bottom: 10px; }
-.sg-h { height: 46px; display: flex; align-items: center; gap: 11px; padding: 2px 14px 0 17px; }
-.sg-h > h3, .sg-h > .lines, .sg-h > .cap, .sg-h > .seg { flex: none; }
+/* The head is one line where there is room. Where there is not, what is at its end goes under
+   it, still at the right, and nothing runs out of the panel. */
+.sg-h { min-height: 46px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 11px; padding: 6px 14px 4px 17px; }
+.sg-h > h3, .sg-h > .lines, .sg-h > .cap, .sg-h > .seg, .sg-he > .cap, .sg-he > .seg, .sg-he > .chip { flex: none; }
+.sg-he { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px 11px; min-height: 34px; }
 .sg-h h3 { font: 600 19px/1 var(--voice); padding-bottom: 2px; }
 .sg-h .seg.s button { min-width: 22px; font: 600 12px/1 var(--mono); }
 .sg-h .seg.s button:disabled { opacity: 0.35; cursor: default; }
@@ -958,6 +961,7 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .sg-ch:focus-visible { outline: 2px solid var(--linen); outline-offset: -2px; z-index: 2; }
 .sg-cp { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 9px; padding: 0 14px 9px 17px; }
 .sg-cp .seg.s button { min-width: 24px; padding: 0 6px; font: 500 11px/1 var(--ui); }
+.sg-cf { display: inline-flex; align-items: center; gap: 9px; }
 .sg-cb { min-width: 44px; height: 23px; padding: 0 8px; border-radius: 7px; background: var(--linen); color: var(--vat); display: inline-flex; align-items: center; justify-content: center; font: 600 12px/1 var(--mono); font-stretch: 87%; }
 .cr-n { color: var(--linen-3); font-size: 11.5px; margin: 0 0 9px; }
 .cr-n b { color: var(--linen); font-weight: 600; }

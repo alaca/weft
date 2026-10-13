@@ -735,14 +735,16 @@ function ChordPalette() {
                 {brush()}
             </span>
             <span class="grow" />
-            <span class="cap">Follow them with</span>
-            <For each={FOLLOW_KINDS}>
-                {(made) => (
-                    <button class="chip tgl" disabled={stale()} title={`A new pattern that follows the chords. ${made.about}.`} onClick={() => addFollower(made.kind)}>
-                        + {made.label}
-                    </button>
-                )}
-            </For>
+            <span class="sg-cf">
+                <span class="cap">Follow them with</span>
+                <For each={FOLLOW_KINDS}>
+                    {(made) => (
+                        <button class="chip tgl" disabled={stale()} title={`A new pattern that follows the chords. ${made.about}.`} onClick={() => addFollower(made.kind)}>
+                            + {made.label}
+                        </button>
+                    )}
+                </For>
+            </span>
         </div>
     )
 }
@@ -878,36 +880,37 @@ export function SongPanel() {
                         </span>
                     )}
                 </Show>
-                <span class="grow" />
-                <Show when={!chordLane()}>
-                    <button class="chip tgl" classList={{ away: mixing() }} disabled={stale()} title="Gives the song chords, one for every bar, that patterns can follow: change a chord in one place and every pattern that follows plays the new one" onClick={addChords}>
-                        Add chords
+                <span class="sg-he">
+                    <Show when={!chordLane()}>
+                        <button class="chip tgl" classList={{ away: mixing() }} disabled={stale()} title="Gives the song chords, one for every bar, that patterns can follow: change a chord in one place and every pattern that follows plays the new one" onClick={addChords}>
+                            Add chords
+                        </button>
+                    </Show>
+                    <Show when={playMode() === 'song' && !tempoLane()}>
+                        <button class="chip tgl" classList={{ away: mixing() }} disabled={stale() || song().tempoLocked} title="Gives every bar a tempo of its own, drawn over the song the way a knob is: for a song that speeds up, slows down or changes tempo" onClick={drawTempo}>
+                            Draw the tempo
+                        </button>
+                    </Show>
+                    <button
+                        class="chip tgl tk"
+                        classList={{ on: takingKnobs() }}
+                        aria-pressed={takingKnobs()}
+                        title="While this is on, a knob you turn as the song plays is drawn over the song, bar by bar, when the song stops"
+                        onClick={() => takeKnobs(!takingKnobs())}
+                    >
+                        <i />
+                        Record knobs
                     </button>
-                </Show>
-                <Show when={playMode() === 'song' && !tempoLane()}>
-                    <button class="chip tgl" classList={{ away: mixing() }} disabled={stale() || song().tempoLocked} title="Gives every bar a tempo of its own, drawn over the song the way a knob is: for a song that speeds up, slows down or changes tempo" onClick={drawTempo}>
-                        Draw the tempo
-                    </button>
-                </Show>
-                <button
-                    class="chip tgl tk"
-                    classList={{ on: takingKnobs() }}
-                    aria-pressed={takingKnobs()}
-                    title="While this is on, a knob you turn as the song plays is drawn over the song, bar by bar, when the song stops"
-                    onClick={() => takeKnobs(!takingKnobs())}
-                >
-                    <i />
-                    Record knobs
-                </button>
-                <span class="cap" classList={{ away: mixing() }}>Zoom</span>
-                <div class="seg s" classList={{ away: mixing() }}>
-                    <button aria-label="Show more bars" disabled={narrower() === undefined} onClick={() => setZoom(narrower() ?? barWidth())}>
-                        -
-                    </button>
-                    <button aria-label="Show fewer bars" disabled={wider() === undefined} onClick={() => setZoom(wider() ?? barWidth())}>
-                        +
-                    </button>
-                </div>
+                    <span class="cap" classList={{ away: mixing() }}>Zoom</span>
+                    <div class="seg s" classList={{ away: mixing() }}>
+                        <button aria-label="Show more bars" disabled={narrower() === undefined} onClick={() => setZoom(narrower() ?? barWidth())}>
+                            -
+                        </button>
+                        <button aria-label="Show fewer bars" disabled={wider() === undefined} onClick={() => setZoom(wider() ?? barWidth())}>
+                            +
+                        </button>
+                    </div>
+                </span>
             </div>
             <Show when={playMode() === 'live' && song().patterns.length > 0}>
                 <Scenes />

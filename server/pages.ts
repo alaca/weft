@@ -323,7 +323,7 @@ export function homePage(around: Around, songs: Listed[], builds: Build[]): stri
                     <svg viewBox="0 0 32 32" fill="none" stroke="var(--woad)" stroke-width="2.4" stroke-linecap="round"><path d="M4 13v6M8.8 9v14M13.6 5v22M18.4 10v12M23.2 7v18M28 13v6" /></svg>
                 </div>
                 <h3>Sounds of your own</h3>
-                <p>Add audio files or record from the microphone.</p>
+                <p>Add audio files or record from the microphone. Cut a loop into parts, or lay a whole take along the song.</p>
             </li>
             <li class="card feat">
                 <div class="feat-i" aria-hidden="true">

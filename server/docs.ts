@@ -4,7 +4,7 @@
 export type DocPicture = { file: string; width: number; height: number; alt: string }
 export type DocSection = { id: string; title: string; pictures: DocPicture[]; html: string }
 
-export const DOCS_ABOUT = 'How Weft Loom works, one thing at a time: patterns, the song, sounds, knobs over the song, versions, scenes, jams, and getting a song out.'
+export const DOCS_ABOUT = 'How Weft Loom works, one thing at a time: patterns, sounds, the song, tempo and time, chords, knobs over the song, versions, scenes, recordings, jams, and getting a song out.'
 
 export const DOCS: DocSection[] = [
     {
@@ -22,10 +22,12 @@ export const DOCS: DocSection[] = [
         title: 'Patterns',
         pictures: [
             { file: '/docs/grid.webp', width: 980, height: 270, alt: 'A drum pattern: a row of sixteen steps for each of two sounds, with volume, pan and a mute button at the end of each row.' },
+            { file: '/docs/steps.webp', width: 980, height: 370, alt: 'A drum pattern with one row opened step by step: a bar under every hit says how loud it is, rising from the first hit to the last.' },
             { file: '/docs/roll.webp', width: 980, height: 327, alt: 'A pattern of notes in a piano roll, with its knobs in a row under it.' },
         ],
         html: `<p>The row under the strips adds a pattern: Drums, Bass line, Chords or Melody.</p>
 <p><b>Drums</b> are a grid. Click a step to put a hit there, and click it again to take it away. Press and drag along a row to fill every step you pass, or to empty them when the drag begins on a hit. Hold <kbd>Shift</kbd> and click to make a hit louder. Add a sound adds a row, and a click on a row's name plays that sound. Every row has its own mute, volume, pan and controls at its end.</p>
+<p>Each hit of a row can be its own. The button with the bars at the end of a row opens it <b>step by step</b>: drag over the bars to give every hit its level, and choose Chance, Repeats, Pan, Pitch, Cutoff or Echo to do the same with those. A hit with a chance plays only some of the times round, and a hit with repeats plays two, three or four times in its step.</p>
 <p><b>Notes</b> are a piano roll. Click an empty cell for a note, or press there and drag to the right to draw one as long as the drag. Drag a note to move it, drag its right edge to make it longer, and double click it to remove it. Higher and Lower show more of the keyboard. Choose a Key and the roll keeps to the notes of that key; with Chords on, one click puts in the whole chord.</p>
 <p><b>Length</b> is how many bars the pattern lasts before it comes round again. <b>Steps</b> is how finely a bar is divided: 16 is the usual, 12 and 24 divide each beat in three, for a shuffle or a swing. When a pattern is longer than one bar, <b>Cycle</b> pages through its bars.</p>
 <p>At the right of a strip, M mutes the pattern and S plays it alone. The three dots rename, duplicate and move it, and the cross removes it. Under the grid or the roll are the pattern's knobs, with Volume and Pan first.</p>`,
@@ -37,16 +39,37 @@ export const DOCS: DocSection[] = [
         html: `<p>Click the name of the sound on a strip. The Sounds open on the left: drum kits, instruments, synths, samples and your own. Click one to hear it, press Use to give it to the pattern, or drag it onto a strip.</p>
 <p>The button with the sliders on a strip opens every control of its sound: Source, Filter, Shape, Effects and Feel. A faint knob is one the sound does not use yet. Press it and it is added, to the sound and to the code. Browse all controls finds the rest by name.</p>
 <p><b>Volume</b> is how loud a pattern is after its effects, like a fader. <b>Gain</b>, among the controls of the sound, is how hard the sound goes into its filter and effects: on an overdriven sound it changes the bite far more than the loudness.</p>
-<p>A knob can move by itself. Point at it and press the small wave at its top left, then choose how it moves, between which two values and over how many bars.</p>`,
+<p>A knob can move by itself. Point at it and press the small wave at its top left, then choose how it moves, between which two values and over how many bars.</p>
+<p>A sound you have shaped can be kept. At the foot of the open controls, <b>Save as preset</b> keeps it under a name with every knob as it stands. It is then among the Presets in the Sounds, beside the twenty that come with Weft Loom, and goes onto a pattern of notes in any song.</p>
+<p>Drum kits, instruments and samples are fetched the first time they are played, and kept on your machine. Without a network, the ones you have played before still play.</p>`,
     },
     {
         id: 'song',
         title: 'The song',
-        pictures: [{ file: '/docs/song.webp', width: 980, height: 325, alt: 'The Song panel: a row for each pattern with the bars it plays in filled, and four bars chosen to go round, with buttons to repeat them, to put empty bars before them and to take them out.' }],
+        pictures: [{ file: '/docs/song.webp', width: 980, height: 354, alt: 'The Song panel: a row for each pattern with the bars it plays in filled, and four bars chosen to go round, with buttons to repeat them, to put empty bars before them and to take them out.' }],
         html: `<p>The Song panel is the song from left to right: a row for each pattern, a cell for each bar. Drag across a row to fill bars or to empty them. A pattern plays in the bars that are filled, and the song is as long as its last filled bar.</p>
 <p>Each row has M and S, and a knob for volume and for pan.</p>
 <p>Click a bar number to start from that bar. Drag across bar numbers and those bars go round, which is the way to work on one part of a song. While they go round, three buttons work on them in every pattern at once: <b>Repeat them</b> puts them in once more, <b>Empty bars before</b> makes room in front of them, and <b>Take them out</b> removes them.</p>
 <p>A pattern you have just added plays in no bar yet. In Live you hear it at once; in Song you hear it once you fill bars for it.</p>`,
+    },
+    {
+        id: 'tempo',
+        title: 'Tempo and time',
+        pictures: [{ file: '/docs/tempo.webp', width: 980, height: 185, alt: 'The Song panel with a Tempo row over the patterns: level for eight bars, then rising bar by bar to the end of the song.' }],
+        html: `<p>The tempo is the number at the top, in beats a minute. Beside it is the <b>Time</b>: 4/4 to begin with, and 2/4, 3/4, 5/4, 6/8, 7/8 or 12/8 for a song that is counted another way. A new pattern gets the steps of that bar, and the lights beside the tempo count its beats. The time is one for the whole song, and the patterns a song already has stay as they are.</p>
+<p>A song can also speed up, slow down or change tempo. In the Song panel press <b>Draw the tempo</b>. A Tempo row appears over the patterns: drag in it to set the tempo bar by bar, and hold <kbd>Shift</kbd> for a straight line. The length of the song follows it, and so does a file you export.</p>
+<p>The cross beside Tempo gives the song one tempo again.</p>`,
+    },
+    {
+        id: 'chords',
+        title: 'Chords',
+        pictures: [
+            { file: '/docs/chords.webp', width: 980, height: 286, alt: 'The Song panel with a Chords row: A minor for four bars, then F, C and G seventh, and above it the notes and kinds of chord to choose from.' },
+            { file: '/docs/follow.webp', width: 980, height: 388, alt: 'A pattern that follows the chords: a grid with a row for each note of the chord, and its notes played one by one.' },
+        ],
+        html: `<p>A song can have chords that its patterns follow. In the Song panel press <b>Add chords</b>. A Chords row appears with a chord for every bar. Choose a note and a kind above it, then press or drag over bars to put that chord there.</p>
+<p><b>Follow them with</b> adds a pattern that plays the chord of each bar: Chords plays the whole chord, Bass the note it is named after, and Arp its notes one by one. Its grid has a row for each note of the chord, counted from the bottom, and Where it sits moves it lower or higher. Change a chord in the Chords row and every pattern that follows plays the new one.</p>
+<p>The cross beside Chords takes them out of the song. The patterns that followed keep the chords they played, and follow again when you add chords again.</p>`,
     },
     {
         id: 'knobs',
@@ -90,11 +113,31 @@ export const DOCS: DocSection[] = [
 <p>Your sounds travel with the song: into a song file, to the other person in a jam, and to the site when you publish.</p>`,
     },
     {
+        id: 'slices',
+        title: 'A sample cut into parts',
+        pictures: [{ file: '/docs/slices.webp', width: 980, height: 614, alt: 'A drum loop drawn as a wave and cut into sixteen parts, and under it a grid with a row for each part, most of them in their own order and a few moved.' }],
+        html: `<p>A drum loop, or any sample, can be cut into equal parts and played in another order. Beside a sample and beside a sound of your own in the Sounds is a button with three boxes. Press it and a new pattern appears, with the sound drawn at its top and cut into as many parts as the pattern has steps.</p>
+<p>Each part is a row of the grid, and a hit plays that part on that step. The parts in a line from the top left down are the sound as it was. Click to move them about, or press In order, Backwards, Shuffle or Clear. A press on a part in the drawing plays it.</p>
+<p>With <b>Fit to the tempo</b> on, each part is played as fast as fills its step, so a loop follows the tempo of the song and its pitch moves with it. Off, each part plays as fast as it was recorded.</p>`,
+    },
+    {
+        id: 'audio',
+        title: 'A recording along the song',
+        pictures: [{ file: '/docs/audio.webp', width: 980, height: 329, alt: 'A recording laid along the song: its wave with the bars of the song over it, and under it where it starts, a nudge, the bars it is heard in and its fades.' }],
+        html: `<p>A sung take, a guitar, anything longer than a bar can play along the song as it is. In the Sounds choose Yours and press the button with the wave beside a sound. It is laid on the bars from the bar the song is at, and the song is made longer if it has to be. A take you record while the song plays in Song goes where you sang it.</p>
+<p>Its strip shows the recording with the bars of the song over it, and a press plays it from there. <b>Starts at bar</b> moves it, and <b>Nudge</b> moves it by 10 milliseconds at a time, for a take that came out a little late. <b>Heard from bar</b> and <b>to</b> cut it at both ends. To cut it anywhere else, empty its bars in the Song panel where it should rest. <b>Fade in</b> brings it in over that many seconds, and <b>Fade out</b> lets it go on for that many after its last bar while it fades.</p>
+<p>A recording keeps the speed it was made at. Change the tempo afterwards and it still plays without a break, but no longer on the beat.</p>`,
+    },
+    {
         id: 'mixer',
         title: 'The mixer',
-        pictures: [{ file: '/docs/mixer.webp', width: 300, height: 338, alt: 'The mixer: pan, low, mid and high knobs, a limiter, a volume fader and two meters.' }],
+        pictures: [
+            { file: '/docs/mixer.webp', width: 300, height: 338, alt: 'The mixer: pan, low, mid and high knobs, a limiter, a volume fader and two meters.' },
+            { file: '/docs/strips.webp', width: 980, height: 422, alt: 'The Song panel switched to Mix: a strip for each pattern with a meter, a volume fader, pan, low cut, cutoff, room, delay, and M and S.' },
+        ],
         html: `<p>Volume, pan, low, mid and high for everything you hear, with a limiter and two meters.</p>
-<p>It is how the song sounds on your machine and not part of the song. A file you export, and someone you jam with, get the song without it.</p>`,
+<p>It is how the song sounds on your machine and not part of the song. A file you export, and someone you jam with, get the song without it.</p>
+<p>Each pattern has a strip of its own as well. In the Song panel switch from Bars to <b>Mix</b>: a meter, a volume fader, pan, low cut, cutoff, room and delay for every pattern, side by side, with M and S. These are the pattern's own knobs, so they are part of the song.</p>`,
     },
     {
         id: 'jams',
@@ -109,7 +152,7 @@ export const DOCS: DocSection[] = [
         id: 'files',
         title: 'Saving, exporting, publishing',
         pictures: [{ file: '/docs/export.webp', width: 460, height: 306, alt: 'The export window: the song or each pattern, WAV or MP3, a quality, and buttons for a song file, the code and the audio.' }],
-        html: `<p>Weft Loom keeps your songs itself and writes every change down as you make it, so closing the app loses nothing. <kbd>Cmd</kbd> <kbd>S</kbd> saves a version you can go back to from the song's menu.</p>
+        html: `<p>Weft Loom keeps your songs itself and writes every change down as you make it, so quitting the app loses nothing. <kbd>Cmd</kbd> <kbd>S</kbd> saves a version you can go back to from the song's menu. Closing a song that has changes asks whether to save them: Close without saving takes it back to the version that was saved.</p>
 <p><b>Export</b> makes files. A song file (.weft) is the whole song with your own sounds inside, to open in Weft Loom on another machine or to send to someone. Code (.js) is the code alone. Export audio makes a WAV or an MP3 of the song. With Each pattern chosen it makes a zip with a file for every pattern, all the same length, to mix in another audio program.</p>
 <p><b>Publish</b> puts a song among the <a href="/songs">songs on this site</a>, where anyone can listen to half a minute of it, download it and open it in Weft Loom. It needs an account, made in the same window with an email and a password. An account holds ten songs of up to 1 MB each, and Weft Loom makes your own sounds smaller where it has to.</p>
 <p>A song from someone else is code. Weft Loom plays it only if it is music code and nothing more. If it holds anything else, it says which line and asks first.</p>`,
