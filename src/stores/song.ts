@@ -65,7 +65,7 @@ export const [startOpen, setStartOpen] = createSignal(false)
 export const [closingSong, setClosingSong] = createSignal(false)
 // The sound settings: whether their window is open, and what was chosen in them.
 export const [soundOpen, setSoundOpen] = createSignal(false)
-export const [soundChoice, setSoundChoice] = createSignal<SoundChoice>({ input: null, output: null, outputName: null })
+export const [soundChoice, setSoundChoice] = createSignal<SoundChoice>({ input: null, output: null, outputName: null, clock: { kind: 'off' } })
 // Whether the open song is one that is only played while all of it is music code.
 export const [songGuarded, setSongGuarded] = createSignal(false)
 // The key each pattern's piano roll keeps to, by the pattern's name.

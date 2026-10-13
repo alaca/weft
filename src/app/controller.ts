@@ -29,8 +29,10 @@ import { withoutLead } from '../library/shrink'
 import { turnWhenDue } from '../library/turn'
 import { startTake, whyNot, type NoTake, type Take } from '../library/recorder'
 import { fitPreset, isOfPack, PACK_FILE, packIdFor, packOf, packSoundName, readPackFile, readPacks, writePackFile, writePacks, type PackFile, type PackInfo, type PackPreset } from '../library/packs'
-import { listMidiOutputs, silenceMidi } from '../library/midi'
-import { keepChoice, readChoice, type SoundChoice } from '../library/soundDevices'
+import { clockMidi, listMidiOutputs, silenceMidi } from '../library/midi'
+import { DRUM_CHANNEL, readMidiFile, writeMidiFile, type MidiNote, type MidiSong, type MidiTrack } from '../library/midifile'
+import { songFromMidi } from '../song/fromMidi'
+import { keepChoice, readChoice, type ClockTo, type SoundChoice } from '../library/soundDevices'
 import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
 import { readKey, writeKey, type Key } from '../song/scales'
 import { gradeOf, readAudio, RING_SECONDS, sizeOf, type AudioOptions, type Format } from '../library/audio'
@@ -177,6 +179,7 @@ import {
     setChordLane,
     setMeter,
     setTakeSince,
+    bpm,
     packs,
     setPacks,
     setPackNote,
@@ -2291,6 +2294,24 @@ export function setMidiChannel(id: string, channel: number) {
 
 export const midiOutputs = (): Promise<string[]> => listMidiOutputs()
 
+// ---- the tempo of the song as a MIDI clock, for a drum machine or a synth that follows one.
+// It starts with the song, a moment late as the song's first note is, takes each change of the
+// tempo, and stops with the song.
+export const chooseClock = (clock: ClockTo) => keepSoundChoice({ ...soundChoice(), clock })
+
+const CLOCK_AHEAD = 100
+let clocked: string | null = null
+createRoot(() =>
+    createEffect(() => {
+        const to = soundChoice().clock
+        const tempo = to.kind !== 'off' && engineState().playing ? Math.round(bpm() * 100) / 100 : null
+        const said = tempo === null ? null : `${to.kind === 'named' ? to.name : ''}|${tempo}`
+        if (said === clocked) return
+        clockMidi(to.kind === 'named' ? to.name : null, tempo, clocked === null ? CLOCK_AHEAD : 0)
+        clocked = said
+    }),
+)
+
 // A pack file added. A pack that is here already is taken to be a newer one of itself: what
 // it no longer holds goes, and the rest is replaced. A sound of the pack that came here before
 // it, in a song that used it, is among yours under the same name, and is the pack's from now
@@ -2943,6 +2964,60 @@ export async function exportCode() {
     }
 }
 
+// The notes of the song as a MIDI file, for another music program: a track for every pattern
+// that plays notes or the sounds of a drum machine, in the bars it plays in, with the tempo of
+// every bar. What is no note, a sample cut into parts or a recording, is left out.
+const MIDI_KIND: FileKind = { extension: 'mid', label: 'MIDI file', type: 'audio/midi' }
+const TICKS = 480
+const DRUM_NOTE: Record<string, number> = { bd: 36, rim: 37, sd: 38, cp: 39, lt: 45, hh: 42, oh: 46, mt: 47, ht: 50, cr: 49, rd: 51, cb: 56, sh: 70 }
+
+export function songAsMidi(): MidiSong {
+    const meter = meterNow()
+    const length = songLengthNow()
+    const perBar = TICKS * meter.quarters
+    const usual = song().tempo?.bpm ?? engine.bpm()
+    const lane = tempoLane()
+    const tempos = Array.from({ length }, (_, bar) => ({ tick: bar * perBar, bpm: lane ? tempoAt(lane, bar, usual) : usual })).filter((tempo, bar, all) => bar === 0 || tempo.bpm !== all[bar - 1].bpm)
+    let channel = 0
+    const tracks = lanes().flatMap((block): MidiTrack[] => {
+        if (block.muted) return []
+        const plays = barsOf(block, length)
+        const drums: MidiNote[] = []
+        const notes: MidiNote[] = []
+        for (let bar = 0; bar < length; bar++) {
+            if (!plays[bar]) continue
+            for (const event of eventsOf(block.id, bar)) {
+                const tick = Math.round((bar + event.start) * perBar)
+                const long = Math.max(1, Math.round(event.length * perBar) - 1)
+                const drum = event.midi === null && event.sound ? DRUM_NOTE[event.sound] : undefined
+                if (event.midi !== null) notes.push({ tick, length: long, note: Math.round(event.midi), force: 100 })
+                else if (drum !== undefined) drums.push({ tick, length: Math.min(long, TICKS / 4), note: drum, force: 100 })
+            }
+        }
+        const made: MidiTrack[] = []
+        if (notes.length) {
+            if (channel === DRUM_CHANNEL) channel++
+            made.push({ name: block.id, channel: Math.min(15, channel++), notes })
+        }
+        if (drums.length) made.push({ name: block.id, channel: DRUM_CHANNEL, notes: drums })
+        return made
+    })
+    const [beats, unit] = meter.label.split('/').map(Number)
+    return { ppq: TICKS, tempos, meter: [beats, unit], tracks }
+}
+
+export async function exportMidi() {
+    if (!current) return
+    const name = fileName(current.name, MIDI_KIND.extension)
+    try {
+        const made = songAsMidi()
+        if (!made.tracks.length) return void setExportNote('This song has no notes to put in a MIDI file: none of its patterns plays notes or the sounds of a drum machine.')
+        setExportNote(told(await saveFile(name, writeMidiFile(made), MIDI_KIND), name))
+    } catch (err) {
+        setExportNote(`The file could not be saved: ${String((err as Error)?.message ?? err)}`)
+    }
+}
+
 const SONG_KIND: FileKind = { extension: SONG_FILE, label: 'Weft Loom song', type: 'application/json' }
 
 // The sounds of your own that the song's code names, as they go into a file. Only those are
@@ -3114,7 +3189,7 @@ export async function openAsked() {
 export const dropAsked = () => setLinkAsk(null)
 
 // The kinds of file a song is opened from.
-export const SONG_KINDS = [SONG_FILE, 'js', 'strudel', 'txt']
+export const SONG_KINDS = [SONG_FILE, 'js', 'strudel', 'txt', 'mid', 'midi']
 
 // Open a File in the desktop app's menu. In the window the same is a button, which opens the
 // window's own file chooser.
@@ -3133,6 +3208,7 @@ export async function openAFile() {
 // belongs to another sound gets a new name, in the song's code as well.
 export async function openSongFile(file: File): Promise<boolean> {
     try {
+        if (/\.midi?$/i.test(file.name)) return await openMidiFile(file)
         const read = readSongFile(await file.text(), file.name)
         if (!read) return setSongNote(`${file.name} is not a song this app can read.`), false
         let code = read.code
@@ -3163,6 +3239,22 @@ export async function openSongFile(file: File): Promise<boolean> {
         setSongNote(`${file.name} could not be opened: ${String((err as Error)?.message ?? err)}`)
         return false
     }
+}
+
+// A MIDI file becomes a new song: a pattern for each of its tracks.
+async function openMidiFile(file: File): Promise<boolean> {
+    const midi = readMidiFile(new Uint8Array(await file.arrayBuffer()))
+    const made = midi ? songFromMidi(midi) : null
+    if (!made) return setSongNote(`${file.name} is not a MIDI file this app can read, or there are no notes in it.`), false
+    if (!flush()) return false
+    const name = file.name.replace(/\.midi?$/i, '')
+    const record: SongRecord = { id: newId(), name: freeTitle(cleanName(name) || UNTITLED, titles()), saved: made.code, draft: made.code, changedAt: Date.now() }
+    if (!keepNew(record)) return false
+    show(record)
+    setSongNote(
+        `Opened ${record.name} from a MIDI file: ${made.patterns} ${made.patterns === 1 ? 'pattern' : 'patterns'} of ${made.bars} ${made.bars === 1 ? 'bar' : 'bars'}.${made.cut ? ` The file is longer than that: its first ${made.bars} bars were taken.` : ''}`,
+    )
+    return true
 }
 
 // The song from its first bar to its last, with what still rings after it, as an audio file.

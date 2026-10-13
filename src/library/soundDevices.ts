@@ -4,18 +4,28 @@ import { keeping } from './kept'
 // ones the system uses. A microphone is known by its name in the desktop app, which listens
 // itself, and by what the window calls it in a browser. An output is always known by what the
 // window calls it, because it is the window that plays.
-export type SoundChoice = { input: string | null; output: string | null; outputName: string | null }
+// `clock` is where the tempo of the song is sent as a MIDI clock: nowhere when it is off, the
+// first output there is, or the output of a name.
+export type ClockTo = { kind: 'off' } | { kind: 'first' } | { kind: 'named'; name: string }
+export type SoundChoice = { input: string | null; output: string | null; outputName: string | null; clock: ClockTo }
 export type SoundDevice = { id: string; name: string }
 
 const KEY = 'weft.sound'
-const NONE: SoundChoice = { input: null, output: null, outputName: null }
+const NONE: SoundChoice = { input: null, output: null, outputName: null, clock: { kind: 'off' } }
+
+function readClock(kept: unknown): ClockTo {
+    const said = kept as { kind?: unknown; name?: unknown } | null
+    if (said?.kind === 'first') return { kind: 'first' }
+    const name = said?.kind === 'named' ? text(said.name) : null
+    return name ? { kind: 'named', name } : { kind: 'off' }
+}
 const inDesktop = () => '__TAURI_INTERNALS__' in window
 const text = (value: unknown): string | null => (typeof value === 'string' && value && value.length < 400 ? value : null)
 
 export function readChoice(): SoundChoice {
     try {
         const kept = JSON.parse(keeping.getItem(KEY) ?? '{}') as Partial<SoundChoice> | null
-        return { input: text(kept?.input), output: text(kept?.output), outputName: text(kept?.outputName) }
+        return { input: text(kept?.input), output: text(kept?.output), outputName: text(kept?.outputName), clock: readClock(kept?.clock) }
     } catch {
         return NONE
     }

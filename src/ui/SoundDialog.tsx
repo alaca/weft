@@ -1,9 +1,10 @@
 import { createResource, createSignal, onCleanup, onMount, Show, For } from 'solid-js'
 import { chooseInput, chooseOutput, closeSoundSettings, testOutput } from '../app/controller'
 import { askForNames, listInputs, listOutputs, outputRoute } from '../library/soundDevices'
+import { chooseClock, midiOutputs } from '../app/controller'
 import { bindings, forgetKnob, knobName, learnKnobs } from '../app/knobs'
 import { hearKeyboards } from '../app/piano'
-import { canHearMidi } from '../library/midi'
+import { canHearMidi, canSendClock } from '../library/midi'
 import { midiKeyboards, soundChoice, soundOpen } from '../stores/song'
 
 const SYSTEM = ''
@@ -24,6 +25,12 @@ function Settings() {
     const [outputs] = createResource(asked, () => listOutputs())
     const [note, setNote] = createSignal('')
     const route = outputRoute()
+    const [clockOutputs, { refetch: refetchClock }] = createResource(() => (canSendClock() ? midiOutputs() : []))
+    // An output that was chosen stays in the list while it is unplugged, so that it stays chosen.
+    const clockNames = () => {
+        const chosen = soundChoice().clock
+        return [...new Set([...(clockOutputs() ?? []), ...(chosen.kind === 'named' ? [chosen.name] : [])])]
+    }
 
     const escape = (event: KeyboardEvent) => {
         if (event.key === 'Escape') closeSoundSettings()
@@ -115,6 +122,26 @@ function Settings() {
                         A MIDI keyboard or pad is heard as soon as it is plugged in. It plays the pattern you are on: its notes, or the sounds of a drum grid. With Keys on at a piano roll, what you play while the song plays is written into it.
                     </Show>
                 </p>
+                <Show when={canSendClock()}>
+                    <label class="sd-r">
+                        <span>Clock</span>
+                        <select
+                            class="sd-s"
+                            aria-label="Where the tempo is sent as a MIDI clock"
+                            value={soundChoice().clock.kind === 'named' ? `to:${(soundChoice().clock as { name: string }).name}` : soundChoice().clock.kind}
+                            onFocus={() => refetchClock()}
+                            onChange={(event) => {
+                                const chosen = event.currentTarget.value
+                                chooseClock(chosen === 'off' ? { kind: 'off' } : chosen === 'first' ? { kind: 'first' } : { kind: 'named', name: chosen.slice(3) })
+                            }}
+                        >
+                            <option value="off">Not sent</option>
+                            <option value="first">To the first MIDI output there is</option>
+                            <For each={clockNames()}>{(name) => <option value={`to:${name}`}>To {name}</option>}</For>
+                        </select>
+                    </label>
+                    <p class="sd-t">The tempo of the song as a MIDI clock, with its start and its stop, for a drum machine or a synth that follows one.</p>
+                </Show>
                 <Show when={canHearMidi()}>
                     <div class="sd-r">
                         <span>Knobs</span>

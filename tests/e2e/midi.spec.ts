@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
+import { readMidiFile } from '../../src/library/midifile'
 
 const SONG = 'setcpm(120/4)\n\ndrums: stack(\n  s("bd").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n  s("sd").struct("~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~   ~ ~ ~ ~"),\n)\n  .bank("RolandTR909")\n\nlead: note(`\n  ~ ~ ~ ~   ~ ~ ~ ~\n`)\n  .s("triangle")\n'
 
@@ -149,4 +151,40 @@ test('a pad writes hits into a drum grid, a note sounds for as long as its key i
     await expect.poll(() => code(page)).toContain('.lpf(slider(100, 100, 8000))')
     await turn(127)
     await expect.poll(() => code(page)).toContain('.lpf(slider(8000, 100, 8000))')
+})
+
+test('the notes of a song are saved as a MIDI file, and a MIDI file is opened as a song', async ({ page }) => {
+    await page.addInitScript(() => {
+        localStorage.setItem('weft.song', 'setcpm(120/4)\n\ndrums: stack(\n  s("bd").struct("x ~ ~ ~   x ~ ~ ~   x ~ ~ ~   x ~ ~ ~"),\n)\n  .bank("RolandTR909")\n  .mask("<1!2>")\n\nlead: note("c3 e3 g3 c4")\n  .s("triangle")\n  .mask("<1 0>")\n')
+    })
+    await page.goto('/')
+    await page.waitForFunction(() => Boolean((window as any).__weft))
+    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
+
+    // A track for each pattern, in the bars it plays in: the lead rests in the second bar.
+    await page.getByTestId('top').getByRole('button', { name: 'Export', exact: true }).click()
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export').getByRole('button', { name: 'MIDI (.mid)', exact: true }).click()])
+    expect(download.suggestedFilename()).toBe('Untitled.mid')
+    const bytes = await readFile(await download.path())
+    const file = readMidiFile(new Uint8Array(bytes))!
+    expect(Math.round(file.tempos[0].bpm)).toBe(120)
+    const drums = file.tracks.find((track) => track.channel === 9)!
+    const lead = file.tracks.find((track) => track.channel !== 9)!
+    expect(drums.notes.map((note) => [note.tick, note.note])).toEqual([0, 480, 960, 1440, 1920, 2400, 2880, 3360].map((tick) => [tick, 36]))
+    expect(lead.notes.map((note) => [note.tick, note.note])).toEqual([
+        [0, 48],
+        [480, 52],
+        [960, 55],
+        [1440, 60],
+    ])
+    await page.getByRole('button', { name: 'Close export', exact: true }).click()
+
+    // The same file opened: a new song with a drum grid and a piano roll.
+    await page.getByTestId('song-file').setInputFiles({ name: 'From elsewhere.mid', mimeType: 'audio/midi', buffer: bytes })
+    await expect(page.getByTestId('song-note')).toHaveText('Opened From elsewhere from a MIDI file: 2 patterns of 2 bars.')
+    const opened = await code(page)
+    expect(opened).toContain('setcpm(120/4)')
+    expect(opened).toMatch(/drums: stack\(\n\s+s\("bd"\)\.struct\("x ~ ~ ~   x ~ ~ ~/)
+    expect(opened).toMatch(/lead: note\(`\n\s+c3\s+_\s+_\s+_\s+e3\s+_\s+_\s+_\s+g3\s+_\s+_\s+_\s+c4\s+_\s+_\s+_\s+~/)
+    await expect(page.getByTestId('strip-lead')).toBeVisible()
 })

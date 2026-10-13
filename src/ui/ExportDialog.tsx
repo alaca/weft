@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js'
-import { closeExport, exportAudio, exportCode, exportPatterns, keptAudio, patternsToExport, saveSongFile, songSeconds } from '../app/controller'
+import { closeExport, exportAudio, exportCode, exportMidi, exportPatterns, keptAudio, patternsToExport, saveSongFile, songSeconds } from '../app/controller'
 import { durationText, FORMATS, gradeOf, QUALITIES, RING_SECONDS, sizeOf, sizeText, type AudioOptions, type Format, type Quality } from '../library/audio'
 import { currentSong, engineState, exporting, exportNote, exportOpen } from '../stores/song'
 
@@ -111,6 +111,9 @@ export function ExportDialog() {
                         </button>
                         <button class="btn" disabled={exporting()} title="Only the code, as text" onClick={() => void exportCode()}>
                             Code (.js)
+                        </button>
+                        <button class="btn" disabled={exporting()} title="The notes of the song, for another music program: a track for each pattern that plays notes or drums" onClick={() => void exportMidi()}>
+                            MIDI (.mid)
                         </button>
                         <span class="grow" />
                         <button class="btn" disabled={exporting()} onClick={closeExport}>

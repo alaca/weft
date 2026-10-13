@@ -155,3 +155,14 @@ export function silenceMidi() {
         })
         .catch(() => undefined)
 }
+
+// The tempo of the song, in quarter notes a minute, sent as a MIDI clock for a drum machine or
+// a synth to follow: a word to start `wait` thousandths of a second from now, twenty-four ticks
+// to the quarter note from then on, and with no tempo a word to stop. Only the desktop app does
+// this: a clock has to tick more evenly than a window can.
+export function clockMidi(output: string | null, bpm: number | null, wait: number) {
+    if (!inDesktop()) return
+    void import('@tauri-apps/api/core').then(({ invoke }) => invoke('midi_clock', { port: output, bpm, wait })).catch(() => undefined)
+}
+
+export const canSendClock = (): boolean => inDesktop()

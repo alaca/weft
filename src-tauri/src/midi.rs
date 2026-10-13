@@ -116,7 +116,20 @@ use std::time::Instant;
 enum Out {
     Send { port: Option<String>, at: Instant, bytes: [u8; 3] },
     Silence,
+    // The tempo, for what follows a MIDI clock: twenty-four ticks to a quarter note from `at`
+    // on, after a word to start. No tempo is the word to stop.
+    Clock { port: Option<String>, bpm: Option<f64>, at: Instant },
 }
+
+struct Ticking {
+    name: String,
+    next: Instant,
+    every: Duration,
+}
+
+const START: u8 = 0xfa;
+const STOP: u8 = 0xfc;
+const TICK: u8 = 0xf8;
 
 pub struct Sending {
     tell: Sender<Out>,
@@ -144,36 +157,57 @@ fn reach(wanted: Option<&str>) -> Option<(String, MidiOutputConnection)> {
     output.connect(port, "weft-loom-out").ok().map(|connection| (name, connection))
 }
 
+// The output that is asked for, open: by its name, or the first there is, which is found once.
+fn opened(port: Option<String>, open: &mut HashMap<String, MidiOutputConnection>, usual: &mut Option<String>) -> Option<String> {
+    let name = match port.or_else(|| usual.clone()) {
+        Some(name) => name,
+        None => {
+            let (name, connection) = reach(None)?;
+            open.insert(name.clone(), connection);
+            *usual = Some(name.clone());
+            name
+        }
+    };
+    if !open.contains_key(&name) {
+        let (_, connection) = reach(Some(&name))?;
+        open.insert(name.clone(), connection);
+    }
+    Some(name)
+}
+
 fn send_loop(told: std::sync::mpsc::Receiver<Out>) {
     let mut open: HashMap<String, MidiOutputConnection> = HashMap::new();
-    // An output that is asked for by no name is the first there is, found once.
     let mut usual: Option<String> = None;
     let mut due: Vec<(Instant, String, [u8; 3])> = Vec::new();
     let mut sounding: HashSet<(String, u8, u8)> = HashSet::new();
+    let mut clock: Option<Ticking> = None;
     loop {
-        let wait = due.iter().map(|(at, _, _)| at.saturating_duration_since(Instant::now())).min().unwrap_or(Duration::from_secs(3600));
+        let now = Instant::now();
+        let next = due.iter().map(|(at, _, _)| *at).chain(clock.iter().map(|ticking| ticking.next)).min();
+        let wait = next.map_or(Duration::from_secs(3600), |at| at.saturating_duration_since(now));
         match told.recv_timeout(wait) {
             Ok(Out::Send { port, at, bytes }) => {
-                let name = match port.or_else(|| usual.clone()) {
-                    Some(name) => name,
-                    None => match reach(None) {
-                        Some((name, connection)) => {
-                            open.insert(name.clone(), connection);
-                            usual = Some(name.clone());
-                            name
-                        }
-                        None => continue,
-                    },
-                };
-                if !open.contains_key(&name) {
-                    match reach(Some(&name)) {
-                        Some((_, connection)) => {
-                            open.insert(name.clone(), connection);
-                        }
-                        None => continue,
+                let Some(name) = opened(port, &mut open, &mut usual) else { continue };
+                due.push((at, name, bytes));
+            }
+            Ok(Out::Clock { port, bpm: Some(bpm), at }) => {
+                let every = Duration::from_secs_f64(60.0 / (bpm.clamp(20.0, 400.0) * 24.0));
+                match clock.as_mut() {
+                    // A clock that runs keeps its beat and takes the new tempo from its next tick on.
+                    Some(ticking) => ticking.every = every,
+                    None => {
+                        let Some(name) = opened(port, &mut open, &mut usual) else { continue };
+                        due.push((at, name.clone(), [START, 0, 0]));
+                        clock = Some(Ticking { name, next: at, every });
                     }
                 }
-                due.push((at, name, bytes));
+            }
+            Ok(Out::Clock { bpm: None, .. }) => {
+                if let Some(ticking) = clock.take() {
+                    if let Some(connection) = open.get_mut(&ticking.name) {
+                        let _ = connection.send(&[STOP]);
+                    }
+                }
             }
             Ok(Out::Silence) => {
                 due.clear();
@@ -195,8 +229,10 @@ fn send_loop(told: std::sync::mpsc::Receiver<Out>) {
                 left.push((at, name, bytes));
                 continue;
             }
+            // A word to start, to stop or to tick is one byte long.
+            let said: &[u8] = if bytes[0] >= TICK { &bytes[..1] } else { &bytes };
             let gone = match open.get_mut(&name) {
-                Some(connection) => connection.send(&bytes).is_err(),
+                Some(connection) => connection.send(said).is_err(),
                 None => true,
             };
             // An output that was unplugged is let go of, and looked for again when it is asked for.
@@ -216,6 +252,20 @@ fn send_loop(told: std::sync::mpsc::Receiver<Out>) {
             }
         }
         due = left;
+        if let Some(ticking) = clock.as_mut() {
+            // A machine that was held up catches up, but not with more ticks than a beat has.
+            let mut sent = 0;
+            while ticking.next <= Instant::now() && sent < 24 {
+                if let Some(connection) = open.get_mut(&ticking.name) {
+                    let _ = connection.send(&[TICK]);
+                }
+                ticking.next += ticking.every;
+                sent += 1;
+            }
+            if sent == 24 {
+                ticking.next = Instant::now() + ticking.every;
+            }
+        }
     }
 }
 
@@ -246,6 +296,16 @@ pub fn midi_note(outputs: tauri::State<Outputs>, port: Option<String>, channel: 
     let ends = begins + Duration::from_secs_f64(length.clamp(1.0, 600_000.0) / 1000.0);
     tell(&outputs, Out::Send { port: port.clone(), at: begins, bytes: [0x90 | channel, note, force.clamp(1, 127)] })?;
     tell(&outputs, Out::Send { port, at: ends, bytes: [0x80 | channel, note, 0] })
+}
+
+// The tempo of the song, in quarter notes a minute, sent as a MIDI clock from `wait` thousandths
+// of a second from now on. With no tempo the clock stops.
+#[tauri::command]
+pub fn midi_clock(outputs: tauri::State<Outputs>, port: Option<String>, bpm: Option<f64>, wait: f64) -> Result<(), String> {
+    if bpm.is_none() && outputs.0.lock().map_err(|_| "the outputs are busy")?.is_none() {
+        return Ok(());
+    }
+    tell(&outputs, Out::Clock { port, bpm, at: Instant::now() + Duration::from_secs_f64(wait.clamp(0.0, 10_000.0) / 1000.0) })
 }
 
 // Every note that sounds is stopped, and none that waits is sent.
@@ -281,7 +341,9 @@ mod tests {
         use std::time::{Duration, Instant};
 
         let (got, gotten) = channel::<(Instant, Vec<u8>)>();
-        let synth = MidiInput::new("Weft Loom test").unwrap().create_virtual("Weft Loom test synth", move |_, bytes, _| {
+        let mut listener = MidiInput::new("Weft Loom test").unwrap();
+        listener.ignore(midir::Ignore::None);
+        let synth = listener.create_virtual("Weft Loom test synth", move |_, bytes, _| {
             let _ = got.send((Instant::now(), bytes.to_vec()));
         }, ());
         let Ok(_synth) = synth else {
@@ -307,6 +369,18 @@ mod tests {
         println!("the note began {began} ms after it was asked for and was held {held} ms");
         assert!((began - 50).abs() < 25, "began after {began} ms");
         assert!((held - 100).abs() < 25, "held for {held} ms");
+
+        // The tempo as a clock: a word to start, twenty-four ticks to the beat, a word to stop.
+        tell.send(Out::Clock { port: port.clone(), bpm: Some(120.0), at: Instant::now() }).unwrap();
+        std::thread::sleep(Duration::from_millis(510));
+        tell.send(Out::Clock { port, bpm: None, at: Instant::now() }).unwrap();
+        std::thread::sleep(Duration::from_millis(100));
+        let clock: Vec<u8> = gotten.try_iter().map(|(_, bytes)| bytes[0]).collect();
+        let ticks = clock.iter().filter(|byte| **byte == 0xf8).count();
+        println!("in half a second at 120 the clock ticked {ticks} times");
+        assert_eq!(clock.first(), Some(&0xfa));
+        assert_eq!(clock.last(), Some(&0xfc));
+        assert!((23..=26).contains(&ticks), "{ticks} ticks");
     }
 
     #[test]
