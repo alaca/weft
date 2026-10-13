@@ -1,4 +1,5 @@
 import { history, isolateHistory, redo, undo } from '@codemirror/commands'
+import { drawInTheCode } from './pictures'
 import { outputRoute, playThrough } from '../library/soundDevices'
 import { Annotation, EditorState, Prec, StateEffect, Transaction } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
@@ -906,8 +907,9 @@ export function createEngine(): Engine {
 
     // A note that is handed over to be played is also one to light in the code.
     let toLight: (hap: any) => void = () => undefined
-    const makeMirror = (root: HTMLElement, initialCode: string) =>
-        new StrudelMirror({
+    const makeMirror = (root: HTMLElement, initialCode: string) => {
+        drawInTheCode()
+        return new StrudelMirror({
             defaultOutput: (hap: any, deadline: number, duration: number, cps: number, time: number) => {
                 if (isTempo(hap)) return
                 toLight(hap)
@@ -952,6 +954,7 @@ export function createEngine(): Engine {
                 if (playing !== state.playing || dirty !== state.dirty) setState({ playing, dirty })
             },
         })
+    }
 
     const engine: Engine = {
         async mount(root, initialCode) {
