@@ -105,14 +105,208 @@ pub fn midi_stop(keyboards: tauri::State<Keyboards>) -> Result<(), String> {
     Ok(())
 }
 
+// ---- notes going out, to a synth or to another program. A note is handed over a little before
+// it is due, with how long to wait, and one thread sends each at its moment: the window keeps
+// time too loosely for that. It also remembers which notes sound, so that they can all be
+// stopped at once.
+use midir::{MidiOutput, MidiOutputConnection};
+use std::collections::HashSet;
+use std::time::Instant;
+
+enum Out {
+    Send { port: Option<String>, at: Instant, bytes: [u8; 3] },
+    Silence,
+}
+
+pub struct Sending {
+    tell: Sender<Out>,
+}
+
+#[derive(Default)]
+pub struct Outputs(pub Mutex<Option<Sending>>);
+
+fn output_names() -> Vec<String> {
+    match MidiOutput::new(NAME) {
+        Ok(output) => output.ports().iter().filter_map(|port| output.port_name(port).ok()).filter(|name| is_keyboard(name)).collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+// The output of that name, or the first there is when none is named.
+fn reach(wanted: Option<&str>) -> Option<(String, MidiOutputConnection)> {
+    let output = MidiOutput::new(NAME).ok()?;
+    let ports = output.ports();
+    let port = ports.iter().find(|port| {
+        let name = output.port_name(port).unwrap_or_default();
+        is_keyboard(&name) && wanted.map_or(true, |asked| asked == name)
+    })?;
+    let name = output.port_name(port).ok()?;
+    output.connect(port, "weft-loom-out").ok().map(|connection| (name, connection))
+}
+
+fn send_loop(told: std::sync::mpsc::Receiver<Out>) {
+    let mut open: HashMap<String, MidiOutputConnection> = HashMap::new();
+    // An output that is asked for by no name is the first there is, found once.
+    let mut usual: Option<String> = None;
+    let mut due: Vec<(Instant, String, [u8; 3])> = Vec::new();
+    let mut sounding: HashSet<(String, u8, u8)> = HashSet::new();
+    loop {
+        let wait = due.iter().map(|(at, _, _)| at.saturating_duration_since(Instant::now())).min().unwrap_or(Duration::from_secs(3600));
+        match told.recv_timeout(wait) {
+            Ok(Out::Send { port, at, bytes }) => {
+                let name = match port.or_else(|| usual.clone()) {
+                    Some(name) => name,
+                    None => match reach(None) {
+                        Some((name, connection)) => {
+                            open.insert(name.clone(), connection);
+                            usual = Some(name.clone());
+                            name
+                        }
+                        None => continue,
+                    },
+                };
+                if !open.contains_key(&name) {
+                    match reach(Some(&name)) {
+                        Some((_, connection)) => {
+                            open.insert(name.clone(), connection);
+                        }
+                        None => continue,
+                    }
+                }
+                due.push((at, name, bytes));
+            }
+            Ok(Out::Silence) => {
+                due.clear();
+                for (name, channel, note) in sounding.drain() {
+                    if let Some(connection) = open.get_mut(&name) {
+                        let _ = connection.send(&[0x80 | channel, note, 0]);
+                    }
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => break,
+        }
+        let now = Instant::now();
+        let mut left = Vec::with_capacity(due.len());
+        // What is due is sent in the order it is due, and a note that ends before one begins.
+        due.sort_by_key(|(at, _, bytes)| (*at, bytes[0] & 0xf0));
+        for (at, name, bytes) in due.drain(..) {
+            if at > now {
+                left.push((at, name, bytes));
+                continue;
+            }
+            let gone = match open.get_mut(&name) {
+                Some(connection) => connection.send(&bytes).is_err(),
+                None => true,
+            };
+            // An output that was unplugged is let go of, and looked for again when it is asked for.
+            if gone {
+                open.remove(&name);
+                continue;
+            }
+            let key = (name, bytes[0] & 0x0f, bytes[1]);
+            match bytes[0] & 0xf0 {
+                0x90 if bytes[2] > 0 => {
+                    sounding.insert(key);
+                }
+                0x80 | 0x90 => {
+                    sounding.remove(&key);
+                }
+                _ => {}
+            }
+        }
+        due = left;
+    }
+}
+
+fn tell(outputs: &tauri::State<Outputs>, said: Out) -> Result<(), String> {
+    let mut slot = outputs.0.lock().map_err(|_| "the outputs are busy")?;
+    if slot.is_none() {
+        let (tell, told) = channel::<Out>();
+        std::thread::spawn(move || send_loop(told));
+        *slot = Some(Sending { tell });
+    }
+    slot.as_ref().map(|sending| sending.tell.send(said)).transpose().map_err(|_| "the outputs have stopped".to_string())?;
+    Ok(())
+}
+
+// What there is to send notes to, by name.
+#[tauri::command(async)]
+pub fn midi_outputs() -> Vec<String> {
+    output_names()
+}
+
+// One note: when it begins, counted in thousandths of a second from now, and how long it lasts.
+// The channel counts from 1, as on every synth.
+#[tauri::command]
+pub fn midi_note(outputs: tauri::State<Outputs>, port: Option<String>, channel: u8, note: u8, force: u8, wait: f64, length: f64) -> Result<(), String> {
+    let channel = channel.clamp(1, 16) - 1;
+    let note = note.min(127);
+    let begins = Instant::now() + Duration::from_secs_f64(wait.clamp(0.0, 10_000.0) / 1000.0);
+    let ends = begins + Duration::from_secs_f64(length.clamp(1.0, 600_000.0) / 1000.0);
+    tell(&outputs, Out::Send { port: port.clone(), at: begins, bytes: [0x90 | channel, note, force.clamp(1, 127)] })?;
+    tell(&outputs, Out::Send { port, at: ends, bytes: [0x80 | channel, note, 0] })
+}
+
+// Every note that sounds is stopped, and none that waits is sent.
+#[tauri::command]
+pub fn midi_silence(outputs: tauri::State<Outputs>) -> Result<(), String> {
+    if outputs.0.lock().map_err(|_| "the outputs are busy")?.is_none() {
+        return Ok(());
+    }
+    tell(&outputs, Out::Silence)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{is_keyboard, names};
+    use super::{is_keyboard, names, output_names};
 
     // Passes on a machine with no keyboard too; what it prints says what was found.
     #[test]
     fn asks_which_keyboards_are_plugged_in() {
         println!("keyboards: {:?}", names());
+        println!("outputs: {:?}", output_names());
+    }
+
+    // A port made for the test stands in for a synth: what is sent to it by name arrives, a note
+    // begun and ended at the moments asked for, and a note that still sounds is ended when all
+    // are silenced.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn sends_each_note_at_its_moment_and_ends_those_that_sound() {
+        use super::{send_loop, Out};
+        use midir::os::unix::VirtualInput;
+        use midir::MidiInput;
+        use std::sync::mpsc::channel;
+        use std::time::{Duration, Instant};
+
+        let (got, gotten) = channel::<(Instant, Vec<u8>)>();
+        let synth = MidiInput::new("Weft Loom test").unwrap().create_virtual("Weft Loom test synth", move |_, bytes, _| {
+            let _ = got.send((Instant::now(), bytes.to_vec()));
+        }, ());
+        let Ok(_synth) = synth else {
+            println!("no port could be made on this machine, so nothing was sent");
+            return;
+        };
+        std::thread::sleep(Duration::from_millis(300));
+        let (tell, told) = channel::<Out>();
+        std::thread::spawn(move || send_loop(told));
+        let port = Some("Weft Loom test synth".to_string());
+        let start = Instant::now();
+        tell.send(Out::Send { port: port.clone(), at: start + Duration::from_millis(150), bytes: [0x80, 60, 0] }).unwrap();
+        tell.send(Out::Send { port: port.clone(), at: start + Duration::from_millis(50), bytes: [0x90, 60, 100] }).unwrap();
+        tell.send(Out::Send { port: port.clone(), at: start + Duration::from_millis(200), bytes: [0x91, 64, 90] }).unwrap();
+        std::thread::sleep(Duration::from_millis(320));
+        tell.send(Out::Silence).unwrap();
+        std::thread::sleep(Duration::from_millis(150));
+        let heard: Vec<(Instant, Vec<u8>)> = gotten.try_iter().collect();
+        let bytes: Vec<Vec<u8>> = heard.iter().map(|(_, bytes)| bytes.clone()).collect();
+        assert_eq!(bytes, vec![vec![0x90, 60, 100], vec![0x80, 60, 0], vec![0x91, 64, 90], vec![0x81, 64, 0]]);
+        let held = heard[1].0.duration_since(heard[0].0).as_millis() as i64;
+        let began = heard[0].0.duration_since(start).as_millis() as i64;
+        println!("the note began {began} ms after it was asked for and was held {held} ms");
+        assert!((began - 50).abs() < 25, "began after {began} ms");
+        assert!((held - 100).abs() < 25, "held for {held} ms");
     }
 
     #[test]

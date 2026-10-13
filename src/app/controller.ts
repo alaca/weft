@@ -29,6 +29,7 @@ import { withoutLead } from '../library/shrink'
 import { turnWhenDue } from '../library/turn'
 import { startTake, whyNot, type NoTake, type Take } from '../library/recorder'
 import { fitPreset, isOfPack, PACK_FILE, packIdFor, packOf, packSoundName, readPackFile, readPacks, writePackFile, writePacks, type PackFile, type PackInfo, type PackPreset } from '../library/packs'
+import { listMidiOutputs, silenceMidi } from '../library/midi'
 import { keepChoice, readChoice, type SoundChoice } from '../library/soundDevices'
 import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
 import { readKey, writeKey, type Key } from '../song/scales'
@@ -2200,6 +2201,65 @@ export async function chooseOutput(output: { id: string; name: string } | null):
 
 // A short note, to hear where the sound comes out.
 export const testOutput = () => engine.previewNote(69, 'triangle', 0.5)
+
+// ---- notes going out: a pattern whose notes are sent to a synth or to another program, over
+// MIDI, in place of being played by the app. It is `.midi()` at the end of the pattern, with
+// the name of what to send to when there is more than one thing, and `.midichan(2)` for a
+// channel other than the first.
+const MIDI = 'midi'
+const MIDI_CHANNEL = 'midichan'
+
+export type MidiOut = { output: string | null; channel: number }
+
+export function midiOutOf(block: PatternBlock): MidiOut | null {
+    const call = block.calls.find((entry) => entry.name === MIDI)
+    if (!call) return null
+    const named = call.args[0]
+    const channel = block.calls.find((entry) => entry.name === MIDI_CHANNEL)?.args[0]
+    return { output: named?.kind === 'string' && named.value ? named.value : null, channel: channel?.kind === 'number' && channel.value >= 1 && channel.value <= 16 ? Math.round(channel.value) : 1 }
+}
+
+const midiArgs = (output: string | null) => (output === null ? '()' : `("${output.replace(/["\\\n]/g, '')}")`)
+
+// `off` plays the pattern in the app again. Otherwise its notes go to the output of that name,
+// or with null to the first one there is.
+export function setMidiOut(id: string, to: 'off' | string | null) {
+    const block = find(id)
+    if (!block || stale()) return
+    const call = block.calls.find((entry) => entry.name === MIDI)
+    const channel = block.calls.find((entry) => entry.name === MIDI_CHANNEL)
+    if (to === 'off') {
+        if (!call) return
+        engine.applyEdit([removeCall(call), ...(channel ? [removeCall(channel)] : [])])
+    } else if (call) {
+        if (engine.getCode().slice(call.nameTo, call.to) === midiArgs(to)) return
+        engine.applyEdit({ from: call.nameTo, to: call.to, insert: midiArgs(to) })
+    } else {
+        engine.applyEdit(addCall(engine.getCode(), block, `.${MIDI}${midiArgs(to)}`))
+    }
+    silenceMidi()
+    replay()
+}
+
+export function setMidiChannel(id: string, channel: number) {
+    const block = find(id)
+    const wanted = Math.min(16, Math.max(1, Math.round(channel)))
+    if (!block || stale() || !Number.isFinite(channel) || !block.calls.some((entry) => entry.name === MIDI)) return
+    const call = block.calls.find((entry) => entry.name === MIDI_CHANNEL)
+    const arg = call?.args[0]
+    if (wanted === 1) {
+        if (!call) return
+        engine.applyEdit(removeCall(call))
+    } else if (call && arg) {
+        engine.applyEdit({ from: arg.from, to: arg.to, insert: String(wanted) })
+    } else {
+        engine.applyEdit(addCall(engine.getCode(), block, `.${MIDI_CHANNEL}(${wanted})`))
+    }
+    silenceMidi()
+    replay()
+}
+
+export const midiOutputs = (): Promise<string[]> => listMidiOutputs()
 
 // A pack file added. A pack that is here already is taken to be a newer one of itself: what
 // it no longer holds goes, and the rest is replaced. A sound of the pack that came here before

@@ -1,8 +1,10 @@
-import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js'
+import { createMemo, createResource, createSignal, For, Match, Show, Switch } from 'solid-js'
 import {
     addControl,
     cutsItself,
     isPumped,
+    midiOutOf,
+    midiOutputs,
     pumpDepth,
     pumpFor,
     removeControl,
@@ -11,6 +13,8 @@ import {
     setCut,
     setEcho,
     setFilterType,
+    setMidiChannel,
+    setMidiOut,
     setMotion,
     setPump,
     setPumpDepth,
@@ -18,6 +22,7 @@ import {
     startMotion,
 } from '../app/controller'
 import { filterTypeOf, findDef, soundKind, type FilterType, type PanelGroup } from '../controls/catalog'
+import { DEMO } from '../demo/demo'
 import { drumLabel } from '../controls/drums'
 import { envelopeOf, envelopePoints } from '../controls/envelope'
 import { callFor, panelFor } from '../controls/views'
@@ -58,6 +63,10 @@ const ECHOES = [
 const ENVELOPE_WIDTH = 180
 const ENVELOPE_HEIGHT = 44
 
+// What plays a pattern, as the list has it: the app, or MIDI by the first output there is.
+const HERE = 'here'
+const FIRST = 'first'
+
 export function SoundPanel(props: { id: string; block: PatternBlock; only?: string }) {
     const [choice, setChoice] = createSignal<FilterType>('low')
     const [browsing, setBrowsing] = createSignal(false)
@@ -69,6 +78,15 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
         setSaved(savePreset(props.id, nameBox?.value ?? ''))
         if (nameBox?.value.trim()) setNaming(false)
     }
+    // Whether the pattern is played by the app or sent out over MIDI, and to what.
+    const out = createMemo(() => midiOutOf(props.block))
+    // The desktop app knows what there is to send to. A browser asks whether the page may use
+    // MIDI at all, so there the list is only fetched once it is opened.
+    const [asking, setAsking] = createSignal('__TAURI_INTERNALS__' in window)
+    const [outputs, { refetch }] = createResource(asking, (go) => (go ? midiOutputs() : []))
+    const look = () => (asking() ? void refetch() : void setAsking(true))
+    // An output the code names stays in the list while it is unplugged, so that it stays chosen.
+    const named = () => [...new Set([...(outputs() ?? []), ...(out()?.output ? [out()!.output as string] : [])])]
     const filter = () => filterTypeOf(props.block) ?? choice()
     const panel = createMemo(() => panelFor(props.block, filter()))
     const items = (group: PanelGroup) => panel().find((entry) => entry.group === group)?.items ?? []
@@ -235,6 +253,31 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
                     Browse all controls
                 </button>
             </div>
+            <Show when={!DEMO && !props.only && !isDrums(props.block) && !isLaid(props.block)}>
+                <div class="sp-m" data-testid={`midi-${props.id}`}>
+                    <span class="cap">Played by</span>
+                    <select
+                        class="sd-s"
+                        aria-label={`What plays ${props.id}`}
+                        disabled={stale()}
+                        value={out() === null ? HERE : (out()!.output ?? FIRST)}
+                        onFocus={look}
+                        onPointerDown={look}
+                        onChange={(event) => setMidiOut(props.id, event.currentTarget.value === HERE ? 'off' : event.currentTarget.value === FIRST ? null : event.currentTarget.value)}
+                    >
+                        <option value={HERE}>Weft Loom</option>
+                        <option value={FIRST}>MIDI, the first output there is</option>
+                        <For each={named()}>{(name) => <option value={name}>MIDI, {name}</option>}</For>
+                    </select>
+                    <Show when={out()}>
+                        <span class="cap">Channel</span>
+                        <select class="sd-s sp-c" aria-label={`MIDI channel of ${props.id}`} disabled={stale()} value={String(out()!.channel)} onChange={(event) => setMidiChannel(props.id, Number(event.currentTarget.value))}>
+                            <For each={Array.from({ length: 16 }, (_, at) => at + 1)}>{(channel) => <option value={String(channel)}>{channel}</option>}</For>
+                        </select>
+                        <span class="sp-mn">Its notes go out over MIDI, to a synth or another program, and the app is silent for it.</span>
+                    </Show>
+                </div>
+            </Show>
             <Show when={naming()}>
                 <form
                     class="sp-save"

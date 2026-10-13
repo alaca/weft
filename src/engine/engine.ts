@@ -1,4 +1,6 @@
 import { history, isolateHistory, redo, undo } from '@codemirror/commands'
+import { silenceMidi } from '../library/midi'
+import { sendNotesOut } from './midiOut'
 import { drawInTheCode } from './pictures'
 import { outputRoute, playThrough } from '../library/soundDevices'
 import { Annotation, EditorState, Prec, StateEffect, Transaction } from '@codemirror/state'
@@ -909,6 +911,7 @@ export function createEngine(): Engine {
     let toLight: (hap: any) => void = () => undefined
     const makeMirror = (root: HTMLElement, initialCode: string) => {
         drawInTheCode()
+        sendNotesOut((hap) => toLight(hap))
         return new StrudelMirror({
             defaultOutput: (hap: any, deadline: number, duration: number, cps: number, time: number) => {
                 if (isTempo(hap)) return
@@ -1149,6 +1152,7 @@ export function createEngine(): Engine {
             resumeAt = at
             setState({ paused: true })
             mirror.stop()
+            silenceMidi()
             moved({ k: 'pause', at })
         },
         // In a jam the other's song is already somewhere when yours starts, or is found to have
@@ -1412,6 +1416,7 @@ export function createEngine(): Engine {
             resumeAt = null
             if (state.paused) setState({ paused: false })
             mirror.stop()
+            silenceMidi()
             if (was) moved({ k: 'stop' })
             if (was) renewSoon()
         },
