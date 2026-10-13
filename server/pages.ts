@@ -24,7 +24,7 @@ export type Build = { platform: Platform; version: string; bytes: number }
 // What stands around every page. `source` is where the app's source code can be read; the
 // link to it is left out until there is such a place. `origin` is the address people reach the
 // site at, for the few places where a page has to give an address in full.
-export type Around = { source?: string; origin?: string }
+export type Around = { source?: string; origin?: string; demo?: boolean }
 // `tint` picks the colour of the disc that stands for a person, 0 to 5.
 export type Maker = { id: string; name: string; tint: number }
 export type Part = { name: string; sound: string; own: boolean }
@@ -111,6 +111,7 @@ const hue = (at: number) => `c${at % 5}`
 const DOWN = safe('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.5 7.5 8 11l3.5-3.5M3 13.5h10" /></svg>')
 const PLAY = safe('<svg class="pl" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.2v9.6L13 8z" /></svg><svg class="pa" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.4 3h2.6v10H4.4zM9 3h2.6v10H9z" /></svg>')
 const OUT = safe('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 2.5h4v4M13.5 2.5 8 8M6.5 3.5h-3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3" /></svg>')
+const TRY = safe('<svg viewBox="0 0 16 16" aria-hidden="true"><path stroke-linejoin="round" d="M5.2 3.2v9.6L12.8 8z" /></svg>')
 const FLAG = safe('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 14V2.5M3.5 3h8.5l-1.8 2.75L12 8.5H3.5" /></svg>')
 const TURN = safe('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v6a3 3 0 0 0 3 3h5.5M10 9l2.5 2.5L10 14" /></svg>')
 const FIND = safe('<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" /></svg>')
@@ -151,6 +152,7 @@ ${defs}
         <nav class="nav" aria-label="Site">
             <a href="/songs" data-nav="songs">Songs</a>
             <a href="/docs" data-nav="docs">Docs</a>
+            ${around.demo ? html`<a href="/demo" data-nav="demo">Demo</a>` : ''}
             <a href="/download" data-nav="download">Download</a>
             ${sourceLink(around, ' data-nav="source"')}
         </nav>
@@ -258,6 +260,7 @@ export function homePage(around: Around, songs: Listed[], builds: Build[]): stri
             <a class="btn go" href="${get('macos')}">${DOWN}Download for macOS</a>
             <a class="btn" href="${get('windows')}">Windows</a>
             <a class="btn" href="${get('linux')}">Linux</a>
+            ${around.demo ? html`<a class="btn" href="/demo">${TRY}Try it in your browser</a>` : ''}
         </div>
         <p class="mono">Free. No account needed to make music.</p>
         <div class="shots" data-shots>
@@ -449,6 +452,8 @@ export function privacyPage(around: Around): string {
         <p>What two people do in a jam, the song, the chat and the sounds, passes through the relay to the other person and is not kept. Only the last changes to the song are held in its memory while the jam lasts, so that someone whose line drops can catch up; they are gone when the jam is over. If you switch Open to jam on, the name you typed, the tempo of your song and its number of patterns are shown to anyone until you switch it off or the jam begins. Voice and picture go straight from one machine to the other wherever the two networks let them. Where they do not, the server passes them on between the two, scrambled so that it cannot hear or see them, and keeps nothing. To find each other, each machine asks the server for the address it is reached at from outside; nothing of that is kept.</p>
         <h2>Reports</h2>
         <p>A report of a song is kept with the song and the time, and is mailed to whoever runs the site, through the same mail service. It carries no name.</p>
+        ${around.demo ? html`<h2>The demo</h2>
+        <p>The <a href="/demo">demo</a> is the app in your browser. It keeps nothing there: what you change lives in the page and is gone when you close it. Its sounds are fetched as the app fetches them, from GitHub, where Strudel's sounds are kept. GitHub sees the address that asks for them, as every web server does.</p>` : ''}
         <h2>What the server notes</h2>
         <p>Like every web server it notes each request: the address it came from, the time and what was asked for. Those notes are kept for two weeks and used only to keep the site running. The site sets no cookies and uses no tracking.</p>
         <h2>Where</h2>

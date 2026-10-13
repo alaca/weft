@@ -1,5 +1,6 @@
 import { For, onCleanup, onMount, Show } from 'solid-js'
 import { changeMix, levelsOf, resetMix, toggleMixer } from '../app/controller'
+import { DEMO } from '../demo/demo'
 import type { ControlView } from '../controls/views'
 import { isUsualMix, METER_MARKS, meterShare, panText, settle, shareOf, toneText, TONE_MOST, VOLUME_MOST, volumeText, type Mix } from '../library/mix'
 import { mixerOpen, mixNow } from '../stores/song'
@@ -111,7 +112,7 @@ export function MixerPanel() {
                     </div>
                     <Meters />
                 </div>
-                <p class="jm-note mx-n">How the song sounds on this machine. It is not part of the song: a file you export, and someone you jam with, get the song without it.</p>
+                <p class="jm-note mx-n">How the song sounds on this machine. It is not part of the song{DEMO ? '.' : ': a file you export, and someone you jam with, get the song without it.'}</p>
             </aside>
         </Show>
     )

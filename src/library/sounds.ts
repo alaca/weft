@@ -1,3 +1,5 @@
+import { DEMO } from '../demo/demo'
+
 // Audio files of your own, kept inside the app so that a song which uses one still finds it
 // the next time the app is opened. Each is known by a name made from its file name, and that
 // name is what the code says: s("my_vocal").
@@ -54,10 +56,22 @@ async function within<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore)
     }
 }
 
-export const ownSoundStore = {
+const inBrowser = {
     all: () => within<OwnSound[]>('readonly', (store) => store.getAll()),
     names: () => within<IDBValidKey[]>('readonly', (store) => store.getAllKeys()).then((keys) => keys as string[]),
     get: (name: string) => within<OwnSound | undefined>('readonly', (store) => store.get(name)).then((sound) => sound ?? null),
     put: (sound: OwnSound) => within('readwrite', (store) => store.put(sound)).then(() => undefined),
     remove: (name: string) => within('readwrite', (store) => store.delete(name)).then(() => undefined),
 }
+
+// The demo has no sounds of your own and keeps nothing, so there the place they are kept in is
+// never opened.
+const nowhere: typeof inBrowser = {
+    all: async () => [],
+    names: async () => [],
+    get: async () => null,
+    put: async () => undefined,
+    remove: async () => undefined,
+}
+
+export const ownSoundStore = DEMO ? nowhere : inBrowser

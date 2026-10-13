@@ -53,6 +53,10 @@ export type SiteOptions = {
     // How often one sender, or one email, may ask for an account, a sign-in or a code within a
     // quarter of an hour. Only raised where the site is tried out on one's own machine.
     asks?: number
+    // A folder with the app as it is built to be tried in a browser. With one, the site serves
+    // it at /demo and its pages point to it. Left out, the folder `demo` beside the site's own
+    // files is taken, when there is one.
+    demo?: string
 }
 export type Site = { port: number; origin: string; close: () => Promise<void> }
 
@@ -89,6 +93,11 @@ const APP_ORIGINS = ['http://localhost:5180', 'tauri://localhost', 'https://taur
 const PLATFORM_NAMES: Record<Platform, string> = { macos: 'macOS', windows: 'Windows', linux: 'Linux' }
 // A page may load only what this site serves itself, and may run nothing written into it.
 const PAGE_RULES = "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; media-src 'self'; font-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+// The demo is the app, and the app runs the code of a song and loads its sounds from where
+// Strudel keeps them. So the page of the demo, and no other, may do what the app may. It keeps
+// nothing and knows nobody, and the site has no sign-in a page could act with.
+const DEMO_RULES = "default-src 'self'; script-src 'self' 'unsafe-eval' blob: data:; worker-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob: data:; connect-src 'self' blob: data: https://raw.githubusercontent.com https://felixroos.github.io; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+const DEMO_TYPES: Record<string, string> = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', woff2: 'font/woff2', wasm: 'application/wasm', json: 'application/json', png: 'image/png', webp: 'image/webp' }
 const KEPT_AN_HOUR = 'public, max-age=3600'
 const KEPT_A_MONTH = 'public, max-age=2592000'
 // The files of a published song stay as they are, so the browser of whoever asked for one may
@@ -145,7 +154,7 @@ type Song = {
 type Report = { song: string; reason: string; at: number }
 type Kept = { people: Person[]; sessions: Session[]; songs: Song[]; reports: Report[] }
 type Code = { hash: string; until: number; wrong: number }
-type Kind = { bytes: Buffer; type: string; kept: string }
+type Kind = { bytes: Buffer; type: string; kept: string; rules?: string }
 type Answer = { status: number; body?: unknown; html?: string; file?: { bytes?: Buffer; type: string; name?: string; head?: Record<string, string> }; fixed?: Kind; build?: { file: string; bytes: number } }
 // What a song file says about its song once it is read.
 type Facts = { bars: number; parts: Part[]; sounds: OwnSound[] }
@@ -289,6 +298,26 @@ function fixedFiles(): Map<string, Kind> {
     return files
 }
 
+// The files of the demo, by the address each is served at. Its page is asked for anew every
+// time, so that a newer demo is seen at once; the rest carry a name that changes with what is
+// in them, and may be kept.
+function demoFiles(dir: string): Map<string, Kind> {
+    const files = new Map<string, Kind>()
+    if (!existsSync(join(dir, 'index.html'))) return files
+    const walk = (folder: string, under: string) => {
+        for (const entry of readdirSync(folder, { withFileTypes: true })) {
+            if (entry.isDirectory()) walk(join(folder, entry.name), `${under}/${entry.name}`)
+            const type = DEMO_TYPES[entry.name.split('.').pop() ?? '']
+            if (!entry.isFile() || !type) continue
+            const bytes = readFileSync(join(folder, entry.name))
+            if (under === '/demo' && entry.name === 'index.html') files.set('/demo', { bytes, type, kept: 'no-cache', rules: DEMO_RULES })
+            else files.set(`${under}/${entry.name}`, { bytes, type, kept: under === '/demo' ? KEPT_AN_HOUR : KEPT_A_MONTH })
+        }
+    }
+    walk(dir, '/demo')
+    return files
+}
+
 export function createSite(options: SiteOptions): Promise<Site> {
     const now = options.now ?? Date.now
     const songsDir = join(options.dataDir, 'songs')
@@ -330,9 +359,10 @@ export function createSite(options: SiteOptions): Promise<Site> {
         if (closing) keepCounts()
     }
     const fixed = fixedFiles()
+    for (const [path, file] of demoFiles(options.demo ?? join(HERE, 'demo'))) fixed.set(path, file)
     // An address is only written into a page when it begins the way a web address does.
     const webAddress = (given: string | undefined) => (/^https?:\/\//.test(given ?? '') ? given : undefined)
-    const around: Around = { source: webAddress(options.source), origin: webAddress(options.origin) }
+    const around: Around = { source: webAddress(options.source), origin: webAddress(options.origin), demo: fixed.has('/demo') }
     type Installer = { file: string; version: string; bytes: number }
     const installers = (list: { platform: Platform; file: string; version: string }[]) => {
         const there = new Map<Platform, Installer>()
@@ -909,7 +939,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
         const headers: Record<string, string> = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store' }
         if (from && allowed.has(from)) Object.assign(headers, { 'Access-Control-Allow-Origin': from, 'Access-Control-Allow-Headers': 'authorization, content-type', 'Access-Control-Allow-Methods': 'GET, POST, DELETE', Vary: 'Origin' })
         if (given.fixed) {
-            response.writeHead(given.status, { ...headers, 'Cache-Control': given.fixed.kept, 'Content-Type': given.fixed.type, 'Content-Length': String(given.fixed.bytes.length) })
+            response.writeHead(given.status, { ...headers, 'Cache-Control': given.fixed.kept, 'Content-Type': given.fixed.type, 'Content-Length': String(given.fixed.bytes.length), ...(given.fixed.rules ? { 'Content-Security-Policy': given.fixed.rules } : {}) })
             return response.end(given.fixed.bytes)
         }
         if (given.build) {

@@ -1,6 +1,7 @@
-import { onCleanup, onMount } from 'solid-js'
+import { onCleanup, onMount, Show } from 'solid-js'
 import { play, redoChange, saveSong, stop, togglePlay, undoChange } from './app/controller'
 import { pianoDown, pianoUp } from './app/piano'
+import { DEMO } from './demo/demo'
 import { SOUNDS_WIDTH } from './library/layout'
 import { jamsOpen } from './stores/jam'
 import { codeWidth, engineState, mixerOpen, soundsOpen, soundsWidth, startOpen, viewMode } from './stores/song'
@@ -15,6 +16,7 @@ import { PublishDialog } from './ui/PublishDialog'
 import { StartScreen } from './ui/StartScreen'
 import { StatusBar } from './ui/StatusBar'
 import { StripList } from './ui/StripList'
+import { TooNarrow } from './ui/TooNarrow'
 import { TopBar } from './ui/TopBar'
 import { TrimDialog } from './ui/TrimDialog'
 import { UpdateCard } from './ui/UpdateCard'
@@ -25,7 +27,7 @@ export function App() {
         if (startOpen()) return
         if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 's') {
             event.preventDefault()
-            saveSong()
+            if (!DEMO) saveSong()
             return
         }
         const target = event.target as HTMLElement | null
@@ -78,15 +80,17 @@ export function App() {
             <StripList />
             <CodePane />
             <StatusBar />
-            <StartScreen />
-            <CloseDialog />
-            <LinkDialog />
-            <JamAsk />
-            <UpdateCard />
-            <ExportDialog />
-            <TrimDialog />
-            <PublishDialog />
-            <AccountDialog />
+            <Show when={!DEMO} fallback={<TooNarrow />}>
+                <StartScreen />
+                <CloseDialog />
+                <LinkDialog />
+                <JamAsk />
+                <UpdateCard />
+                <ExportDialog />
+                <TrimDialog />
+                <PublishDialog />
+                <AccountDialog />
+            </Show>
         </div>
     )
 }

@@ -152,7 +152,7 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
 }
 @media (max-width: 640px) {
     .hd-in { gap: 12px; }
-    .nav [data-nav='source'] { display: none; }
+    .nav [data-nav='source'], .nav [data-nav='demo'] { display: none; }
     .ph h1 { font-size: 34px; }
 }
 @media (max-width: 420px) {

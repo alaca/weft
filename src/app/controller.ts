@@ -12,6 +12,8 @@ import { installMenus } from '../desktop/menu'
 import { chooseFile } from '../desktop/open'
 import { saveFile, savePieces, textPieces, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
+import { DEMO } from '../demo/demo'
+import { keeping } from '../library/kept'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, LEFT_PANELS, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type LeftPanel, type ViewMode } from '../library/layout'
 import { fitSoundName, readSongFile, readSource, renameSound, SONG_FILE, SOUND_NAME, soundsUsed, writeSongFileInTurns, type PackedSound } from '../library/songfile'
@@ -205,7 +207,7 @@ const find = (target: string) => resolve(song().patterns, target)
 
 // ---- songs. Every song has the version that was saved and the version being worked on. The
 // second is written half a second after each change, so closing the app loses nothing.
-const shelf = createShelf(localStorage)
+const shelf = createShelf(keeping)
 
 const keysOf = (record: SongRecord): Record<string, Key> =>
     Object.fromEntries(Object.entries(record.keys ?? {}).flatMap(([id, text]) => {
@@ -267,7 +269,7 @@ function firstSong(): SongRecord | null {
     const open = shelf.current()
     const found = (open ? shelf.read(open) : null) ?? shelf.list().flatMap((entry) => shelf.read(entry.id) ?? [])[0]
     if (found) return found
-    const before = localStorage.getItem(FIRST_SONG_KEY)
+    const before = keeping.getItem(FIRST_SONG_KEY)
     if (before === null) return null
     const record: SongRecord = { id: newId(), name: UNTITLED, saved: before, draft: before, changedAt: Date.now() }
     shelf.write(record)
@@ -313,7 +315,7 @@ function tick() {
 }
 
 export async function mount(root: HTMLElement): Promise<void> {
-    const startMix = readMix(localStorage.getItem(MIX_KEY))
+    const startMix = readMix(keeping.getItem(MIX_KEY))
     setMixNow(startMix)
     engine.setMix(startMix)
     current = firstSong()
@@ -324,8 +326,9 @@ export async function mount(root: HTMLElement): Promise<void> {
     }
     refreshSongs()
     // The start screen is what the app opens with. It can be skipped, to open straight into the
-    // song that was open last, but not when there is no song to open into.
-    setStartOpen(!current || localStorage.getItem(START_KEY) !== 'skip')
+    // song that was open last, but not when there is no song to open into. The demo has no start
+    // screen: it opens into the first of its songs.
+    setStartOpen(!DEMO && (!current || keeping.getItem(START_KEY) !== 'skip'))
     const initial = current?.draft ?? ''
     window.addEventListener('pagehide', flush)
     engine.onState((next) => {
@@ -826,7 +829,7 @@ export function changeMix(part: Partial<Mix>) {
     const next = fitMix({ ...mixNow(), ...part })
     setMixNow(next)
     engine.setMix(next)
-    localStorage.setItem(MIX_KEY, JSON.stringify(next))
+    keeping.setItem(MIX_KEY, JSON.stringify(next))
 }
 
 export const resetMix = () => changeMix(DEFAULT_MIX)
@@ -861,9 +864,9 @@ function applyLayout(layout: Layout) {
     })
 }
 
-const keepLayout = () => localStorage.setItem(LAYOUT_KEY, JSON.stringify(layoutNow()))
+const keepLayout = () => keeping.setItem(LAYOUT_KEY, JSON.stringify(layoutNow()))
 
-applyLayout(readLayout(localStorage.getItem(LAYOUT_KEY)))
+applyLayout(readLayout(keeping.getItem(LAYOUT_KEY)))
 
 export const layoutIsUsual = (): boolean => isUsual(layoutNow())
 
@@ -2092,7 +2095,7 @@ export function openExport() {
 }
 
 export const closeExport = () => setExportOpen(false)
-export const keptAudio = (): AudioOptions => readAudio(localStorage.getItem(EXPORT_KEY))
+export const keptAudio = (): AudioOptions => readAudio(keeping.getItem(EXPORT_KEY))
 
 export async function exportCode() {
     if (!current) return
@@ -2330,7 +2333,7 @@ export async function openSongFile(file: File): Promise<boolean> {
 export async function exportAudio(options: AudioOptions) {
     if (!current || exporting()) return
     if (engineState().sounds !== 'ready') return void setExportNote('The sounds are still loading. Try again in a moment.')
-    localStorage.setItem(EXPORT_KEY, JSON.stringify(options))
+    keeping.setItem(EXPORT_KEY, JSON.stringify(options))
     const kind = AUDIO_FILES[options.format]
     const grade = gradeOf(options)
     const name = fileName(current.name, kind.extension)
@@ -2370,7 +2373,7 @@ export const patternsToExport = (): string[] => song().patterns.filter((block) =
 export async function exportPatterns(options: AudioOptions) {
     if (!current || exporting()) return
     if (engineState().sounds !== 'ready') return void setExportNote('The sounds are still loading. Try again in a moment.')
-    localStorage.setItem(EXPORT_KEY, JSON.stringify(options))
+    keeping.setItem(EXPORT_KEY, JSON.stringify(options))
     const kind = AUDIO_FILES[options.format]
     const grade = gradeOf(options)
     const title = current.name

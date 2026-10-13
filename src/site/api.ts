@@ -1,3 +1,5 @@
+import { keeping } from '../library/kept'
+
 // The app's side of the site that songs are published to. An account is an address and a
 // password, made here in the app; the site itself has no sign-in. What the site hands back for
 // signing in is kept in this app and sent along from then on, so a person signs in once.
@@ -47,15 +49,15 @@ async function call<T>(path: string, given: { method?: string; json?: unknown; t
 }
 
 export const session = {
-    get: (): string | null => localStorage.getItem(KEY),
-    set: (token: string) => localStorage.setItem(KEY, token),
-    clear: () => localStorage.removeItem(KEY),
+    get: (): string | null => keeping.getItem(KEY),
+    set: (token: string) => keeping.setItem(KEY, token),
+    clear: () => keeping.removeItem(KEY),
 }
 
 // The address last signed in with, so that it does not have to be typed again.
 export const account = {
-    get: (): string => localStorage.getItem(ADDRESS) ?? '',
-    set: (email: string) => localStorage.setItem(ADDRESS, email),
+    get: (): string => keeping.getItem(ADDRESS) ?? '',
+    set: (email: string) => keeping.setItem(ADDRESS, email),
 }
 
 export const site = {

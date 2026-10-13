@@ -33,6 +33,7 @@ import { sizeText } from '../library/audio'
 import { whyNot, type NoTake } from '../library/recorder'
 import { looksLikeAudio } from '../guard/file'
 import { fitSoundName, soundRenames, soundsUsed } from '../library/songfile'
+import { keeping } from '../library/kept'
 import { soundNameFor, type OwnSound } from '../library/sounds'
 import {
     jamAsked,
@@ -199,7 +200,7 @@ function follow<T>(work: () => T): T {
 
 export function attachJam(given: JamDeps) {
     deps = given
-    setJamName(cleanName(localStorage.getItem(NAME_KEY) ?? ''))
+    setJamName(cleanName(keeping.getItem(NAME_KEY) ?? ''))
     deps.engine.onMoved(tellJam)
     deps.engine.onCodeChange(codeChanged)
     // A window that is closed has left the jam, and says so. Without that the other person
@@ -214,7 +215,7 @@ export function attachJam(given: JamDeps) {
 export function nameYourself(text: string) {
     const name = cleanName(text)
     setJamName(name)
-    localStorage.setItem(NAME_KEY, name)
+    keeping.setItem(NAME_KEY, name)
     if (name) setJamNote(null)
 }
 

@@ -834,3 +834,15 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .sx-row .sb-u:disabled { opacity: 0.5; cursor: default; }
 .sx-pub-e { flex: none; min-height: 36px; display: flex; align-items: center; padding: 0 17px; border-top: 1px solid var(--seam); color: var(--linen-3); font-size: 11.5px; }
 .sx-warn { color: var(--linen-2); }
+
+/* The demo on the site: the app in a browser, with what it leaves out. */
+.demo-tag { height: 20px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--seam); display: inline-flex; align-items: center; font: 600 9.5px/1 var(--ui); font-stretch: 85%; letter-spacing: 0.12em; text-transform: uppercase; color: var(--saffron); flex: none; cursor: default; }
+.top a.btn { text-decoration: none; flex: none; }
+.sm-note a { color: var(--linen); text-decoration: underline; text-underline-offset: 2px; }
+.narrow { display: none; }
+@media (max-width: 959px) {
+    .narrow { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 12px; padding: 28px; background: var(--vat); user-select: text; -webkit-user-select: text; }
+    .narrow h1 { font: italic 600 26px/1.15 var(--voice); }
+    .narrow p { color: var(--linen-2); font-size: 14px; line-height: 1.5; max-width: 34em; }
+    .narrow a.btn { text-decoration: none; display: inline-flex; color: var(--linen); }
+}

@@ -1,10 +1,14 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js'
 import { Fold, isFolded } from './Fold'
 import { addOwnSounds, closeSounds, colorAt, hearSound, keepTake, openTrim, recordTake, removeOwnSound, soundCatalogue, useSound } from '../app/controller'
+import { DEMO } from '../demo/demo'
 import { lengthText } from '../library/sounds'
 import { fits, inUse, takesKit } from '../sounds/apply'
 import { countSounds, findSounds, SOUND_DRAG, SOUND_GROUPS, type SoundGroup, type SoundItem } from '../sounds/catalog'
 import { engineState, ownSoundNote, ownSounds, selected, setDraggedSound, song, soundsOpen, stale, takeOpening, takeSince } from '../stores/song'
+
+// The demo has no sounds of your own.
+const GROUPS = DEMO ? SOUND_GROUPS.filter((entry) => entry.id !== 'yours') : SOUND_GROUPS
 
 export function SoundBrowser() {
     let search: HTMLInputElement | undefined
@@ -96,7 +100,7 @@ export function SoundBrowser() {
                         onInput={(event) => setQuery(event.currentTarget.value)}
                     />
                     <div class="br-c" role="radiogroup" aria-label="Kind of sound">
-                        <For each={SOUND_GROUPS}>
+                        <For each={GROUPS}>
                             {(entry) => (
                                 <button class="chip" classList={{ on: group() === entry.id }} role="radio" aria-checked={group() === entry.id} onClick={() => setGroup(entry.id)}>
                                     {entry.label}

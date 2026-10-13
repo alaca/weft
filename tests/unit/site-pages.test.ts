@@ -618,3 +618,42 @@ describe('the files that are the same for everyone', () => {
         expect((await fetch(`${site.origin}/site.css`, { method: 'POST' })).status).toBe(404)
     })
 })
+
+describe('the demo', () => {
+    const DEMO_RULES = "default-src 'self'; script-src 'self' 'unsafe-eval' blob: data:; worker-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob: data:; connect-src 'self' blob: data: https://raw.githubusercontent.com https://felixroos.github.io; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+
+    it('is not there, and not pointed to, without its files', async () => {
+        expect((await fetch(`${site.origin}/demo`)).status).toBe(404)
+        expect(await page('/')).not.toContain('href="/demo"')
+        expect(await page('/privacy')).not.toContain('The demo')
+    })
+
+    it('is served with the rules of the app, which no other page gets, and is pointed to', async () => {
+        await site.close()
+        const demo = join(dataDir, 'demo')
+        mkdirSync(join(demo, 'assets'), { recursive: true })
+        writeFileSync(join(demo, 'index.html'), '<!doctype html><div id="root"></div>')
+        writeFileSync(join(demo, 'assets', 'app-abc.js'), 'export {}')
+        writeFileSync(join(demo, 'assets', 'notes.txt'), 'not served')
+        await start({ demo })
+
+        const shown = await fetch(`${site.origin}/demo`)
+        expect(shown.status).toBe(200)
+        expect(shown.headers.get('content-security-policy')).toBe(DEMO_RULES)
+        expect(shown.headers.get('cache-control')).toBe('no-cache')
+        expect(await shown.text()).toContain('<div id="root">')
+
+        const script = await fetch(`${site.origin}/demo/assets/app-abc.js`)
+        expect(script.headers.get('content-type')).toBe('text/javascript; charset=utf-8')
+        expect(script.headers.get('cache-control')).toBe('public, max-age=2592000')
+        expect(script.headers.get('content-security-policy')).toBeNull()
+        expect((await fetch(`${site.origin}/demo/assets/notes.txt`)).status).toBe(404)
+
+        const first = await fetch(`${site.origin}/`)
+        expect(first.headers.get('content-security-policy')).toBe(RULES)
+        const html = await first.text()
+        expect(html).toContain('<a href="/demo" data-nav="demo">Demo</a>')
+        expect(html).toContain('Try it in your browser</a>')
+        expect(await page('/privacy')).toContain('<h2>The demo</h2>')
+    })
+})

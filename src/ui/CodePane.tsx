@@ -1,5 +1,6 @@
 import { createSignal, onCleanup, onMount, Show } from 'solid-js'
 import { copyCode, dragCode, mount, play, trustSong, usualWidth } from '../app/controller'
+import { DEMO } from '../demo/demo'
 import { jamming } from '../stores/jam'
 import { engineState } from '../stores/song'
 import { Divider } from './Divider'
@@ -42,9 +43,11 @@ export function CodePane() {
                     <i />
                     <span data-testid="code-status">{status().text}</span>
                 </span>
-                <button class="btn" aria-label="Copy the code" title="Select the whole song and copy it" onClick={copy}>
-                    {copied() ? 'Copied' : 'Copy'}
-                </button>
+                <Show when={!DEMO}>
+                    <button class="btn" aria-label="Copy the code" title="Select the whole song and copy it" onClick={copy}>
+                        {copied() ? 'Copied' : 'Copy'}
+                    </button>
+                </Show>
                 <button class="btn" onClick={play}>
                     Update <kbd>{MOD} Enter</kbd>
                 </button>
