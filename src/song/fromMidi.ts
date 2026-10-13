@@ -1,8 +1,9 @@
 import { mixText } from '../controls/catalog'
 import { DRUM_CHANNEL, type MidiSong } from '../library/midifile'
+import { LEVEL, type GridRow } from './grid'
 import { kitText } from './kit'
 import { meterNow, METERS, setMeterNow, USUAL, usualSteps, type Meter } from './meter'
-import { formatNoteGrid, type Note } from './notes'
+import { formatNoteGrid, levelText, type Note } from './notes'
 import { freeName, patternNameFrom } from './patterns'
 
 // A MIDI file as a song: each of its tracks a pattern, the notes of an instrument in a piano
@@ -46,6 +47,10 @@ function made(song: MidiSong, meter: Meter): FromMidi | null {
     const names: string[] = []
     const patterns: string[] = []
     const slow = bars > 1 ? `.slow(${bars})` : ''
+    // How hard the keys were pressed becomes the level of the notes, 100 of 127 being the level
+    // of a note put in by hand. A file that presses every key the same says nothing of it.
+    const flat = new Set(song.tracks.flatMap((track) => track.notes.map((note) => note.force))).size < 2
+    const levelOf = (force: number) => (flat ? 1 : Math.round(force) / 100)
     const mix = mixText().map((call) => `\n  ${call}`).join('')
     for (const track of song.tracks) {
         const within = track.notes.filter((note) => stepOf(note.tick) < steps)
@@ -59,10 +64,15 @@ function made(song: MidiSong, meter: Meter): FromMidi | null {
         if (drums) {
             const sounds = [...new Set(within.flatMap((note) => DRUMS[note.note] ?? []))].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b))
             if (!sounds.length) continue
-            const rows = sounds.map((sound) => {
+            const rows = sounds.map((sound): GridRow => {
                 const row = Array<boolean>(steps).fill(false)
-                for (const note of within) if (DRUMS[note.note] === sound) row[stepOf(note.tick)] = true
-                return { sound, steps: row }
+                const levels = Array<number>(steps).fill(1)
+                for (const note of within) {
+                    if (DRUMS[note.note] !== sound) continue
+                    row[stepOf(note.tick)] = true
+                    levels[stepOf(note.tick)] = levelOf(note.force)
+                }
+                return { sound, steps: row, ...(levels.some((level) => level !== 1) ? { lanes: { [LEVEL]: levels } } : {}) }
             })
             patterns.push(`${name}: ${kitText(rows)}${slow ? `\n  ${slow}` : ''}\n  .bank("RolandTR909")`)
             continue
@@ -77,9 +87,10 @@ function made(song: MidiSong, meter: Meter): FromMidi | null {
             const before = notes.find((other) => other.midi === midi && other.start + other.length > start)
             if (before) before.length = Math.max(1, start - before.start)
             if (before && before.start === start) continue
-            notes.push({ start, length, midi })
+            notes.push({ start, length, midi, ...(levelOf(note.force) === 1 ? {} : { level: levelOf(note.force) }) })
         }
-        patterns.push(`${name}: note(${formatNoteGrid(notes, steps, STEPS)})${slow}\n  .s("piano")${mix}`)
+        const levels = levelText(notes, steps, bars)
+        patterns.push(`${name}: note(${formatNoteGrid(notes, steps, STEPS)})${slow}${levels ? `.${LEVEL}("${levels}")` : ''}\n  .s("piano")${mix}`)
     }
     if (!patterns.length) return null
     const time = meter === USUAL ? '' : `// time ${meter.label}\n`

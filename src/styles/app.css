@@ -310,6 +310,13 @@ svg.mini rect { fill: var(--h); }
 .nr-k { position: relative; }
 .nr-k span { position: absolute; left: 0; font: 500 10px/1 var(--mono); font-stretch: 87%; color: var(--linen-3); transform: translateY(-50%); }
 .nr-g { position: relative; border-radius: 7px; overflow: hidden; cursor: crosshair; touch-action: none; background-color: var(--vat); box-shadow: inset 0 0 0 1px var(--seam-soft); background-image: repeating-linear-gradient(to right, var(--seam) 0 1px, transparent 1px calc(100% / 4)), repeating-linear-gradient(to right, var(--seam-soft) 0 1px, transparent 1px calc(100% / var(--steps))); }
+/* The level of the notes, under the roll: its bars stand in the columns of the steps above. */
+.nr .prow.ln { gap: 0; margin: 8px 0 0; height: 46px; border-radius: 7px; background-color: var(--vat); box-shadow: inset 0 0 0 1px var(--seam-soft); overflow: hidden; }
+.nr .prow.ln .grp { gap: 0; }
+.nr .prow.ln .lb { border-radius: 0; background: none; box-shadow: inset -1px 0 0 rgba(236, 230, 214, 0.05); }
+.nr .prow.ln .grp:last-child .lb:last-child { box-shadow: none; }
+.nr .prow.ln .lb i { left: 1px; right: 2px; border-radius: 2px 2px 0 0; }
+.nr-ln { align-self: center; margin-top: 8px; }
 .nr-r { position: absolute; left: 0; right: 0; height: 10px; pointer-events: none; }
 .nr-r.bk { background: rgba(0, 0, 0, 0.24); }
 .nr-r.c { box-shadow: inset 0 -1px 0 var(--seam); }
@@ -318,6 +325,8 @@ svg.mini rect { fill: var(--h); }
 .pick { height: 24px; border-radius: 7px; background: var(--vat); border: 1px solid var(--seam); color: var(--linen); font: 500 11.5px/1 var(--ui); padding: 0 6px; }
 .pick:focus-visible { outline: 2px solid var(--linen); outline-offset: 1px; }
 .nt { position: absolute; height: 10px; padding: 0; border-radius: 2.5px; background: var(--h); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); cursor: grab; }
+/* A quieter note is paler, and never so pale that it is lost. */
+.nt { opacity: calc(0.4 + 0.6 * var(--lv, 1)); }
 .nt:focus-visible { outline: 2px solid var(--linen); outline-offset: 1px; z-index: 2; }
 .nt.ro { cursor: pointer; }
 .nd { position: absolute; height: 10px; border-radius: 2.5px; background: var(--h); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); pointer-events: none; }

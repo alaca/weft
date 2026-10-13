@@ -80,14 +80,24 @@ describe('a song made from a MIDI file', () => {
         expect([roll.grid.cycles, roll.grid.perCycle]).toEqual([2, 16])
         expect(roll.grid.notes).toEqual([
             { start: 0, length: 2, midi: 60 },
-            { start: 4, length: 4, midi: 64 },
-            { start: 24, length: 8, midi: 67 },
+            { start: 4, length: 4, midi: 64, level: 0.8 },
+            { start: 24, length: 8, midi: 67, level: 0.9 },
         ])
         const kit = readKit(read.patterns[1])!
         expect(kit.rows.map((row) => row.sound)).toEqual(['bd', 'sd'])
         expect([kit.cycles, kit.steps]).toEqual([2, 32])
         expect(kit.rows[0].steps.slice(0, 16).map(Number).join('')).toBe('1000100010001000')
         expect(kit.rows[1].steps.slice(0, 8).map(Number).join('')).toBe('00001000')
+        expect(kit.rows[0].lanes?.postgain.slice(0, 5)).toEqual([1.1, 1, 1, 1, 1.1])
+        expect(kit.rows[1].lanes).toBeUndefined()
+    })
+
+    it('says nothing of how loud the notes are when the file presses every key the same', () => {
+        const flat = song()
+        for (const track of flat.tracks) for (const note of track.notes) note.force = 64
+        const made = songFromMidi(flat)!
+        expect(made.code).not.toContain('postgain("')
+        expect(readNotes(analyze(made.code).patterns[0])!.grid.notes.every((note) => note.level === undefined)).toBe(true)
     })
 
     it('takes the first eight bars of a longer file, and says that it did', () => {

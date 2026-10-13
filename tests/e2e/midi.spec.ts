@@ -41,11 +41,19 @@ test('a MIDI keyboard plays the pattern you are on, and is written into a piano 
     await page.getByRole('button', { name: 'Live', exact: true }).click()
     await page.getByRole('button', { name: 'Play', exact: true }).click()
     await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
-    await press(page, 67)
+    await press(page, 67, 64)
     await page.waitForTimeout(150)
     await letGo(page, 67)
     await expect.poll(() => code(page)).toContain('g4')
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
+
+    // How hard the key was pressed is the level of its note: it stands under the roll, where
+    // a double click puts it back to the level of a note put in by hand.
+    expect(await code(page)).toContain('.postgain("')
+    const level = page.locator('.lb.on')
+    await expect(level).toHaveAttribute('aria-valuenow', '0.64')
+    await level.dblclick()
+    await expect.poll(() => code(page)).not.toContain('.postgain("')
 
     // On a drum grid a key plays the sound its note stands for, and writes nothing.
     await page.getByRole('button', { name: 'Play lead on the keyboard', exact: true }).click()
@@ -64,7 +72,7 @@ test('a MIDI keyboard plays the pattern you are on, and is written into a piano 
 
 test('a pattern is sent out over MIDI in place of being played by the app, on the channel that is chosen', async ({ page }) => {
     await page.addInitScript(() => {
-        localStorage.setItem('weft.song', 'setcpm(120/4)\n\nlead: note("c3 e3 g3 c4")\n  .s("triangle")\n')
+        localStorage.setItem('weft.song', 'setcpm(120/4)\n\nlead: note("c3 e3 g3 c4").postgain("1 0.5 1 1.27")\n  .s("triangle")\n')
         // A synth that is plugged in, as the window would be told of one, keeping what it is sent.
         const sent: number[][] = []
         ;(window as any).__sent = sent
@@ -90,6 +98,9 @@ test('a pattern is sent out over MIDI in place of being played by the app, on th
     await expect.poll(async () => (await sent()).filter((bytes) => bytes[0] === 0x90).map((bytes) => bytes[1])).toEqual(expect.arrayContaining([48, 52, 55, 60]))
     expect((await sent()).some((bytes) => bytes[0] === 0x80)).toBe(true)
     expect(await heard(page)).toBeLessThan(0.001)
+    // Each key is pressed as hard as the level of its note says, 100 of 127 where it says 1.
+    const forces = Object.fromEntries((await sent()).filter((bytes) => bytes[0] === 0x90).map((bytes) => [bytes[1], bytes[2]]))
+    expect([forces[48], forces[52], forces[60]]).toEqual([100, 50, 127])
 
     // Another channel, and the notes are sent on it.
     await page.getByLabel('MIDI channel of lead').selectOption('3')

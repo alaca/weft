@@ -24,6 +24,8 @@ export function StepLane(props: {
     values: number[]
     beat: number
     disabled?: boolean
+    // What a step without a bar says of itself, where that is not a step without a hit.
+    empty?: string
     onDraw: (from: number, values: number[]) => void
     onHold?: (held: boolean) => void
 }) {
@@ -111,6 +113,14 @@ export function StepLane(props: {
             onPointerUp={() => finish(true)}
             onPointerCancel={() => finish(false)}
             onLostPointerCapture={() => finish(false)}
+            // Asked of the lane and not of the bar: while the pointer is held the lane has it,
+            // so that is where a double click arrives.
+            onDblClick={(event) => {
+                if (props.disabled) return
+                lefts = [...root.querySelectorAll('.lb')].map((bar) => bar.getBoundingClientRect().left)
+                const step = stepAt(event.clientX)
+                if (props.hits[step]) props.onDraw(step, [props.kind.usual])
+            }}
         >
             <For each={upTo(Math.ceil(props.hits.length / props.beat))}>
                 {(group) => (
@@ -129,10 +139,9 @@ export function StepLane(props: {
                                         aria-valuemax={props.kind.max}
                                         aria-valuenow={shown(step())}
                                         aria-valuetext={stepText(props.kind, shown(step()))}
-                                        title={hit() ? stepText(props.kind, shown(step())) : 'No hit on this step'}
+                                        title={hit() ? stepText(props.kind, shown(step())) : (props.empty ?? 'No hit on this step')}
                                         disabled={props.disabled || !hit()}
                                         style={{ '--v': hit() ? Math.max(0.08, unitOf(shown(step()))) : 0 }}
-                                        onDblClick={() => props.onDraw(step(), [props.kind.usual])}
                                         onKeyDown={(event) => {
                                             const by = event.key === 'ArrowUp' || event.key === 'ArrowRight' ? 1 : event.key === 'ArrowDown' || event.key === 'ArrowLeft' ? -1 : 0
                                             if (!by) return

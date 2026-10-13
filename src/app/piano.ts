@@ -3,6 +3,7 @@ import { nearestInKey } from '../song/scales'
 import { DEMO } from '../demo/demo'
 import { canHearMidi, drumFor, hearMidi, readKey } from '../library/midi'
 import { readKit } from '../song/kit'
+import { levelOfForce } from '../song/notes'
 import { bpm, midiKeyboards, patternKeys, pianoFor, pianoOctave, pianoWrites, selected, setMidiKeyboards, setPianoFor, setPianoOctave, song, stale } from '../stores/song'
 import { gridPlace, holdNote, letNoteGo, previewSound, putHit, putNote, resizeNoteTo, rollPlace } from './controller'
 import { knobHeard } from './knobs'
@@ -37,7 +38,7 @@ function down(key: string, id: string, note: number, force?: number) {
     const midi = nearestInKey(note, patternKeys()[id] ?? null)
     holdNote(key, id, midi, force)
     const place = id === pianoFor() && pianoWrites() && !stale() ? rollPlace(id) : null
-    const written = place !== null && putNote(id, place.step, midi)
+    const written = place !== null && putNote(id, place.step, midi, force === undefined ? undefined : levelOfForce(force))
     held.set(key, { id, midi, start: written ? place.step : null, at: performance.now(), perCycle: place?.perCycle ?? 0, room: place ? place.steps - place.step : 0 })
 }
 
@@ -56,11 +57,11 @@ function up(key: string): boolean {
 }
 
 // One sound of a drum grid, hit: it is heard, and while the song plays and writing is on for
-// that grid a hit is put on the step the song is at.
-function hit(id: string, sound: string) {
-    previewSound(id, sound)
+// that grid a hit is put on the step the song is at, as loud as it was hit where a pad says.
+function hit(id: string, sound: string, force?: number) {
+    previewSound(id, sound, force === undefined ? undefined : levelOfForce(force))
     const place = id === pianoFor() && pianoWrites() && !stale() ? gridPlace(id) : null
-    if (place) putHit(id, sound, place.step)
+    if (place) putHit(id, sound, place.step, force === undefined ? undefined : levelOfForce(force))
 }
 
 const rowsOf = (id: string): string[] | null => {
@@ -118,7 +119,7 @@ export function midiHeard(bytes: Uint8Array) {
     const rows = rowsOf(id)
     if (rows) {
         const sound = drumFor(key.note, rows)
-        if (sound) hit(id, sound)
+        if (sound) hit(id, sound, key.force)
         return
     }
     down(name, id, key.note, key.force)

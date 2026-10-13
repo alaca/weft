@@ -1,13 +1,15 @@
 import { batch, createMemo, createSignal, For, Show } from 'solid-js'
-import { addNotesAt, canWriteNotes, chooseKey, convertNotes, hearNotes, moveNoteTo, newNoteLength, removeNoteAt, replayHeld, resizeNoteTo, setNotesLength, setNotesSteps } from '../app/controller'
-import { NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, roomAt, type Note, type NoteRef } from '../song/notes'
+import { addNotesAt, canWriteNotes, chooseKey, convertNotes, hearNotes, moveNoteTo, newNoteLength, removeNoteAt, replayHeld, resizeNoteTo, setNoteLevels, setNotesLength, setNotesSteps } from '../app/controller'
+import { stepKind } from '../song/grid'
+import { levelAt, NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, roomAt, type Note, type NoteRef } from '../song/notes'
 import { chordOn, inKey, nearestInKey, ROOTS, SCALE_KINDS, SCALES, stepInKey, type ScaleKind } from '../song/scales'
 import type { PatternBlock } from '../song/types'
 import { noteName } from '../song/view'
-import { noteSteps, USUAL } from '../song/meter'
+import { beatSteps, noteSteps, USUAL } from '../song/meter'
 import { gridNotes, meter, midiKeyboards, patternKeys, pianoFor, pianoOctave, pianoWrites, rollRanges, setPianoFor, setPianoWrites, stale } from '../stores/song'
 import { hearKeyboards } from '../app/piano'
 import { GridFooter } from './GridFooter'
+import { StepLane } from './StepLane'
 import { asksForMenu } from './keys'
 
 const ROW = 10
@@ -16,7 +18,10 @@ const BLACK_KEYS = [1, 3, 6, 8, 10]
 const EDGE = 7
 const EMPTY_RANGE = { low: 48, high: 60 }
 
-type Drawn = { left: number; width: number; midi: number; start: number; length: number }
+const LEVEL = stepKind('level')
+
+// `level` is how loud the note is, which is how full its colour is.
+type Drawn = { left: number; width: number; midi: number; start: number; length: number; level: number }
 type Drag = { ref: NoteRef; resize: boolean; fromStep: number; fromMidi: number }
 // A note that is being drawn on an empty place. It begins where the pointer went down. Until
 // the pointer leaves that step it is as long as the last note made here, and from then on it
@@ -71,7 +76,7 @@ export function NoteRoll(props: {
 
     const visible = (): Drawn[] => {
         const grid = source()?.grid
-        if (!grid) return props.played.map((note) => ({ left: note.start, width: note.length, midi: Math.round(note.midi), start: -1, length: 0 }))
+        if (!grid) return props.played.map((note) => ({ left: note.start, width: note.length, midi: Math.round(note.midi), start: -1, length: 0, level: 1 }))
         const from = offset()
         const to = from + grid.perCycle
         return grid.notes
@@ -79,7 +84,7 @@ export function NoteRoll(props: {
             .map((note) => {
                 const begin = Math.max(note.start, from)
                 const end = Math.min(note.start + note.length, to)
-                return { left: (begin - from) / grid.perCycle, width: (end - begin) / grid.perCycle, midi: note.midi, start: note.start, length: note.length }
+                return { left: (begin - from) / grid.perCycle, width: (end - begin) / grid.perCycle, midi: note.midi, start: note.start, length: note.length, level: note.level ?? 1 }
             })
     }
 
@@ -89,7 +94,7 @@ export function NoteRoll(props: {
     const drawn = createMemo((): Drawn[] => {
         const next = new Map<string, Drawn>()
         const list = visible().map((note) => {
-            const key = `${note.start}:${note.midi}:${note.length}:${note.left}:${note.width}`
+            const key = `${note.start}:${note.midi}:${note.length}:${note.left}:${note.width}:${note.level}`
             const same = next.has(key) ? note : (kept.get(key) ?? note)
             next.set(key, same)
             return same
@@ -97,6 +102,18 @@ export function NoteRoll(props: {
         kept = next
         return list
     })
+
+    // The level of the notes, step by step, under the roll: a bar for every step a note starts
+    // on. It is shown once a note has a level of its own, as one played on a MIDI keyboard
+    // has, and whenever it is asked for.
+    const [levelsAsked, setLevelsAsked] = createSignal<boolean | null>(null)
+    const levelsShown = () => Boolean(source()) && (levelsAsked() ?? Boolean(source()?.levels))
+    const levels = createMemo(() => {
+        const notes = source()?.grid.notes ?? []
+        const from = offset()
+        return Array.from({ length: perCycle() }, (_, at) => levelAt(notes, from + at))
+    })
+    const beat = () => beatSteps(perCycle()) ?? (perCycle() % 3 === 0 ? Math.max(3, perCycle() / 4) : 4)
 
     const cellOf = (event: MouseEvent) => {
         const box = gridEl.getBoundingClientRect()
@@ -254,7 +271,7 @@ export function NoteRoll(props: {
     }
 
     const label = (note: Drawn) =>
-        note.start < 0 ? `${noteName(note.midi)}, click to edit` : `${noteName(note.midi)}, step ${note.start + 1}, ${note.length} ${note.length === 1 ? 'step' : 'steps'}`
+        note.start < 0 ? `${noteName(note.midi)}, click to edit` : `${noteName(note.midi)}, step ${note.start + 1}, ${note.length} ${note.length === 1 ? 'step' : 'steps'}${note.level === 1 ? '' : `, level ${note.level}`}`
 
     return (
         <div class="rk" onClick={(event) => event.stopPropagation()}>
@@ -296,9 +313,10 @@ export function NoteRoll(props: {
                                 data-start={note.start}
                                 data-midi={note.midi}
                                 data-length={note.length}
+                                data-level={note.level}
                                 aria-label={label(note)}
                                 disabled={stale()}
-                                style={{ left: `${note.left * 100}%`, width: `${note.width * 100}%`, top: `${(range().high - note.midi) * ROW}px` }}
+                                style={{ left: `${note.left * 100}%`, width: `${note.width * 100}%`, top: `${(range().high - note.midi) * ROW}px`, '--lv': Math.min(1, note.level) }}
                             >
                                 <Show when={note.start >= 0}>
                                     <i class="nt-h" />
@@ -311,6 +329,20 @@ export function NoteRoll(props: {
                         <div class="ph" style={{ left: `${props.position * 100}%` }} />
                     </Show>
                 </div>
+                <Show when={levelsShown()}>
+                    <span class="ln-n nr-ln">Level</span>
+                    <StepLane
+                        name={props.id}
+                        kind={LEVEL}
+                        hits={levels().map((level) => level !== null)}
+                        values={levels().map((level) => level ?? 1)}
+                        beat={beat()}
+                        disabled={stale() || source()?.otherLevel}
+                        empty="No note starts on this step"
+                        onDraw={(from, values) => setNoteLevels(props.id, offset() + from, values)}
+                        onHold={(on) => setHeldPage(on ? shown() : null)}
+                    />
+                </Show>
             </div>
             <GridFooter
                 head={props.head}
@@ -352,6 +384,18 @@ export function NoteRoll(props: {
                 <Show when={pianoFor() === props.id}>
                     <button class="chip tgl" classList={{ on: pianoWrites() }} aria-pressed={pianoWrites()} aria-label="Write what is played" title="While the song plays, what you play is written into this roll" onClick={() => setPianoWrites(!pianoWrites())}>
                         Write
+                    </button>
+                </Show>
+                <Show when={source()}>
+                    <button
+                        class="chip tgl"
+                        classList={{ on: levelsShown() }}
+                        aria-pressed={levelsShown()}
+                        aria-label={`Level of the notes of ${props.id}, step by step`}
+                        title={source()?.otherLevel ? 'The code of this pattern sets the level of its notes in a way of its own, so it cannot be drawn here' : 'How loud each note is: draw it under the roll'}
+                        onClick={() => setLevelsAsked(!levelsShown())}
+                    >
+                        Level
                     </button>
                 </Show>
                 <span class="cap">Key</span>

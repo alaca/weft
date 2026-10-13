@@ -25,6 +25,7 @@ import {
 import { checkSong } from '../guard/check'
 import type { SentUpdate } from '../jam/protocol'
 import { DEFAULT_MIX, fitMix, type Mix } from '../library/mix'
+import { levelOfForce } from '../song/notes'
 import type { PatternEvent, TextEdit } from '../song/types'
 import { loadAhead } from './ahead'
 import { barByBar } from './barByBar'
@@ -104,7 +105,7 @@ export interface Engine {
     levelOf(name: string): number
     miniEvents(text: string, cycles: number): { start: number; length: number; value: unknown }[][] | null
     soundNames(bank: string | null): string[]
-    preview(sound: string, bank: string | null, cutAfter?: number): void
+    preview(sound: string, bank: string | null, cutAfter?: number, level?: number): void
     previewPart(sound: string, begin: number, end: number, seconds: number): void
     addSound(name: string, url: string): Promise<void>
     removeSound(name: string): void
@@ -1552,8 +1553,8 @@ export function createEngine(): Engine {
         },
         // A sample plays to its end however short the note is. A recording of your own can
         // be minutes long, so listening to one is cut after a few seconds.
-        preview(sound, bank, cutAfter) {
-            const cut = cutAfter ? { clip: 1 } : {}
+        preview(sound, bank, cutAfter, level) {
+            const cut = { ...(cutAfter ? { clip: 1 } : {}), ...(level === undefined ? {} : { postgain: level }) }
             audition(() => (bank ? { s: sound, bank, ...cut } : { s: sound, ...cut }), cutAfter ?? 0.4)
         },
         // A stretch of a sample, from and to as parts of its whole length.
@@ -1599,15 +1600,15 @@ export function createEngine(): Engine {
             void mirror.evaluate(true)
         },
         previewNote(midi, sound, seconds = 0.3, force) {
-            // A key pressed softly is quieter, and never so quiet that it is not heard.
-            audition(() => ({ note: midi, s: sound ?? 'triangle', ...(force === undefined ? {} : { gain: 0.25 + 0.75 * Math.min(1, Math.max(0, force)) }) }), seconds)
+            // A key pressed softly is quieter: as loud as the note that is written for it.
+            audition(() => ({ note: midi, s: sound ?? 'triangle', ...(force === undefined ? {} : { postgain: levelOfForce(force) }) }), seconds)
         },
         holdNote(key, midi, sound, force) {
             const name = sound ?? 'triangle'
             letGo(key)
             listenIn(name)
             heldNotes.set(key, { voice: null, gone: false })
-            audition(() => ({ note: midi, s: name, weftKey: key, ...(force === undefined ? {} : { gain: 0.25 + 0.75 * Math.min(1, Math.max(0, force)) }) }), HELD_MOST)
+            audition(() => ({ note: midi, s: name, weftKey: key, ...(force === undefined ? {} : { postgain: levelOfForce(force) }) }), HELD_MOST)
         },
         letNoteGo: letGo,
         letNotesGo() {

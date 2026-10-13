@@ -4,6 +4,8 @@ import { applyEdits } from '../../src/song/edits'
 import {
     addNote,
     formatNoteGrid,
+    levelOfForce,
+    forceOfLevel,
     moveNote,
     noteEdits,
     notesFromEvents,
@@ -15,6 +17,7 @@ import {
     resizeNote,
     resizeNotes,
     roomAt,
+    setLevels,
 } from '../../src/song/notes'
 
 const first = (code: string) => analyze(code).patterns[0]
@@ -276,9 +279,74 @@ describe('noteEdits', () => {
             { start: 4, length: 4, midi: 50 },
             { start: 4, length: 4, midi: 53 },
         ]
-        const source = { grid: { notes, steps: 8, cycles: 2, perCycle: 4 }, from: text.from, to: text.to, slow: null }
+        const source = { grid: { notes, steps: 8, cycles: 2, perCycle: 4 }, from: text.from, to: text.to, slow: null, levels: null, otherLevel: false }
         expect(applyEdits(code, noteEdits(block, source, notes, 8, 2))).toBe(
             'chords: note(`\n  c3 _  _  _    d3 _  _  _ ,\n  e3 _  _  _    f3 _  _  _\n`).slow(2)\n  .s("triangle")\n',
         )
+    })
+})
+
+describe('the level of the notes', () => {
+    const edited = (code: string, change: (notes: ReturnType<typeof readNotes> & object) => { notes: Parameters<typeof noteEdits>[2]; cycles?: number }) => {
+        const block = first(code)
+        const source = readNotes(block)!
+        const next = change(source)
+        const cycles = next.cycles ?? source.grid.cycles
+        return applyEdits(code, noteEdits(block, source, next.notes, source.grid.perCycle * cycles, cycles))
+    }
+    const LEAD = 'lead: note(`\n  c3 ~  e3 ~\n`).postgain("1 1 0.6 1")\n  .s("piano")\n'
+
+    it('is read from a number for every step, and a note at 1 says nothing of it', () => {
+        expect(readNotes(first(LEAD))?.grid.notes).toEqual([
+            { start: 0, length: 1, midi: 48 },
+            { start: 2, length: 1, midi: 52, level: 0.6 },
+        ])
+        const long = readNotes(first('lead: note(`\n  c3 ~  e3 ~    ~  ~  g3 ~\n`).slow(2).postgain("[1 1 0.6 1   1 1 1.2 1]/2")\n'))
+        expect(long?.grid.notes.map((note) => note.level)).toEqual([undefined, 0.6, 1.2])
+    })
+
+    it('is left alone where the code sets it another way', () => {
+        const code = 'lead: note(`\n  c3 ~  e3 ~\n`).postgain(0.5)\n'
+        const source = readNotes(first(code))
+        expect(source?.otherLevel).toBe(true)
+        expect(source?.grid.notes.every((note) => note.level === undefined)).toBe(true)
+        expect(edited(code, (from) => ({ notes: setLevels(from.grid.notes, 0, [0.5]) ?? [] }))).toBe('lead: note(`\n  c3 ~  e3 ~\n`).postgain(0.5)\n')
+    })
+
+    it('is written after the notes when one gets a level, changed where it stands, and taken out when every note is back at 1', () => {
+        const plain = 'lead: note(`\n  c3 ~  e3 ~\n`)\n  .s("piano")\n'
+        expect(edited(plain, (from) => ({ notes: setLevels(from.grid.notes, 2, [0.6])! }))).toBe(LEAD)
+        expect(edited(LEAD, (from) => ({ notes: setLevels(from.grid.notes, 0, [0.8, 9, 2])! }))).toBe('lead: note(`\n  c3 ~  e3 ~\n`).postgain("0.8 1 1.5 1")\n  .s("piano")\n')
+        expect(edited(LEAD, (from) => ({ notes: setLevels(from.grid.notes, 2, [1])! }))).toBe(plain)
+        expect(setLevels(readNotes(first(LEAD))!.grid.notes, 1, [0.3])).toBeNull()
+    })
+
+    it('goes with the length of the pattern: after it, and as slow as it', () => {
+        const two = edited(LEAD, (from) => ({ notes: resizeNotes(from.grid, 2), cycles: 2 }))
+        expect(two).toBe('lead: note(`\n  c3 ~  e3 ~    c3 ~  e3 ~\n`).slow(2).postgain("[1 1 0.6 1   1 1 0.6 1]/2")\n  .s("piano")\n')
+        expect(edited(two, (from) => ({ notes: resizeNotes(from.grid, 1), cycles: 1 }))).toBe(LEAD)
+        const plain = 'lead: note(`\n  c3 ~  e3 ~\n`)\n'
+        expect(edited(plain, (from) => ({ notes: setLevels(resizeNotes(from.grid, 2), 6, [0.5])!, cycles: 2 }))).toBe('lead: note(`\n  c3 ~  e3 ~    c3 ~  e3 ~\n`).slow(2).postgain("[1 1 1 1   1 1 0.5 1]/2")\n')
+        const slow = 'lead: note(`\n  c3 ~  e3 ~    c3 ~  e3 ~\n`).slow(2)\n'
+        expect(edited(slow, (from) => ({ notes: setLevels(resizeNotes(from.grid, 1), 0, [0.5])!, cycles: 1 }))).toBe('lead: note(`\n  c3 ~  e3 ~\n`).postgain("0.5 1 1 1")\n')
+    })
+
+    it('is one for the notes that start together: a note put in by hand takes theirs, a played one gives them its own, a moved one takes that of where it lands', () => {
+        const notes = readNotes(first(LEAD))!.grid.notes
+        expect(addNote(notes, { start: 2, length: 1, midi: 55 }, 4)?.map((note) => note.level)).toEqual([undefined, 0.6, 0.6])
+        expect(addNote(notes, { start: 2, length: 1, midi: 55, level: 0.9 }, 4)?.map((note) => note.level)).toEqual([undefined, 0.9, 0.9])
+        expect(addNote(notes, { start: 0, length: 1, midi: 55, level: 1 }, 4)?.map((note) => note.level)).toEqual([undefined, undefined, 0.6])
+        expect(moveNote(notes, { start: 2, midi: 52 }, { start: 1, midi: 52 }, 4)).toEqual([
+            { start: 0, length: 1, midi: 48 },
+            { start: 1, length: 1, midi: 52, level: 0.6 },
+        ])
+        expect(moveNote(notes, { start: 2, midi: 52 }, { start: 0, midi: 52 }, 4)?.map((note) => note.level)).toEqual([undefined, undefined])
+    })
+
+    it('is how hard a key was pressed, 100 of 127 being a note put in by hand', () => {
+        expect(levelOfForce(100 / 127)).toBe(1)
+        expect(levelOfForce(64 / 127)).toBe(0.64)
+        expect(levelOfForce(1)).toBe(1.27)
+        expect([1, 0.64, 1.5, 0].map(forceOfLevel)).toEqual([100, 64, 127, 1])
     })
 })

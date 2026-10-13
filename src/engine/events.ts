@@ -24,6 +24,16 @@ function soundOf(value: unknown): string | null {
     return typeof s === 'string' ? s : null
 }
 
+// How loud a note is, of everything its pattern says of that: Strudel's velocity and gain, and
+// the level after the effects, which is where the level of a step is written and the volume of
+// the pattern. A note that says nothing is 1.
+export function levelOf(value: unknown): number {
+    if (typeof value !== 'object' || value === null) return 1
+    const said = value as { velocity?: unknown; gain?: unknown; postgain?: unknown }
+    const level = [said.velocity, said.gain, said.postgain].reduce<number>((all, one) => (typeof one === 'number' && Number.isFinite(one) ? all * one : all), 1)
+    return Math.max(0, level)
+}
+
 export function toEvents(haps: HapLike[], cycle: number): PatternEvent[] {
     const events: PatternEvent[] = []
     for (const hap of haps) {
@@ -35,6 +45,7 @@ export function toEvents(haps: HapLike[], cycle: number): PatternEvent[] {
             length: hap.whole.end.valueOf() - begin,
             sound: soundOf(hap.value),
             midi: pitchOf(hap.value),
+            ...(levelOf(hap.value) === 1 ? {} : { level: levelOf(hap.value) }),
         })
     }
     return events

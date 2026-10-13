@@ -54,6 +54,8 @@ export type PatternEvent = {
     length: number
     sound: string | null
     midi: number | null
+    // How loud it is beside a note that says nothing of it, which is 1.
+    level?: number
 }
 
 export type PatternView =

@@ -65,6 +65,8 @@ import { convertEdits, isDrums, kitEdits, MUTE, readKit, rowTarget } from '../so
 import { backwards, cellsOf, empty, fitEdit, inOrder, MOST_PARTS, readSlices, recut, shuffled, sliceEdits, sliceRows, slicesCode, type Slices } from '../song/slices'
 import {
     addNote,
+    forceOfLevel,
+    noteLevelsOf,
     moveNote,
     noteEdits,
     notesFromEvents,
@@ -75,6 +77,7 @@ import {
     resizeNote,
     resizeNotes,
     roomAt,
+    setLevels,
     type Note,
     type NoteRef,
     type NoteSource,
@@ -1569,8 +1572,9 @@ const bankOf = (id: string): string | null => {
     return block?.calls.some((call) => call.name === 'bank') ? (block.soundName ?? null) : null
 }
 
-export function previewSound(id: string, sound: string) {
-    engine.preview(sound, bankOf(id), ownSounds().some((own) => own.name === sound) ? OWN_PREVIEW_SECONDS : undefined)
+// `level` is how loud, where a pad says how hard it was hit.
+export function previewSound(id: string, sound: string, level?: number) {
+    engine.preview(sound, bankOf(id), ownSounds().some((own) => own.name === sound) ? OWN_PREVIEW_SECONDS : undefined, level)
 }
 
 export function soundChoices(id: string, used: string[]) {
@@ -1589,12 +1593,12 @@ function editableNotes(block: PatternBlock): NoteSource | null {
         // One rest played slower is an empty roll of that many bars, as older songs have it.
         const bars = slow.args[0]
         if (text.text.trim() !== '~' || bars?.kind !== 'number' || ![2, 4].includes(bars.value)) return null
-        return { grid: { notes: [], steps: 16 * bars.value, cycles: bars.value, perCycle: 16 }, from: text.from, to: text.to, slow }
+        return { grid: { notes: [], steps: 16 * bars.value, cycles: bars.value, perCycle: 16 }, from: text.from, to: text.to, slow, ...noteLevelsOf(block, 16 * bars.value, bars.value) }
     }
     const cycles = engine.miniEvents(text.text, 8)
     const found = cycles ? notesFromEvents(cycles) : null
     if (!found) return null
-    return { grid: { notes: found.notes, steps: found.perCycle * found.cycles, cycles: found.cycles, perCycle: found.perCycle }, from: text.from, to: text.to, slow: null }
+    return { grid: { notes: found.notes, steps: found.perCycle * found.cycles, cycles: found.cycles, perCycle: found.perCycle }, from: text.from, to: text.to, slow: null, ...noteLevelsOf(block, found.perCycle * found.cycles, found.cycles) }
 }
 
 function changeNotes(id: string, change: (source: NoteSource) => { notes: Note[]; perCycle: number; cycles: number } | null, held = false): boolean {
@@ -1677,12 +1681,14 @@ export function gridPlace(id: string): { step: number; steps: number } | null {
     return { step: Math.round((at * kit.steps) / kit.cycles) % kit.steps, steps: kit.steps }
 }
 
-// A hit put on a step of one sound of a drum grid, where there is none yet.
-export function putHit(id: string, sound: string, step: number): boolean {
+// A hit put on a step of one sound of a drum grid, where there is none yet. `level` is how
+// loud it is, where a pad says how hard it was hit.
+export function putHit(id: string, sound: string, step: number, level?: number): boolean {
     return changeDrums(id, (drums) => {
         const row = drums.rows.find((one) => one.sound === sound)
         if (!row || row.steps[step]) return null
-        return { rows: drums.rows.map((one) => (one === row ? { ...one, steps: one.steps.map((on, at) => on || at === step) } : one)), cycles: drums.cycles }
+        const rows = drums.rows.map((one) => (one === row ? { ...one, steps: one.steps.map((on, at) => on || at === step) } : one))
+        return { rows: (level === undefined ? null : setSteps(rows, sound, 'level', step, [level])) ?? rows, cycles: drums.cycles }
     })
 }
 
@@ -1695,11 +1701,20 @@ export function rollPlace(id: string): { step: number; perCycle: number; steps: 
     return { step: Math.round(at * perCycle) % steps, perCycle, steps }
 }
 
-export function putNote(id: string, start: number, midi: number): boolean {
+// `level` is how loud the note is, where a keyboard says how hard its key was pressed.
+export function putNote(id: string, start: number, midi: number, level?: number): boolean {
     return changeNotes(id, (source) => {
-        const next = addNote(source.grid.notes, { start, midi, length: 1 }, source.grid.steps)
+        const next = addNote(source.grid.notes, { start, midi, length: 1, ...(level === undefined ? {} : { level }) }, source.grid.steps)
         return next ? { notes: next, perCycle: source.grid.perCycle, cycles: source.grid.cycles } : null
     }, true)
+}
+
+// A level for each of a run of steps of a roll, from one step on.
+export function setNoteLevels(id: string, from: number, levels: number[]) {
+    changeNotes(id, (source) => {
+        const next = source.otherLevel ? null : setLevels(source.grid.notes, from, levels)
+        return next ? { notes: next, perCycle: source.grid.perCycle, cycles: source.grid.cycles } : null
+    })
 }
 
 export const addNoteAt = (id: string, at: { page: number; time: number; midi: number }): NoteRef | null => addNotesAt(id, { page: at.page, time: at.time, midis: [at.midi] })
@@ -2990,8 +3005,9 @@ export function songAsMidi(): MidiSong {
                 const tick = Math.round((bar + event.start) * perBar)
                 const long = Math.max(1, Math.round(event.length * perBar) - 1)
                 const drum = event.midi === null && event.sound ? DRUM_NOTE[event.sound] : undefined
-                if (event.midi !== null) notes.push({ tick, length: long, note: Math.round(event.midi), force: 100 })
-                else if (drum !== undefined) drums.push({ tick, length: Math.min(long, TICKS / 4), note: drum, force: 100 })
+                const force = forceOfLevel(event.level ?? 1)
+                if (event.midi !== null) notes.push({ tick, length: long, note: Math.round(event.midi), force })
+                else if (drum !== undefined) drums.push({ tick, length: Math.min(long, TICKS / 4), note: drum, force })
             }
         }
         const made: MidiTrack[] = []
