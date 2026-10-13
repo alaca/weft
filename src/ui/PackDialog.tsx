@@ -41,7 +41,7 @@ export function PackDialog(props: { onClose: () => void }) {
                 <div class="xp-h">
                     <h2>Make a pack</h2>
                 </div>
-                <p class="pb-t">A pack is one file with sounds and presets of yours in it. Whoever adds it to their Weft Loom has them in every song. A song that uses a pack does not carry its sounds along: it says which pack it needs.</p>
+                <p class="pb-t">A pack is one file with sounds and presets of yours in it. Whoever adds it to their Weft Loom has them in every song. A song that uses a sound from a pack carries that sound along, as it does a sound of your own.</p>
                 <div class="pk-f">
                     <input class="br-s" aria-label="Name of the pack" placeholder="Name of the pack" maxLength={60} value={name()} onInput={(event) => setName(event.currentTarget.value)} />
                     <input class="br-s" aria-label="Who made it" placeholder="Who made it" maxLength={40} value={by()} onInput={(event) => setBy(event.currentTarget.value)} />

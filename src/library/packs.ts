@@ -1,13 +1,12 @@
 import { checkSong } from '../guard/check'
 import { looksLikeAudio } from '../guard/file'
-import { fitSoundName, fromBase64, PACK_ID, toBase64InTurns } from './songfile'
+import { fitSoundName, fromBase64, toBase64InTurns } from './songfile'
 import { turnWhenDue } from './turn'
 
 // A pack is sounds and presets that someone made for others to use, as one file. Added to the
-// app, its sounds are in the Sounds like the ones the app comes with, in any song. Unlike a
-// sound of your own, a sound of a pack does not travel with a song: a song that uses one says
-// which pack it needs, and whoever opens it adds that pack themselves. A pack stays its
-// maker's to hand out, and a song that uses a big one stays small.
+// app, its sounds are in the Sounds like the ones the app comes with, in any song. A song
+// that uses one of them carries that sound along, as it carries a sound of your own, so it
+// plays for whoever opens it, with the pack or without.
 //
 // Every sound of a pack has the pack's own short name in front of its own, `dust_break_1`, so
 // that it can never be taken for a sound of another pack or for one of yours.
@@ -20,7 +19,7 @@ export type PackFile = { id: string; name: string; by: string; about: string; so
 // What is kept of a pack that was added: everything but the sounds themselves, which are kept
 // where your own sounds are.
 export type PackInfo = { id: string; name: string; by: string; about: string; sounds: string[]; presets: PackPreset[]; addedAt: number }
-export { PACK_ID }
+export const PACK_ID = /^[a-z][a-z0-9]{1,15}$/
 export const MOST_SOUNDS = 500
 export const MOST_PRESETS = 200
 const NAME_MOST = 60

@@ -22,7 +22,7 @@ import { cleanPresetName, LIBRARY, presetCalls, presetEdits, previewText, PREVIE
 import { keeping } from '../library/kept'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, LEFT_PANELS, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type LeftPanel, type ViewMode } from '../library/layout'
-import { fitSoundName, readSongFile, readSource, renameSound, SONG_FILE, SOUND_NAME, soundsUsed, writeSongFileInTurns, type PackedSound, type PackRef } from '../library/songfile'
+import { fitSoundName, readSongFile, readSource, renameSound, SONG_FILE, SOUND_NAME, soundsUsed, writeSongFileInTurns, type PackedSound } from '../library/songfile'
 import { DEFAULT_MIX, fitMix, readMix, type Mix } from '../library/mix'
 import { prepareForPublishing, type Prepared } from '../library/publish'
 import { withoutLead } from '../library/shrink'
@@ -2166,8 +2166,10 @@ function keepPacks(next: PackInfo[]): boolean {
 export const dismissPackNote = () => setPackNote(null)
 
 // A pack file added. A pack that is here already is taken to be a newer one of itself: what
-// it no longer holds goes, and the rest is replaced. A sound whose name is taken by a sound
-// that is not of this pack is left out, and so is one that is no sound.
+// it no longer holds goes, and the rest is replaced. A sound of the pack that came here before
+// it, in a song that used it, is among yours under the same name, and is the pack's from now
+// on. A sound whose name another pack or the app itself has is left out, and so is one that
+// is no sound.
 export async function addPack(file: File): Promise<boolean> {
     setPackNote(null)
     try {
@@ -2180,7 +2182,7 @@ export async function addPack(file: File): Promise<boolean> {
         const names: string[] = []
         for (const packed of pack.sounds) {
             const holder = stored.get(packed.name)
-            if ((stored.has(packed.name) && holder !== pack.id) || (!stored.has(packed.name) && engine.soundTaken(packed.name))) {
+            if ((holder !== undefined && holder !== pack.id) || (!stored.has(packed.name) && engine.soundTaken(packed.name))) {
                 left++
                 continue
             }
@@ -2820,22 +2822,13 @@ const SONG_KIND: FileKind = { extension: SONG_FILE, label: 'Weft Loom song', typ
 // The sounds of your own that the song's code names, as they go into a file. Only those are
 // read from where they are kept, one at a time, in the order they are kept in.
 async function soundsOfSong(code: string): Promise<PackedSound[]> {
-    const used = soundsUsed(code, ownSounds().filter((sound) => !sound.pack).map((sound) => sound.name)).sort()
+    const used = soundsUsed(code, ownSounds().map((sound) => sound.name)).sort()
     const packed: PackedSound[] = []
     for (const name of used) {
         const sound = await ownSoundStore.get(name)
         if (sound) packed.push({ name: sound.name, file: sound.file, type: sound.type, seconds: sound.seconds, data: new Uint8Array(sound.data) })
     }
     return packed
-}
-
-// The packs a song needs: the ones a sound or a preset's sound of which its code names. Their
-// sounds stay out of the file, and whoever opens it is told which packs to add.
-function packsOfSong(code: string): PackRef[] {
-    const used = new Set(soundsUsed(code, ownSounds().filter((sound) => sound.pack).map((sound) => sound.name)))
-    return packs()
-        .filter((pack) => pack.sounds.some((name) => used.has(name)))
-        .map(({ id, name, by }) => ({ id, name, by }))
 }
 
 // The song as one file with the sounds of your own that it uses inside it, as they are. With
@@ -2852,8 +2845,7 @@ export async function saveSongFile() {
         if (!pieces) return void setExportNote('Not saved.')
         setExportNote('Writing the song file.')
         const turn = turnWhenDue()
-        const needs = packsOfSong(song.code)
-        const text = await writeSongFileInTurns({ ...song, sounds: await soundsOfSong(song.code), ...(needs.length ? { packs: needs } : {}) })
+        const text = await writeSongFileInTurns({ ...song, sounds: await soundsOfSong(song.code) })
         for (const piece of textPieces(text)) {
             await turn()
             await pieces.write(piece)
@@ -2882,7 +2874,7 @@ async function prepareToPublish(): Promise<Prepared | null> {
     if (readied?.from === from && readied.sounds === sounds) return readied.made
     const made = soundsOfSong(song.code).then((packed) =>
         prepareForPublishing(
-            { ...song, sounds: packed, ...(packsOfSong(song.code).length ? { packs: packsOfSong(song.code) } : {}) },
+            { ...song, sounds: packed },
             (bytes, sampleRate) => engine.decodeAudio(bytes.slice().buffer, sampleRate),
             (sound, kbps) => encodeMp3(sound.channels, sound.sampleRate, kbps),
         ),
@@ -3039,11 +3031,7 @@ export async function openSongFile(file: File): Promise<boolean> {
         const record: SongRecord = { id: newId(), name: freeTitle(cleanName(read.name) || UNTITLED, titles()), saved: code, draft: code, changedAt: Date.now(), guarded: true, ...(Object.keys(read.keys).length ? { keys: read.keys } : {}), ...(read.source ? { source: read.source } : {}) }
         if (!keepNew(record)) return false
         show(record)
-        const missing = (read.packs ?? []).filter((pack) => !packs().some((mine) => mine.id === pack.id))
-        const lacks = missing.length
-            ? ` It uses sounds from ${missing.length === 1 ? 'the pack' : 'the packs'} ${missing.map((pack) => `${pack.name}${pack.by ? ` by ${pack.by}` : ''}`).join(', ')}, which ${missing.length === 1 ? 'is' : 'are'} not on this machine. Those sounds are silent until you add ${missing.length === 1 ? 'it' : 'them'} in Sounds, Packs.`
-            : ''
-        setSongNote((added ? `Opened ${record.name}, with ${added} ${added === 1 ? 'sound' : 'sounds'} of its own, now among yours.` : `Opened ${record.name}.`) + lacks)
+        setSongNote(added ? `Opened ${record.name}, with ${added} ${added === 1 ? 'sound' : 'sounds'} of its own, now among yours.` : `Opened ${record.name}.`)
         return true
     } catch (err) {
         setSongNote(`${file.name} could not be opened: ${String((err as Error)?.message ?? err)}`)

@@ -26,7 +26,7 @@ function tone(hertz: number, seconds: number): Buffer {
     return file
 }
 
-test('a pack is made from sounds of your own, added to the app, used in a song, and stays out of the song file', async ({ page }) => {
+test('a pack is made from sounds of your own, added to the app, used in a song, and its sounds go along with the song', async ({ page }) => {
     await page.addInitScript((value) => {
         if (!sessionStorage.getItem('seeded')) {
             localStorage.setItem('weft.song', value)
@@ -73,18 +73,27 @@ test('a pack is made from sounds of your own, added to the app, used in a song, 
     await browser(page).getByRole('button', { name: 'Put Long loop in the song', exact: true }).click()
     await expect.poll(() => code(page)).toContain('audio: s("dustloops_long_loop").slice(2.5, "<0 1 2 ~>")')
 
-    // The song file names the pack and holds none of its sounds.
+    // The song file carries the sounds of the pack that the song uses, as it carries your own.
     await page.getByTestId('top').getByRole('button', { name: 'Export', exact: true }).click()
     const [saved] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export').getByRole('button', { name: 'Song file (.weft)', exact: true }).click()])
     const song = JSON.parse(await readFile(await saved.path(), 'utf8'))
-    expect(song.sounds).toEqual([])
-    expect(song.packs).toEqual([{ id: 'dustloops', name: 'Dust loops', by: 'Ante' }])
+    expect(song.sounds.map((sound: { name: string }) => sound.name)).toEqual(['dustloops_long_loop', 'dustloops_low_hit'])
     await page.getByRole('button', { name: 'Close export', exact: true }).click()
 
-    // Without the pack, whoever opens that song is told which pack it needs.
+    // So whoever opens that song without the pack still hears it: the sounds come among theirs.
     await browser(page).getByRole('button', { name: 'Remove the pack Dust loops', exact: true }).click()
     await expect(page.getByTestId('pack-note')).toHaveText('Removed Dust loops.')
     await expect(page.getByTestId('pack-dustloops')).toHaveCount(0)
     await page.getByTestId('song-file').setInputFiles({ name: 'Dusty.weft', mimeType: 'application/octet-stream', buffer: Buffer.from(JSON.stringify(song)) })
-    await expect(page.getByTestId('song-note')).toContainText('It uses sounds from the pack Dust loops by Ante, which is not on this machine.')
+    await expect(page.getByTestId('song-note')).toContainText('with 2 sounds of its own, now among yours.')
+    await browser(page).getByRole('radio', { name: /^Yours/ }).click()
+    await expect(browser(page).locator('.sb-i')).toHaveCount(4)
+
+    // Adding the pack afterwards takes those two back as its own.
+    await browser(page).getByRole('radio', { name: /^Packs/ }).click()
+    await page.getByTestId('pack-file').setInputFiles({ name: 'Dust loops.weftpack', mimeType: 'application/json', buffer: file })
+    await expect(page.getByTestId('pack-note')).toHaveText('Added Dust loops: 2 sounds.')
+    await expect(browser(page).locator('.sb-i')).toHaveCount(2)
+    await browser(page).getByRole('radio', { name: /^Yours/ }).click()
+    await expect(browser(page).locator('.sb-i')).toHaveCount(2)
 })

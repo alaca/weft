@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkSongFile } from '../../src/guard/file'
 import { fitPreset, isOfPack, packIdFor, packOf, packSoundName, readPackFile, readPacks, writePackFile, writePacks, type PackFile, type PackInfo } from '../../src/library/packs'
-import { readSongFile, writeSongFile } from '../../src/library/songfile'
 
 // The start of a WAV file, which is as much as the app looks at to see that a file is sound.
 const wav = () => new Uint8Array([...'RIFF'].map((c) => c.charCodeAt(0)).concat([36, 0, 0, 0], [...'WAVEfmt '].map((c) => c.charCodeAt(0)), [16, 0, 0, 0]))
@@ -61,23 +59,5 @@ describe('a pack', () => {
         expect(readPacks('{')).toEqual([])
         expect(packOf([info], 'dust_kick')?.name).toBe('Dust loops')
         expect(packOf([info], 'dust_snare')).toBeUndefined()
-    })
-})
-
-describe('a song that uses a pack', () => {
-    const code = 'setcpm(120/4)\n\nloop: s("dust_break_1")\n'
-
-    it('says in its file which pack it needs, and does not hold the sounds', () => {
-        const text = writeSongFile({ name: 'Dusty', code, keys: {}, sounds: [], packs: [{ id: 'dust', name: 'Dust loops', by: 'Ante' }] })
-        expect(JSON.parse(text).sounds).toEqual([])
-        expect(readSongFile(text, 'Dusty.weft')?.packs).toEqual([{ id: 'dust', name: 'Dust loops', by: 'Ante' }])
-        expect(readSongFile(writeSongFile({ name: 'Plain', code, keys: {}, sounds: [] }), 'Plain.weft')?.packs).toBeUndefined()
-    })
-
-    it('can be published, and not when what it says of its packs is made up', () => {
-        const file = { weft: 1, name: 'Dusty', keys: {}, code, sounds: [], packs: [{ id: 'dust', name: 'Dust loops', by: 'Ante' }] }
-        expect(checkSongFile(JSON.stringify(file))).toBeNull()
-        expect(checkSongFile(JSON.stringify({ ...file, packs: [{ id: 'Dust Loops', name: 'x', by: '' }] }))?.why).toBe('file')
-        expect(checkSongFile(JSON.stringify({ ...file, packs: [{ id: 'dust', name: 'Dust loops', by: 'Ante', run: 'me' }] }))?.why).toBe('file')
     })
 })
