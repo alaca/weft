@@ -1,9 +1,9 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js'
 import { Fold, isFolded } from './Fold'
-import { addOwnSounds, closeSounds, colorAt, hearSound, keepTake, openTrim, presetOf, recordTake, removeOwnSound, removePreset, soundCatalogue, useSound } from '../app/controller'
+import { addOwnSounds, addSlices, closeSounds, colorAt, hearSound, keepTake, openTrim, presetOf, recordTake, removeOwnSound, removePreset, soundCatalogue, useSound } from '../app/controller'
 import { DEMO } from '../demo/demo'
 import { lengthText } from '../library/sounds'
-import { fits, inUse, isPreset, takesKit } from '../sounds/apply'
+import { fits, inUse, isPreset, isSliced, takesKit } from '../sounds/apply'
 import { KIND_LABELS } from '../sounds/presets'
 import { countSounds, findSounds, SOUND_DRAG, SOUND_GROUPS, type SoundGroup, type SoundItem } from '../sounds/catalog'
 import { engineState, ownPresets, ownSoundNote, ownSounds, selected, setDraggedSound, song, soundsOpen, stale, takeOpening, takeSince } from '../stores/song'
@@ -41,7 +41,8 @@ export function SoundBrowser() {
     }
     const shown = createMemo(() => findSounds(items(), group(), query()))
     const counts = createMemo(() => countSounds(items(), query()))
-    const suited = (): SoundGroup => (target() && takesKit(target()) ? 'kits' : 'instruments')
+    const suited = (): SoundGroup => (target() && isSliced(target()) ? 'samples' : target() && takesKit(target()) ? 'kits' : 'instruments')
+    const canSlice = (item: SoundItem) => item.group === 'samples' || item.group === 'yours'
     const usable = () => target() !== undefined && fits(target(), group())
     const used = (item: SoundItem) => target() !== undefined && inUse(target(), item)
     const labelOf = (id: SoundGroup) => SOUND_GROUPS.find((entry) => entry.id === id)?.label ?? ''
@@ -127,8 +128,11 @@ export function SoundBrowser() {
                 <Show when={target() && !usable() ? target() : undefined}>
                     {(block) => (
                         <p class="sb-n" data-testid="sound-hint">
+                            <Show when={isSliced(block())}>
+                                <b>{block().id}</b> plays a sample cut into parts, so it takes a sample or a sound of your own. <button onClick={() => setGroup('samples')}>Show samples</button>
+                            </Show>
                             <Show
-                                when={takesKit(block())}
+                                when={takesKit(block()) || isSliced(block())}
                                 fallback={
                                     <>
                                         <b>{block().id}</b> plays notes, so it takes an instrument, a synth, a sample or a preset.{' '}
@@ -136,8 +140,9 @@ export function SoundBrowser() {
                                     </>
                                 }
                             >
-                                <b>{block().id}</b> is a drum grid, so it takes a drum kit.{' '}
-                                <button onClick={() => setGroup('kits')}>Show drum kits</button>
+                                <Show when={!isSliced(block())}>
+                                    <b>{block().id}</b> is a drum grid, so it takes a drum kit. <button onClick={() => setGroup('kits')}>Show drum kits</button>
+                                </Show>
                             </Show>
                         </p>
                     )}
@@ -189,7 +194,7 @@ export function SoundBrowser() {
                         {(item) => (
                             <div
                                 class="sb-i"
-                                classList={{ on: used(item), own: item.group === 'yours', kept: isPreset(item) && Boolean(presetOf(item.name)?.own) }}
+                                classList={{ on: used(item), own: item.group === 'yours', cut: item.group === 'samples', kept: isPreset(item) && Boolean(presetOf(item.name)?.own) }}
                                 draggable="true"
                                 title="Drag onto a pattern, into the code, or under the patterns to start a new one"
                                 onDragStart={(event) => {
@@ -218,6 +223,13 @@ export function SoundBrowser() {
                                             Use
                                         </button>
                                     </Show>
+                                </Show>
+                                <Show when={canSlice(item)}>
+                                    <button class="sb-k" disabled={stale()} aria-label={`Slice ${item.label}`} title="Slice: start a pattern that plays this sound cut into parts, in any order" onClick={() => addSlices(item)}>
+                                        <svg viewBox="0 0 14 14" aria-hidden="true">
+                                            <path d="M1.8 3.2h10.4v7.6H1.8zM5.3 3.2v7.6M8.7 3.2v7.6" />
+                                        </svg>
+                                    </button>
                                 </Show>
                                 <Show when={item.group === 'yours'}>
                                     <button class="rx tr-b" aria-label={`Cut ${item.label} shorter`} title="Cut its start and its end off" onClick={() => void openTrim(item.name)}>

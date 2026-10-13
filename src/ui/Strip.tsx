@@ -4,6 +4,7 @@ import { MOST_VARIANTS, variantBars, variantName } from '../song/variants'
 import { writeNumber } from '../controls/catalog'
 import { favourites, panOf, volumeOf, type ControlView } from '../controls/views'
 import { isDrums, readKit } from '../song/kit'
+import { readSlices } from '../song/slices'
 import { noteText } from '../song/notes'
 import type { PatternBlock, PatternView } from '../song/types'
 import { describe, STEPS } from '../song/view'
@@ -14,6 +15,7 @@ import { Knob } from './Knob'
 import { MiniView } from './MiniView'
 import { NoteRoll } from './NoteRoll'
 import { PianoRoll } from './PianoRoll'
+import { SliceRack } from './SliceRack'
 import { SoundPanel } from './SoundPanel'
 import { Rack } from './Rack'
 import { askSoon } from './askSoon'
@@ -101,7 +103,8 @@ export function Strip(props: { id: string }) {
     })
 
     const isRoll = () => block() !== undefined && noteText(block()) !== null
-    const isRack = () => !isRoll() && notes() === null && block() !== undefined && (steps() !== null || isDrums(block()))
+    const isSliced = () => block() !== undefined && readSlices(block()) !== null
+    const isRack = () => !isSliced() && !isRoll() && notes() === null && block() !== undefined && (steps() !== null || isDrums(block()))
 
     // Where the grid or the roll of this strip puts its length, steps and cycle.
     let head!: HTMLSpanElement
@@ -383,6 +386,9 @@ export function Strip(props: { id: string }) {
                     <Show when={!folded()}>
                         <div class="st-b two">
                             <div>
+                                <Show when={isSliced()}>
+                                    <SliceRack id={props.id} block={current()} head={head} playing={playing()} position={position()} cycle={bar()} />
+                                </Show>
                                 <Show when={isRack()}>
                                     <Rack id={props.id} block={current()} head={head} played={steps()?.rows ?? []} playing={playing()} position={position()} cycle={bar()} />
                                 </Show>
@@ -399,7 +405,7 @@ export function Strip(props: { id: string }) {
                                         </>
                                     )}
                                 </Show>
-                                <Show when={!isRack() && !isRoll() && view().kind === 'empty'}>
+                                <Show when={!isSliced() && !isRack() && !isRoll() && view().kind === 'empty'}>
                                     <p class="st-empty">Nothing to draw. This pattern makes no sound in this cycle.</p>
                                 </Show>
                             </div>

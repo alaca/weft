@@ -111,6 +111,9 @@ export interface Engine {
     // How many of the jam's changes are in the code here, in the relay's count.
     syncVersion(): number
     previewNote(midi: number, sound: string | null, seconds?: number): void
+    // The shape of a sample along its length, as so many heights, and how long it is. Null for
+    // a sound that is no sample, or whose file cannot be had.
+    peaksOf(sound: string, count: number): Promise<{ peaks: number[]; seconds: number } | null>
     // One note of a sound that is written as code, as a preset is: note(60).s("sawtooth").lpf(900).
     previewText(text: string, seconds: number): void
     sounds(): RawSound[]
@@ -1317,6 +1320,25 @@ export function createEngine(): Engine {
         },
         previewNote(midi, sound, seconds = 0.3) {
             audition(() => ({ note: midi, s: sound ?? 'triangle' }), seconds)
+        },
+        async peaksOf(sound, count) {
+            const [name, number] = sound.split(':')
+            const known = soundMap.get()[name.toLowerCase()]
+            const context: BaseAudioContext = getAudioContext()
+            if (known?.data?.type !== 'sample' || context instanceof OfflineAudioContext) return null
+            try {
+                const buffer: AudioBuffer = await loadBuffer(getSampleInfo({ s: name, ...(number ? { n: Number(number) } : {}) }, known.data.samples).url, context)
+                const channels = Array.from({ length: buffer.numberOfChannels }, (_, at) => buffer.getChannelData(at))
+                const peaks = Array.from({ length: count }, (_, at) => {
+                    let peak = 0
+                    const end = Math.floor(((at + 1) * buffer.length) / count)
+                    for (let frame = Math.floor((at * buffer.length) / count); frame < end; frame++) for (const channel of channels) peak = Math.max(peak, Math.abs(channel[frame]))
+                    return peak
+                })
+                return { peaks, seconds: buffer.duration }
+            } catch {
+                return null
+            }
         },
         // It is checked as a song is where songs are checked: what is tried out is code too.
         previewText(text, seconds) {

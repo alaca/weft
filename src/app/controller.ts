@@ -1,5 +1,5 @@
 import { batch, createEffect, createRoot } from 'solid-js'
-import { controlText, FILTERS, filterTypeOf, findDef, writeNumber, type FilterType } from '../controls/catalog'
+import { controlText, FILTERS, filterTypeOf, findDef, mixText, writeNumber, type FilterType } from '../controls/catalog'
 import { drumChoices } from '../controls/drums'
 import { firstMotion, motionText, readMotion, type Motion } from '../controls/motion'
 import { callFor, controlOf, valueArg, type ControlView } from '../controls/views'
@@ -52,6 +52,7 @@ import {
     type StepWhat,
 } from '../song/grid'
 import { convertEdits, isDrums, kitEdits, MUTE, readKit, rowTarget } from '../song/kit'
+import { backwards, cellsOf, empty, fitEdit, inOrder, MOST_PARTS, readSlices, recut, shuffled, sliceEdits, sliceRows, slicesCode, SLICE_RESOLUTIONS, type Slices } from '../song/slices'
 import {
     addNote,
     moveNote,
@@ -1076,6 +1077,86 @@ export function clearStepValues(id: string, sound: string, what: StepWhat) {
         const rows = clearSteps(drums.rows, sound, what)
         return rows ? { rows, cycles: drums.cycles } : null
     })
+}
+
+// ---- a sample cut into parts, played in any order. Each part is a row of a grid, and the
+// steps of the grid are where the sample is cut.
+const slicesOf = (id: string): Slices | null => {
+    const block = find(id)
+    return block ? readSlices(block) : null
+}
+
+function changeSlices(id: string, change: (slices: Slices) => { cells: number[][]; cycles: number } | null): boolean {
+    const slices = slicesOf(id)
+    const next = slices && !stale() ? change(slices) : null
+    if (!slices || !next) return false
+    const edits = sliceEdits(slices, next.cells, next.cycles)
+    if (!edits.length) return true
+    engine.applyEdit(edits)
+    replay()
+    return true
+}
+
+// A part is as long as it is. Listening to one of a long recording stops after this long.
+const PART_SECONDS = 6
+
+export function hearSlice(id: string, part: number) {
+    const slices = slicesOf(id)
+    if (slices) engine.previewPart(slices.sound.value, part / slices.parts, (part + 1) / slices.parts, PART_SECONDS)
+}
+
+export function toggleSlice(id: string, part: number, step: number) {
+    let placed = false
+    changeSlices(id, (slices) => {
+        const rows = toggleGridStep(sliceRows(slices.cells), String(part + 1), step, slices.parts)
+        placed = rows[part].steps[step]
+        return { cells: cellsOf(rows), cycles: slices.cycles }
+    })
+    if (placed && !engineState().playing) hearSlice(id, part)
+}
+
+export function paintSlices(id: string, part: number, from: number, to: number, on: boolean) {
+    changeSlices(id, (slices) => {
+        const rows = paintGridSteps(sliceRows(slices.cells), String(part + 1), from, to, on, slices.parts)
+        return rows ? { cells: cellsOf(rows), cycles: slices.cycles } : null
+    })
+}
+
+export type SliceOrder = 'order' | 'backwards' | 'shuffle' | 'clear'
+
+export function arrangeSlices(id: string, how: SliceOrder) {
+    changeSlices(id, (slices) => ({
+        cells: how === 'order' ? inOrder(slices.parts) : how === 'backwards' ? backwards(slices.parts) : how === 'clear' ? empty(slices.parts) : shuffled(slices.cells.some((cell) => cell.length) ? slices.cells : inOrder(slices.parts)),
+        cycles: slices.cycles,
+    }))
+}
+
+// A longer pattern is cut no finer than leaves it the most parts there can be.
+export function setSliceLength(id: string, cycles: number) {
+    changeSlices(id, (slices) => {
+        if (cycles === slices.cycles) return null
+        const perCycle = [...SLICE_RESOLUTIONS].reverse().find((resolution) => resolution <= slices.perCycle && resolution * cycles <= MOST_PARTS)
+        return perCycle ? { cells: recut(slices, perCycle, cycles), cycles } : null
+    })
+}
+
+export function setSliceSteps(id: string, perCycle: number) {
+    changeSlices(id, (slices) => (perCycle === slices.perCycle || perCycle * slices.cycles > MOST_PARTS ? null : { cells: recut(slices, perCycle, slices.cycles), cycles: slices.cycles }))
+}
+
+export function setSliceFit(id: string, fit: boolean) {
+    const slices = slicesOf(id)
+    if (!slices || stale() || slices.fit === fit) return
+    engine.applyEdit(fitEdit(slices, fit))
+    replay()
+}
+
+const SLICE_PEAKS = 512
+export const slicePeaks = (sound: string) => engine.peaksOf(sound, SLICE_PEAKS)
+
+// A sample from the browser as a new pattern that plays it cut into parts.
+export function addSlices(item: SoundItem): string | null {
+    return item.group === 'samples' || item.group === 'yours' ? addStarter('slices', (name) => slicesCode(name, item.name, mixText())) : null
 }
 
 export function addRow(id: string, sound: string) {
