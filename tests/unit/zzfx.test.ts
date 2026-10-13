@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { midiToFreq, noteToMidi } from '@strudel/core'
 import { getZZFX, setAudioContext } from 'superdough'
-import { builtKey, keepUpTo, SHAPING } from '../../src/engine/zzfx'
+import { builtKey, keepUpTo, SHAPING, zzfxParams } from '../../src/engine/zzfx'
+import { buildSamples } from '../../src/engine/zzfxSamples'
 
 const note = (more: Record<string, unknown> = {}) => ({ s: 'z_sawtooth', note: 48, duration: 0.5, ...more })
 
@@ -73,5 +75,30 @@ describe('the note of a ZZFX synth that is kept', () => {
         kept.keep('long', 'L', 11)
         expect(kept.find('long')).toBeUndefined()
         expect(kept.find('a')).toBe('A')
+    })
+})
+
+describe('a note of a ZZFX synth worked out away from the window', () => {
+    it('has sample for sample what Strudel works out for it', () => {
+        const notes: Record<string, unknown>[] = [
+            { s: 'z_sawtooth', note: 'c3', duration: 0.5 },
+            { s: 'z_sine', note: 60, duration: 1.2, attack: 0.05, decay: 0.1, sustain: 0.5, release: 0.3 },
+            { s: 'z_square', note: 'a2', duration: 0.25, curve: 2 },
+            { s: 'z_triangle', freq: 330, duration: 0.4, slide: 0.5, deltaSlide: 0.1, pitchJump: 20, pitchJumpTime: 0.1 },
+            { s: 'z_tan', note: 'e4', duration: 0.3, lfo: 0.05, tremolo: 0.4, znoise: 0.2 },
+            { s: 'z_noise', note: 'g3', duration: 0.2, zmod: 3, zcrush: 0.2, zdelay: 0.05 },
+            { s: 'zzfx', note: 'd3', duration: 0.3 },
+            { s: 'z_sawtooth', duration: 0.1 },
+        ]
+        for (const value of notes) {
+            const theirs = workedOut({ ...value })
+            const ours = buildSamples(zzfxParams(value, { noteToMidi, midiToFreq })!, 8000)
+            expect(theirs.some((sample) => sample !== 0)).toBe(true)
+            expect(ours).toEqual(theirs)
+        }
+    })
+
+    it('is not worked out from the settings when the note brings its own numbers', () => {
+        expect(zzfxParams({ s: 'zzfx', zzfx: [1, 0, 220] }, { noteToMidi, midiToFreq })).toBeNull()
     })
 })

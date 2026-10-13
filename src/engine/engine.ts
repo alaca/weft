@@ -33,7 +33,7 @@ import { marksField, setMarks, type BlockMark } from './marks'
 import { maskSliders } from './mask'
 import { useOwnWorklets } from './ownWorklets'
 import { SOUND_DRAG, type RawSound } from '../sounds/catalog'
-import { addOwnSound, kitNames, loadModules, loadSamples, removeOwnSound, soundTaken } from './prebake'
+import { addOwnSound, fontAhead, kitNames, loadModules, loadSamples, removeOwnSound, soundTaken, zzfxAhead } from './prebake'
 import { createReplay } from './replay'
 import { inSharedRoom, type From, type Rooms } from './room'
 import { createSync, heard, syncSlot, type Sync } from './sync'
@@ -706,6 +706,7 @@ export function createEngine(): Engine {
             const context: BaseAudioContext = getAudioContext()
             return context instanceof OfflineAudioContext ? null : loadBuffer(url, context)
         },
+        other: (sound, value, seconds) => fontAhead(sound, value) ?? (seconds === undefined ? null : zzfxAhead({ ...value, duration: seconds })),
     })
     // The lists of sounds come a moment after the app has started, and a sound of your own
     // later still. Each makes many sounds known in one turn, and is looked at once, after it.
@@ -721,7 +722,7 @@ export function createEngine(): Engine {
         if (!pattern) return []
         try {
             const haps = pattern.queryArc(cycle, cycle + 1)
-            ahead.note(haps)
+            ahead.note(haps, mirror?.repl.scheduler.cps)
             return toEvents(haps, cycle)
         } catch {
             return []

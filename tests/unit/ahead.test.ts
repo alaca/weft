@@ -121,6 +121,25 @@ describe('the files of a song that are fetched before it is played', () => {
         expect(late.started).toEqual(many.slice(20).map((file) => BASE + file))
     })
 
+    it('asks, for a note of a sound that is no sample, what else it needs made ready, and starts on each such thing once', async () => {
+        const made: string[] = []
+        const started: string[] = []
+        const ahead = loadAhead({
+            sounds: () => soundMap.get(),
+            fileOf: (value, files) => getSampleInfo(value, files).url,
+            load: (url) => (started.push(url), Promise.resolve()),
+            other: (_sound, value, seconds) => (value.s === 'sawtooth' && seconds !== undefined ? { key: `${value.note} ${seconds}`, run: () => (made.push(`${value.note} ${seconds}`), Promise.resolve()) } : null),
+        })
+        const half = { valueOf: () => 0.5 }
+        ahead.note([{ value: { s: 'sawtooth', note: 'a1' }, duration: half }, { value: { s: 'sawtooth', note: 'a1' }, duration: half }, { value: { s: 'sawtooth', note: 'c2' }, duration: half }, { value: { s: 'hh' } }], 2)
+        await turn()
+        ahead.note([{ value: { s: 'sawtooth', note: 'a1' }, duration: half }], 2)
+        ahead.note([{ value: { s: 'sawtooth', note: 'a1' }, duration: half }])
+        await turn()
+        expect(made).toEqual(['a1 0.25', 'c2 0.25'])
+        expect(started).toEqual([`${BASE}hh.wav`])
+    })
+
     it('wait sound by sound, so that a sound whose pitch is another at every note does not push out the drums asked about before it', async () => {
         resetLoadedSounds()
         const { ahead, started } = fetching()

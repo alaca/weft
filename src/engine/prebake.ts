@@ -2,7 +2,8 @@ import * as core from '@strudel/core'
 import { evalScope } from '@strudel/core'
 import { aliasBank, getAudioContext, onceEnded, registerSound, registerSynthSounds, registerZZFXSounds, releaseAudioNode, samples, soundMap } from '@strudel/webaudio'
 import { INSTRUMENT_TAG, KIT_TAG, YOURS_TAG } from '../sounds/catalog'
-import { builtKey, keepUpTo, MOST_KEPT } from './zzfx'
+import type { Job } from './ahead'
+import { builtKey, keepUpTo, MOST_KEPT, zzfxParams } from './zzfx'
 
 const DOUGH = 'https://raw.githubusercontent.com/felixroos/dough-samples/main'
 const ALIASES = 'https://raw.githubusercontent.com/todepond/samples/main'
@@ -51,6 +52,94 @@ function keepBuiltNotes(): void {
     }
 }
 
+// The first time a note of a ZZFX synth is met it has to be worked out, and a long chord holds
+// the window up for that long. A note that a pattern will play is known well before it is due,
+// so it is worked out then, in a worker, and kept where a note that was played is kept. One
+// that is due before the worker is done with it is worked out on the spot, as it always was.
+let builder: Worker | null | undefined
+const building = new Map<number, { key: string; rate: number; done: () => void }>()
+let builds = 0
+const stopBuilding = () => {
+    for (const each of building.values()) each.done()
+    building.clear()
+    builder = null
+}
+function builderNow(): Worker | null {
+    if (builder !== undefined) return builder
+    try {
+        builder = new Worker(new URL('./zzfx.worker.ts', import.meta.url), { type: 'module' })
+        builder.onmessage = (event: MessageEvent<{ id: number; samples: Float32Array }>) => {
+            const asked = building.get(event.data.id)
+            if (!asked) return
+            building.delete(event.data.id)
+            try {
+                const context: BaseAudioContext = getAudioContext()
+                // Worked out for the clock that was in use when it was asked for.
+                if (context.sampleRate === asked.rate && !(context instanceof OfflineAudioContext)) {
+                    const buffer = context.createBuffer(1, event.data.samples.length, asked.rate)
+                    buffer.getChannelData(0).set(event.data.samples)
+                    built.keep(asked.key, buffer, buffer.length)
+                }
+            } finally {
+                asked.done()
+            }
+        }
+        builder.onerror = stopBuilding
+    } catch {
+        builder = null
+    }
+    return builder
+}
+
+// `value` is the note as it will be handed over, with how long it lasts.
+export function zzfxAhead(value: Record<string, unknown>): Job | null {
+    if (typeof value.s !== 'string' || value.bank || !ZZFX.includes(value.s.toLowerCase())) return null
+    const context: BaseAudioContext = getAudioContext()
+    if (context instanceof OfflineAudioContext) return null
+    const rate = context.sampleRate
+    const key = builtKey(value, rate)
+    if (key === null) return null
+    return {
+        key,
+        run: () => {
+            if (getAudioContext() instanceof OfflineAudioContext) return null
+            let params: number[] | null = null
+            try {
+                params = built.find(key) ? null : zzfxParams(value, core)
+            } catch {
+                return Promise.resolve()
+            }
+            const worker = params && builderNow()
+            if (!params || !worker) return Promise.resolve()
+            return new Promise<void>((done) => {
+                const id = ++builds
+                building.set(id, { key, rate, done })
+                worker.postMessage({ id, params, sampleRate: rate })
+            })
+        },
+    }
+}
+
+// An instrument from a soundfont fetches its file, and the part of it for a pitch, when the
+// first note of that pitch is handed over, and that note is lost meanwhile. Both are fetched
+// for a note that a pattern will play, long before it is due.
+let fontSource: ((font: string, value: Record<string, unknown>, context: BaseAudioContext) => Promise<unknown>) | null = null
+export function fontAhead(sound: { data?: { type?: string; fonts?: unknown } }, value: Record<string, unknown>): Job | null {
+    const fonts = sound.data?.type === 'soundfont' ? sound.data.fonts : null
+    const source = fontSource
+    if (!source || !Array.isArray(fonts) || !fonts.length) return null
+    // Which of an instrument's fonts a note plays, as Strudel picks it.
+    const n = Number(value.n)
+    const font: string = fonts[(((Math.round(Number.isNaN(n) ? 0 : n) % fonts.length) + fonts.length) % fonts.length)]
+    return {
+        key: `font ${font} ${value.note} ${value.freq}`,
+        run: () => {
+            const context: BaseAudioContext = getAudioContext()
+            return context instanceof OfflineAudioContext ? null : source(font, value, context).catch(() => undefined)
+        },
+    }
+}
+
 export async function loadModules(): Promise<void> {
     await evalScope(
         core,
@@ -65,7 +154,8 @@ export async function loadModules(): Promise<void> {
 }
 
 export async function loadSamples(): Promise<void> {
-    const { registerSoundfonts } = await import('@strudel/soundfonts')
+    const { registerSoundfonts, getFontBufferSource } = await import('@strudel/soundfonts')
+    fontSource = getFontBufferSource
     const machines: Record<string, unknown> = await fetch(`${DOUGH}/tidal-drum-machines.json`).then((response) => response.json())
     kits = [...new Set(Object.keys(machines).flatMap((key) => (key.startsWith('_') ? [] : [key.split('_')[0]])))]
     await Promise.all([

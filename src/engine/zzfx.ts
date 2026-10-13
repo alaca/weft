@@ -52,3 +52,20 @@ export function keepUpTo<T>(most: number): Kept<T> {
         },
     }
 }
+
+type Pitch = { noteToMidi: (note: string) => number; midiToFreq: (midi: number) => number }
+
+// The numbers a note's settings come to, in the order ZZFX takes them: what superdough 1.3.0
+// works out at the start of getZZFX (zzfx.mjs), before it builds the samples from them. Null
+// for a note that brings its own list of numbers.
+export function zzfxParams(value: Record<string, any>, { noteToMidi, midiToFreq }: Pitch): number[] | null {
+    let { s, note = 36, freq, zrand = 0, attack = 0, decay = 0, sustain = 0.8, release = 0.1, curve = 1, slide = 0, deltaSlide = 0, pitchJump = 0, pitchJumpTime = 0, lfo = 0, znoise = 0, zmod = 0, zcrush = 0, zdelay = 0, tremolo = 0, duration = 0.2, zzfx } = value
+    if (zzfx) return null
+    const sustainTime = Math.max(duration - attack - decay, 0)
+    if (typeof note === 'string') note = noteToMidi(note)
+    if (!freq && typeof note === 'number') freq = midiToFreq(note)
+    s = s.replace('z_', '')
+    const shape = ['sine', 'triangle', 'sawtooth', 'tan', 'noise'].indexOf(s) || 0
+    curve = s === 'square' ? 0 : curve
+    return [0.25, zrand, freq, attack, sustainTime, release, shape, curve, slide, deltaSlide, pitchJump, pitchJumpTime, lfo, znoise, zmod, zcrush, zdelay, sustain, decay, tremolo]
+}

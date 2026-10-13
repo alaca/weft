@@ -7,17 +7,25 @@
 type Sound = { data?: { type?: string; samples?: unknown } }
 export type Sounds = Record<string, Sound | undefined>
 
+// Something else a note needs made ready before it is due: the part of an instrument that is
+// fetched for its pitch, a note of a synth that has to be worked out. `key` tells it from any
+// other, and `run` starts on it, or answers null when this is not the moment for it.
+export type Job = { key: string; run: () => Promise<unknown> | null }
+
 type Given = {
     sounds: () => Sounds
     // The file a note of a sample plays, as Strudel works it out from the files of its sound.
     fileOf: (value: Record<string, unknown>, files: unknown) => unknown
     // Starts fetching a file, or answers null when this is not the moment for it.
     load: (url: string) => Promise<unknown> | null
+    // What a note of a sound that is no sample needs made ready, if anything. `seconds` is how
+    // long the note lasts, where that is known.
+    other?: (sound: Sound, value: Record<string, unknown>, seconds: number | undefined) => Job | null
 }
 
 export type Ahead = {
-    // What a pattern answered when it was asked what it plays.
-    note(haps: { value: unknown }[]): void
+    // What a pattern answered when it was asked what it plays, and how many bars a second go by.
+    note(haps: { value: unknown; duration?: unknown }[], barsPerSecond?: number): void
     // Other sounds are known than before.
     again(): void
 }
@@ -33,7 +41,7 @@ export const MOST_WAITING = 64
 
 const isSample = (sound: Sound) => sound.data?.type === 'sample'
 
-export function loadAhead({ sounds, fileOf, load }: Given): Ahead {
+export function loadAhead({ sounds, fileOf, load, other }: Given): Ahead {
     // The notes of each sound that have been seen to. A sound that is made known again, as one
     // of your own is when it is cut shorter, is another sound here and is seen to again.
     const seen = new WeakMap<object, Set<string>>()
@@ -43,12 +51,13 @@ export function loadAhead({ sounds, fileOf, load }: Given): Ahead {
     // the notes of the others.
     const waiting = new Map<string, Map<string, Record<string, unknown>>>()
     const asked = new Set<string>()
-    const queue: string[] = []
+    const askedOther = new Set<string>()
+    const queue: Job[] = []
     let loading = 0
 
     const next = () => {
         while (loading < AT_ONCE && queue.length) {
-            const fetched = load(queue[0])
+            const fetched = queue[0].run()
             if (!fetched) return
             queue.shift()
             loading++
@@ -75,11 +84,29 @@ export function loadAhead({ sounds, fileOf, load }: Given): Ahead {
         }
         if (typeof url !== 'string' || asked.has(url)) return
         asked.add(url)
-        queue.push(url)
+        const file = url
+        queue.push({ key: file, run: () => load(file) })
+    }
+
+    // A note of a sound that is no sample: what it needs is put in line, once. A pattern whose
+    // notes are other notes every time it is asked would fill the line without end, so beyond
+    // a point no more is taken on.
+    const makeFor = (sound: Sound, value: Record<string, unknown>, seconds: number | undefined) => {
+        if (!other || queue.length >= MOST) return
+        let job: Job | null
+        try {
+            job = other(sound, value, seconds)
+        } catch {
+            return
+        }
+        if (!job || askedOther.has(job.key)) return
+        if (askedOther.size >= MOST) askedOther.clear()
+        askedOther.add(job.key)
+        queue.push(job)
     }
 
     return {
-        note(haps) {
+        note(haps, barsPerSecond) {
             const known = sounds()
             for (const hap of haps) {
                 const value = hap.value as Record<string, unknown> | null
@@ -88,7 +115,10 @@ export function loadAhead({ sounds, fileOf, load }: Given): Ahead {
                 // every sound in small letters.
                 const name = (value.bank ? `${value.bank}_${value.s}` : value.s).toLowerCase()
                 const sound = known[name]
-                if (sound && !isSample(sound)) continue
+                if (sound && !isSample(sound)) {
+                    makeFor(sound, value, barsPerSecond && hap.duration !== undefined ? Number(hap.duration) / barsPerSecond : undefined)
+                    continue
+                }
                 // Which file of a sound a note plays follows from its number and its pitch.
                 const key = `${value.n}|${value.note}|${value.freq}`
                 if (sound) {
@@ -112,7 +142,10 @@ export function loadAhead({ sounds, fileOf, load }: Given): Ahead {
                 const sound = known[name]
                 if (!sound) continue
                 waiting.delete(name)
-                if (isSample(sound)) for (const [key, value] of notes) fetchFor(sound, key, value)
+                for (const [key, value] of notes) {
+                    if (isSample(sound)) fetchFor(sound, key, value)
+                    else makeFor(sound, value, undefined)
+                }
             }
             next()
         },

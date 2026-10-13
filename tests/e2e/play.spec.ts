@@ -166,7 +166,9 @@ test('a chord on a ZZFX synth is worked out once, and sounds the same when it co
     // stretch is lost.
     expect(Math.abs(heard.louder - 1)).toBeLessThan(0.1)
     if (browserName !== 'webkit') expect(heard.apart).toBeLessThan(0.0001)
-    expect(heard.workedOut).toBe(3)
+    // Three notes, each worked out once. Some of them may already have been, away from the
+    // window, when the song was opened, where the file is made at the rate the machine plays at.
+    expect(heard.workedOut).toBeLessThanOrEqual(3)
 })
 
 // Two drums of one kit in the first bar, and one that first plays in the second.
