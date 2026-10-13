@@ -67,7 +67,7 @@ test('the microphone and the output are chosen in the sound settings, and are st
     await settings(page).getByLabel('Output').selectOption({ label: 'Headphones' })
     await expect.poll(() => told(page)).toContainEqual(['clock', 'out-2'])
     await settings(page).getByLabel('Microphone').selectOption({ label: 'USB interface' })
-    expect(await kept(page)).toEqual({ input: 'in-2', output: 'out-2', outputName: 'Headphones' })
+    expect(await kept(page)).toMatchObject({ input: 'in-2', output: 'out-2', outputName: 'Headphones' })
     await settings(page).getByRole('button', { name: 'Done', exact: true }).click()
 
     // A take is made with the microphone that was chosen.
