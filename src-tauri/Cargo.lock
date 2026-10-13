@@ -4948,7 +4948,7 @@ dependencies = [
 
 [[package]]
 name = "weft"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "cpal",
  "serde",
