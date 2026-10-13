@@ -2,7 +2,7 @@ import { history, isolateHistory, redo, undo } from '@codemirror/commands'
 import { Annotation, EditorState, Prec, StateEffect, Transaction } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
 import { BlockWidget, StrudelMirror, codemirrorSettings, sliderPlugin, sliderValues } from '@strudel/codemirror'
-import { Pattern, silence } from '@strudel/core'
+import { evaluate as evaluateText, Pattern, silence } from '@strudel/core'
 import { mini } from '@strudel/mini'
 import {
     getAudioContext,
@@ -111,6 +111,8 @@ export interface Engine {
     // How many of the jam's changes are in the code here, in the relay's count.
     syncVersion(): number
     previewNote(midi: number, sound: string | null, seconds?: number): void
+    // One note of a sound that is written as code, as a preset is: note(60).s("sawtooth").lpf(900).
+    previewText(text: string, seconds: number): void
     sounds(): RawSound[]
     kitNames(): string[]
     markBlocks(marks: BlockMark[]): void
@@ -1315,6 +1317,16 @@ export function createEngine(): Engine {
         },
         previewNote(midi, sound, seconds = 0.3) {
             audition(() => ({ note: midi, s: sound ?? 'triangle' }), seconds)
+        },
+        // It is checked as a song is where songs are checked: what is tried out is code too.
+        previewText(text, seconds) {
+            if (guarded && checkSong(text)) return
+            evaluateText(text)
+                .then(({ pattern }: { pattern: any }) => {
+                    const value = pattern?.queryArc?.(0, 1)[0]?.value
+                    if (value && typeof value === 'object' && !carriesCode(value)) audition(() => ({ ...value }), seconds)
+                })
+                .catch(() => undefined)
         },
         sounds() {
             const seen = new Set<unknown>()

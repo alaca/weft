@@ -6,6 +6,7 @@ import {
     pumpDepth,
     pumpFor,
     removeControl,
+    savePreset,
     setControl,
     setCut,
     setEcho,
@@ -59,6 +60,14 @@ const ENVELOPE_HEIGHT = 44
 export function SoundPanel(props: { id: string; block: PatternBlock; only?: string }) {
     const [choice, setChoice] = createSignal<FilterType>('low')
     const [browsing, setBrowsing] = createSignal(false)
+    // Saving the sound as a preset asks for a name first, and says what came of it after.
+    const [naming, setNaming] = createSignal(false)
+    const [saved, setSaved] = createSignal<string | null>(null)
+    let nameBox: HTMLInputElement | undefined
+    const save = () => {
+        setSaved(savePreset(props.id, nameBox?.value ?? ''))
+        if (nameBox?.value.trim()) setNaming(false)
+    }
     const filter = () => filterTypeOf(props.block) ?? choice()
     const panel = createMemo(() => panelFor(props.block, filter()))
     const items = (group: PanelGroup) => panel().find((entry) => entry.group === group)?.items ?? []
@@ -206,10 +215,44 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
             </div>
             <div class="sp-f">
                 <span>Faint knobs are not in the code yet. Press one and its line is added.</span>
+                <Show when={!props.only && !isDrums(props.block)}>
+                    <button
+                        class="btn"
+                        classList={{ on: naming() }}
+                        aria-expanded={naming()}
+                        title="Keeps this sound, with every knob as it stands, to use in any song"
+                        onClick={() => {
+                            setSaved(null)
+                            setNaming(!naming())
+                            queueMicrotask(() => nameBox?.select())
+                        }}
+                    >
+                        Save as preset
+                    </button>
+                </Show>
                 <button class="btn" classList={{ on: browsing() }} aria-expanded={browsing()} onClick={() => setBrowsing(!browsing())}>
                     Browse all controls
                 </button>
             </div>
+            <Show when={naming()}>
+                <form
+                    class="sp-save"
+                    onSubmit={(event) => {
+                        event.preventDefault()
+                        save()
+                    }}
+                >
+                    <input class="br-s" ref={nameBox} aria-label="Name of the preset" placeholder="Name of the preset" maxLength={40} value={props.id} />
+                    <button class="btn go" type="submit">
+                        Save preset
+                    </button>
+                </form>
+            </Show>
+            <Show when={saved()}>
+                <p class="sp-said" role="status" data-testid="preset-note">
+                    {saved()}
+                </p>
+            </Show>
             <Show when={browsing()}>
                 <ControlBrowser id={props.id} block={props.block} filter={filter()} />
             </Show>

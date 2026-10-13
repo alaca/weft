@@ -1,11 +1,12 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js'
 import { Fold, isFolded } from './Fold'
-import { addOwnSounds, closeSounds, colorAt, hearSound, keepTake, openTrim, recordTake, removeOwnSound, soundCatalogue, useSound } from '../app/controller'
+import { addOwnSounds, closeSounds, colorAt, hearSound, keepTake, openTrim, presetOf, recordTake, removeOwnSound, removePreset, soundCatalogue, useSound } from '../app/controller'
 import { DEMO } from '../demo/demo'
 import { lengthText } from '../library/sounds'
-import { fits, inUse, takesKit } from '../sounds/apply'
+import { fits, inUse, isPreset, takesKit } from '../sounds/apply'
+import { KIND_LABELS } from '../sounds/presets'
 import { countSounds, findSounds, SOUND_DRAG, SOUND_GROUPS, type SoundGroup, type SoundItem } from '../sounds/catalog'
-import { engineState, ownSoundNote, ownSounds, selected, setDraggedSound, song, soundsOpen, stale, takeOpening, takeSince } from '../stores/song'
+import { engineState, ownPresets, ownSoundNote, ownSounds, selected, setDraggedSound, song, soundsOpen, stale, takeOpening, takeSince } from '../stores/song'
 
 // The demo has no sounds of your own.
 const GROUPS = DEMO ? SOUND_GROUPS.filter((entry) => entry.id !== 'yours') : SOUND_GROUPS
@@ -19,7 +20,12 @@ export function SoundBrowser() {
     const index = () => song().patterns.findIndex((p) => p.id === selected())
     const target = () => song().patterns[index()]
     const loaded = createMemo(() => engineState().sounds)
-    const items = createMemo(() => (soundsOpen() && loaded() !== 'loading' && ownSounds() ? soundCatalogue() : []))
+    const items = createMemo(() => (soundsOpen() && loaded() !== 'loading' && ownSounds() && ownPresets() ? soundCatalogue() : []))
+    // What stands beside a preset's name: Yours for one you saved, else what kind of sound it is.
+    const kindOf = (item: SoundItem) => {
+        const preset = presetOf(item.name)
+        return preset?.own ? 'Yours' : preset?.kind ? KIND_LABELS[preset.kind] : ''
+    }
     const lengthOf = (name: string) => ownSounds().find((sound) => sound.name === name)?.seconds
 
     // How long the take has been going, counted while there is one.
@@ -125,7 +131,7 @@ export function SoundBrowser() {
                                 when={takesKit(block())}
                                 fallback={
                                     <>
-                                        <b>{block().id}</b> plays notes, so it takes an instrument, a synth or a sample.{' '}
+                                        <b>{block().id}</b> plays notes, so it takes an instrument, a synth, a sample or a preset.{' '}
                                         <button onClick={() => setGroup('instruments')}>Show instruments</button>
                                     </>
                                 }
@@ -183,7 +189,7 @@ export function SoundBrowser() {
                         {(item) => (
                             <div
                                 class="sb-i"
-                                classList={{ on: used(item), own: item.group === 'yours' }}
+                                classList={{ on: used(item), own: item.group === 'yours', kept: isPreset(item) && Boolean(presetOf(item.name)?.own) }}
                                 draggable="true"
                                 title="Drag onto a pattern, into the code, or under the patterns to start a new one"
                                 onDragStart={(event) => {
@@ -199,7 +205,9 @@ export function SoundBrowser() {
                                         <path d="M2.5 1.2v7.6L8.8 5z" />
                                     </svg>
                                     <b>{item.label}</b>
-                                    <code>{item.name}</code>
+                                    <Show when={isPreset(item)} fallback={<code>{item.name}</code>}>
+                                        <span class="sb-c">{kindOf(item)}</span>
+                                    </Show>
                                     <Show when={item.group === 'yours' && lengthOf(item.name) !== undefined}>
                                         <span class="sb-c">{lengthText(lengthOf(item.name) ?? 0)}</span>
                                     </Show>
@@ -218,6 +226,13 @@ export function SoundBrowser() {
                                         </svg>
                                     </button>
                                     <button class="rx" aria-label={`Remove ${item.label} from your sounds`} onClick={() => void removeOwnSound(item.name)}>
+                                        <svg viewBox="0 0 8 8">
+                                            <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
+                                        </svg>
+                                    </button>
+                                </Show>
+                                <Show when={isPreset(item) && presetOf(item.name)?.own}>
+                                    <button class="rx" aria-label={`Remove ${item.label} from your presets`} onClick={() => removePreset(item.name)}>
                                         <svg viewBox="0 0 8 8">
                                             <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
                                         </svg>

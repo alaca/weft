@@ -8,6 +8,7 @@ import type { OwnSoundInfo } from '../library/sounds'
 import type { Key } from '../song/scales'
 import type { Song } from '../song/types'
 import type { SoundItem } from '../sounds/catalog'
+import type { Preset } from '../sounds/presets'
 
 export type { ViewMode } from '../library/layout'
 
@@ -76,6 +77,8 @@ export type Trim = { name: string; seconds: number; peaks: number[]; from: numbe
 export const [trim, setTrim] = createSignal<Trim | null>(null)
 export const [ownSounds, setOwnSounds] = createSignal<OwnSoundInfo[]>([])
 export const [ownSoundNote, setOwnSoundNote] = createSignal<string | null>(null)
+// The presets you saved. The ones the app comes with are not among them.
+export const [ownPresets, setOwnPresets] = createSignal<Preset[]>([])
 // When a take from the microphone was started, while one is being made.
 export const [takeSince, setTakeSince] = createSignal<number | null>(null)
 // Whether the microphone is being opened for a take. One can take seconds to answer.

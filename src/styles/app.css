@@ -238,6 +238,9 @@ button.rn:hover { border-color: var(--linen-3); }
 .adsr polygon { fill: color-mix(in srgb, var(--h) 16%, transparent); }
 .adsr polyline { fill: none; stroke: var(--h); stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .sp-f { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.sp-f > span { flex: 1; }
+.sp-save { display: flex; align-items: center; gap: 8px; margin: -4px 16px 14px 17px; max-width: 420px; }
+.sp-said { margin: -4px 16px 14px 17px; color: var(--linen-2); font-size: 11.5px; }
 .btn.on { background: var(--linen); border-color: var(--linen); color: var(--vat); }
 
 .br { margin: 0 16px 14px 17px; padding: 12px; border: 1px solid var(--seam); border-radius: 10px; background: var(--cloth-2); }
@@ -367,6 +370,7 @@ svg.mini rect { fill: var(--h); }
 .sb-i { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 8px; padding-right: 8px; border-radius: 8px; }
 .sb-i:hover { background: var(--cloth-3); }
 .sb-i.own { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+.sb-i.kept { grid-template-columns: minmax(0, 1fr) auto auto; }
 .sb-i:hover .rx, .sb-i .rx:focus-visible { opacity: 1; }
 .sb-own { display: flex; align-items: center; gap: 10px; margin: 0 12px 10px; color: var(--linen-3); font-size: 11.5px; line-height: 1.4; }
 .sb-own .btn { flex: none; }

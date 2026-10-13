@@ -13,6 +13,7 @@ import { chooseFile } from '../desktop/open'
 import { saveFile, savePieces, textPieces, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
 import { DEMO } from '../demo/demo'
+import { cleanPresetName, LIBRARY, presetCalls, presetEdits, previewText, PREVIEW_PITCH, readPresets, soundCalls, withPreset, writePresets, type Preset } from '../sounds/presets'
 import { keeping } from '../library/kept'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, LEFT_PANELS, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type LeftPanel, type ViewMode } from '../library/layout'
@@ -46,7 +47,7 @@ import {
     type GridRow,
     type GridSource,
 } from '../song/grid'
-import { convertEdits, kitEdits, MUTE, readKit, rowTarget } from '../song/kit'
+import { convertEdits, isDrums, kitEdits, MUTE, readKit, rowTarget } from '../song/kit'
 import {
     addNote,
     moveNote,
@@ -71,6 +72,7 @@ import {
     patternNameFrom,
     removePattern as removeEdit,
     renameEdit,
+    presetStarter,
     soundStarter,
     starterCode,
     swapEdits,
@@ -78,7 +80,7 @@ import {
     type StarterKind,
 } from '../song/patterns'
 import type { PatternBlock, PatternEvent } from '../song/types'
-import { fits, isRow, soundEdit, soundTextAt } from '../sounds/apply'
+import { fits, isPreset, isRow, soundEdit, soundTextAt } from '../sounds/apply'
 import { catalogue, type SoundItem } from '../sounds/catalog'
 import type { Bars } from '../jam/protocol'
 import { jamsOpen, jamStage, setJamsOpen, setJamUnread, setSoundsShare, soundsShare } from '../stores/jam'
@@ -102,6 +104,7 @@ import {
     exporting,
     gridNotes,
     openPanel,
+    ownPresets,
     ownSounds,
     removed,
     rollRanges,
@@ -129,6 +132,7 @@ import {
     setSongGuarded,
     setOpenPanel,
     setOwnSoundNote,
+    setOwnPresets,
     setOwnSounds,
     setPosition,
     setRemoved,
@@ -315,6 +319,7 @@ function tick() {
 }
 
 export async function mount(root: HTMLElement): Promise<void> {
+    setOwnPresets(readPresets(keeping.getItem(PRESETS_KEY)))
     const startMix = readMix(keeping.getItem(MIX_KEY))
     setMixNow(startMix)
     engine.setMix(startMix)
@@ -1261,8 +1266,13 @@ export function addPattern(kind: StarterKind): string | null {
     return starter ? addStarter(starter.name, (name) => starterCode(kind, name), starter.range) : null
 }
 
+// The notes a new roll shows first, around the note a sound is tried out on.
+const rangeAround = (pitch: number) => ({ low: pitch - 8, high: pitch + 11 })
+
 // A sound dragged from the browser and let go where there is no pattern starts one with it.
 export function addPatternWith(item: SoundItem): string | null {
+    const preset = isPreset(item) ? presetOf(item.name) : undefined
+    if (isPreset(item)) return preset ? addStarter(preset.kind === 'bass' ? 'bass' : 'melody', (name) => presetStarter(name, preset.calls), rangeAround(preset.pitch ?? PREVIEW_PITCH)) : null
     const starter = soundStarter(item.name, item.group === 'kits' ? 'kit' : item.group === 'samples' || item.group === 'yours' ? 'sample' : 'notes')
     return addStarter(starter.name, starter.code, starter.range)
 }
@@ -1356,12 +1366,68 @@ export const toggleSounds = () => (soundsOpen() ? closeSounds() : openSounds())
 // engine under such a name is not shown as one.
 export const soundCatalogue = (): SoundItem[] => {
     const kept = new Set(ownSounds().map((sound) => sound.name))
-    return catalogue(engine.sounds(), engine.kitNames()).filter((item) => item.group !== 'yours' || kept.has(item.name))
+    return [...catalogue(engine.sounds(), engine.kitNames()).filter((item) => item.group !== 'yours' || kept.has(item.name)), ...allPresets().map(presetItem)]
 }
 
-const PREVIEW_PITCH = 60
+// ---- presets. A preset is listed with the sounds, under its own heading: the ones you saved
+// first, then the ones the app comes with.
+const PRESETS_KEY = 'weft.presets'
+const presetItem = (preset: Preset): SoundItem => ({ group: 'presets', name: preset.id, label: preset.name, parts: [] })
+export const allPresets = (): Preset[] => [...ownPresets(), ...LIBRARY]
+export const presetOf = (id: string): Preset | undefined => allPresets().find((preset) => preset.id === id)
+
+function keepPresets(next: Preset[]): boolean {
+    try {
+        keeping.setItem(PRESETS_KEY, writePresets(next))
+    } catch {
+        return false
+    }
+    setOwnPresets(next)
+    return true
+}
+
+// The sound of a pattern that plays notes, kept under a name. Says what came of it.
+export function savePreset(id: string, text: string): string {
+    const block = find(id)
+    const name = cleanPresetName(text)
+    if (!block || isDrums(block)) return 'Only a pattern that plays notes has a sound to save.'
+    if (!name) return 'Give the preset a name first.'
+    const calls = presetCalls(engine.getCode(), block)
+    if (!calls.length) return 'This pattern has no sound of its own yet. Choose one in the Sounds panel first.'
+    const replaced = ownPresets().some((preset) => preset.name.toLowerCase() === name.toLowerCase())
+    if (!keepPresets(withPreset(ownPresets(), name, calls))) return 'There is no room left to keep it. Remove a preset or a song you no longer need.'
+    return `${replaced ? 'Saved over' : 'Saved as'} ${name}. It is under Presets in the Sounds panel.`
+}
+
+export const removePreset = (id: string) => void keepPresets(ownPresets().filter((preset) => preset.id !== id))
+
+const PAD_SECONDS = 1.4
+
+export function hearPreset(id: string) {
+    const preset = presetOf(id)
+    if (!preset) return
+    const chosen = selected()
+    const block = chosen ? find(chosen) : undefined
+    // On the pattern that would take it, it is heard on a note of that pattern.
+    const pitch = block && !isDrums(block) ? eventsOf(block.id, 0).find((event) => event.midi !== null)?.midi : null
+    engine.previewText(previewText(preset.calls, pitch ?? preset.pitch ?? PREVIEW_PITCH), preset.kind === 'pad' ? PAD_SECONDS : 0.6)
+}
+
+export function usePreset(id: string, presetId: string) {
+    const block = find(id)
+    const preset = presetOf(presetId)
+    if (!block || !preset || stale() || isDrums(block)) return
+    engine.applyEdit(presetEdits(engine.getCode(), block, preset.calls))
+    replay()
+}
+
+export const hasSound = (id: string): boolean => {
+    const block = find(id)
+    return Boolean(block) && soundCalls(block!).length > 0
+}
 
 export function hearSound(item: SoundItem, part?: string) {
+    if (item.group === 'presets') return hearPreset(item.name)
     if (item.group === 'kits') {
         const sound = part ?? item.parts[0]?.sound
         if (sound) engine.preview(sound, item.name)
@@ -1383,6 +1449,7 @@ export function hearSound(item: SoundItem, part?: string) {
 export function useSound(id: string, item: SoundItem) {
     const block = find(id)
     if (!block || stale() || !fits(block, item.group)) return
+    if (isPreset(item)) return usePreset(id, item.name)
     if (isRow(block, item)) return addRow(id, item.name)
     engine.applyEdit(soundEdit(engine.getCode(), block, item))
     replay()
@@ -1397,6 +1464,8 @@ function dropSound(offset: number, name: string) {
     if (!item) return
     const text = soundTextAt(song().patterns, offset)
     const block = song().patterns.find((pattern) => offset >= pattern.from && offset <= pattern.to)
+    // A preset is a sound and not a name: over a pattern that plays notes it becomes its sound.
+    if (isPreset(item)) return void (block && fits(block, item.group) && usePreset(block.id, item.name))
     if (text) engine.applyEdit(setString(text, item.name))
     else if (block && fits(block, item.group)) return useSound(block.id, item)
     else engine.applyEdit({ from: offset, to: offset, insert: item.name })

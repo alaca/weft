@@ -9,10 +9,13 @@ export const takesKit = (block: PatternBlock): boolean => isDrums(block)
 // more row in a drum grid, whatever kit the grid is on.
 export const fits = (block: PatternBlock, group: SoundGroup): boolean => group === 'yours' || (group === 'kits') === takesKit(block)
 
+// A preset is a whole sound, for a pattern that plays notes.
+export const isPreset = (item: SoundItem): boolean => item.group === 'presets'
+
 export const isRow = (block: PatternBlock, item: SoundItem): boolean => item.group === 'yours' && takesKit(block)
 
 export const inUse = (block: PatternBlock, item: SoundItem): boolean => {
-    if (!fits(block, item.group)) return false
+    if (!fits(block, item.group) || isPreset(item)) return false
     if (isRow(block, item)) return readKit(block)?.rows.some((row) => row.sound === item.name) ?? false
     return block.soundName?.toLowerCase() === item.name.toLowerCase()
 }

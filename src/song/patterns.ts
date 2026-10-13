@@ -51,6 +51,9 @@ export function soundStarter(sound: string, kind: 'kit' | 'notes' | 'sample'): S
     return kind === 'sample' ? { name: 'sample', code, range: { low: 30, high: 42 } } : { name: 'melody', code, range: { low: 60, high: 79 } }
 }
 
+// A new pattern for a preset that was dragged in: an empty roll with that whole sound.
+export const presetStarter = (name: string, calls: string[]): string => `${name}: note("~")${calls.map((call) => `\n  ${call}`).join('')}${mixLines()}`
+
 // A name a pattern can have in the code: letters, digits and underscores, starting with a
 // letter. Strudel takes a name that starts with an underscore as muted and one that starts with
 // a capital S as solo, so neither is let through as it was typed.

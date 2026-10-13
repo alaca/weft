@@ -79,7 +79,7 @@ describe('findSounds', () => {
     })
 
     it('counts the matches in every group', () => {
-        expect(countSounds(ITEMS, 'piano')).toEqual({ kits: 0, instruments: 2, synths: 0, samples: 0, yours: 0 })
+        expect(countSounds(ITEMS, 'piano')).toEqual({ kits: 0, instruments: 2, synths: 0, samples: 0, presets: 0, yours: 0 })
         expect(countSounds(ITEMS, 'take').yours).toBe(1)
     })
 })
