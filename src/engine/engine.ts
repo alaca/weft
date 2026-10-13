@@ -5,6 +5,7 @@ import { BlockWidget, StrudelMirror, codemirrorSettings, sliderPlugin, sliderVal
 import { evaluate as evaluateText, Pattern, silence } from '@strudel/core'
 import { mini } from '@strudel/mini'
 import {
+    getAnalyserById,
     getAudioContext,
     getDefaultValue,
     getSampleInfo,
@@ -92,6 +93,10 @@ export interface Engine {
     setMix(mix: Mix): void
     mix(): Mix
     levels(): [number, number] | null
+    // While this is on, each pattern is also listened to by itself, for how loud it is.
+    setMeters(on: boolean): void
+    // How loud a pattern is at this moment, 1 being as loud as a machine plays without distorting.
+    levelOf(name: string): number
     miniEvents(text: string, cycles: number): { start: number; length: number; value: unknown }[][] | null
     soundNames(bank: string | null): string[]
     preview(sound: string, bank: string | null, cutAfter?: number): void
@@ -783,6 +788,37 @@ export function createEngine(): Engine {
         }
     }
 
+    // A mixer shows how loud each pattern is by itself. The sound engine lets a sound be listened
+    // to on its way out, after its own volume, by a name that is given with the sound. So while
+    // meters are shown every note carries the name of its pattern for that. A song that listens
+    // to its own sounds, to draw them in the code, has said a name of its own and keeps it.
+    const METER = 'weft-meter:'
+    const METER_WINDOW = 2048
+    let metering = false
+    const metered = (hap: any) => {
+        if (!metering) return hap
+        const name = fromOf(hap).name
+        const value = hap.value
+        if (!name || !value || typeof value !== 'object' || value.analyze !== undefined) return hap
+        return hap.withValue((own: object) => ({ ...own, analyze: METER + name, fft: Math.log2(METER_WINDOW) - 5 }))
+    }
+    // What listens is asked every moment whether or not a sound is on its way, so that it reads
+    // silence when its pattern is silent and not the last thing it heard.
+    const asked = new WeakSet<AnalyserNode>()
+    const listenerOf = (name: string): AnalyserNode | null => {
+        const context: BaseAudioContext = getAudioContext()
+        if (context instanceof OfflineAudioContext) return null
+        const listener: AnalyserNode = getAnalyserById(METER + name, METER_WINDOW)
+        if (!asked.has(listener)) {
+            const mute = new GainNode(context, { gain: 0 })
+            listener.connect(mute)
+            mute.connect(context.destination)
+            asked.add(listener)
+        }
+        return listener
+    }
+    const heardOf = new Float32Array(METER_WINDOW)
+
     // A note that is handed over to be played is also one to light in the code.
     let toLight: (hap: any) => void = () => undefined
     const makeMirror = (root: HTMLElement, initialCode: string) =>
@@ -791,7 +827,7 @@ export function createEngine(): Engine {
                 toLight(hap)
                 if (guarded && carriesCode(hap.value)) return
                 readyToDuck(hap.value)
-                return webaudioOutput(inRoom(hap, time, cps), deadline, duration, cps, time)
+                return webaudioOutput(metered(inRoom(hap, time, cps)), deadline, duration, cps, time)
             },
             getTime: () => getAudioContext().currentTime,
             setInterval: startTicking,
@@ -1301,6 +1337,22 @@ export function createEngine(): Engine {
                 return sidesNow()
             } catch {
                 return null
+            }
+        },
+        setMeters(on) {
+            metering = on
+        },
+        levelOf(name) {
+            if (!metering) return 0
+            try {
+                const listener = listenerOf(name)
+                if (!listener) return 0
+                listener.getFloatTimeDomainData(heardOf)
+                let peak = 0
+                for (let at = 0; at < heardOf.length; at++) peak = Math.max(peak, Math.abs(heardOf[at]))
+                return peak
+            } catch {
+                return 0
             }
         },
         miniEvents(text, cycles) {

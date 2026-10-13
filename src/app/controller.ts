@@ -692,11 +692,14 @@ export function removeControl(id: string, fn: string) {
     replay()
 }
 
-export function setMix(id: string, fn: 'volume' | 'pan', value: number) {
+// A knob that is turned whether or not its line is in the code yet: turned, it is.
+export function turnControl(id: string, fn: string, value: number) {
     const block = find(id)
     if (block && callFor(block, fn)) setControl(id, fn, value)
     else addControl(id, fn, value)
 }
+
+export const setMix = (id: string, fn: 'volume' | 'pan', value: number) => turnControl(id, fn, value)
 
 export function togglePanel(target: string) {
     if (openPanel() === target) return closePanel()
@@ -845,6 +848,9 @@ export function changeMix(part: Partial<Mix>) {
 export const resetMix = () => changeMix(DEFAULT_MIX)
 export const waveformOf = () => engine.waveform()
 export const levelsOf = () => engine.levels()
+// The meters of the patterns are only worked out while a mixer that shows them is in sight.
+export const showMeters = (on: boolean) => engine.setMeters(on)
+export const levelOfPattern = (id: string): number => engine.levelOf(id)
 
 const layoutNow = (): Layout => ({
     view: viewMode(),

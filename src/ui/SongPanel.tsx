@@ -9,6 +9,7 @@ import { sceneIsOn, SCENE_NAME_LIMIT } from '../song/scenes'
 import { barKeys, variantBars, variantName } from '../song/variants'
 import { bpm, cycle, engineState, loopBars, playMode, position, revision, sceneWaiting, soloIds, song, stale, startBar, takingKnobs } from '../stores/song'
 import { Knob } from './Knob'
+import { MixStrips } from './MixStrips'
 import { askSoon } from './askSoon'
 
 // A clip shows what its pattern plays, bar by bar. The pattern is asked for no more bars than
@@ -619,6 +620,8 @@ function Scenes() {
 
 export function SongPanel() {
     let scroller!: HTMLDivElement
+    // The patterns are shown as the bars they play in, or side by side as the strips of a mixer.
+    const [mixing, setMixing] = createSignal(false)
     const ids = createMemo(() => [...new Set(song().patterns.map((p) => p.id))], [] as string[], { equals: sameList })
     const length = createMemo(() => songLengthNow())
     const [chosen, setZoom] = createSignal<number | null>(null)
@@ -691,6 +694,14 @@ export function SongPanel() {
         <section class="sg" data-testid="song" onClick={(event) => event.stopPropagation()}>
             <div class="sg-h">
                 <h3>Song</h3>
+                <div class="seg s sg-v" role="group" aria-label="What the song panel shows">
+                    <button classList={{ on: !mixing() }} aria-pressed={!mixing()} title="The bars each pattern plays in" onClick={() => setMixing(false)}>
+                        Bars
+                    </button>
+                    <button classList={{ on: mixing() }} aria-pressed={mixing()} title="A strip for each pattern: how loud it is, where it sits, what it cuts off, and how much of it goes to the room and the echo" onClick={() => setMixing(true)}>
+                        Mix
+                    </button>
+                </div>
                 <span class="lines" data-testid="song-length">
                     {length()} bars, {duration(length(), song().tempo?.bpm ?? bpm())}
                 </span>
@@ -736,8 +747,8 @@ export function SongPanel() {
                     <i />
                     Record knobs
                 </button>
-                <span class="cap">Zoom</span>
-                <div class="seg s">
+                <span class="cap" classList={{ away: mixing() }}>Zoom</span>
+                <div class="seg s" classList={{ away: mixing() }}>
                     <button aria-label="Show more bars" disabled={narrower() === undefined} onClick={() => setZoom(narrower() ?? barWidth())}>
                         -
                     </button>
@@ -749,7 +760,10 @@ export function SongPanel() {
             <Show when={playMode() === 'live' && song().patterns.length > 0}>
                 <Scenes />
             </Show>
-            <div class="sg-g" style={{ '--row': `${rowHeight(barWidth())}px` }}>
+            <Show when={mixing()}>
+                <MixStrips />
+            </Show>
+            <div class="sg-g" classList={{ away: mixing() }} style={{ '--row': `${rowHeight(barWidth())}px` }}>
                 <div class="sg-names">
                     <div class="sg-nh" aria-hidden="true">
                         <span>Vol</span>
