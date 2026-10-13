@@ -174,13 +174,6 @@ export const DOCS: DocSection[] = [
 <p>A song from someone else is code. Weft Loom plays it only if it is music code and nothing more. If it holds anything else, it says which line and asks first.</p>`,
     },
     {
-        id: 'pictures',
-        title: 'Pictures in the code',
-        pictures: [{ file: '/docs/pictures.webp', width: 432, height: 490, alt: 'The code of a song with a small piano roll drawn under the line that says pianoroll, and a wave drawn under the line that says scope.' }],
-        html: `<p>Strudel can draw what a pattern plays. Write <code>.pianoroll()</code> at the end of a pattern in the code and its notes are drawn under that line while the song plays. <code>.scope()</code> draws the wave of its sound, <code>.spectrum()</code> how much of it is low and high, and <code>.pitchwheel()</code> the notes that sound as places on a wheel.</p>
-<p>A picture can be told how large to be: <code>.pianoroll({ height: 120 })</code>.</p>`,
-    },
-    {
         id: 'more',
         title: 'Keys and updates',
         pictures: [],
