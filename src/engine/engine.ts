@@ -111,6 +111,8 @@ export interface Engine {
     // How many of the jam's changes are in the code here, in the relay's count.
     syncVersion(): number
     previewNote(midi: number, sound: string | null, seconds?: number): void
+    // The microphone was used a moment ago, so what the sound goes out through may have changed.
+    micWasUsed(): void
     // The shape of a sample along its length, as so many heights, and how long it is. Null for
     // a sound that is no sample, or whose file cannot be had.
     peaksOf(sound: string, count: number): Promise<{ peaks: number[]; seconds: number } | null>
@@ -585,6 +587,43 @@ export function createEngine(): Engine {
         renewLater()
     }
 
+    // Using the microphone can make the system change what the sound goes out through, as
+    // Bluetooth headphones do when they turn into a headset and back. The window's clock is
+    // then left on something that is heard no more, and nothing sounds until the app is started
+    // again. So after a take the clock is a fresh one from the next press on, made inside that
+    // press because only there is a clock allowed to start by itself. What the sound goes out
+    // through takes a moment to change back, so a press that comes sooner than that is followed
+    // by one more fresh clock at the first press after it. A song that plays is left alone: it
+    // gets its fresh clock at the first press after it has been stopped.
+    const SETTLED_AFTER = 3000
+    let micUsed: number | null = null
+    let freshSince = false
+    const freshClock = () => {
+        if (micUsed === null || renewing || state.playing || state.paused) return
+        const settled = performance.now() - micUsed >= SETTLED_AFTER
+        if (!settled && freshSince) return
+        const old: BaseAudioContext = getAudioContext()
+        if (old instanceof OfflineAudioContext) return
+        let next: AudioContext
+        try {
+            next = new AudioContext()
+        } catch {
+            return
+        }
+        if (settled) micUsed = null
+        freshSince = !settled
+        dropSpare()
+        setAudioContext(next)
+        setSuperdoughAudioController(null)
+        applyMix()
+        renewing = initAudio()
+            .then(applyMix, () => undefined)
+            .finally(() => {
+                renewing = null
+                void (old as AudioContext).close().catch(() => undefined)
+            })
+    }
+
     const audition = (make: () => Record<string, unknown>, seconds: number) => {
         wakeAudio()
         // A sound that is tried out is not cut off by the clock being changed under it.
@@ -790,8 +829,22 @@ export function createEngine(): Engine {
 
     const engine: Engine = {
         async mount(root, initialCode) {
-            window.addEventListener('pointerdown', () => gesture++, true)
-            window.addEventListener('keydown', () => gesture++, true)
+            window.addEventListener(
+                'pointerdown',
+                () => {
+                    gesture++
+                    freshClock()
+                },
+                true,
+            )
+            window.addEventListener(
+                'keydown',
+                () => {
+                    gesture++
+                    freshClock()
+                },
+                true,
+            )
             registerTheme()
             void loadAudio()
             lastCode = initialCode
@@ -1320,6 +1373,10 @@ export function createEngine(): Engine {
         },
         previewNote(midi, sound, seconds = 0.3) {
             audition(() => ({ note: midi, s: sound ?? 'triangle' }), seconds)
+        },
+        micWasUsed() {
+            micUsed = performance.now()
+            freshSince = false
         },
         async peaksOf(sound, count) {
             const [name, number] = sound.split(':')

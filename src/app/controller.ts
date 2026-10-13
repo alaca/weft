@@ -1691,7 +1691,7 @@ export async function keepTake() {
     setTakeSince(null)
     if (!made) return
     try {
-        const file = await made.stop()
+        const file = await made.stop().finally(() => engine.micWasUsed())
         if (!file) return void setOwnSoundNote('Nothing was recorded.')
         // A microphone is often set low, so a take is brought up to a level that is heard, and
         // one with nothing in it is not kept. It is stored as a plain WAV file either way.
