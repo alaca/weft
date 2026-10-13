@@ -54,8 +54,11 @@ export function CodePane() {
             </div>
             <Show when={engineState().error?.guard}>
                 <div class="guard" role="status" data-testid="guard">
+                    <Show when={DEMO}>
+                        <p>The demo plays only music code: patterns, sounds and numbers. Take that line out and the song goes on. The app itself plays any code you write.</p>
+                    </Show>
                     <Show
-                        when={jamming()}
+                        when={jamming() || DEMO}
                         fallback={
                             <>
                                 <p>This song came from someone else, so only music code is played: patterns, sounds and numbers. Read that line. If you trust who made the song, it can be played as it is.</p>
@@ -65,7 +68,9 @@ export function CodePane() {
                             </>
                         }
                     >
-                        <p>While you jam, only music code is played: patterns, sounds and numbers. Take that line out and the song goes on.</p>
+                        <Show when={!DEMO}>
+                            <p>While you jam, only music code is played: patterns, sounds and numbers. Take that line out and the song goes on.</p>
+                        </Show>
                     </Show>
                 </div>
             </Show>

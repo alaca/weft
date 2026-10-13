@@ -1896,8 +1896,11 @@ function show(record: SongRecord) {
 // or in a jam, and one that someone else has had their hands on, is therefore only played while
 // all of it is music code. Its owner can lift that for a song they trust, but not during a jam.
 function guardAs(record: SongRecord) {
-    engine.setGuard(Boolean(record.guarded))
-    setSongGuarded(Boolean(record.guarded))
+    // In the demo every song is played that way, also its own: what is typed there runs on the
+    // site's address, and somebody can be talked into pasting what they have not read.
+    const guarded = DEMO || Boolean(record.guarded)
+    engine.setGuard(guarded)
+    setSongGuarded(guarded)
 }
 
 function guardSong() {
@@ -1908,7 +1911,7 @@ function guardSong() {
 }
 
 export function trustSong() {
-    if (!current || !current.guarded || jamStage() === 'jamming') return
+    if (DEMO || !current || !current.guarded || jamStage() === 'jamming') return
     const { guarded: _, ...trusted } = current
     current = trusted
     guardAs(current)

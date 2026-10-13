@@ -38,6 +38,15 @@ test('the demo opens into a song, plays it, lets it be changed, and keeps nothin
     await page.getByRole('button', { name: 'Start this song over' }).click()
     await expect(page.getByTestId('tempo')).toHaveValue('174')
 
+    // Only music code is played, and that cannot be lifted here.
+    await page.evaluate(() => (window as any).__weft.engine.applyEdit({ from: 0, to: 0, insert: 'fetch("/api/songs")\n' }))
+    await page.getByRole('button', { name: /^Update/ }).click()
+    await expect(page.getByTestId('guard')).toContainText('The demo plays only music code')
+    await expect(page.getByRole('button', { name: 'Play it anyway' })).toHaveCount(0)
+    await page.getByTestId('song-name').click()
+    await page.getByRole('button', { name: 'Start this song over' }).click()
+    await expect(page.getByTestId('guard')).toHaveCount(0)
+
     // Save does nothing here, and does not bring up the browser's own saving either.
     await page.keyboard.press('ControlOrMeta+s')
 
