@@ -1,6 +1,7 @@
 import { controlText, findDef, mixText } from '../controls/catalog'
 import { groupOf, lengthEdits, LEVEL, LOUDER, MAX_STEPS, MOST_REPEATS, sourceText, STEP_KINDS, type GridRow } from './grid'
 import { fitsBar, meterNow, usualSteps } from './meter'
+import { readLaid } from './audio'
 import { readSlices } from './slices'
 import type { Arg, Call, PatternBlock, TextEdit } from './types'
 
@@ -109,8 +110,8 @@ export function readKit(block: PatternBlock): Kit | null {
 }
 
 // A sample that is cut into parts starts with the name of a sound as a drum pattern does, and is
-// not one.
-export const isDrums = (block: PatternBlock): boolean => (sourceText(block) !== null && readSlices(block) === null) || readKit(block) !== null
+// not one. Nor is a recording that plays along the song.
+export const isDrums = (block: PatternBlock): boolean => (sourceText(block) !== null && readSlices(block) === null && readLaid(block) === null) || readKit(block) !== null
 
 export function structText(steps: boolean[]): string {
     const groups: string[] = []

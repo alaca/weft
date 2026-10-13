@@ -4,6 +4,7 @@ import { MOST_VARIANTS, variantBars, variantName } from '../song/variants'
 import { writeNumber } from '../controls/catalog'
 import { favourites, panOf, volumeOf, type ControlView } from '../controls/views'
 import { isDrums, readKit } from '../song/kit'
+import { readLaid } from '../song/audio'
 import { readFollower } from '../song/chords'
 import { readSlices } from '../song/slices'
 import { noteText } from '../song/notes'
@@ -16,6 +17,7 @@ import { Knob } from './Knob'
 import { MiniView } from './MiniView'
 import { NoteRoll } from './NoteRoll'
 import { PianoRoll } from './PianoRoll'
+import { AudioRack } from './AudioRack'
 import { ChordRack } from './ChordRack'
 import { SliceRack } from './SliceRack'
 import { SoundPanel } from './SoundPanel'
@@ -107,7 +109,8 @@ export function Strip(props: { id: string }) {
     const isRoll = () => block() !== undefined && noteText(block()) !== null
     const isSliced = () => block() !== undefined && readSlices(block()) !== null
     const isFollower = () => block() !== undefined && readFollower(codeNow(), block()) !== null
-    const isRack = () => !isSliced() && !isFollower() && !isRoll() && notes() === null && block() !== undefined && (steps() !== null || isDrums(block()))
+    const isAudio = () => block() !== undefined && readLaid(block()) !== null
+    const isRack = () => !isAudio() && !isSliced() && !isFollower() && !isRoll() && notes() === null && block() !== undefined && (steps() !== null || isDrums(block()))
 
     // Where the grid or the roll of this strip puts its length, steps and cycle.
     let head!: HTMLSpanElement
@@ -393,6 +396,9 @@ export function Strip(props: { id: string }) {
                                 <Show when={isFollower()}>
                                     <ChordRack id={props.id} block={current()} head={head} playing={playing()} position={position()} cycle={bar()} />
                                 </Show>
+                                <Show when={isAudio()}>
+                                    <AudioRack id={props.id} block={current()} playing={playing()} position={position()} cycle={bar()} />
+                                </Show>
                                 <Show when={isSliced()}>
                                     <SliceRack id={props.id} block={current()} head={head} playing={playing()} position={position()} cycle={bar()} />
                                 </Show>
@@ -402,7 +408,7 @@ export function Strip(props: { id: string }) {
                                 <Show when={isRoll()}>
                                     <NoteRoll id={props.id} block={current()} head={head} played={notes()?.notes ?? []} playing={playing()} position={position()} cycle={bar()} />
                                 </Show>
-                                <Show when={!isRoll() && !isFollower() && notes()}>
+                                <Show when={!isRoll() && !isFollower() && !isAudio() && notes()}>
                                     {(roll) => (
                                         <>
                                             <PianoRoll lowest={roll().lowest} highest={roll().highest} notes={roll().notes} playing={playing()} position={position()} />
@@ -412,7 +418,7 @@ export function Strip(props: { id: string }) {
                                         </>
                                     )}
                                 </Show>
-                                <Show when={!isSliced() && !isRack() && !isRoll() && view().kind === 'empty'}>
+                                <Show when={!isAudio() && !isSliced() && !isRack() && !isRoll() && view().kind === 'empty'}>
                                     <p class="st-empty">Nothing to draw. This pattern makes no sound in this cycle.</p>
                                 </Show>
                             </div>

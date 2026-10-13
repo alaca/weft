@@ -1,4 +1,5 @@
 import { ARRANGE } from './arrange'
+import { readLaid } from './audio'
 import { MAX_BARS } from './bars'
 import { setString } from './edits'
 import type { Arg, Call, PatternBlock, TextEdit } from './types'
@@ -64,7 +65,12 @@ export function readCurve(call: Call | undefined): Curve | null {
     return values ? { call, arg, values } : null
 }
 
-export const curvesOf = (block: PatternBlock): Curve[] => block.calls.slice(1).flatMap((call) => readCurve(call) ?? [])
+// The fades of a recording that plays along the song are written the same way too. They
+// follow where the recording is heard, and are not drawn.
+export const curvesOf = (block: PatternBlock): Curve[] => {
+    const laid = readLaid(block)
+    return block.calls.slice(1).flatMap((call) => (laid && (call === laid.attack || call === laid.release) ? [] : (readCurve(call) ?? [])))
+}
 
 // The curve over a song of this many bars. One that is shorter goes round, as Strudel plays it.
 export const curveOver = (values: string[], length: number): string[] => Array.from({ length }, (_, bar) => values[bar % values.length])

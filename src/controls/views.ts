@@ -1,3 +1,4 @@
+import { readLaid } from '../song/audio'
 import { readCurve } from '../song/curves'
 import type { Arg, Call, PatternBlock } from '../song/types'
 import { readMotion, type Motion } from './motion'
@@ -113,12 +114,18 @@ function viewOfCall(call: Call): ControlView | null {
     return { ...base, state: 'locked', value: def.initial, min: def.min, max: def.max, scale: def.scale, text: stepped ? 'per step' : 'in code' }
 }
 
+// A recording that plays along the song is cut into pieces that are found by where they begin
+// and joined by how they fade. What would move either is not offered as a knob.
+const LAID = ['attack', 'decay', 'sustain', 'release', 'speed', 'begin', 'end']
+const notFor = (block: PatternBlock): string[] => (readLaid(block) ? LAID : [])
+
 function present(block: PatternBlock): ControlView[] {
     const seen = new Set<string>()
     const views: ControlView[] = []
+    const not = notFor(block)
     for (const call of block.calls) {
         const view = viewOfCall(call)
-        if (!view || seen.has(view.fn)) continue
+        if (!view || seen.has(view.fn) || not.includes(view.fn)) continue
         seen.add(view.fn)
         views.push(view)
     }
@@ -148,9 +155,11 @@ export function favourites(block: PatternBlock): ControlView[] {
 export function browserItems(block: PatternBlock, filter: FilterType): ControlDef[] {
     const kind = soundKind(block)
     const starters = Object.values(startersFor(kind, filterTypeOf(block) ?? filter)).flat()
+    const not = notFor(block)
     return CONTROLS.filter(
         (def) =>
             def.group !== 'pattern' &&
+            !not.includes(def.fn) &&
             !MIX.includes(def.fn) &&
             !starters.includes(def.fn) &&
             !familyOf(def.fn) &&
@@ -166,11 +175,12 @@ export function panelFor(block: PatternBlock, filter?: FilterType): { group: Pan
     const inCode = present(block).filter((view) => !MIX.includes(view.fn))
     const kind = soundKind(block)
     const starters = startersFor(kind, filterTypeOf(block) ?? filter ?? 'low')
+    const not = notFor(block)
     return PANEL_GROUPS.map((group) => {
-        const first = starters[group].filter((fn) => !MIX.includes(fn)).map((fn) => inCode.find((view) => view.fn === fn) ?? faint(CONTROLS.find((def) => def.fn === fn) as ControlDef))
+        const first = starters[group].filter((fn) => !MIX.includes(fn) && !not.includes(fn)).map((fn) => inCode.find((view) => view.fn === fn) ?? faint(CONTROLS.find((def) => def.fn === fn) as ControlDef))
         // A control that only does something together with another is offered beside it, from the
         // moment the other is in the code.
-        const beside = CONTROLS.filter((def) => def.group === group && def.needs && (!def.only || def.only === kind) && callFor(block, def.needs))
+        const beside = CONTROLS.filter((def) => def.group === group && def.needs && !not.includes(def.fn) && (!def.only || def.only === kind) && callFor(block, def.needs))
         const offered = beside.map((def) => inCode.find((view) => view.fn === def.fn) ?? faint(def))
         const rest = inCode.filter((view) => view.group === group && !starters[group].includes(view.fn) && !beside.some((def) => def.fn === view.fn))
         return { group, items: [...first, ...offered, ...rest] }

@@ -1,9 +1,9 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js'
 import { Fold, isFolded } from './Fold'
-import { addOwnSounds, addSlices, closeSounds, colorAt, hearSound, keepTake, openTrim, presetOf, recordTake, removeOwnSound, removePreset, soundCatalogue, useSound } from '../app/controller'
+import { addAudio, addOwnSounds, addSlices, closeSounds, colorAt, hearSound, keepTake, openTrim, presetOf, recordTake, removeOwnSound, removePreset, soundCatalogue, useSound } from '../app/controller'
 import { DEMO } from '../demo/demo'
 import { lengthText } from '../library/sounds'
-import { fits, inUse, isPreset, isSliced, takesKit } from '../sounds/apply'
+import { fits, inUse, isLaid, isPreset, isSliced, takesKit } from '../sounds/apply'
 import { KIND_LABELS } from '../sounds/presets'
 import { countSounds, findSounds, SOUND_DRAG, SOUND_GROUPS, type SoundGroup, type SoundItem } from '../sounds/catalog'
 import { engineState, ownPresets, ownSoundNote, ownSounds, selected, setDraggedSound, song, soundsOpen, stale, takeOpening, takeSince } from '../stores/song'
@@ -41,7 +41,7 @@ export function SoundBrowser() {
     }
     const shown = createMemo(() => findSounds(items(), group(), query()))
     const counts = createMemo(() => countSounds(items(), query()))
-    const suited = (): SoundGroup => (target() && isSliced(target()) ? 'samples' : target() && takesKit(target()) ? 'kits' : 'instruments')
+    const suited = (): SoundGroup => (target() && isLaid(target()) ? 'yours' : target() && isSliced(target()) ? 'samples' : target() && takesKit(target()) ? 'kits' : 'instruments')
     const canSlice = (item: SoundItem) => item.group === 'samples' || item.group === 'yours'
     const usable = () => target() !== undefined && fits(target(), group())
     const used = (item: SoundItem) => target() !== undefined && inUse(target(), item)
@@ -128,11 +128,14 @@ export function SoundBrowser() {
                 <Show when={target() && !usable() ? target() : undefined}>
                     {(block) => (
                         <p class="sb-n" data-testid="sound-hint">
+                            <Show when={isLaid(block())}>
+                                <b>{block().id}</b> plays a recording along the song, so it takes a sound of your own. <button onClick={() => setGroup('yours')}>Show yours</button>
+                            </Show>
                             <Show when={isSliced(block())}>
                                 <b>{block().id}</b> plays a sample cut into parts, so it takes a sample or a sound of your own. <button onClick={() => setGroup('samples')}>Show samples</button>
                             </Show>
                             <Show
-                                when={takesKit(block()) || isSliced(block())}
+                                when={takesKit(block()) || isSliced(block()) || isLaid(block())}
                                 fallback={
                                     <>
                                         <b>{block().id}</b> plays notes, so it takes an instrument, a synth, a sample or a preset.{' '}
@@ -140,7 +143,7 @@ export function SoundBrowser() {
                                     </>
                                 }
                             >
-                                <Show when={!isSliced(block())}>
+                                <Show when={!isSliced(block()) && !isLaid(block())}>
                                     <b>{block().id}</b> is a drum grid, so it takes a drum kit. <button onClick={() => setGroup('kits')}>Show drum kits</button>
                                 </Show>
                             </Show>
@@ -232,6 +235,17 @@ export function SoundBrowser() {
                                     </button>
                                 </Show>
                                 <Show when={item.group === 'yours'}>
+                                    <button
+                                        class="sb-k"
+                                        disabled={stale()}
+                                        aria-label={`Put ${item.label} in the song`}
+                                        title="Put in the song: start a pattern that plays this recording along the bars, from the bar it was recorded at or the bar the song is at"
+                                        onClick={() => addAudio(item)}
+                                    >
+                                        <svg viewBox="0 0 14 14" aria-hidden="true">
+                                            <path d="M1.5 7h1M4 4.5v5M6.3 2.8v8.4M8.6 5v4M10.9 3.8v6.4M12.5 7h.3" />
+                                        </svg>
+                                    </button>
                                     <button class="rx tr-b" aria-label={`Cut ${item.label} shorter`} title="Cut its start and its end off" onClick={() => void openTrim(item.name)}>
                                         <svg viewBox="0 0 10 10">
                                             <path d="M2 1.5v7M8 1.5v7M2 5h6" />

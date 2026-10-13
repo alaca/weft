@@ -22,6 +22,7 @@ import { drumLabel } from '../controls/drums'
 import { envelopeOf, envelopePoints } from '../controls/envelope'
 import { callFor, panelFor } from '../controls/views'
 import { isDrums } from '../song/kit'
+import { isLaid } from '../sounds/apply'
 import type { PatternBlock } from '../song/types'
 import { stale } from '../stores/song'
 import { ControlBrowser } from './ControlBrowser'
@@ -215,7 +216,7 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
             </div>
             <div class="sp-f">
                 <span>Faint knobs are not in the code yet. Press one and its line is added.</span>
-                <Show when={!props.only && !isDrums(props.block)}>
+                <Show when={!props.only && !isDrums(props.block) && !isLaid(props.block)}>
                     <button
                         class="btn"
                         classList={{ on: naming() }}

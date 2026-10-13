@@ -381,7 +381,7 @@ svg.mini rect { fill: var(--h); }
 .sb-q { display: flex; flex-direction: column; gap: 9px; padding: 0 12px 10px; }
 .sb-q .br-s { flex: none; }
 .sb-q .br-c { flex-wrap: wrap; }
-.sb-c { margin-left: 6px; font: 500 10px/1 var(--mono); font-stretch: 87%; color: var(--linen-3); }
+.sb-c { margin-left: 6px; font: 500 10px/1 var(--mono); font-stretch: 87%; color: var(--linen-3); white-space: nowrap; flex: none; }
 .sb-n { margin: 0 12px 10px; padding: 9px 11px; border: 1px dashed var(--seam); border-radius: 8px; color: var(--linen-2); font-size: 11.5px; line-height: 1.5; }
 .sb-n b { color: var(--linen); font-weight: 600; }
 .sb-n button { color: var(--linen); text-decoration: underline; text-underline-offset: 2px; }
@@ -395,7 +395,8 @@ svg.mini rect { fill: var(--h); }
 .sb-k:hover:not(:disabled) { background: var(--cloth-2); color: var(--linen); }
 .sb-k:disabled { opacity: 0.4; cursor: default; }
 .sb-k svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; }
-.sb-i.own { grid-template-columns: minmax(0, 1fr) auto auto auto auto; }
+.sb-i.own { grid-template-columns: minmax(0, 1fr) auto auto auto auto auto; column-gap: 4px; }
+.sb-i.own .sb-p code { flex: 0 20 auto; min-width: 0; }
 .sb-i:hover .rx, .sb-i .rx:focus-visible { opacity: 1; }
 .sb-own { display: flex; align-items: center; gap: 10px; margin: 0 12px 10px; color: var(--linen-3); font-size: 11.5px; line-height: 1.4; }
 .sb-own .btn { flex: none; }
@@ -895,6 +896,25 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .sl.many .rn { height: 11px; font-size: 8.5px; line-height: 11px; }
 .sl-f { display: flex; align-items: center; gap: 6px; flex: 1; }
 .sbar-off { color: var(--saffron); }
+
+/* A recording that plays along the song: its shape with the bars of the song over it. */
+.al-w { position: relative; height: 72px; margin: 2px 0 12px; border-radius: 8px; background: rgba(236, 230, 214, 0.04); overflow: hidden; }
+.al-w svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.al-w path { fill: none; stroke: var(--linen-3); stroke-width: 1.6; opacity: 0.7; }
+.al-p { position: absolute; top: 0; bottom: 0; display: block; text-align: left; }
+.al-p.line { border-left: 1px solid rgba(236, 230, 214, 0.16); }
+.al-p:first-of-type { border-left: 0; }
+.al-p.on { background: color-mix(in srgb, var(--h) 22%, transparent); }
+.al-p:hover { background: color-mix(in srgb, var(--h) 36%, transparent); }
+.al-p b { position: absolute; left: 4px; top: 4px; font: 600 9px/1 var(--mono); color: var(--linen-2); }
+.al-f { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; }
+.al-l { display: inline-flex; align-items: center; gap: 6px; }
+.al-i { width: 46px; height: 23px; padding: 0 6px; border-radius: 7px; background: var(--vat); border: 1px solid var(--seam); color: var(--linen); font: 500 12px/1 var(--mono); -moz-appearance: textfield; appearance: textfield; }
+.al-i::-webkit-outer-spin-button, .al-i::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.al-i:focus { outline: none; border-color: var(--linen-3); }
+.al-i:disabled { color: var(--linen-3); }
+.al-t { color: var(--linen-3); font-size: 11.5px; }
+.al-n { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; color: var(--saffron); font-size: 11.5px; }
 
 /* The patterns as the strips of a mixing desk, in the song panel's place of the bars. */
 .sg-g.away, .sg-h .away { display: none; }

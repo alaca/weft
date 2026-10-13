@@ -1,3 +1,4 @@
+import { readLaid } from '../song/audio'
 import { addCall, setString } from '../song/edits'
 import { isDrums, readKit } from '../song/kit'
 import { readSlices } from '../song/slices'
@@ -11,7 +12,12 @@ export const takesKit = (block: PatternBlock): boolean => isDrums(block)
 // A sample that is cut into parts is a sample or a sound of your own, and nothing else.
 export const isSliced = (block: PatternBlock): boolean => readSlices(block) !== null
 
-export const fits = (block: PatternBlock, group: SoundGroup): boolean => (isSliced(block) ? group === 'samples' || group === 'yours' : group === 'yours' || (group === 'kits') === takesKit(block))
+// A recording that plays along the song is a sound of your own: only of those is it known how
+// long they are.
+export const isLaid = (block: PatternBlock): boolean => readLaid(block) !== null
+
+export const fits = (block: PatternBlock, group: SoundGroup): boolean =>
+    isLaid(block) ? group === 'yours' : isSliced(block) ? group === 'samples' || group === 'yours' : group === 'yours' || (group === 'kits') === takesKit(block)
 
 // A preset is a whole sound, for a pattern that plays notes.
 export const isPreset = (item: SoundItem): boolean => item.group === 'presets'
@@ -25,7 +31,7 @@ export const inUse = (block: PatternBlock, item: SoundItem): boolean => {
 }
 
 export function soundEdit(code: string, block: PatternBlock, item: SoundItem): TextEdit {
-    const sliced = readSlices(block)
+    const sliced = readSlices(block) ?? readLaid(block)
     if (sliced) return setString(sliced.sound, item.name)
     const names = item.group === 'kits' ? ['bank'] : ['s', 'sound']
     const arg = block.calls.slice(1).find((call) => names.includes(call.name) && call.args[0]?.kind === 'string')?.args[0]

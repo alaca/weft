@@ -3,6 +3,7 @@ import { controlText, FILTERS, filterTypeOf, findDef, mixText, writeNumber, type
 import { drumChoices } from '../controls/drums'
 import { firstMotion, motionText, readMotion, type Motion } from '../controls/motion'
 import { callFor, controlOf, valueArg, type ControlView } from '../controls/views'
+import { audioCode, audioEdits, barsOfSound, heardIn, JOIN, listFrom, LONGEST_FADE, readLaid, relist, startOf, type Audio, type AudioPlan } from '../song/audio'
 import { curveOver, curveText, followSong, readCurve, stretched } from '../song/curves'
 import { dropScene, freeSceneName, keepScene, readScenes, renameScene, sceneBar, sceneEdits, type Scene } from '../song/scenes'
 import { addVariant, chooseEdit, followChoices, removeVariant, variantBars } from '../song/variants'
@@ -89,7 +90,7 @@ import {
     type StarterKind,
 } from '../song/patterns'
 import type { PatternBlock, PatternEvent, TextEdit } from '../song/types'
-import { fits, isPreset, isRow, soundEdit, soundTextAt } from '../sounds/apply'
+import { fits, isLaid, isPreset, isRow, soundEdit, soundTextAt } from '../sounds/apply'
 import { catalogue, type SoundItem } from '../sounds/catalog'
 import type { Bars } from '../jam/protocol'
 import { jamsOpen, jamStage, setJamsOpen, setJamUnread, setSoundsShare, soundsShare } from '../stores/jam'
@@ -853,7 +854,8 @@ export function setEcho(id: string, value: number | null) {
 
 export function setTempo(bpm: number, held = false) {
     if (stale() || song().tempoLocked || tempoLane() || !Number.isFinite(bpm)) return
-    engine.applyEdit(tempoEdit(song(), Math.round(Math.min(300, Math.max(20, bpm)))))
+    const wanted = Math.round(Math.min(300, Math.max(20, bpm)))
+    engine.applyEdit([tempoEdit(song(), wanted), ...refitEdits((60 * meterNow().quarters) / wanted)])
     replay(held)
 }
 
@@ -867,7 +869,7 @@ export function chooseMeter(label: string) {
     if (!wanted || stale() || song().tempoLocked || wanted === meterNow()) return
     const edits = meterEdits(engine.getCode(), song(), wanted)
     if (!edits.length) return
-    engine.applyEdit(edits)
+    engine.applyEdit([...edits, ...refitEdits((60 * wanted.quarters) / (song().tempo?.bpm ?? engine.bpm()))])
     replay()
 }
 
@@ -1336,6 +1338,175 @@ export function addSlices(item: SoundItem): string | null {
     return item.group === 'samples' || item.group === 'yours' ? addStarter('slices', (name) => slicesCode(name, item.name, mixText())) : null
 }
 
+// ---- a recording that plays along the song: a sound of your own that is longer than a bar,
+// laid on the bars from one of them on. Where it is, and how it fades, is in the code.
+const audioOf = (id: string): { block: PatternBlock; audio: Audio } | null => {
+    const block = find(id)
+    const audio = block ? readLaid(block) : null
+    return block && audio ? { block, audio } : null
+}
+
+const secondsOfSound = (name: string): number | null => ownSounds().find((sound) => sound.name === name)?.seconds ?? null
+
+// How long a bar is at the tempo that is written for the song. A recording keeps the speed it
+// was made at, so this is what says how many bars it is long.
+export const barSecondsNow = (): number => (60 * meterNow().quarters) / (song().tempo?.bpm ?? engine.bpm())
+
+type Laid = Partial<Omit<AudioPlan, 'heard'>>
+
+const planFor = (audio: Audio, laid: Laid, plays: boolean[]): AudioPlan => {
+    const bars = laid.bars ?? audio.bars
+    const list = laid.list ?? audio.list
+    return { bars, list, lateBy: laid.lateBy ?? audio.lateBy, heard: heardIn(list, bars, plays), fadeIn: laid.fadeIn ?? audio.fadeIn, fadeOut: laid.fadeOut ?? audio.fadeOut }
+}
+
+// A recording is laid along the bars of the song, so what is done to the bars is done to it:
+// `next` is given which bar of it each bar plays and the bars it is heard in, and gives back
+// both as they are after the change.
+function followAudio(before: number, next: (was: { list: (number | null)[]; plays: boolean[] }, block: PatternBlock, audio: Audio) => Laid & { plays: boolean[] }): TextEdit[] {
+    const code = engine.getCode()
+    return lanes().flatMap((block) => {
+        const audio = readLaid(block)
+        if (!audio) return []
+        const list = Array.from({ length: before }, (_, bar) => audio.list[bar % audio.list.length])
+        const { plays, ...laid } = next({ list, plays: barsOf(block, before) }, block, audio)
+        return audioEdits(code, audio, planFor(audio, { list, ...laid }, plays))
+    })
+}
+
+// The place in the song at which the microphone was opened for a take, for as long as the app
+// is open: a take that was sung to the song goes where it was sung.
+const takenAt = new Map<string, number>()
+let takeAt: number | null = null
+
+// A sound of your own as a new pattern that plays it along the song, from the bar it was
+// recorded at, or else from the bar the song is at. Unlike any other new pattern it is in the
+// song at once: being in it is what it is for.
+export function addAudio(item: SoundItem): string | null {
+    const seconds = secondsOfSound(item.name)
+    if (item.group !== 'yours' || seconds === null) return null
+    const at = Math.max(0, takenAt.get(item.name) ?? barNow())
+    const start = Math.floor(at)
+    const bars = barsOfSound(seconds, barSecondsNow())
+    const list = listFrom(start, bars, songLengthNow())
+    return addStarter('audio', (name) => audioCode(name, item.name, bars, list, at - start, mixText()), undefined, (name) =>
+        barsEdits(
+            name,
+            list.map((piece) => piece !== null),
+        ),
+    )
+}
+
+// The recording moved so that it begins at this place in the song, in bars. The bars it is
+// heard in move with it, and a song that is too short for it is made longer.
+function moveAudio(id: string, to: number) {
+    const found = audioOf(id)
+    if (!found || stale()) return
+    const { block, audio } = found
+    const at = Math.max(0, to)
+    const start = Math.floor(at + 1e-6)
+    const lateBy = Math.max(0, at - start)
+    const length = songLengthNow()
+    const was = startOf(audio.list)
+    const list = listFrom(start, audio.bars, length)
+    const plays = barsOf(block, length)
+    const untouched = was === null || !readArrangement(block)
+    const moved = list.map((piece, bar) => piece !== null && (untouched || (plays[bar - (start - (was ?? start))] ?? false)))
+    if (barsEdits(id, moved, undefined, { list, lateBy })) replay()
+}
+
+export const audioPlace = (id: string): number | null => {
+    const found = audioOf(id)
+    const start = found ? startOf(found.audio.list) : null
+    return found && start !== null ? start + found.audio.lateBy : null
+}
+
+export function setAudioStart(id: string, bar: number) {
+    const found = audioOf(id)
+    if (found && Number.isFinite(bar)) moveAudio(id, Math.round(bar) + found.audio.lateBy)
+}
+
+// Earlier or later by so many seconds: the way a take that was sung a little late is put right.
+export function nudgeAudio(id: string, seconds: number) {
+    const at = audioPlace(id)
+    if (at !== null) moveAudio(id, at + seconds / barSecondsNow())
+}
+
+// The bars the recording is heard in: from one bar of the song to another, both part of it.
+export function setAudioHeard(id: string, first: number, last: number) {
+    const found = audioOf(id)
+    if (!found || stale()) return
+    const from = Math.max(0, Math.min(first, last))
+    const to = Math.min(MAX_BARS - 1, Math.max(first, last))
+    // Past the end of the song there can be more of the recording, and the song is made longer for it.
+    const list = relist(found.audio, Math.max(songLengthNow(), to + 1))
+    if (barsEdits(id, list.map((piece, bar) => piece !== null && piece < found.audio.bars && bar >= from && bar <= to))) replay()
+}
+
+// How long the recording takes to come in where it begins to be heard, and to go out where it
+// stops. Coming in is done within the bar it begins in. Going out is done after the last bar
+// it is heard in, with what the recording has there.
+export function setAudioFade(id: string, which: 'in' | 'out', seconds: number, held = false) {
+    const found = audioOf(id)
+    if (!found || stale() || !Number.isFinite(seconds)) return
+    const most = which === 'in' ? Math.min(LONGEST_FADE, barSecondsNow()) : LONGEST_FADE
+    const fade = seconds <= JOIN ? 0 : Math.min(most, seconds)
+    const length = Math.max(songLengthNow(), found.audio.list.length)
+    const edits = audioEdits(engine.getCode(), found.audio, planFor(found.audio, which === 'in' ? { fadeIn: fade } : { fadeOut: fade }, barsOf(found.block, length)))
+    if (!edits.length) return
+    engine.applyEdit(edits)
+    replay(held)
+}
+
+// A recording is as many bars long as its seconds make at the tempo of the song. When the
+// tempo, the bar or the sound itself changes, the number that says so is written again, and
+// the recording is laid out again from where it began. `cut` is what was taken off the start
+// of a sound, in seconds: what is left of it stays where it was heard.
+function refitEdits(barSeconds: number, cut?: { name: string; seconds: number }): TextEdit[] {
+    const code = engine.getCode()
+    const length = songLengthNow()
+    return lanes().flatMap((block) => {
+        const audio = readLaid(block)
+        const seconds = audio ? secondsOfSound(audio.sound.value) : null
+        if (!audio || seconds === null) return []
+        const bars = barsOfSound(seconds, barSeconds)
+        const moved = cut?.name === audio.sound.value ? cut.seconds / barSeconds : 0
+        if (bars === audio.bars && !moved) return []
+        const at = Math.max(0, (startOf(audio.list) ?? 0) + audio.lateBy + moved)
+        const start = Math.floor(at + 1e-6)
+        const list = listFrom(start, bars, length).slice(0, Math.max(length, audio.list.length))
+        return audioEdits(code, audio, planFor(audio, { bars, list, lateBy: Math.max(0, at - start) }, barsOf(block, list.length)))
+    })
+}
+
+// What a recording needs written again to be in time, when it does. The tempo typed into the
+// code is not followed by itself, so this is also asked for from the pattern's own panel.
+export const audioFits = (id: string): boolean => {
+    const found = audioOf(id)
+    const seconds = found ? secondsOfSound(found.audio.sound.value) : null
+    return !found || seconds === null || barsOfSound(seconds, barSecondsNow()) === found.audio.bars
+}
+
+export function refitAudio() {
+    if (stale()) return
+    const edits = refitEdits(barSecondsNow())
+    if (!edits.length) return
+    engine.applyEdit(edits)
+    replay()
+}
+
+// A stretch of the recording, from a part of its whole length on.
+const HEARD_FOR = 4
+export function hearAudio(id: string, from: number) {
+    const found = audioOf(id)
+    if (found) engine.previewPart(found.audio.sound.value, Math.min(0.999, Math.max(0, from)), 1, HEARD_FOR)
+}
+
+export const audioSeconds = (id: string): number | null => {
+    const found = audioOf(id)
+    return found ? secondsOfSound(found.audio.sound.value) : null
+}
+
 export function addRow(id: string, sound: string) {
     changeDrums(id, (drums) =>
         drums.rows.some((row) => row.sound === sound) ? null : { rows: [...drums.rows, { sound, steps: Array<boolean>(drums.steps).fill(false) }], cycles: drums.cycles },
@@ -1518,7 +1689,7 @@ export function setNotesSteps(id: string, perCycle: number) {
     })
 }
 
-function addStarter(base: string, code: (name: string) => string, range?: { low: number; high: number }): string | null {
+function addStarter(base: string, code: (name: string) => string, range?: { low: number; high: number }, into: (name: string, length: number) => void = restEverywhere): string | null {
     if (stale()) return null
     const name = freeName(
         base,
@@ -1537,7 +1708,7 @@ function addStarter(base: string, code: (name: string) => string, range?: { low:
     // code. What the window does after a change of the code is done once, after both.
     batch(() => {
         engine.applyEdit(appendPattern(engine.getCode(), code(name)))
-        restEverywhere(name, length)
+        into(name, length)
     })
     replay()
     select(name)
@@ -1681,7 +1852,7 @@ function keepPresets(next: Preset[]): boolean {
 export function savePreset(id: string, text: string): string {
     const block = find(id)
     const name = cleanPresetName(text)
-    if (!block || isDrums(block)) return 'Only a pattern that plays notes has a sound to save.'
+    if (!block || isDrums(block) || isLaid(block)) return 'Only a pattern that plays notes has a sound to save.'
     if (!name) return 'Give the preset a name first.'
     const calls = presetCalls(engine.getCode(), block)
     if (!calls.length) return 'This pattern has no sound of its own yet. Choose one in the Sounds panel first.'
@@ -1743,6 +1914,9 @@ export function useSound(id: string, item: SoundItem) {
     if (isPreset(item)) return usePreset(id, item.name)
     if (isRow(block, item)) return addRow(id, item.name)
     engine.applyEdit(soundEdit(engine.getCode(), block, item))
+    // Another recording is another length, laid out from where the one before began.
+    const refit = isLaid(block) ? refitEdits(barSecondsNow()) : []
+    if (refit.length) engine.applyEdit(refit)
     replay()
 }
 
@@ -1853,6 +2027,7 @@ export async function recordTake() {
     setTakeOpening(true)
     try {
         take = await startTake()
+        takeAt = engineState().playing && playMode() === 'song' ? Math.max(0, engine.now()) : null
         setTakeSince(Date.now())
     } catch (err) {
         const refused = whyNot(err)
@@ -1864,9 +2039,12 @@ export async function recordTake() {
 
 export async function keepTake() {
     const made = take
+    const at = takeAt
     take = null
+    takeAt = null
     setTakeSince(null)
     if (!made) return
+    const had = new Set(ownSounds().map((sound) => sound.name))
     try {
         const file = await made.stop().finally(() => engine.micWasUsed())
         if (!file) return void setOwnSoundNote('Nothing was recorded.')
@@ -1879,6 +2057,8 @@ export async function keepTake() {
         const level = Math.min(MOST_GAIN, TAKE_LEVEL / peak)
         const bytes = await encodeWavInTurns(heard.channels, heard.sampleRate, { level })
         await addOwnSounds([new File([bytes.buffer as ArrayBuffer], 'recording.wav', { type: 'audio/wav' })])
+        const kept = ownSounds().find((sound) => !had.has(sound.name))
+        if (kept && at !== null) takenAt.set(kept.name, at)
     } catch (err) {
         const refused = whyNot(err)
         setOwnSoundNote(`${NO_TAKE[refused.why]}${refused.why === 'other' ? ` (${refused.message})` : ''}`)
@@ -1942,6 +2122,9 @@ export async function keepTrim() {
         await ownSoundStore.put(next)
         await register(next)
         setOwnSounds([...ownSounds().filter((other) => other.name !== next.name), infoOfSound(next)].sort(byName))
+        // Where the sound plays along the song, what is left of it stays where it was.
+        const edits = stale() ? [] : refitEdits(barSecondsNow(), { name: next.name, seconds: from / heard.sampleRate })
+        if (edits.length) engine.applyEdit(edits)
         replay()
     }
     closeTrim()
@@ -2012,12 +2195,29 @@ const lanes = (): PatternBlock[] => {
 // `painted` are the bars that were filled with the version of the pattern that is in sight,
 // when the pattern has versions: those bars take that version.
 export function setBars(id: string, bars: boolean[], painted?: { from: number; to: number }) {
+    if (barsEdits(id, bars, painted)) replay()
+}
+
+// The bars of a pattern written, and with them everything that is as long as the song. `laid`
+// is where a recording is put in the same turn, when the pattern is one. True when the code
+// was changed.
+function barsEdits(id: string, bars: boolean[], painted?: { from: number; to: number }, laid?: Laid): boolean {
     const block = find(id)
-    if (!block || stale()) return
+    if (!block || stale()) return false
     const before = songLengthNow()
     const { edits, length } = arrangeSong(engine.getCode(), lanes(), id, bars, before)
     // What is drawn over the song is as long as the song, and stays so.
     if (length !== before) edits.push(...followChords(before, (values) => stretched(values, length)), ...followTempo(before, (values) => stretched(values, length)), ...followSong(lanes(), before, (values) => stretched(values, length)), ...followChoices(lanes(), before, (kinds) => stretched(kinds.map(String), length).map(Number), painted ? id : undefined))
+    edits.push(
+        ...followAudio(before, (was, other, audio) => {
+            const mine = other.id === id ? laid : undefined
+            return {
+                ...mine,
+                list: relist({ ...audio, bars: mine?.bars ?? audio.bars, list: mine?.list ?? was.list }, length),
+                plays: Array.from({ length }, (_, bar) => (other.id === id ? bars[bar] : was.plays[bar]) ?? false),
+            }
+        }),
+    )
     if (painted && block.variants) {
         const kinds = stretched(variantBars(block, before).map(String), length).map(Number)
         const choice = chooseEdit(
@@ -2028,9 +2228,9 @@ export function setBars(id: string, bars: boolean[], painted?: { from: number; t
     }
     setSongBars(length)
     if (startBar() >= length) startFrom(0)
-    if (!edits.length) return
+    if (!edits.length) return false
     engine.applyEdit(edits)
-    replay()
+    return true
 }
 
 export function toggleBar(id: string, bar: number) {
@@ -2087,7 +2287,7 @@ export function repeatLoop() {
     const before = songLengthNow()
     const { edits, length } = repeatEdits(engine.getCode(), lanes(), range.from, range.to, before)
     const again = <T,>(values: T[]) => [...values.slice(0, range.to), ...values.slice(range.from, range.to), ...values.slice(range.to)].slice(0, length)
-    edits.push(...followChords(before, again), ...followTempo(before, again), ...followSong(lanes(), before, again), ...followChoices(lanes(), before, again))
+    edits.push(...followChords(before, again), ...followTempo(before, again), ...followSong(lanes(), before, again), ...followChoices(lanes(), before, again), ...followAudio(before, (was) => ({ list: again(was.list), plays: again(was.plays) })))
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
     const moved = { from: range.to, to: Math.min(length, range.to + (range.to - range.from)) }
@@ -2106,7 +2306,7 @@ export function removeLoop() {
     if (!range || stale() || range.to - range.from >= before) return
     const { edits, length } = removeEdits(engine.getCode(), lanes(), range.from, range.to, before)
     const without = <T,>(values: T[]) => [...values.slice(0, range.from), ...values.slice(range.to)]
-    edits.push(...followChords(before, without), ...followTempo(before, without), ...followSong(lanes(), before, without), ...followChoices(lanes(), before, without))
+    edits.push(...followChords(before, without), ...followTempo(before, without), ...followSong(lanes(), before, without), ...followChoices(lanes(), before, without), ...followAudio(before, (was) => ({ list: without(was.list), plays: without(was.plays) })))
     clearLoop()
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
@@ -2123,7 +2323,9 @@ export function spaceLoop() {
     if (!range || stale()) return
     const { edits, length } = spaceEdits(engine.getCode(), lanes(), range.from, range.to, before)
     const spaced = <T,>(values: T[]) => [...values.slice(0, range.from), ...Array.from({ length: range.to - range.from }, () => values[range.from]), ...values.slice(range.from)].slice(0, length)
-    edits.push(...followChords(before, spaced), ...followTempo(before, spaced), ...followSong(lanes(), before, spaced), ...followChoices(lanes(), before, spaced))
+    // A recording rests through the empty bars and goes on after them.
+    const apart = <T,>(values: T[], rest: T) => [...values.slice(0, range.from), ...Array.from({ length: range.to - range.from }, () => rest), ...values.slice(range.from)].slice(0, length)
+    edits.push(...followChords(before, spaced), ...followTempo(before, spaced), ...followSong(lanes(), before, spaced), ...followChoices(lanes(), before, spaced), ...followAudio(before, (was) => ({ list: apart(was.list, null), plays: apart(was.plays, false) })))
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
     replay()
