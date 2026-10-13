@@ -1,8 +1,9 @@
 import { createMemo, createResource, createSignal, For, Show } from 'solid-js'
 import { arrangeSlices, hearSlice, paintSlices, setSliceFit, setSliceLength, setSliceSteps, slicePeaks, toggleSlice, type SliceOrder } from '../app/controller'
-import { MOST_PARTS, readSlices, SLICE_RESOLUTIONS, sliceRows } from '../song/slices'
+import { sliceSteps } from '../song/meter'
+import { MOST_PARTS, readSlices, sliceRows } from '../song/slices'
 import type { PatternBlock } from '../song/types'
-import { engineState, ownSounds, stale } from '../stores/song'
+import { engineState, meter, ownSounds, stale } from '../stores/song'
 import { GridFooter } from './GridFooter'
 import { StepGrid, type StepRow } from './StepGrid'
 
@@ -92,7 +93,7 @@ export function SliceRack(props: { id: string; block: PatternBlock; head: HTMLEl
                 head={props.head}
                 cycles={cycles()}
                 perCycle={perCycle()}
-                resolutions={SLICE_RESOLUTIONS}
+                resolutions={sliceSteps(meter())}
                 canUse={(resolution) => resolution * cycles() <= MOST_PARTS}
                 shown={shown()}
                 disabled={stale()}

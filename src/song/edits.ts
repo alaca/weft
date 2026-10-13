@@ -1,4 +1,5 @@
 import { parseBars } from './bars'
+import { meterNow } from './meter'
 import type { Arg, Call, PatternBlock, Song, TextEdit } from './types'
 
 type Numeric = Extract<Arg, { kind: 'number' | 'slider' }>
@@ -50,9 +51,10 @@ export function renameCalls(calls: Call[], rename: (name: string) => string | nu
 
 export function setTempo(song: Song, bpm: number): TextEdit {
     if (song.tempo) {
-        return { from: song.tempo.from, to: song.tempo.to, insert: song.tempo.unit === 'cpm' ? `${bpm}/4` : `${bpm}/240` }
+        const quarters = song.tempo.quarters ?? 4
+        return { from: song.tempo.from, to: song.tempo.to, insert: song.tempo.unit === 'cpm' ? `${bpm}/${quarters}` : `${bpm}/${60 * quarters}` }
     }
-    return { from: song.insertAt, to: song.insertAt, insert: `setcpm(${bpm}/4)\n\n` }
+    return { from: song.insertAt, to: song.insertAt, insert: `setcpm(${bpm}/${meterNow().quarters})\n\n` }
 }
 
 export function applyEdits(code: string, edits: TextEdit[]): string {

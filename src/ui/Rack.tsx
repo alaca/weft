@@ -5,7 +5,8 @@ import { callFor, panOf, valueArg, volumeOf } from '../controls/views'
 import { DRUM_RESOLUTIONS, readGrid, resample, STEP_KINDS, stepKind, stepValues, type Grid, type StepWhat } from '../song/grid'
 import { isDrums, readKit, rowTarget } from '../song/kit'
 import type { PatternBlock } from '../song/types'
-import { gridNotes, openPanel, stale } from '../stores/song'
+import { drumSteps, USUAL } from '../song/meter'
+import { gridNotes, meter, openPanel, stale } from '../stores/song'
 import { GridFooter } from './GridFooter'
 import { Knob } from './Knob'
 import { StepGrid, type ShownLane, type StepRow } from './StepGrid'
@@ -175,7 +176,7 @@ export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement
                     head={props.head}
                     cycles={cycles()}
                     perCycle={perCycle()}
-                    resolutions={DRUM_RESOLUTIONS}
+                    resolutions={meter() === USUAL ? DRUM_RESOLUTIONS : drumSteps(meter())}
                     canUse={(resolution) => {
                         const current = grid()
                         return !current || resample(current, resolution) !== null

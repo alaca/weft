@@ -38,7 +38,8 @@ export type PatternBlock = {
 // the code, which one is shown, and where the whole of it stands.
 export type Variants = { chooser: Extract<Arg, { kind: 'string' }>; items: { from: number; to: number }[]; shown: number; from: number; to: number }
 
-export type Tempo = { bpm: number; from: number; to: number; unit: 'cpm' | 'cps' }
+// `quarters` is how many quarter notes the song's bar holds, four unless the song says otherwise.
+export type Tempo = { bpm: number; from: number; to: number; unit: 'cpm' | 'cps'; quarters?: number }
 
 export type Song = {
     patterns: PatternBlock[]

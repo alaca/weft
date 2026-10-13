@@ -1,3 +1,4 @@
+import { fitsBar, meterNow, noteSteps, USUAL, usualSteps } from './meter'
 import { groupOf, lengthEdits } from './grid'
 import { noteNameToMidi } from './pitch'
 import type { Call, PatternBlock, TextEdit } from './types'
@@ -13,7 +14,8 @@ export type NoteSource = { grid: NoteGrid; from: number; to: number; slow: Call 
 export const NOTE_RESOLUTIONS = [4, 8, 12, 16, 24, 32]
 
 // Silence fits every grid. It gets the one an empty roll is drawn with.
-const EMPTY_STEPS = 16
+// An empty roll has the steps a bar of the song usually has: sixteen in four quarters.
+const emptySteps = (): number => usualSteps(meterNow())
 
 const MAX_STEPS = 128
 const NAME = /^[a-gA-G][#bsf]*-?\d+$/
@@ -25,7 +27,7 @@ const overlap = (a: Note, b: Note) => a.midi === b.midi && a.start < b.start + b
 export function parseNoteGrid(text: string): { notes: Note[]; steps: number } | null {
     const lines = text.split(',').map((line) => line.trim().split(/\s+/).filter(Boolean))
     const steps = lines[0]?.length ?? 0
-    if (!steps || steps % 4 !== 0 || steps > MAX_STEPS) return null
+    if (!steps || !fitsBar(steps) || steps > MAX_STEPS) return null
     const notes: Note[] = []
     for (const cells of lines) {
         if (cells.length !== steps) return null
@@ -57,7 +59,7 @@ export function parseNoteGrid(text: string): { notes: Note[]; steps: number } | 
 // would be forgotten with the last note.
 export function formatNoteGrid(notes: Note[], steps: number, perCycle = steps): string {
     if (!notes.length) {
-        if (steps === EMPTY_STEPS && perCycle === EMPTY_STEPS) return '"~"'
+        if (steps === emptySteps() && perCycle === emptySteps()) return '"~"'
         const size = groupOf(steps)
         const groups = Array.from({ length: steps / size }, () => Array<string>(size).fill('~').join(' '))
         return `\`\n  ${groups.join('   ')}\n\``
@@ -179,9 +181,9 @@ export function notesFromEvents(cycles: Sounded[][]): { notes: Note[]; cycles: n
     const period = [1, 2, 4].find((length) => length * 2 <= cycles.length && keys.every((value, i) => value === keys[i % length]))
     if (!period) return null
     const events = cycles.slice(0, period).flatMap((list, cycle) => list.map((event) => ({ ...event, start: event.start + cycle })))
-    if (!events.length) return { notes: [], cycles: 1, perCycle: EMPTY_STEPS }
+    if (!events.length) return { notes: [], cycles: 1, perCycle: emptySteps() }
     const onGrid = (value: number, perCycle: number) => Math.abs(value * perCycle - Math.round(value * perCycle)) < 1e-6
-    const perCycle = NOTE_RESOLUTIONS.find((candidate) => events.every((event) => onGrid(event.start, candidate) && onGrid(event.length, candidate)))
+    const perCycle = (meterNow() === USUAL ? NOTE_RESOLUTIONS : noteSteps(meterNow())).find((candidate) => events.every((event) => onGrid(event.start, candidate) && onGrid(event.length, candidate)))
     if (!perCycle) return null
     const steps = perCycle * period
     const notes: Note[] = []

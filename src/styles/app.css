@@ -915,3 +915,6 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .ms-k { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 4px; justify-items: center; margin-top: 2px; }
 .ms-k > span { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .ms-s .ms { display: flex; gap: 3px; margin-top: 4px; }
+.meter { appearance: none; -webkit-appearance: none; background: none; border: 0; color: var(--linen); font: 500 14px/1.15 var(--mono); font-stretch: 87%; padding: 0; width: 46px; cursor: pointer; }
+.meter:disabled { opacity: 0.5; cursor: default; }
+.meter:focus-visible { outline: 2px solid var(--linen); outline-offset: 3px; border-radius: 4px; }

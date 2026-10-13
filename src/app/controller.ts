@@ -14,7 +14,8 @@ import { saveFile, savePieces, textPieces, type FileKind, type Saved } from '../
 import { createEngine } from '../engine/engine'
 import { DEMO } from '../demo/demo'
 import { MAX_BARS } from '../song/bars'
-import { fitTempo, readTempoLane, tempoAt, tempoLaneEdit } from '../song/tempo'
+import { meterEdits, meterNow, METERS, readMeter, setMeterNow, sliceSteps } from '../song/meter'
+import { fitTempo, readTempoLane, secondsOf, tempoAt, tempoLaneEdit } from '../song/tempo'
 import { cleanPresetName, LIBRARY, presetCalls, presetEdits, previewText, PREVIEW_PITCH, readPresets, soundCalls, withPreset, writePresets, type Preset } from '../sounds/presets'
 import { keeping } from '../library/kept'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
@@ -54,7 +55,7 @@ import {
     type StepWhat,
 } from '../song/grid'
 import { convertEdits, isDrums, kitEdits, MUTE, readKit, rowTarget } from '../song/kit'
-import { backwards, cellsOf, empty, fitEdit, inOrder, MOST_PARTS, readSlices, recut, shuffled, sliceEdits, sliceRows, slicesCode, SLICE_RESOLUTIONS, type Slices } from '../song/slices'
+import { backwards, cellsOf, empty, fitEdit, inOrder, MOST_PARTS, readSlices, recut, shuffled, sliceEdits, sliceRows, slicesCode, type Slices } from '../song/slices'
 import {
     addNote,
     moveNote,
@@ -168,6 +169,7 @@ import {
     setLinkAsk,
     type PlayMode,
     setTakeOpening,
+    setMeter,
     setTakeSince,
     setTempoLane,
     takeOpening,
@@ -294,9 +296,14 @@ function onCode(code: string) {
     if (removed() && code !== removed()?.after) setRemoved(null)
     // The tempo of every bar is read with every change of the code, and told to the engine as
     // bars a second: four beats to the bar.
+    // So is how its bar is counted, which everything that reads a pattern goes by.
+    const counted = readMeter(code)
+    setMeterNow(counted)
+    setMeter(counted)
+    engine.setQuarters(counted.quarters)
     const lane = readTempoLane(code)
     setTempoLane(lane)
-    engine.setTempoLane(lane ? lane.values.map((bpm) => bpm / 240) : null)
+    engine.setTempoLane(lane ? lane.values.map((bpm) => bpm / (60 * counted.quarters)) : null)
     const next = analyze(code, shownVariants())
     if (next.error) {
         setStale(true)
@@ -327,7 +334,7 @@ function tick() {
     batch(() => {
         setCycle(whole)
         setPosition(now - whole)
-        setBeat(Math.min(3, Math.floor((now - whole) * 4)))
+        setBeat(Math.min(meterNow().beats - 1, Math.floor((now - whole) * meterNow().beats)))
     })
     frame = requestAnimationFrame(tick)
 }
@@ -846,6 +853,20 @@ export function setTempo(bpm: number, held = false) {
     replay(held)
 }
 
+// How long so many bars of the song last, each at its own tempo.
+export const songSeconds = (bars: number = songLengthNow()): number => secondsOf(playMode() === 'song' ? tempoLane() : null, bars, song().tempo?.bpm ?? engine.bpm(), meterNow().quarters)
+
+// The song put in another way of counting its bar. Its tempo stays the number it was, and the
+// patterns it has stay as they are: a new one gets the steps of the new bar.
+export function chooseMeter(label: string) {
+    const wanted = METERS.find((one) => one.label === label)
+    if (!wanted || stale() || song().tempoLocked || wanted === meterNow()) return
+    const edits = meterEdits(engine.getCode(), song(), wanted)
+    if (!edits.length) return
+    engine.applyEdit(edits)
+    replay()
+}
+
 // ---- a tempo for every bar. It starts as the tempo of the song in every bar, and is drawn
 // from there, the way a knob is drawn over the song.
 export function drawTempo() {
@@ -1193,7 +1214,7 @@ export function arrangeSlices(id: string, how: SliceOrder) {
 export function setSliceLength(id: string, cycles: number) {
     changeSlices(id, (slices) => {
         if (cycles === slices.cycles) return null
-        const perCycle = [...SLICE_RESOLUTIONS].reverse().find((resolution) => resolution <= slices.perCycle && resolution * cycles <= MOST_PARTS)
+        const perCycle = [...sliceSteps(meterNow())].reverse().find((resolution) => resolution <= slices.perCycle && resolution * cycles <= MOST_PARTS)
         return perCycle ? { cells: recut(slices, perCycle, cycles), cycles } : null
     })
 }
@@ -2074,7 +2095,7 @@ export function chooseScene(name: string) {
     if (stale()) return
     window.clearTimeout(sceneTimer)
     if (!engineState().playing) return showScene(name)
-    const { bar, wait } = sceneBar(engine.now(), 240 / engine.bpm(), SCENE_LEAD)
+    const { bar, wait } = sceneBar(engine.now(), engine.barSeconds(), SCENE_LEAD)
     setSceneWaiting(name)
     sceneTimer = window.setTimeout(() => showScene(name, bar), wait * 1000)
 }
@@ -2428,7 +2449,7 @@ function busiestBar(): number {
     const length = songLengthNow()
     const filled = lanes().map((block) => readArrangement(block)?.bars ?? null)
     const playing = Array.from({ length }, (_, bar) => filled.filter((bars) => bars?.[bar]).length)
-    const span = Math.min(length, Math.ceil(PREVIEW_SECONDS / (240 / (song().tempo?.bpm ?? engine.bpm()))))
+    const span = Math.min(length, Math.ceil(PREVIEW_SECONDS / ((60 * meterNow().quarters) / (song().tempo?.bpm ?? engine.bpm()))))
     let best = 0
     let most = 0
     for (let from = 0; from + span <= length; from++) {
@@ -2446,7 +2467,7 @@ const PREVIEW_PEAKS = 160
 // Half a minute of the song from a bar on, as an MP3, for the site to play, with how loud it is
 // along its length, for the site to draw. Null when nothing sounds in it.
 async function previewToPublish(from: number, onProgress: (done: number) => void): Promise<{ mp3: Uint8Array; peaks: number[]; seconds: number } | null> {
-    const perBar = 240 / engine.bpm()
+    const perBar = engine.barSeconds()
     const bars = Math.max(from + 1, Math.min(songLengthNow(), from + Math.ceil(PREVIEW_SECONDS / perBar)))
     const made = await engine.render({ from, bars, ringSeconds: 0, sampleRate: PREVIEW_RATE }, onProgress)
     const length = Math.min(made.channels[0].length, PREVIEW_SECONDS * made.sampleRate)
@@ -2625,7 +2646,7 @@ export async function exportPatterns(options: AudioOptions) {
     const bars = songLengthNow()
     const ids = patternsToExport()
     if (!ids.length) return void setExportNote('No pattern of this song plays, so there is nothing to save.')
-    if (ids.length * sizeOf(options, (bars * 240) / engine.bpm() + RING_SECONDS) > ZIP_LIMIT) return void setExportNote('That is more than one zip can hold. Choose MP3 or a lower quality, then export again.')
+    if (ids.length * sizeOf(options, songSeconds(bars) + RING_SECONDS) > ZIP_LIMIT) return void setExportNote('That is more than one zip can hold. Choose MP3 or a lower quality, then export again.')
     setExporting(true)
     setExportNote('Choose where to save it.')
     let begun = false

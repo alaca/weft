@@ -1,3 +1,4 @@
+import { meterNow } from '../song/meter'
 import { nearestInKey } from '../song/scales'
 import { bpm, patternKeys, pianoFor, pianoOctave, pianoWrites, setPianoFor, setPianoOctave, song, stale } from '../stores/song'
 import { putNote, resizeNoteTo, rollPlace, soundNote } from './controller'
@@ -51,7 +52,7 @@ export function pianoUp(event: KeyboardEvent): boolean {
     if (!key) return false
     held.delete(event.code)
     if (key.start === null) return true
-    const cycles = (((performance.now() - key.at) / 1000) * bpm()) / 240
+    const cycles = (((performance.now() - key.at) / 1000) * bpm()) / (60 * meterNow().quarters)
     const length = Math.min(key.room, Math.max(1, Math.round(cycles * key.perCycle)))
     if (length > 1) resizeNoteTo(key.id, { start: key.start, midi: key.midi }, length, true)
     return true

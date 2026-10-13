@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url'
 import { checkSongFile, looksLikeAudio } from '../src/guard/file'
 import { SONG_LIMIT, soundsUsed } from '../src/library/songfile'
 import { analyze } from '../src/song/analyze'
+import { readMeter } from '../src/song/meter'
+import { readTempoLane, secondsOf as barsLast } from '../src/song/tempo'
 import { DEFAULT_SONG, songLength } from '../src/song/arrange'
 import { docsPage, downloadPage, homePage, licencePage, makerPage, notePage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type Named, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
 import { songPicture } from './picture'
@@ -157,7 +159,8 @@ type Code = { hash: string; until: number; wrong: number }
 type Kind = { bytes: Buffer; type: string; kept: string; rules?: string }
 type Answer = { status: number; body?: unknown; html?: string; file?: { bytes?: Buffer; type: string; name?: string; head?: Record<string, string> }; fixed?: Kind; build?: { file: string; bytes: number } }
 // What a song file says about its song once it is read.
-type Facts = { bars: number; parts: Part[]; sounds: OwnSound[] }
+// `seconds` is how long the bars last, each at its own tempo, when the song says its tempo.
+type Facts = { bars: number; seconds: number | null; parts: Part[]; sounds: OwnSound[] }
 
 const hashOf = (text: string) => createHash('sha256').update(text).digest('hex')
 const token = (bytes = 32) => randomBytes(bytes).toString('base64url')
@@ -238,8 +241,10 @@ function readFacts(text: string): Facts | null {
         const names = file.sounds.map((sound) => sound.name)
         const blocks = read.patterns.slice(0, 64)
         const used = blocks.map((block) => soundsUsed(file.code.slice(block.from, block.to), names))
+        const bars = songLength(read.patterns, DEFAULT_SONG)
         return {
-            bars: songLength(read.patterns, DEFAULT_SONG),
+            bars,
+            seconds: read.tempo ? barsLast(readTempoLane(file.code), bars, read.tempo.bpm, readMeter(file.code).quarters) : null,
             parts: blocks.map((block, at) => ({ name: block.id, sound: block.soundName ?? used[at][0] ?? '', own: used[at].length > 0 })),
             sounds: file.sounds.map((sound) => ({
                 name: sound.name,
@@ -464,7 +469,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
             style: song.style,
             tempo: song.tempo,
             patterns: song.patterns.length,
-            length: read && song.tempo ? (read.bars * 240) / Math.max(1, song.tempo) : null,
+            length: read?.seconds ?? null,
             bytes: song.bytes,
             published: song.published,
             plays: song.plays,

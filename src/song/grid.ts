@@ -1,4 +1,5 @@
 import { removeCall, setNumber } from './edits'
+import { beatSteps, drumSteps, fitsBar, meterNow, USUAL, usualSteps } from './meter'
 import type { Call, PatternBlock, TextEdit } from './types'
 
 // `accents` says which of the hits are louder than the rest. A row that has none leaves it out.
@@ -15,7 +16,12 @@ export const DEFAULT_STEPS = 16
 // counted in threes: four beats of three, a shuffle, a 6/8 or a 12/8.
 export const DRUM_RESOLUTIONS = [12, 16, 24, 32]
 // Steps are written, and shown, in groups: threes where the bar is counted in threes, else fours.
-export const groupOf = (steps: number): number => (steps % 3 === 0 ? 3 : 4)
+export const groupOf = (steps: number): number => {
+    // In another meter a group is a beat of the bar in sixteenths, where the steps come out even on it.
+    const beat = beatSteps(usualSteps(meterNow()))
+    if (beat && steps % beat === 0) return beat
+    return steps % 3 === 0 ? 3 : 4
+}
 // Four cycles of 32 steps is the longest and finest grid the controls offer.
 export const MAX_STEPS = 128
 
@@ -25,7 +31,7 @@ const SOURCES = ['s', 'sound']
 export function parseGrid(text: string): GridRow[] | null {
     const lines = text.split(',').map((line) => line.trim().split(/\s+/).filter(Boolean))
     const length = lines[0]?.length ?? 0
-    if (!length || length % 4 !== 0 || length > MAX_STEPS) return null
+    if (!length || !fitsBar(length) || length > MAX_STEPS) return null
     const rows: GridRow[] = []
     for (const cells of lines) {
         if (cells.length !== length || cells.some((cell) => !CELL.test(cell))) return null
@@ -273,7 +279,9 @@ export function gridFromEvents(cycles: { start: number; value: unknown }[][]): G
             .sort()
             .join('|')
     if (cycles.some((events) => key(events) !== key(cycles[0]))) return null
-    for (const perCycle of [DEFAULT_STEPS, 12, DEFAULT_STEPS * 2, 24]) {
+    // The steps a bar of this song usually has are tried first, then the others it can have.
+    const usual = usualSteps(meterNow())
+    for (const perCycle of meterNow() === USUAL ? [DEFAULT_STEPS, 12, DEFAULT_STEPS * 2, 24] : [usual, ...drumSteps(meterNow()).filter((steps) => steps !== usual)]) {
         const rows: GridRow[] = []
         let fits = true
         for (const event of cycles[0]) {

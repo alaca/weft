@@ -1,5 +1,6 @@
 import { controlText, findDef, mixText } from '../controls/catalog'
-import { DEFAULT_STEPS, groupOf, lengthEdits, LEVEL, LOUDER, MAX_STEPS, MOST_REPEATS, sourceText, STEP_KINDS, type GridRow } from './grid'
+import { groupOf, lengthEdits, LEVEL, LOUDER, MAX_STEPS, MOST_REPEATS, sourceText, STEP_KINDS, type GridRow } from './grid'
+import { fitsBar, meterNow, usualSteps } from './meter'
 import { readSlices } from './slices'
 import type { Arg, Call, PatternBlock, TextEdit } from './types'
 
@@ -102,8 +103,8 @@ export function readKit(block: PatternBlock): Kit | null {
     const count = slow?.args[0]
     if (slow && !(count && count.kind === 'number' && Number.isInteger(count.value) && count.value >= 1)) return null
     const cycles = count && count.kind === 'number' ? count.value : 1
-    const steps = rows[0]?.steps.length ?? DEFAULT_STEPS * cycles
-    if (rows.some((row) => row.steps.length !== steps) || steps % 4 !== 0 || steps > MAX_STEPS || steps % cycles !== 0) return null
+    const steps = rows[0]?.steps.length ?? usualSteps(meterNow()) * cycles
+    if (rows.some((row) => row.steps.length !== steps) || !fitsBar(steps, cycles) || steps > MAX_STEPS || steps % cycles !== 0) return null
     return { rows, steps, cycles, perCycle: steps / cycles, slow, stack }
 }
 

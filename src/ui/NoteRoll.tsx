@@ -4,7 +4,8 @@ import { NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, roomAt, type Note
 import { chordOn, inKey, nearestInKey, ROOTS, SCALE_KINDS, SCALES, stepInKey, type ScaleKind } from '../song/scales'
 import type { PatternBlock } from '../song/types'
 import { noteName } from '../song/view'
-import { gridNotes, patternKeys, pianoFor, pianoOctave, pianoWrites, rollRanges, setPianoFor, setPianoWrites, stale } from '../stores/song'
+import { noteSteps, USUAL } from '../song/meter'
+import { gridNotes, meter, patternKeys, pianoFor, pianoOctave, pianoWrites, rollRanges, setPianoFor, setPianoWrites, stale } from '../stores/song'
 import { GridFooter } from './GridFooter'
 import { asksForMenu } from './keys'
 
@@ -314,7 +315,7 @@ export function NoteRoll(props: {
                 head={props.head}
                 cycles={cycles()}
                 perCycle={perCycle()}
-                resolutions={NOTE_RESOLUTIONS}
+                resolutions={meter() === USUAL ? NOTE_RESOLUTIONS : noteSteps(meter())}
                 canUse={(resolution) => {
                     const grid = source()?.grid
                     return !grid || resampleNotes(grid, resolution) !== null

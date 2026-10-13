@@ -120,6 +120,10 @@ export interface Engine {
     // The tempo of every bar, in bars a second, where the tempo changes along the song. A list
     // shorter than the song goes round. Null when the song has one tempo.
     setTempoLane(barsPerSecond: number[] | null): void
+    // How many quarter notes the song's bar holds: the tempo counts those.
+    setQuarters(quarters: number): void
+    // How long a bar lasts at the tempo the song is at, in seconds.
+    barSeconds(): number
     // The microphone was used a moment ago, so what the sound goes out through may have changed.
     micWasUsed(): void
     // The shape of a sample along its length, as so many heights, and how long it is. Null for
@@ -805,6 +809,7 @@ export function createEngine(): Engine {
     // that carries it and nothing else. Its clock takes the tempo from such a note when the
     // note falls due, which is at the start of its bar. The note itself is never played.
     const TEMPO = '__weftTempo'
+    let quarters = 4
     let tempoLane: number[] | null = null
     const isTempo = (hap: any): boolean => Boolean(hap?.value && typeof hap.value === 'object' && hap.value[TEMPO])
     const tempoOfBar = (bar: number, usual: number): number => (tempoLane ? tempoLane[((Math.floor(bar) % tempoLane.length) + tempoLane.length) % tempoLane.length] : usual)
@@ -1356,7 +1361,11 @@ export function createEngine(): Engine {
             const counted = mirror.repl.scheduler.now() + offset
             return loop ? loop.from + around(counted) : counted
         },
-        bpm: () => (mirror ? mirror.repl.scheduler.cps * 240 : 120),
+        bpm: () => (mirror ? mirror.repl.scheduler.cps * 60 * quarters : 120),
+        barSeconds: () => (mirror ? 1 / mirror.repl.scheduler.cps : (60 * quarters) / 120),
+        setQuarters(count) {
+            quarters = count > 0 ? count : 4
+        },
         events: (id, cycle, everyBar = false) => query((everyBar ? unmasked : registry).get(id), cycle),
         // Whether what the patterns answer is what the code now says, give or take a slider.
         inStep: () => evaluatedCode !== null && maskSliders(evaluatedCode) === maskSliders(mirror?.code ?? lastCode),

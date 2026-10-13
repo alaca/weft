@@ -1,5 +1,6 @@
 import { batch, createMemo, createSelector, createSignal, For, Index, onCleanup, Show, type JSX } from 'solid-js'
 import type { StepKind } from '../song/grid'
+import { beatSteps } from '../song/meter'
 import { asksForMenu } from './keys'
 import { StepLane } from './StepLane'
 
@@ -11,7 +12,7 @@ export type ShownLane = { sound: string; kind: StepKind; values: number[]; head:
 
 // The pads stand in groups of a beat: four to a group, or three or six where the bar is
 // counted in threes (12 or 24 steps).
-const beatOf = (count: number) => (count % 3 === 0 ? Math.max(3, count / 4) : 4)
+const beatOf = (count: number) => beatSteps(count) ?? (count % 3 === 0 ? Math.max(3, count / 4) : 4)
 const upTo = (count: number) => Array.from({ length: count }, (_, at) => at)
 
 // A drag along a row, from the step it began on to the one under the pointer: all of them are

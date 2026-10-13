@@ -624,7 +624,7 @@ function told(d: Told) {
         if (!jamsOpen()) setJamUnread(jamUnread() + 1)
         return
     }
-    if (d.k === 'play') return follow(() => deps.engine.playAt(arrivedAt(Number(d.at) || 0, roundTrip, deps.engine.bpm())))
+    if (d.k === 'play') return follow(() => deps.engine.playAt(arrivedAt(Number(d.at) || 0, roundTrip, 240 / deps.engine.barSeconds())))
     if (d.k === 'pause') return follow(() => deps.engine.pauseAt(Number(d.at) || 0))
     if (d.k === 'stop') return follow(() => deps.engine.stop())
     if (d.k === 'start') return follow(() => deps.startFrom(Math.max(0, Math.floor(Number(d.bar) || 0))))
@@ -819,7 +819,7 @@ function ponged(n: number, at: number | null) {
     // An answer that was held up says little of where their song is, and so does one on a
     // line that has not been timed yet.
     if (!both || trips.length < TIMED_BY || heldUp(took, trips)) return
-    const there = arrivedAt(at, took, deps.engine.bpm())
+    const there = arrivedAt(at, took, 240 / deps.engine.barSeconds())
     if (Math.abs(there - deps.engine.now()) > DRIFT) follow(() => deps.engine.playAt(there))
 }
 

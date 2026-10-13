@@ -10,6 +10,7 @@ import {
     openSongFile,
     saveSong,
     setPlayMode,
+    chooseMeter,
     setTempo,
     tempoNow,
     setView,
@@ -24,9 +25,10 @@ import {
 } from '../app/controller'
 import { openPublish } from '../app/publish'
 import { DEMO } from '../demo/demo'
+import { METERS } from '../song/meter'
 import { SITE } from '../site/api'
 import { me } from '../stores/account'
-import { beat, bpm, currentSong, cycle, engineState, mixerOpen, playMode, song, songNote, songShown, soundsOpen, stale, startOpen, viewMode, waveShown, type PlayMode, type ViewMode } from '../stores/song'
+import { beat, bpm, currentSong, cycle, engineState, meter, mixerOpen, playMode, song, songNote, songShown, soundsOpen, stale, startOpen, viewMode, waveShown, type PlayMode, type ViewMode } from '../stores/song'
 import { jamListed, jamming, jamPeer, jamsOpen, jamUnread } from '../stores/jam'
 import { MOD } from './keys'
 import { DemoMenu } from './DemoMenu'
@@ -183,10 +185,29 @@ export function TopBar() {
                     <span class="cap">Tempo, bpm</span>
                 </div>
                 <div class="ro">
+                    <select
+                        class="meter"
+                        data-testid="meter"
+                        aria-label="How a bar is counted"
+                        title="How a bar is counted: how many beats it has. The tempo counts quarter notes. Patterns that are there stay as they are, a new one gets the steps of this bar."
+                        disabled={stale() || song().tempoLocked}
+                        onChange={(event) => chooseMeter(event.currentTarget.value)}
+                    >
+                        <For each={METERS}>
+                            {(one) => (
+                                <option value={one.label} selected={one.label === meter().label}>
+                                    {one.label}
+                                </option>
+                            )}
+                        </For>
+                    </select>
+                    <span class="cap">Time</span>
+                </div>
+                <div class="ro">
                     <b>
                         <span data-testid="cycle">{cycle() + 1}</span>
                         <span class="beats">
-                            <For each={[0, 1, 2, 3]}>{(i) => <i classList={{ on: engineState().playing && beat() === i }} />}</For>
+                            <For each={Array.from({ length: meter().beats }, (_, at) => at)}>{(i) => <i classList={{ on: engineState().playing && beat() === i }} />}</For>
                         </span>
                     </b>
                     <span class="cap">Cycle</span>

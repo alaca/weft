@@ -1,7 +1,7 @@
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js'
-import { closeExport, exportAudio, exportCode, exportPatterns, keptAudio, patternsToExport, saveSongFile, songLengthNow } from '../app/controller'
+import { closeExport, exportAudio, exportCode, exportPatterns, keptAudio, patternsToExport, saveSongFile, songSeconds } from '../app/controller'
 import { durationText, FORMATS, gradeOf, QUALITIES, RING_SECONDS, sizeOf, sizeText, type AudioOptions, type Format, type Quality } from '../library/audio'
-import { bpm, currentSong, engineState, exporting, exportNote, exportOpen } from '../stores/song'
+import { currentSong, engineState, exporting, exportNote, exportOpen } from '../stores/song'
 
 const FORMAT_LABELS: Record<Format, string> = { wav: 'WAV', mp3: 'MP3' }
 const QUALITY_LABELS: Record<Quality, string> = { standard: 'Standard', high: 'High', highest: 'Highest' }
@@ -21,7 +21,7 @@ export function ExportDialog() {
         }),
     )
 
-    const seconds = () => (songLengthNow() * 240) / bpm()
+    const seconds = () => songSeconds()
     const ready = () => !exporting() && !engineState().error
     const files = () => patternsToExport().length
 

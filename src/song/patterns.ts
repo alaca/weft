@@ -1,5 +1,5 @@
 import { mixText } from '../controls/catalog'
-import { DEFAULT_STEPS } from './grid'
+import { meterNow, usualSteps } from './meter'
 import { kitText } from './kit'
 import type { PatternBlock, Song, TextEdit } from './types'
 
@@ -31,7 +31,7 @@ const mixLines = () => mixText().map((call) => `\n  ${call}`).join('')
 export function starterCode(kind: StarterKind, name: string): string {
     switch (kind) {
         case 'drums':
-            return `${name}: ${kitText(DRUM_SOUNDS.map((sound) => ({ sound, steps: Array<boolean>(DEFAULT_STEPS).fill(false) })))}\n  .bank("RolandTR909")`
+            return `${name}: ${kitText(DRUM_SOUNDS.map((sound) => ({ sound, steps: Array<boolean>(usualSteps(meterNow())).fill(false) })))}\n  .bank("RolandTR909")`
         case 'bass':
             return `${name}: note("~")\n  .s("sawtooth")\n  .lpf(slider(900, 100, 8000))${mixLines()}`
         case 'chords':
@@ -46,7 +46,7 @@ export function starterCode(kind: StarterKind, name: string): string {
 export type SoundStarter = { name: string; code: (name: string) => string; range?: { low: number; high: number } }
 
 export function soundStarter(sound: string, kind: 'kit' | 'notes' | 'sample'): SoundStarter {
-    if (kind === 'kit') return { name: 'drums', code: (name) => `${name}: ${kitText(DRUM_SOUNDS.map((row) => ({ sound: row, steps: Array<boolean>(DEFAULT_STEPS).fill(false) })))}\n  .bank("${sound}")` }
+    if (kind === 'kit') return { name: 'drums', code: (name) => `${name}: ${kitText(DRUM_SOUNDS.map((row) => ({ sound: row, steps: Array<boolean>(usualSteps(meterNow())).fill(false) })))}\n  .bank("${sound}")` }
     const code = (name: string) => `${name}: note("~")\n  .s("${sound}")${mixLines()}`
     return kind === 'sample' ? { name: 'sample', code, range: { low: 30, high: 42 } } : { name: 'melody', code, range: { low: 60, high: 79 } }
 }

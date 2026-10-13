@@ -1,4 +1,5 @@
 import { groupOf, type GridRow } from './grid'
+import { meterNow, sliceSteps, usualSteps } from './meter'
 import type { Arg, Call, PatternBlock, TextEdit } from './types'
 
 // A sample cut into equal parts that are played in any order, written the way Strudel writes it:
@@ -14,7 +15,6 @@ type Text = Extract<Arg, { kind: 'string' }>
 type Count = Extract<Arg, { kind: 'number' }>
 export type Slices = { sound: Text; call: Call; count: Count; text: Text; fit: boolean; parts: number; cycles: number; perCycle: number; cells: number[][] }
 
-export const SLICE_RESOLUTIONS = [8, 16, 32]
 export const MOST_PARTS = 32
 export const FIT = 'splice'
 export const PLAIN = 'slice'
@@ -42,7 +42,7 @@ export function readSlices(block: PatternBlock): Slices | null {
     const parts = count.value
     if (!Number.isInteger(parts) || parts !== cells.length || parts > MOST_PARTS || cycles < 1 || parts % cycles !== 0 || cells.some((cell) => !cell)) return null
     const perCycle = parts / cycles
-    if (!SLICE_RESOLUTIONS.includes(perCycle)) return null
+    if (!sliceSteps(meterNow()).includes(perCycle)) return null
     return { sound, call, count, text, fit: call.name === FIT, parts, cycles, perCycle, cells: cells as number[][] }
 }
 
@@ -93,6 +93,9 @@ export function sliceEdits(slices: Slices, cells: number[][], cycles: number): T
 
 export const fitEdit = (slices: Slices, fit: boolean): TextEdit => ({ from: slices.call.nameFrom, to: slices.call.nameTo, insert: fit ? FIT : PLAIN })
 
-// A new pattern for a sample that is to be sliced: sixteen parts over a bar, in their own
+// A new pattern for a sample that is to be sliced: a part for every sixteenth of a bar, in their own
 // order, so that it is the sample as it was until the parts are moved.
-export const slicesCode = (name: string, sound: string, mix: string[]): string => `${name}: s("${sound}").${FIT}(16, "${slicesText(inOrder(16), 1)}")${mix.map((call) => `\n  ${call}`).join('')}`
+export const slicesCode = (name: string, sound: string, mix: string[]): string => {
+    const parts = Math.min(MOST_PARTS, usualSteps(meterNow()))
+    return `${name}: s("${sound}").${FIT}(${parts}, "${slicesText(inOrder(parts), 1)}")${mix.map((call) => `\n  ${call}`).join('')}`
+}
