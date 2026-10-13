@@ -9,6 +9,10 @@ import './styles/tokens.css'
 import './styles/app.css'
 import { App } from './App'
 import { DEMO } from './demo/demo'
+import { keepSoundsHere } from './library/keptSounds'
+
+// The demo keeps nothing in the browser, so there every sound is fetched each time.
+if (!DEMO) keepSoundsHere()
 
 // The demo's songs are there before the app looks for the song to open with. What is asked first
 // is known when the app is built, so the app that is downloaded does not carry them.

@@ -890,3 +890,4 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .sl .rn { height: 18px; font-size: 10px; }
 .sl.many .rn { height: 11px; font-size: 8.5px; line-height: 11px; }
 .sl-f { display: flex; align-items: center; gap: 6px; flex: 1; }
+.sbar-off { color: var(--saffron); }
