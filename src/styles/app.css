@@ -898,7 +898,7 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 
 /* The patterns as the strips of a mixing desk, in the song panel's place of the bars. */
 .sg-g.away, .sg-h .away { display: none; }
-.sg-h .seg.sg-v button { font: 500 11.5px/1 var(--ui); letter-spacing: 0; padding: 0 10px; }
+.sg-h .seg.sg-sw button { font: 500 11.5px/1 var(--ui); letter-spacing: 0; padding: 0 10px; }
 .ms-w { display: flex; gap: 8px; padding: 4px 2px 8px; overflow-x: auto; }
 .ms-s { flex: none; width: 92px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 9px 6px 10px; border-radius: 10px; background: rgba(236, 230, 214, 0.035); }
 .ms-s.muted .ms-f, .ms-s.muted .ms-k, .ms-s.muted > .kn { opacity: 0.45; }

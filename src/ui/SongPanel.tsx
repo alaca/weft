@@ -713,7 +713,7 @@ export function SongPanel() {
         <section class="sg" data-testid="song" onClick={(event) => event.stopPropagation()}>
             <div class="sg-h">
                 <h3>Song</h3>
-                <div class="seg s sg-v" role="group" aria-label="What the song panel shows">
+                <div class="seg s sg-sw" role="group" aria-label="What the song panel shows">
                     <button classList={{ on: !mixing() }} aria-pressed={!mixing()} title="The bars each pattern plays in" onClick={() => setMixing(false)}>
                         Bars
                     </button>
