@@ -201,10 +201,11 @@ export function SoundBrowser() {
                 </Show>
                 <Show when={group() === 'packs'}>
                     <div class="sb-own">
+                        {/* No kinds are named: a system that does not know what a .weftpack is would
+                            grey every pack out. What is chosen is read and refused if it is none. */}
                         <input
                             ref={packFile}
                             type="file"
-                            accept=".weftpack,application/json"
                             hidden
                             data-testid="pack-file"
                             onChange={(event) => {
