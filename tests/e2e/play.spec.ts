@@ -169,23 +169,27 @@ test('a chord on a ZZFX synth is worked out once, and sounds the same when it co
     expect(heard.workedOut).toBe(3)
 })
 
-// Two drums of one kit in every bar.
-const DRUMS = 'setcpm(240/4)\n\ndrums: s("bd ~ sd ~")\n  .bank("RolandTR909")\n'
+// Two drums of one kit in the first bar, and one that first plays in the second.
+const DRUMS = 'setcpm(240/4)\n\ndrums: s("<[bd ~ sd ~] [bd ~ cp ~]>")\n  .bank("RolandTR909")\n'
 
-test('the drums of the song that is open are fetched before it is played, and not again at their first hit', async ({ page }) => {
+test('the drums of the song that is open, those of a later bar too, are fetched before it is played, and not again at their first hit', async ({ page }) => {
     const asked: string[] = []
     const arrived: string[] = []
     const drum = (url: string) => /\.wav$/i.test(new URL(url).pathname)
     page.on('request', (request) => void (drum(request.url()) && asked.push(request.url())))
     page.on('requestfinished', (request) => void (drum(request.url()) && arrived.push(request.url())))
-    await page.addInitScript((value) => localStorage.setItem('weft.song', value), DRUMS)
+    // The Song panel is put away, so no row of it is there to ask about the second bar.
+    await page.addInitScript((value) => {
+        localStorage.setItem('weft.song', value)
+        localStorage.setItem('weft.layout', JSON.stringify({ sounds: false, mixer: false, jams: false, song: false }))
+    }, DRUMS)
     await page.goto('/')
     await ready(page)
-    await expect.poll(() => arrived.length, { timeout: 30_000 }).toBe(2)
-    expect(asked.map((url) => /rolandtr909-(\w+)\//.exec(url)?.[1]).sort()).toEqual(['bd', 'sd'])
+    await expect.poll(() => arrived.length, { timeout: 30_000 }).toBe(3)
+    expect(asked.map((url) => /rolandtr909-(\w+)\//.exec(url)?.[1]).sort()).toEqual(['bd', 'cp', 'sd'])
 
     await page.getByRole('button', { name: 'Play', exact: true }).click()
     await expect.poll(async () => Number(await page.getByTestId('cycle').textContent()), { timeout: 20_000 }).toBeGreaterThanOrEqual(3)
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
-    expect(asked.length).toBe(2)
+    expect(asked.length).toBe(3)
 })

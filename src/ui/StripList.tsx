@@ -3,7 +3,7 @@ import { addPatternWith, restorePattern } from '../app/controller'
 import { draggedSound, removed, song, songShown, stale, waveShown } from '../stores/song'
 import { AddPattern } from './AddPattern'
 import { OutputStrip } from './OutputStrip'
-import { SongPanel } from './SongPanel'
+import { AskedAhead, SongPanel } from './SongPanel'
 import { Strip } from './Strip'
 
 const GONE = '\u0000gone'
@@ -50,7 +50,7 @@ export function StripList() {
             <Show when={waveShown()}>
                 <OutputStrip />
             </Show>
-            <Show when={ids().length && songShown()}>
+            <Show when={ids().length && songShown()} fallback={<AskedAhead />}>
                 <SongPanel />
             </Show>
             <Show when={!ids().length}>

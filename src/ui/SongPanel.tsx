@@ -53,6 +53,64 @@ function duration(bars: number, tempo: number): string {
 
 type View = { length: number; shown: number; barWidth: number; first: number; last: number; scroller: () => HTMLDivElement }
 
+// Asks a pattern what it plays in each bar that is drawn of it, and hands the answers on when
+// all are there. The pattern is only asked when its text has changed since the last time:
+// changing the bars of the song evaluates the code again but leaves every picture as it was.
+function askBars(id: () => string, length: () => number, answered: (perBar: PatternEvent[][]) => void) {
+    let drawnFrom: string | null = null
+    let drawnBars = 0
+    let asked = 0
+    createEffect(() => {
+        revision()
+        const current = untrack(() => song().patterns.find((p) => p.id === id()))
+        if (!current) return
+        const count = Math.min(length(), current.variants ? VERSION_BARS : DRAWN_BARS)
+        const text = untrack(() => patternText(id()))
+        if (text === drawnFrom && drawnBars === count) return
+        // Until the code has been evaluated the patterns still answer for the code before it,
+        // which after opening another song is another song. Nothing is drawn from that.
+        if (!untrack(inStep)) return
+        drawnFrom = text
+        drawnBars = count
+        const mine = ++asked
+        const perBar: PatternEvent[][] = []
+        // A bar that is sure to play what a bar before it plays is not asked about: it takes
+        // that bar's answer.
+        const keys = barKeys(current, count, DRAWN_BARS)
+        const answers = new Map<string, PatternEvent[]>()
+        askSoon(() => {
+            // Something changed again meanwhile, and that is being asked about instead.
+            if (mine !== asked) return true
+            if (perBar.length < count) answers.set(keys[perBar.length], eventsOf(id(), perBar.length))
+            while (perBar.length < count && answers.has(keys[perBar.length])) perBar.push(answers.get(keys[perBar.length])!)
+            if (perBar.length < count) return false
+            answered(perBar)
+            return true
+        })
+    })
+    onCleanup(() => asked++)
+}
+
+// The files of the drums a pattern plays are fetched from what it answers when it is asked,
+// long before they are due. With the Song panel put away its rows are not there to ask, so the
+// patterns are asked about the same bars here, and nothing is drawn.
+export function AskedAhead() {
+    const ids = createMemo(() => [...new Set(song().patterns.map((p) => p.id))], [] as string[], { equals: sameList })
+    const length = createMemo(() => songLengthNow())
+    return (
+        <For each={ids()}>
+            {(id) => {
+                askBars(
+                    () => id,
+                    length,
+                    () => undefined,
+                )
+                return null
+            }}
+        </For>
+    )
+}
+
 function Lane(props: { id: string; index: number; view: View }) {
     let track!: HTMLDivElement
     let drag: { from: number; on: boolean; x: number; low: number; high: number } | null = null
@@ -89,37 +147,12 @@ function Lane(props: { id: string; index: number; view: View }) {
         return list
     })
 
-    // The pattern is only asked what it plays when its text has changed since the last time.
-    // Changing the bars of the song evaluates the code again but leaves every picture as it was.
-    let drawnFrom: string | null = null
-    let drawnBars = 0
-    let asked = 0
     type Played = { perBar: PatternEvent[][]; low: number; high: number; sounds: (string | null)[] }
     const [played, setPlayed] = createSignal<Played>({ perBar: [], low: 0, high: 0, sounds: [] })
-    createEffect(() => {
-        revision()
-        const current = untrack(block)
-        if (!current) return
-        const count = Math.min(props.view.length, current.variants ? VERSION_BARS : DRAWN_BARS)
-        const text = untrack(() => patternText(props.id))
-        if (text === drawnFrom && drawnBars === count) return
-        // Until the code has been evaluated the patterns still answer for the code before it,
-        // which after opening another song is another song. Nothing is drawn from that.
-        if (!untrack(inStep)) return
-        drawnFrom = text
-        drawnBars = count
-        const mine = ++asked
-        const perBar: PatternEvent[][] = []
-        // A bar that is sure to play what a bar before it plays is not asked about: it takes
-        // that bar's answer.
-        const keys = barKeys(current, count, DRAWN_BARS)
-        const answers = new Map<string, PatternEvent[]>()
-        askSoon(() => {
-            // Something changed again meanwhile, and that is being asked about instead.
-            if (mine !== asked) return true
-            if (perBar.length < count) answers.set(keys[perBar.length], eventsOf(props.id, perBar.length))
-            while (perBar.length < count && answers.has(keys[perBar.length])) perBar.push(answers.get(keys[perBar.length])!)
-            if (perBar.length < count) return false
+    askBars(
+        () => props.id,
+        () => props.view.length,
+        (perBar) => {
             const pitches = perBar.flat().flatMap((event) => (event.midi === null ? [] : [event.midi]))
             setPlayed({
                 perBar,
@@ -127,10 +160,8 @@ function Lane(props: { id: string; index: number; view: View }) {
                 high: Math.max(...pitches),
                 sounds: [...new Set(perBar.flat().map((event) => event.sound))],
             })
-            return true
-        })
-    })
-    onCleanup(() => asked++)
+        },
+    )
 
     const drawn = (clip: Clip) => {
         const from = Math.max(clip.from, props.view.first)
