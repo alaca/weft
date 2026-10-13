@@ -175,6 +175,12 @@ const QUIET = 0.004
 
 const peer = () => jamPeer() ?? 'They'
 const ownNames = () => ownSounds().map((sound) => sound.name)
+// What is lent to the other person in a jam: your own sounds. A sound of a pack stays with
+// whoever has the pack, as it stays out of a song file.
+const lentNames = () =>
+    ownSounds()
+        .filter((sound) => !sound.pack)
+        .map((sound) => sound.name)
 
 function add(entry: JamLine) {
     const lines = jamLines()
@@ -613,7 +619,7 @@ function told(d: Told) {
         })
         if (!opened) return finish('The jam could not be joined: there is no room left to keep its song. Delete songs you no longer need, then join again.')
         deps.engine.startSync(0, 'guest', push)
-        known = new Set(soundsUsed(deps.engine.getCode(), ownNames()))
+        known = new Set(soundsUsed(deps.engine.getCode(), lentNames()))
         return begin(peer(), `You joined ${peer()}. You are both on ${deps.songName()}.`)
     }
     if (jamStage() !== 'jamming') return
@@ -864,7 +870,7 @@ function codeChanged(code: string, remote: boolean) {
     }
     // A sound of your own goes to the other person when a change of yours brings it into the
     // song. One that a change of theirs brought in is theirs to send, whatever it is called.
-    const used = soundsUsed(code, ownNames())
+    const used = soundsUsed(code, lentNames())
     for (const name of used) {
         if (known.has(name) || offered.has(name) || theirs.has(name)) continue
         if (remote) theirs.add(name)

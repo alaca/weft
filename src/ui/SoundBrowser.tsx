@@ -1,15 +1,16 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js'
 import { Fold, isFolded } from './Fold'
-import { addAudio, addOwnSounds, addSlices, closeSounds, colorAt, hearSound, keepTake, openTrim, presetOf, recordTake, removeOwnSound, removePreset, soundCatalogue, useSound } from '../app/controller'
+import { addAudio, addOwnSounds, addPack, addSlices, closeSounds, colorAt, hearSound, keepTake, openTrim, presetOf, recordTake, removeOwnSound, removePack, removePreset, soundCatalogue, useSound } from '../app/controller'
 import { DEMO } from '../demo/demo'
 import { lengthText } from '../library/sounds'
-import { fits, inUse, isLaid, isPreset, isSliced, takesKit } from '../sounds/apply'
+import { fits, inUse, isLaid, isOwn, isPreset, isSliced, takesKit } from '../sounds/apply'
 import { KIND_LABELS } from '../sounds/presets'
 import { countSounds, findSounds, SOUND_DRAG, SOUND_GROUPS, type SoundGroup, type SoundItem } from '../sounds/catalog'
-import { engineState, ownPresets, ownSoundNote, ownSounds, selected, setDraggedSound, song, soundsOpen, stale, takeOpening, takeSince } from '../stores/song'
+import { engineState, ownPresets, ownSoundNote, ownSounds, packNote, packs, selected, setDraggedSound, song, soundsOpen, stale, takeOpening, takeSince } from '../stores/song'
+import { PackDialog } from './PackDialog'
 
-// The demo has no sounds of your own.
-const GROUPS = DEMO ? SOUND_GROUPS.filter((entry) => entry.id !== 'yours') : SOUND_GROUPS
+// The demo has no sounds of your own, and takes no packs.
+const GROUPS = DEMO ? SOUND_GROUPS.filter((entry) => entry.id !== 'yours' && entry.id !== 'packs') : SOUND_GROUPS
 
 export function SoundBrowser() {
     let search: HTMLInputElement | undefined
@@ -20,11 +21,14 @@ export function SoundBrowser() {
     const index = () => song().patterns.findIndex((p) => p.id === selected())
     const target = () => song().patterns[index()]
     const loaded = createMemo(() => engineState().sounds)
-    const items = createMemo(() => (soundsOpen() && loaded() !== 'loading' && ownSounds() && ownPresets() ? soundCatalogue() : []))
+    const items = createMemo(() => (soundsOpen() && loaded() !== 'loading' && ownSounds() && ownPresets() && packs() ? soundCatalogue() : []))
+    const [making, setMaking] = createSignal(false)
+    let packFile: HTMLInputElement | undefined
+    const packName = (id: string | undefined) => packs().find((pack) => pack.id === id)?.name ?? ''
     // What stands beside a preset's name: Yours for one you saved, else what kind of sound it is.
     const kindOf = (item: SoundItem) => {
         const preset = presetOf(item.name)
-        return preset?.own ? 'Yours' : preset?.kind ? KIND_LABELS[preset.kind] : ''
+        return preset?.own ? 'Yours' : preset?.pack ? packName(preset.pack) : preset?.kind ? KIND_LABELS[preset.kind] : ''
     }
     const lengthOf = (name: string) => ownSounds().find((sound) => sound.name === name)?.seconds
 
@@ -42,7 +46,7 @@ export function SoundBrowser() {
     const shown = createMemo(() => findSounds(items(), group(), query()))
     const counts = createMemo(() => countSounds(items(), query()))
     const suited = (): SoundGroup => (target() && isLaid(target()) ? 'yours' : target() && isSliced(target()) ? 'samples' : target() && takesKit(target()) ? 'kits' : 'instruments')
-    const canSlice = (item: SoundItem) => item.group === 'samples' || item.group === 'yours'
+    const canSlice = (item: SoundItem) => item.group === 'samples' || isOwn(item.group)
     const usable = () => target() !== undefined && fits(target(), group())
     const used = (item: SoundItem) => target() !== undefined && inUse(target(), item)
     const labelOf = (id: SoundGroup) => SOUND_GROUPS.find((entry) => entry.id === id)?.label ?? ''
@@ -185,6 +189,9 @@ export function SoundBrowser() {
                                 Stop, {elapsed()}
                             </button>
                         </Show>
+                        <button class="btn" disabled={loaded() === 'loading'} title="Puts sounds and presets of yours into one file that others add to their app" onClick={() => setMaking(true)}>
+                            Make a pack
+                        </button>
                     </div>
                     <Show when={ownSoundNote()}>
                         <p class="sb-n" role="status" data-testid="own-note">
@@ -192,12 +199,57 @@ export function SoundBrowser() {
                         </p>
                     </Show>
                 </Show>
+                <Show when={group() === 'packs'}>
+                    <div class="sb-own">
+                        <input
+                            ref={packFile}
+                            type="file"
+                            accept=".weftpack,application/json"
+                            hidden
+                            data-testid="pack-file"
+                            onChange={(event) => {
+                                const picked = event.currentTarget.files?.[0]
+                                event.currentTarget.value = ''
+                                if (picked) void addPack(picked)
+                            }}
+                        />
+                        <button class="btn" disabled={loaded() === 'loading'} onClick={() => packFile?.click()}>
+                            + Add a pack
+                        </button>
+                        <span>A pack is a file of sounds and presets made for Weft Loom.</span>
+                    </div>
+                    <Show when={packNote()}>
+                        <p class="sb-n" role="status" data-testid="pack-note">
+                            {packNote()}
+                        </p>
+                    </Show>
+                    <ul class="pk-l" aria-label="Packs on this machine">
+                        <For each={packs()}>
+                            {(pack) => (
+                                <li class="pk-i" title={pack.about} data-testid={`pack-${pack.id}`}>
+                                    <b>{pack.name}</b>
+                                    <Show when={pack.by}>
+                                        <span>by {pack.by}</span>
+                                    </Show>
+                                    <span class="sb-c">
+                                        {[pack.sounds.length ? `${pack.sounds.length} ${pack.sounds.length === 1 ? 'sound' : 'sounds'}` : '', pack.presets.length ? `${pack.presets.length} ${pack.presets.length === 1 ? 'preset' : 'presets'}` : ''].filter(Boolean).join(', ')}
+                                    </span>
+                                    <button class="rx" aria-label={`Remove the pack ${pack.name}`} title="Remove this pack from this machine" onClick={() => void removePack(pack.id)}>
+                                        <svg viewBox="0 0 8 8">
+                                            <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
+                                        </svg>
+                                    </button>
+                                </li>
+                            )}
+                        </For>
+                    </ul>
+                </Show>
                 <div class="sb-l" ref={list}>
                     <For each={shown()}>
                         {(item) => (
                             <div
                                 class="sb-i"
-                                classList={{ on: used(item), own: item.group === 'yours', cut: item.group === 'samples', kept: isPreset(item) && Boolean(presetOf(item.name)?.own) }}
+                                classList={{ on: used(item), own: item.group === 'yours', pk: item.group === 'packs', cut: item.group === 'samples', kept: isPreset(item) && Boolean(presetOf(item.name)?.own) }}
                                 draggable="true"
                                 title="Drag onto a pattern, into the code, or under the patterns to start a new one"
                                 onDragStart={(event) => {
@@ -216,7 +268,10 @@ export function SoundBrowser() {
                                     <Show when={isPreset(item)} fallback={<code>{item.name}</code>}>
                                         <span class="sb-c">{kindOf(item)}</span>
                                     </Show>
-                                    <Show when={item.group === 'yours' && lengthOf(item.name) !== undefined}>
+                                    <Show when={item.group === 'packs' && packs().length > 1}>
+                                        <span class="sb-c">{packName(item.pack)}</span>
+                                    </Show>
+                                    <Show when={isOwn(item.group) && lengthOf(item.name) !== undefined}>
                                         <span class="sb-c">{lengthText(lengthOf(item.name) ?? 0)}</span>
                                     </Show>
                                 </button>
@@ -234,7 +289,7 @@ export function SoundBrowser() {
                                         </svg>
                                     </button>
                                 </Show>
-                                <Show when={item.group === 'yours'}>
+                                <Show when={isOwn(item.group)}>
                                     <button
                                         class="sb-k"
                                         disabled={stale()}
@@ -246,6 +301,8 @@ export function SoundBrowser() {
                                             <path d="M1.5 7h1M4 4.5v5M6.3 2.8v8.4M8.6 5v4M10.9 3.8v6.4M12.5 7h.3" />
                                         </svg>
                                     </button>
+                                </Show>
+                                <Show when={item.group === 'yours'}>
                                     <button class="rx tr-b" aria-label={`Cut ${item.label} shorter`} title="Cut its start and its end off" onClick={() => void openTrim(item.name)}>
                                         <svg viewBox="0 0 10 10">
                                             <path d="M2 1.5v7M8 1.5v7M2 5h6" />
@@ -280,12 +337,17 @@ export function SoundBrowser() {
                     </For>
                     <Show when={loaded() !== 'loading' && !shown().length}>
                         <p class="br-e">
-                            <Show when={group() === 'yours' && !query().trim()} fallback={<>Nothing in {labelOf(group())} matches.</>}>
-                                Nothing here yet. A file you add can be the sound of a pattern that plays notes, or a row in a drum grid.
+                            <Show when={isOwn(group()) && !query().trim()} fallback={<>Nothing in {labelOf(group())} matches.</>}>
+                                <Show when={group() === 'yours'} fallback={<>No packs yet. Add one with the button above, or make one from your own sounds under Yours.</>}>
+                                    Nothing here yet. A file you add can be the sound of a pattern that plays notes, or a row in a drum grid.
+                                </Show>
                             </Show>
                         </p>
                     </Show>
                 </div>
+                <Show when={making()}>
+                    <PackDialog onClose={() => setMaking(false)} />
+                </Show>
             </aside>
         </Show>
     )

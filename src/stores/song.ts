@@ -4,6 +4,7 @@ import { DEFAULT_MIX, type Mix } from '../library/mix'
 import type { EngineState } from '../engine/engine'
 import type { SongInfo, SongRecord } from '../library/shelf'
 import type { ViewMode } from '../library/layout'
+import type { PackInfo } from '../library/packs'
 import type { OwnSoundInfo } from '../library/sounds'
 import type { Key } from '../song/scales'
 import type { ChordLane } from '../song/chords'
@@ -86,6 +87,9 @@ export type Trim = { name: string; seconds: number; peaks: number[]; from: numbe
 export const [trim, setTrim] = createSignal<Trim | null>(null)
 export const [ownSounds, setOwnSounds] = createSignal<OwnSoundInfo[]>([])
 export const [ownSoundNote, setOwnSoundNote] = createSignal<string | null>(null)
+// The packs that were added: who made each and what it holds.
+export const [packs, setPacks] = createSignal<PackInfo[]>([])
+export const [packNote, setPackNote] = createSignal<string | null>(null)
 // The presets you saved. The ones the app comes with are not among them.
 export const [ownPresets, setOwnPresets] = createSignal<Preset[]>([])
 // When a take from the microphone was started, while one is being made.

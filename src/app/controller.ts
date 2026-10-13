@@ -22,12 +22,13 @@ import { cleanPresetName, LIBRARY, presetCalls, presetEdits, previewText, PREVIE
 import { keeping } from '../library/kept'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, LEFT_PANELS, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type LeftPanel, type ViewMode } from '../library/layout'
-import { fitSoundName, readSongFile, readSource, renameSound, SONG_FILE, SOUND_NAME, soundsUsed, writeSongFileInTurns, type PackedSound } from '../library/songfile'
+import { fitSoundName, readSongFile, readSource, renameSound, SONG_FILE, SOUND_NAME, soundsUsed, writeSongFileInTurns, type PackedSound, type PackRef } from '../library/songfile'
 import { DEFAULT_MIX, fitMix, readMix, type Mix } from '../library/mix'
 import { prepareForPublishing, type Prepared } from '../library/publish'
 import { withoutLead } from '../library/shrink'
 import { turnWhenDue } from '../library/turn'
 import { startTake, whyNot, type NoTake, type Take } from '../library/recorder'
+import { fitPreset, isOfPack, PACK_FILE, packIdFor, packOf, packSoundName, readPackFile, readPacks, writePackFile, writePacks, type PackFile, type PackInfo, type PackPreset } from '../library/packs'
 import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
 import { readKey, writeKey, type Key } from '../song/scales'
 import { gradeOf, readAudio, RING_SECONDS, sizeOf, type AudioOptions, type Format } from '../library/audio'
@@ -90,8 +91,8 @@ import {
     type StarterKind,
 } from '../song/patterns'
 import type { PatternBlock, PatternEvent, TextEdit } from '../song/types'
-import { fits, isLaid, isPreset, isRow, soundEdit, soundTextAt } from '../sounds/apply'
-import { catalogue, type SoundItem } from '../sounds/catalog'
+import { fits, isLaid, isOwn, isPreset, isRow, soundEdit, soundTextAt } from '../sounds/apply'
+import { catalogue, type SoundItem, soundLabel } from '../sounds/catalog'
 import type { Bars } from '../jam/protocol'
 import { jamsOpen, jamStage, setJamsOpen, setJamUnread, setSoundsShare, soundsShare } from '../stores/jam'
 import { attachJam, leaveJam, tellJam } from './jam'
@@ -174,6 +175,9 @@ import {
     setChordLane,
     setMeter,
     setTakeSince,
+    packs,
+    setPacks,
+    setPackNote,
     setTempoLane,
     takeOpening,
     chordLane,
@@ -346,6 +350,7 @@ function tick() {
 
 export async function mount(root: HTMLElement): Promise<void> {
     setOwnPresets(readPresets(keeping.getItem(PRESETS_KEY)))
+    setPacks(readPacks(keeping.getItem(PACKS_KEY)))
     const startMix = readMix(keeping.getItem(MIX_KEY))
     setMixNow(startMix)
     engine.setMix(startMix)
@@ -1338,7 +1343,7 @@ export const slicePeaks = (sound: string) => engine.peaksOf(sound, SLICE_PEAKS)
 
 // A sample from the browser as a new pattern that plays it cut into parts.
 export function addSlices(item: SoundItem): string | null {
-    return item.group === 'samples' || item.group === 'yours' ? addStarter('slices', (name) => slicesCode(name, item.name, mixText())) : null
+    return item.group === 'samples' || isOwn(item.group) ? addStarter('slices', (name) => slicesCode(name, item.name, mixText())) : null
 }
 
 // ---- a recording that plays along the song: a sound of your own that is longer than a bar,
@@ -1387,7 +1392,7 @@ let takeAt: number | null = null
 // song at once: being in it is what it is for.
 export function addAudio(item: SoundItem): string | null {
     const seconds = secondsOfSound(item.name)
-    if (item.group !== 'yours' || seconds === null) return null
+    if (!isOwn(item.group) || seconds === null) return null
     const at = Math.max(0, takenAt.get(item.name) ?? barNow())
     const start = Math.floor(at)
     const bars = barsOfSound(seconds, barSecondsNow())
@@ -1738,7 +1743,7 @@ const rangeAround = (pitch: number) => ({ low: pitch - 8, high: pitch + 11 })
 export function addPatternWith(item: SoundItem): string | null {
     const preset = isPreset(item) ? presetOf(item.name) : undefined
     if (isPreset(item)) return preset ? addStarter(preset.kind === 'bass' ? 'bass' : 'melody', (name) => presetStarter(name, preset.calls), rangeAround(preset.pitch ?? PREVIEW_PITCH)) : null
-    const starter = soundStarter(item.name, item.group === 'kits' ? 'kit' : item.group === 'samples' || item.group === 'yours' ? 'sample' : 'notes')
+    const starter = soundStarter(item.name, item.group === 'kits' ? 'kit' : item.group === 'samples' || isOwn(item.group) ? 'sample' : 'notes')
     return addStarter(starter.name, starter.code, starter.range)
 }
 
@@ -1830,15 +1835,25 @@ export const toggleSounds = () => (soundsOpen() ? closeSounds() : openSounds())
 // Yours are the sounds the app keeps for you, and no others: a sound that is only known to the
 // engine under such a name is not shown as one.
 export const soundCatalogue = (): SoundItem[] => {
-    const kept = new Set(ownSounds().map((sound) => sound.name))
-    return [...catalogue(engine.sounds(), engine.kitNames()).filter((item) => item.group !== 'yours' || kept.has(item.name)), ...allPresets().map(presetItem)]
+    const kept = new Map(ownSounds().map((sound) => [sound.name, sound.pack]))
+    return [
+        ...catalogue(engine.sounds(), engine.kitNames()).flatMap((item): SoundItem[] => {
+            if (item.group !== 'yours') return [item]
+            if (!kept.has(item.name)) return []
+            // A sound of a pack is listed with its pack, under its own name without the pack's.
+            const pack = kept.get(item.name)
+            return [pack ? { ...item, group: 'packs', pack, label: soundLabel(item.name.slice(pack.length + 1)) } : item]
+        }),
+        ...allPresets().map(presetItem),
+    ]
 }
 
 // ---- presets. A preset is listed with the sounds, under its own heading: the ones you saved
 // first, then the ones the app comes with.
 const PRESETS_KEY = 'weft.presets'
-const presetItem = (preset: Preset): SoundItem => ({ group: 'presets', name: preset.id, label: preset.name, parts: [] })
-export const allPresets = (): Preset[] => [...ownPresets(), ...LIBRARY]
+const presetItem = (preset: Preset): SoundItem => ({ group: 'presets', name: preset.id, label: preset.name, parts: [], ...(preset.pack ? { pack: preset.pack } : {}) })
+const packPresets = (): Preset[] => packs().flatMap((pack) => pack.presets.map((preset) => ({ id: `pack:${pack.id}:${preset.name.toLowerCase()}`, name: preset.name, calls: preset.calls, pack: pack.id, ...(preset.pitch !== undefined ? { pitch: preset.pitch } : {}) })))
+export const allPresets = (): Preset[] => [...ownPresets(), ...packPresets(), ...LIBRARY]
 export const presetOf = (id: string): Preset | undefined => allPresets().find((preset) => preset.id === id)
 
 function keepPresets(next: Preset[]): boolean {
@@ -1902,7 +1917,7 @@ export function hearSound(item: SoundItem, part?: string) {
         engine.preview(item.name, null)
         return
     }
-    if (item.group === 'yours') {
+    if (isOwn(item.group)) {
         engine.preview(item.name, null, OWN_PREVIEW_SECONDS)
         return
     }
@@ -1942,7 +1957,7 @@ function dropSound(offset: number, name: string) {
 
 const OWN_PREVIEW_SECONDS = 4
 const ownUrls = new Map<string, string>()
-const infoOfSound = ({ name, file, seconds }: OwnSound) => ({ name, file, seconds })
+const infoOfSound = ({ name, file, seconds, pack }: OwnSound) => ({ name, file, seconds, ...(pack ? { pack } : {}) })
 const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)
 
 async function register(sound: OwnSound) {
@@ -2132,6 +2147,126 @@ export async function keepTrim() {
     }
     closeTrim()
 }
+
+// ---- packs: sounds and presets that someone made for others, added from one file. Their
+// sounds are kept where your own are and play the same way, and are listed with their pack.
+const PACKS_KEY = 'weft.packs'
+const PACK_KIND: FileKind = { extension: PACK_FILE, label: 'Weft Loom pack', type: 'application/json' }
+
+function keepPacks(next: PackInfo[]): boolean {
+    try {
+        keeping.setItem(PACKS_KEY, writePacks(next))
+    } catch {
+        return false
+    }
+    setPacks(next)
+    return true
+}
+
+export const dismissPackNote = () => setPackNote(null)
+
+// A pack file added. A pack that is here already is taken to be a newer one of itself: what
+// it no longer holds goes, and the rest is replaced. A sound whose name is taken by a sound
+// that is not of this pack is left out, and so is one that is no sound.
+export async function addPack(file: File): Promise<boolean> {
+    setPackNote(null)
+    try {
+        const read = readPackFile(await file.text())
+        if ('why' in read) return setPackNote(`${file.name} was not added. ${read.why}`), false
+        const { pack } = read
+        let left = read.left
+        const before = packs().find((mine) => mine.id === pack.id)
+        const stored = new Map((await ownSoundStore.all()).map((sound) => [sound.name, sound.pack]))
+        const names: string[] = []
+        for (const packed of pack.sounds) {
+            const holder = stored.get(packed.name)
+            if ((stored.has(packed.name) && holder !== pack.id) || (!stored.has(packed.name) && engine.soundTaken(packed.name))) {
+                left++
+                continue
+            }
+            const data = packed.data.buffer.slice(packed.data.byteOffset, packed.data.byteOffset + packed.data.byteLength) as ArrayBuffer
+            const seconds = await engine.audioLength(data.slice(0))
+            if (seconds === null) {
+                left++
+                continue
+            }
+            const sound: OwnSound = { name: packed.name, file: packed.file, seconds, addedAt: Date.now(), type: packed.type, data, pack: pack.id }
+            await ownSoundStore.put(sound)
+            await register(sound)
+            names.push(sound.name)
+        }
+        for (const gone of before?.sounds.filter((name) => !names.includes(name)) ?? []) await forget(gone)
+        if (!names.length && !pack.presets.length) return setPackNote(`${file.name} was not added. There is nothing in it that the app can use.`), false
+        const info: PackInfo = { id: pack.id, name: pack.name, by: pack.by, about: pack.about, sounds: names.sort(), presets: pack.presets, addedAt: Date.now() }
+        if (!keepPacks([...packs().filter((mine) => mine.id !== pack.id), info].sort(byName))) return setPackNote(`${pack.name} could not be kept: there is no room left. ${MAKE_ROOM}`), false
+        const kept = await ownSoundStore.all()
+        setOwnSounds(kept.map(infoOfSound).sort(byName))
+        replay()
+        const holds = [names.length ? `${names.length} ${names.length === 1 ? 'sound' : 'sounds'}` : '', pack.presets.length ? `${pack.presets.length} ${pack.presets.length === 1 ? 'preset' : 'presets'}` : ''].filter(Boolean).join(' and ')
+        setPackNote(`${before ? 'Renewed' : 'Added'} ${pack.name}: ${holds}.${left ? ` ${left} ${left === 1 ? 'thing in it was' : 'things in it were'} left out, as no sound or preset the app can use, or under a name that is taken.` : ''}`)
+        return true
+    } catch (err) {
+        setPackNote(`${file.name} could not be added: ${String((err as Error)?.message ?? err)}`)
+        return false
+    }
+}
+
+async function forget(name: string) {
+    await ownSoundStore.remove(name).catch(() => undefined)
+    engine.removeSound(name)
+    const url = ownUrls.get(name)
+    if (url) URL.revokeObjectURL(url)
+    ownUrls.delete(name)
+}
+
+// A pack taken off this machine. A song that uses one of its sounds keeps the name in its
+// code and is silent there, until the pack is added again.
+export async function removePack(id: string) {
+    const pack = packs().find((mine) => mine.id === id)
+    if (!pack) return
+    for (const name of ownSounds().filter((sound) => sound.pack === id).map((sound) => sound.name)) await forget(name)
+    keepPacks(packs().filter((mine) => mine.id !== id))
+    setOwnSounds(ownSounds().filter((sound) => sound.pack !== id))
+    setPackNote(`Removed ${pack.name}.`)
+    replay()
+}
+
+export type PackWanted = { name: string; by: string; about: string; sounds: string[]; presets: string[] }
+
+// A pack made from sounds and presets of your own, as a file to give to others. Each sound gets
+// the pack's short name in front of its own, in the presets that use it as well.
+export async function makePack(wanted: PackWanted): Promise<string> {
+    const name = wanted.name.replace(/\s+/g, ' ').trim()
+    if (!name) return 'Give the pack a name first.'
+    if (!wanted.sounds.length && !wanted.presets.length) return 'Choose at least one sound or preset to put in it.'
+    const id = packIdFor(name, () => false)
+    try {
+        const renamed = new Map<string, string>()
+        const sounds: PackFile['sounds'] = []
+        for (const own of wanted.sounds) {
+            const sound = await ownSoundStore.get(own)
+            if (!sound || sound.pack) continue
+            const inPack = packSoundName(id, own)
+            renamed.set(own, inPack)
+            sounds.push({ name: inPack, file: sound.file, type: sound.type, seconds: sound.seconds, data: new Uint8Array(sound.data) })
+        }
+        const presets: PackPreset[] = wanted.presets.flatMap((presetId) => {
+            const preset = ownPresets().find((mine) => mine.id === presetId)
+            if (!preset) return []
+            const calls = preset.calls.map((call) => [...renamed].reduce((text, [from, to]) => renameSound(text, from, to), call))
+            const made: PackPreset = { name: preset.name, calls }
+            return fitPreset(made) ? [made] : []
+        })
+        if (!sounds.length && !presets.length) return 'None of what was chosen could be put in a pack.'
+        const text = await writePackFile({ id, name, by: wanted.by.replace(/\s+/g, ' ').trim(), about: wanted.about.replace(/\s+/g, ' ').trim(), sounds, presets })
+        const saved = await saveFile(fileName(name, PACK_FILE), text, PACK_KIND)
+        return saved.saved === false ? 'Not saved.' : `Saved the pack ${name}: ${[sounds.length ? `${sounds.length} ${sounds.length === 1 ? 'sound' : 'sounds'}` : '', presets.length ? `${presets.length} ${presets.length === 1 ? 'preset' : 'presets'}` : ''].filter(Boolean).join(' and ')}.`
+    } catch (err) {
+        return `The pack could not be saved: ${String((err as Error)?.message ?? err)}`
+    }
+}
+
+export const packOfSound = (name: string): PackInfo | undefined => packOf(packs(), name)
 
 // A song that still uses the sound keeps the name in its code and is silent there.
 export async function removeOwnSound(name: string) {
@@ -2685,13 +2820,22 @@ const SONG_KIND: FileKind = { extension: SONG_FILE, label: 'Weft Loom song', typ
 // The sounds of your own that the song's code names, as they go into a file. Only those are
 // read from where they are kept, one at a time, in the order they are kept in.
 async function soundsOfSong(code: string): Promise<PackedSound[]> {
-    const used = soundsUsed(code, ownSounds().map((sound) => sound.name)).sort()
+    const used = soundsUsed(code, ownSounds().filter((sound) => !sound.pack).map((sound) => sound.name)).sort()
     const packed: PackedSound[] = []
     for (const name of used) {
         const sound = await ownSoundStore.get(name)
         if (sound) packed.push({ name: sound.name, file: sound.file, type: sound.type, seconds: sound.seconds, data: new Uint8Array(sound.data) })
     }
     return packed
+}
+
+// The packs a song needs: the ones a sound or a preset's sound of which its code names. Their
+// sounds stay out of the file, and whoever opens it is told which packs to add.
+function packsOfSong(code: string): PackRef[] {
+    const used = new Set(soundsUsed(code, ownSounds().filter((sound) => sound.pack).map((sound) => sound.name)))
+    return packs()
+        .filter((pack) => pack.sounds.some((name) => used.has(name)))
+        .map(({ id, name, by }) => ({ id, name, by }))
 }
 
 // The song as one file with the sounds of your own that it uses inside it, as they are. With
@@ -2708,7 +2852,8 @@ export async function saveSongFile() {
         if (!pieces) return void setExportNote('Not saved.')
         setExportNote('Writing the song file.')
         const turn = turnWhenDue()
-        const text = await writeSongFileInTurns({ ...song, sounds: await soundsOfSong(song.code) })
+        const needs = packsOfSong(song.code)
+        const text = await writeSongFileInTurns({ ...song, sounds: await soundsOfSong(song.code), ...(needs.length ? { packs: needs } : {}) })
         for (const piece of textPieces(text)) {
             await turn()
             await pieces.write(piece)
@@ -2737,7 +2882,7 @@ async function prepareToPublish(): Promise<Prepared | null> {
     if (readied?.from === from && readied.sounds === sounds) return readied.made
     const made = soundsOfSong(song.code).then((packed) =>
         prepareForPublishing(
-            { ...song, sounds: packed },
+            { ...song, sounds: packed, ...(packsOfSong(song.code).length ? { packs: packsOfSong(song.code) } : {}) },
             (bytes, sampleRate) => engine.decodeAudio(bytes.slice().buffer, sampleRate),
             (sound, kbps) => encodeMp3(sound.channels, sound.sampleRate, kbps),
         ),
@@ -2894,7 +3039,11 @@ export async function openSongFile(file: File): Promise<boolean> {
         const record: SongRecord = { id: newId(), name: freeTitle(cleanName(read.name) || UNTITLED, titles()), saved: code, draft: code, changedAt: Date.now(), guarded: true, ...(Object.keys(read.keys).length ? { keys: read.keys } : {}), ...(read.source ? { source: read.source } : {}) }
         if (!keepNew(record)) return false
         show(record)
-        setSongNote(added ? `Opened ${record.name}, with ${added} ${added === 1 ? 'sound' : 'sounds'} of its own, now among yours.` : `Opened ${record.name}.`)
+        const missing = (read.packs ?? []).filter((pack) => !packs().some((mine) => mine.id === pack.id))
+        const lacks = missing.length
+            ? ` It uses sounds from ${missing.length === 1 ? 'the pack' : 'the packs'} ${missing.map((pack) => `${pack.name}${pack.by ? ` by ${pack.by}` : ''}`).join(', ')}, which ${missing.length === 1 ? 'is' : 'are'} not on this machine. Those sounds are silent until you add ${missing.length === 1 ? 'it' : 'them'} in Sounds, Packs.`
+            : ''
+        setSongNote((added ? `Opened ${record.name}, with ${added} ${added === 1 ? 'sound' : 'sounds'} of its own, now among yours.` : `Opened ${record.name}.`) + lacks)
         return true
     } catch (err) {
         setSongNote(`${file.name} could not be opened: ${String((err as Error)?.message ?? err)}`)

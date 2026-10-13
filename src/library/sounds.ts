@@ -3,8 +3,10 @@ import { DEMO } from '../demo/demo'
 // Audio files of your own, kept inside the app so that a song which uses one still finds it
 // the next time the app is opened. Each is known by a name made from its file name, and that
 // name is what the code says: s("my_vocal").
-export type OwnSound = { name: string; file: string; seconds: number; addedAt: number; type: string; data: ArrayBuffer }
-export type OwnSoundInfo = Pick<OwnSound, 'name' | 'file' | 'seconds'>
+// `pack` is the pack a sound came in, when it is not one of your own: it is kept in the same
+// place and plays the same way, and is listed with its pack.
+export type OwnSound = { name: string; file: string; seconds: number; addedAt: number; type: string; data: ArrayBuffer; pack?: string }
+export type OwnSoundInfo = Pick<OwnSound, 'name' | 'file' | 'seconds' | 'pack'>
 
 const NAME_LIMIT = 40
 

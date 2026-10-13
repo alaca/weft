@@ -12,17 +12,20 @@ export const takesKit = (block: PatternBlock): boolean => isDrums(block)
 // A sample that is cut into parts is a sample or a sound of your own, and nothing else.
 export const isSliced = (block: PatternBlock): boolean => readSlices(block) !== null
 
-// A recording that plays along the song is a sound of your own: only of those is it known how
-// long they are.
+// A sound of a pack is used the way a sound of your own is: it is an audio file the app holds.
+export const isOwn = (group: SoundGroup): boolean => group === 'yours' || group === 'packs'
+
+// A recording that plays along the song is a sound of your own or of a pack: only of those is
+// it known how long they are.
 export const isLaid = (block: PatternBlock): boolean => readLaid(block) !== null
 
 export const fits = (block: PatternBlock, group: SoundGroup): boolean =>
-    isLaid(block) ? group === 'yours' : isSliced(block) ? group === 'samples' || group === 'yours' : group === 'yours' || (group === 'kits') === takesKit(block)
+    isLaid(block) ? isOwn(group) : isSliced(block) ? group === 'samples' || isOwn(group) : isOwn(group) || (group === 'kits') === takesKit(block)
 
 // A preset is a whole sound, for a pattern that plays notes.
 export const isPreset = (item: SoundItem): boolean => item.group === 'presets'
 
-export const isRow = (block: PatternBlock, item: SoundItem): boolean => item.group === 'yours' && takesKit(block)
+export const isRow = (block: PatternBlock, item: SoundItem): boolean => isOwn(item.group) && takesKit(block)
 
 export const inUse = (block: PatternBlock, item: SoundItem): boolean => {
     if (!fits(block, item.group) || isPreset(item)) return false

@@ -1,8 +1,9 @@
 import { drumChoices } from '../controls/drums'
 
 export type RawSound = { name: string; type: string; tag: string | null }
-export type SoundGroup = 'kits' | 'instruments' | 'synths' | 'samples' | 'presets' | 'yours'
-export type SoundItem = { group: SoundGroup; name: string; label: string; parts: { sound: string; label: string }[] }
+export type SoundGroup = 'kits' | 'instruments' | 'synths' | 'samples' | 'presets' | 'packs' | 'yours'
+// `pack` is the pack a sound or a preset came in.
+export type SoundItem = { group: SoundGroup; name: string; label: string; parts: { sound: string; label: string }[]; pack?: string }
 
 export const SOUND_GROUPS: { id: SoundGroup; label: string }[] = [
     { id: 'kits', label: 'Drum kits' },
@@ -10,6 +11,7 @@ export const SOUND_GROUPS: { id: SoundGroup; label: string }[] = [
     { id: 'synths', label: 'Synths' },
     { id: 'samples', label: 'Samples' },
     { id: 'presets', label: 'Presets' },
+    { id: 'packs', label: 'Packs' },
     { id: 'yours', label: 'Yours' },
 ]
 
@@ -115,7 +117,7 @@ export function findSounds(items: SoundItem[], group: SoundGroup, query: string)
 
 export function countSounds(items: SoundItem[], query: string): Record<SoundGroup, number> {
     const words = wordsOf(query)
-    const counts: Record<SoundGroup, number> = { kits: 0, instruments: 0, synths: 0, samples: 0, presets: 0, yours: 0 }
+    const counts: Record<SoundGroup, number> = { kits: 0, instruments: 0, synths: 0, samples: 0, presets: 0, packs: 0, yours: 0 }
     for (const item of items) if (matches(item, words)) counts[item.group]++
     return counts
 }

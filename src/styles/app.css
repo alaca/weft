@@ -398,7 +398,7 @@ svg.mini rect { fill: var(--h); }
 .sb-i.own { grid-template-columns: minmax(0, 1fr) auto auto auto auto auto; column-gap: 4px; }
 .sb-i.own .sb-p code { flex: 0 20 auto; min-width: 0; }
 .sb-i:hover .rx, .sb-i .rx:focus-visible { opacity: 1; }
-.sb-own { display: flex; align-items: center; gap: 10px; margin: 0 12px 10px; color: var(--linen-3); font-size: 11.5px; line-height: 1.4; }
+.sb-own { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 12px 10px; color: var(--linen-3); font-size: 11.5px; line-height: 1.4; }
 .sb-own .btn { flex: none; }
 .sb-own .btn:disabled, .sb-own .btn[aria-disabled='true'] { opacity: 0.45; cursor: default; }
 .sb-p { display: flex; align-items: baseline; gap: 9px; min-width: 0; padding: 8px 6px 8px 10px; text-align: left; border-radius: 8px; }
@@ -901,6 +901,25 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .sl.many .rn { height: 11px; font-size: 8.5px; line-height: 11px; }
 .sl-f { display: flex; align-items: center; gap: 6px; flex: 1; }
 .sbar-off { color: var(--saffron); }
+
+/* The packs that were added, over their sounds, and the window a pack is made in. */
+.pk-l { list-style: none; margin: 0 12px 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.pk-i { display: flex; align-items: baseline; gap: 7px; min-width: 0; padding: 7px 9px; border-radius: 8px; background: rgba(236, 230, 214, 0.04); font-size: 11.5px; color: var(--linen-2); }
+.pk-i b { color: var(--linen); font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-i > span { white-space: nowrap; }
+.pk-i .sb-c { margin-left: auto; }
+.pk-i .rx { align-self: center; opacity: 1; }
+.sb-i.pk { grid-template-columns: minmax(0, 1fr) auto auto auto; column-gap: 4px; }
+/* The name the code says has the pack's in front and is long: in the list the sound's own is enough. */
+.sb-i.pk .sb-p code { display: none; }
+.pk-f { display: flex; flex-direction: column; gap: 8px; }
+.pk-f .br-s { flex: none; width: 100%; }
+.pk-c { max-height: 190px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border: 1px solid var(--seam); border-radius: 8px; }
+.pk-c label { display: flex; align-items: center; gap: 8px; min-height: 24px; font-size: 12px; color: var(--linen); }
+.pk-c label span { color: var(--linen-3); font: 500 10px/1 var(--mono); font-stretch: 87%; margin-left: auto; }
+.pk-c input { accent-color: var(--linen); }
+.pk-h { display: flex; align-items: center; gap: 8px; color: var(--linen-2); font-size: 12px; }
+.pk-h button { color: var(--linen); text-decoration: underline; text-underline-offset: 2px; font-size: 11.5px; }
 
 /* A recording that plays along the song: its shape with the bars of the song over it. */
 .al-w { position: relative; height: 72px; margin: 2px 0 12px; border-radius: 8px; background: rgba(236, 230, 214, 0.04); overflow: hidden; }

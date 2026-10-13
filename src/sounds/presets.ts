@@ -16,6 +16,8 @@ export type Preset = {
     // The note it is tried out on, where no pattern says another.
     pitch?: number
     own?: boolean
+    // The pack it came in, when it is neither yours nor the app's.
+    pack?: string
 }
 
 export const KIND_LABELS: Record<PresetKind, string> = { bass: 'Bass', lead: 'Lead', pad: 'Pad', pluck: 'Pluck', keys: 'Keys' }
