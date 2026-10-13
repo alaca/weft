@@ -76,6 +76,15 @@ export function JamPanel() {
     const [typed, setTyped] = createSignal('')
     const [copied, setCopied] = createSignal(false)
     const busy = () => jamStage() === 'calling' || jamStage() === 'joining'
+    // A name is taken when its box is left. What starts a jam takes it as it stands in the box
+    // at that moment as well, so that it never depends on the box having been left first, and
+    // puts the pointer into the box when there is still no name.
+    let nameBox: HTMLInputElement | undefined
+    const named = (start: () => unknown) => () => {
+        if (nameBox && !nameBox.disabled && nameBox.value !== jamName()) nameYourself(nameBox.value)
+        void start()
+        if (!jamName()) nameBox?.focus()
+    }
     const others = () => openJams()?.filter((jam) => jam.id !== jamOwn()) ?? []
 
     // The list is looked at for as long as it is in sight.
@@ -134,6 +143,7 @@ export function JamPanel() {
                             <label class="jm-f">
                                 <span class="cap">You are</span>
                                 <input
+                                    ref={nameBox}
                                     value={jamName()}
                                     maxLength={NAME_LIMIT}
                                     placeholder="Your name"
@@ -145,7 +155,7 @@ export function JamPanel() {
                                     }}
                                 />
                             </label>
-                            <button class="jm-sw" role="switch" aria-checked={jamListed()} disabled={busy()} onClick={() => openToJam(!jamListed())}>
+                            <button class="jm-sw" role="switch" aria-checked={jamListed()} disabled={busy()} onClick={named(() => openToJam(!jamListed()))}>
                                 <i classList={{ on: jamListed() }} />
                                 <b>Open to jam</b>
                                 <span>People in the list can see you and ask to join. Off, nobody sees you.</span>
@@ -174,7 +184,7 @@ export function JamPanel() {
                                 </Match>
                                 <Match when={true}>
                                     <div class="jm-g">
-                                        <button class="btn go" disabled={busy()} onClick={() => void inviteToJam()}>
+                                        <button class="btn go" disabled={busy()} onClick={named(() => inviteToJam())}>
                                             Invite someone
                                         </button>
                                         <p class="jm-note">
@@ -186,7 +196,7 @@ export function JamPanel() {
                                             class="jm-inv"
                                             onSubmit={(event) => {
                                                 event.preventDefault()
-                                                void joinJam(typed())
+                                                named(() => joinJam(typed()))()
                                             }}
                                         >
                                             <input class="jm-code" placeholder="An invite, like 7KQ-M2D" aria-label="Invite" value={typed()} maxLength={80} onInput={(event) => setTyped(event.currentTarget.value)} />
@@ -227,7 +237,7 @@ export function JamPanel() {
                                                             <span class="jm-as">Not now</span>
                                                         </Match>
                                                         <Match when={true}>
-                                                            <button class="btn" disabled={busy() || Boolean(jamAsked())} aria-label={`Ask to join ${jam.name}`} onClick={() => void askToJoin(jam)}>
+                                                            <button class="btn" disabled={busy() || Boolean(jamAsked())} aria-label={`Ask to join ${jam.name}`} onClick={named(() => askToJoin(jam))}>
                                                                 Ask to join
                                                             </button>
                                                         </Match>

@@ -94,6 +94,31 @@ describe('a long sound on the line', () => {
         vi.unstubAllGlobals()
     })
 
+    it('that never opens and never fails is given up after a while, so that nothing waits on it for good', async () => {
+        vi.useFakeTimers()
+        let closed = 0
+        class Stuck {
+            static OPEN = 1
+            readyState = 0
+            onopen: (() => void) | null = null
+            onclose: (() => void) | null = null
+            close() {
+                closed++
+            }
+        }
+        vi.stubGlobal('WebSocket', Stuck)
+        vi.stubGlobal('window', globalThis)
+        let said = ''
+        void openLine('ws://relay', { message() {}, bytes() {}, closed() {} }, 5000).catch((err: Error) => (said = err.message))
+        await vi.advanceTimersByTimeAsync(4900)
+        expect(said).toBe('')
+        await vi.advanceTimersByTimeAsync(200)
+        expect(said).toBe('unreachable')
+        expect(closed).toBe(1)
+        vi.useRealTimers()
+        vi.unstubAllGlobals()
+    })
+
     it('has no more than two pieces waiting there, so that what is said is not far behind', async () => {
         vi.useFakeTimers()
         const handed: (string | Uint8Array)[] = []

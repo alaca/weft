@@ -113,7 +113,7 @@ const MOST_LINES = 200
 // How many sounds, and how much of them in all, one jam takes from the other person.
 const MOST_TAKEN = 24
 const MOST_TAKEN_BYTES = 96 * 1024 * 1024
-const UNREACHABLE = 'Jams could not be reached. Check that you are online, then try again.'
+const UNREACHABLE = 'The jam server could not be reached from this computer. Check that you are online. If you are, a firewall, a VPN or a virus scanner may be holding the connection back: let Weft Loom through it, or try another network, then try again.'
 // A line that drops in the middle of a jam is got back without anyone doing anything. The
 // relay is asked now and then whether the line still carries, and a line that has said nothing
 // for a while is taken for dead. A new one is tried for as long as the relay keeps the place.

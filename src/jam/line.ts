@@ -10,7 +10,13 @@ export type LineEvents = { message(message: FromRelay): void; bytes(frame: Array
 const FULL = 2 * PIECE
 const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))
 
-export function openLine(url: string, on: LineEvents): Promise<Line> {
+// A line that can be opened is open within a second or two. Where something between this
+// machine and the relay holds it without ever answering, as a firewall or a virus scanner can,
+// nothing would say so: the line would be on its way for good, and the jam panel with it. So
+// one that is not open after this long is given up, and said to be unreachable.
+export const OPEN_WITHIN = 10_000
+
+export function openLine(url: string, on: LineEvents, within = OPEN_WITHIN): Promise<Line> {
     return new Promise((resolve, reject) => {
         let socket: WebSocket
         try {
@@ -21,8 +27,13 @@ export function openLine(url: string, on: LineEvents): Promise<Line> {
         socket.binaryType = 'arraybuffer'
         let open = false
         let ours = false
+        const late = window.setTimeout(() => {
+            reject(new Error('unreachable'))
+            socket.close()
+        }, within)
         socket.onopen = () => {
             open = true
+            window.clearTimeout(late)
             resolve({
                 send: (message) => {
                     if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message))
@@ -47,6 +58,7 @@ export function openLine(url: string, on: LineEvents): Promise<Line> {
             }
         }
         socket.onclose = () => {
+            window.clearTimeout(late)
             if (!open) return reject(new Error('unreachable'))
             if (!ours) on.closed()
         }
