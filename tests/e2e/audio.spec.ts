@@ -65,6 +65,12 @@ test('a long recording is put in the song, moved, cut and faded', async ({ page 
     await expect.poll(() => last(page)).toContain('.slice(4.65, "<~!2 0 1 2 3 4>")')
     await expect.poll(() => last(page)).toContain('.mask("<0!2 1!5>")')
 
+    // Every number has a step down and a step up beside it.
+    await rack.getByRole('button', { name: 'Start a bar later', exact: true }).click()
+    await expect.poll(() => last(page)).toContain('.slice(4.65, "<~!3 0 1 2 3 4>")')
+    await rack.getByRole('button', { name: 'Start a bar earlier', exact: true }).click()
+    await expect.poll(() => last(page)).toContain('.slice(4.65, "<~!2 0 1 2 3 4>")')
+
     await rack.getByRole('button', { name: 'Later by 10 milliseconds' }).click()
     await expect.poll(() => last(page)).toContain('.late(0.005)')
     await expect(rack.getByTestId('audio-late')).toHaveText('10 ms after the bar')
@@ -75,7 +81,8 @@ test('a long recording is put in the song, moved, cut and faded', async ({ page 
     await field('The first bar it is heard in', '4')
     await field('The last bar it is heard in', '6')
     await expect.poll(() => last(page)).toContain('.mask("<0!3 1!3>")')
-    await field('Fade in, in seconds', '1')
+    await field('Fade in, in seconds', '0.9')
+    await rack.getByRole('button', { name: 'A longer fade in', exact: true }).click()
     await field('Fade out, in seconds', '2')
     await expect.poll(() => last(page)).toContain('.attack("<0.02!3 1 0.02!2>").release("<0.02!5 2>")')
 

@@ -11,6 +11,37 @@ const HIGH = 72
 const MOST_LINES = 48
 const NUDGE = 0.01
 
+// A number with a step down and a step up beside it, for the mouse, and typed into as well.
+// `from` is where a step begins when there is no number yet.
+function Stepper(props: { label: string; less: string; more: string; value: number | null; from?: number; min: number; max?: number; step: number; disabled: boolean; onSet: (value: number) => void }) {
+    const within = (value: number) => Math.round(Math.min(props.max ?? Infinity, Math.max(props.min, value)) * 100) / 100
+    const by = (steps: number) => props.onSet(within(props.value === null ? (props.from ?? props.min) : props.value + steps * props.step))
+    return (
+        <span class="al-s">
+            <button aria-label={props.less} title={props.less} disabled={props.disabled || (props.value !== null && props.value <= props.min)} onClick={() => by(-1)}>
+                <svg viewBox="0 0 10 10" aria-hidden="true">
+                    <path d="M2 5h6" />
+                </svg>
+            </button>
+            <input
+                type="number"
+                min={props.min}
+                max={props.max}
+                step={props.step}
+                aria-label={props.label}
+                value={props.value ?? ''}
+                disabled={props.disabled}
+                onChange={(event) => event.currentTarget.value !== '' && props.onSet(within(Number(event.currentTarget.value)))}
+            />
+            <button aria-label={props.more} title={props.more} disabled={props.disabled || (props.value !== null && props.max !== undefined && props.value >= props.max)} onClick={() => by(1)}>
+                <svg viewBox="0 0 10 10" aria-hidden="true">
+                    <path d="M2 5h6M5 2v6" />
+                </svg>
+            </button>
+        </span>
+    )
+}
+
 // A recording that plays along the song. Its shape is drawn with the bars of the song over it,
 // the part that is heard in the pattern's colour and the rest faint: a press plays it from
 // there. Under it is where it begins, the bars it is heard in and how it fades. Cutting holes
@@ -67,7 +98,7 @@ export function AudioRack(props: { id: string; block: PatternBlock; playing: boo
         return at >= 0 && at <= 1 ? at : null
     })
 
-    const number = (event: Event & { currentTarget: HTMLInputElement }) => Number(event.currentTarget.value)
+    const startBar = () => Math.floor(place() + 1e-6)
     const late = () => (audio()?.lateBy ?? 0) * barSecondsNow()
 
     return (
@@ -103,19 +134,10 @@ export function AudioRack(props: { id: string; block: PatternBlock; playing: boo
                 </Show>
             </div>
             <div class="al-f">
-                <label class="al-l">
+                <span class="al-l">
                     <span class="cap">Starts at bar</span>
-                    <input
-                        class="al-i"
-                        type="number"
-                        min="1"
-                        step="1"
-                        aria-label="The bar it starts at"
-                        value={Math.floor(place() + 1e-6) + 1}
-                        disabled={stale()}
-                        onChange={(event) => setAudioStart(props.id, number(event) - 1)}
-                    />
-                </label>
+                    <Stepper label="The bar it starts at" less="Start a bar earlier" more="Start a bar later" value={startBar() + 1} min={1} step={1} disabled={stale()} onSet={(bar) => setAudioStart(props.id, bar - 1)} />
+                </span>
                 <span class="al-l">
                     <span class="cap">Nudge</span>
                     <button class="chip tgl" disabled={stale() || place() <= 0} aria-label="Earlier by 10 milliseconds" title="Earlier by 10 milliseconds. For a take that was sung a little late." onClick={() => nudgeAudio(props.id, -NUDGE)}>
@@ -132,58 +154,40 @@ export function AudioRack(props: { id: string; block: PatternBlock; playing: boo
                 </span>
                 <span class="al-l">
                     <span class="cap">Heard from bar</span>
-                    <input
-                        class="al-i"
-                        type="number"
-                        min="1"
-                        step="1"
-                        aria-label="The first bar it is heard in"
-                        value={first() < 0 ? '' : first() + 1}
+                    <Stepper
+                        label="The first bar it is heard in"
+                        less="Heard from a bar earlier"
+                        more="Heard from a bar later"
+                        value={first() < 0 ? null : first() + 1}
+                        from={startBar() + 1}
+                        min={1}
+                        step={1}
                         disabled={stale()}
-                        onChange={(event) => setAudioHeard(props.id, number(event) - 1, Math.max(number(event) - 1, last()))}
+                        onSet={(bar) => setAudioHeard(props.id, bar - 1, Math.max(bar - 1, last()))}
                     />
                     <span class="cap">to</span>
-                    <input
-                        class="al-i"
-                        type="number"
-                        min="1"
-                        step="1"
-                        aria-label="The last bar it is heard in"
-                        value={last() < 0 ? '' : last() + 1}
+                    <Stepper
+                        label="The last bar it is heard in"
+                        less="Heard to a bar earlier"
+                        more="Heard to a bar later"
+                        value={last() < 0 ? null : last() + 1}
+                        from={startBar() + 1}
+                        min={1}
+                        step={1}
                         disabled={stale()}
-                        onChange={(event) => setAudioHeard(props.id, first() < 0 ? number(event) - 1 : Math.min(first(), number(event) - 1), number(event) - 1)}
+                        onSet={(bar) => setAudioHeard(props.id, first() < 0 ? bar - 1 : Math.min(first(), bar - 1), bar - 1)}
                     />
                 </span>
-                <label class="al-l" title="How long it takes to come in, where it begins to be heard. At most a bar.">
+                <span class="al-l" title="How long it takes to come in, where it begins to be heard. At most a bar.">
                     <span class="cap">Fade in</span>
-                    <input
-                        class="al-i"
-                        type="number"
-                        min="0"
-                        max="30"
-                        step="0.1"
-                        aria-label="Fade in, in seconds"
-                        value={audio()?.fadeIn ?? 0}
-                        disabled={stale()}
-                        onChange={(event) => setAudioFade(props.id, 'in', number(event))}
-                    />
+                    <Stepper label="Fade in, in seconds" less="A shorter fade in" more="A longer fade in" value={audio()?.fadeIn ?? 0} min={0} max={30} step={0.1} disabled={stale()} onSet={(seconds) => setAudioFade(props.id, 'in', seconds)} />
                     <span class="al-t">s</span>
-                </label>
-                <label class="al-l" title="How long it takes to go out, after the last bar it is heard in. It goes on for that long with what the recording has there.">
+                </span>
+                <span class="al-l" title="How long it takes to go out, after the last bar it is heard in. It goes on for that long with what the recording has there.">
                     <span class="cap">Fade out</span>
-                    <input
-                        class="al-i"
-                        type="number"
-                        min="0"
-                        max="30"
-                        step="0.1"
-                        aria-label="Fade out, in seconds"
-                        value={audio()?.fadeOut ?? 0}
-                        disabled={stale()}
-                        onChange={(event) => setAudioFade(props.id, 'out', number(event))}
-                    />
+                    <Stepper label="Fade out, in seconds" less="A shorter fade out" more="A longer fade out" value={audio()?.fadeOut ?? 0} min={0} max={30} step={0.1} disabled={stale()} onSet={(seconds) => setAudioFade(props.id, 'out', seconds)} />
                     <span class="al-t">s</span>
-                </label>
+                </span>
             </div>
             <Show when={!audioFits(props.id)}>
                 <p class="al-n" data-testid="audio-unfit">

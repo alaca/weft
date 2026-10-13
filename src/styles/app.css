@@ -911,10 +911,17 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .al-p b { position: absolute; left: 4px; top: 4px; font: 600 9px/1 var(--mono); color: var(--linen-2); }
 .al-f { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; }
 .al-l { display: inline-flex; align-items: center; gap: 6px; }
-.al-i { width: 46px; height: 23px; padding: 0 6px; border-radius: 7px; background: var(--vat); border: 1px solid var(--seam); color: var(--linen); font: 500 12px/1 var(--mono); -moz-appearance: textfield; appearance: textfield; }
-.al-i::-webkit-outer-spin-button, .al-i::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.al-i:focus { outline: none; border-color: var(--linen-3); }
-.al-i:disabled { color: var(--linen-3); }
+.al-s { display: inline-flex; align-items: stretch; height: 25px; border-radius: 7px; background: var(--vat); border: 1px solid var(--seam); overflow: hidden; }
+.al-s:focus-within { border-color: var(--linen-3); }
+.al-s input { width: 38px; padding: 0; border: 0; background: none; text-align: center; color: var(--linen); font: 500 12px/1 var(--mono); -moz-appearance: textfield; appearance: textfield; }
+.al-s input::-webkit-outer-spin-button, .al-s input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.al-s input:focus { outline: none; }
+.al-s input:disabled { color: var(--linen-3); }
+.al-s button { width: 22px; display: grid; place-items: center; color: var(--linen-2); }
+.al-s button:hover:not(:disabled) { background: var(--cloth-3); color: var(--linen); }
+.al-s button:focus-visible { outline-offset: -2px; }
+.al-s button:disabled { opacity: 0.35; cursor: default; }
+.al-s svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 .al-t { color: var(--linen-3); font-size: 11.5px; }
 .al-n { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; color: var(--saffron); font-size: 11.5px; }
 
