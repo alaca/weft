@@ -28,8 +28,9 @@ export const AT_ONCE = 4
 // A note whose pitch slides or is left to chance is another note every time it is asked about,
 // so what is remembered of notes has an end.
 export const MOST = 512
+// No more notes than this wait for one sound that is not known yet.
+export const MOST_WAITING = 64
 
-type Waiting = { name: string; key: string; value: Record<string, unknown> }
 const isSample = (sound: Sound) => sound.data?.type === 'sample'
 
 export function loadAhead({ sounds, fileOf, load }: Given): Ahead {
@@ -37,8 +38,10 @@ export function loadAhead({ sounds, fileOf, load }: Given): Ahead {
     // of your own is when it is cut shorter, is another sound here and is seen to again.
     const seen = new WeakMap<object, Set<string>>()
     // Notes of a sound that is not known yet: the lists of sounds come a moment after the app
-    // has started and a sound of your own later still, and by then nobody asks again.
-    const waiting = new Map<string, Waiting>()
+    // has started and a sound of your own later still, and by then nobody asks again. Each
+    // sound waits by itself, so that one whose pitch is another at every note cannot push out
+    // the notes of the others.
+    const waiting = new Map<string, Map<string, Record<string, unknown>>>()
     const asked = new Set<string>()
     const queue: string[] = []
     let loading = 0
@@ -92,20 +95,24 @@ export function loadAhead({ sounds, fileOf, load }: Given): Ahead {
                     fetchFor(sound, key, value)
                     continue
                 }
-                const id = `${name}|${key}`
-                if (waiting.has(id)) continue
-                if (waiting.size >= MOST) waiting.delete(waiting.keys().next().value as string)
-                waiting.set(id, { name, key, value })
+                let notes = waiting.get(name)
+                if (!notes) {
+                    if (waiting.size >= MOST) waiting.delete(waiting.keys().next().value as string)
+                    waiting.set(name, (notes = new Map()))
+                }
+                if (notes.has(key)) continue
+                if (notes.size >= MOST_WAITING) notes.delete(notes.keys().next().value as string)
+                notes.set(key, value)
             }
             next()
         },
         again() {
             const known = sounds()
-            for (const [id, { name, key, value }] of waiting) {
+            for (const [name, notes] of waiting) {
                 const sound = known[name]
                 if (!sound) continue
-                waiting.delete(id)
-                if (isSample(sound)) fetchFor(sound, key, value)
+                waiting.delete(name)
+                if (isSample(sound)) for (const [key, value] of notes) fetchFor(sound, key, value)
             }
             next()
         },

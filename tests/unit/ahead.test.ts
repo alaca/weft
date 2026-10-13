@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getSampleInfo, registerSound, resetLoadedSounds, samples, soundMap } from 'superdough'
-import { AT_ONCE, loadAhead, MOST } from '../../src/engine/ahead'
+import { AT_ONCE, loadAhead, MOST, MOST_WAITING } from '../../src/engine/ahead'
 
 const BASE = 'https://sounds.test/'
 const KIT = { RolandTR909_bd: ['909/bd0.wav', '909/bd1.wav', '909/bd2.wav'], RolandTR909_sd: ['909/sd.wav'], hh: ['hh.wav'] }
@@ -109,7 +109,7 @@ describe('the files of a song that are fetched before it is played', () => {
         ahead.note(answer({ s: 'bd', bank: 'RolandTR909' }))
         expect(started).toEqual([`${BASE}hh.wav`, `${BASE}909/bd0.wav`])
 
-        const many = Array.from({ length: MOST + 20 }, (_, at) => `late/${at}.wav`)
+        const many = Array.from({ length: MOST_WAITING + 20 }, (_, at) => `late/${at}.wav`)
         const late = fetching()
         late.ahead.note(answer(...many.map((_, n) => ({ s: 'late', n }))))
         await samples({ late: many }, BASE)
@@ -119,5 +119,17 @@ describe('the files of a song that are fetched before it is played', () => {
             await turn()
         }
         expect(late.started).toEqual(many.slice(20).map((file) => BASE + file))
+    })
+
+    it('wait sound by sound, so that a sound whose pitch is another at every note does not push out the drums asked about before it', async () => {
+        resetLoadedSounds()
+        const { ahead, started } = fetching()
+        ahead.note(answer({ s: 'bd', bank: 'RolandTR909' }, { s: 'sd', bank: 'RolandTR909' }, { s: 'hh' }))
+        for (let bar = 0; bar < 16; bar++) ahead.note(answer(...Array.from({ length: 64 }, (_, at) => ({ s: 'piano', note: 40 + (bar * 64 + at) / 26 }))))
+        await samples(KIT, BASE)
+        await samples(PIANO, BASE)
+        ahead.again()
+        expect(started.slice(0, 3)).toEqual([`${BASE}909/bd0.wav`, `${BASE}909/sd.wav`, `${BASE}hh.wav`])
+        expect(started.length).toBeGreaterThan(3)
     })
 })
