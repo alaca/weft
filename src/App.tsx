@@ -1,6 +1,6 @@
 import { onCleanup, onMount, Show } from 'solid-js'
 import { play, redoChange, saveSong, stop, togglePlay, undoChange } from './app/controller'
-import { pianoDown, pianoUp } from './app/piano'
+import { hearKeyboards, pianoDown, pianoUp } from './app/piano'
 import { DEMO } from './demo/demo'
 import { SOUNDS_WIDTH } from './library/layout'
 import { jamsOpen } from './stores/jam'
@@ -62,6 +62,9 @@ export function App() {
     onMount(() => {
         document.addEventListener('keydown', onKey)
         document.addEventListener('keyup', pianoUp)
+        // The desktop app hears a MIDI keyboard from the start. A browser asks first, so there
+        // it is left until a keyboard is asked for.
+        if ('__TAURI_INTERNALS__' in window) void hearKeyboards()
     })
     onCleanup(() => {
         document.removeEventListener('keydown', onKey)

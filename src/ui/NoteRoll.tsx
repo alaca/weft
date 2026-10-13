@@ -5,7 +5,8 @@ import { chordOn, inKey, nearestInKey, ROOTS, SCALE_KINDS, SCALES, stepInKey, ty
 import type { PatternBlock } from '../song/types'
 import { noteName } from '../song/view'
 import { noteSteps, USUAL } from '../song/meter'
-import { gridNotes, meter, patternKeys, pianoFor, pianoOctave, pianoWrites, rollRanges, setPianoFor, setPianoWrites, stale } from '../stores/song'
+import { gridNotes, meter, midiKeyboards, patternKeys, pianoFor, pianoOctave, pianoWrites, rollRanges, setPianoFor, setPianoWrites, stale } from '../stores/song'
+import { hearKeyboards } from '../app/piano'
 import { GridFooter } from './GridFooter'
 import { asksForMenu } from './keys'
 
@@ -340,8 +341,11 @@ export function NoteRoll(props: {
                     classList={{ on: pianoFor() === props.id }}
                     aria-pressed={pianoFor() === props.id}
                     aria-label={`Play ${props.id} on the keyboard`}
-                    title="Play this pattern on the computer's keyboard, as on a piano"
-                    onClick={() => setPianoFor(pianoFor() === props.id ? null : props.id)}
+                    title="Play this pattern on the computer's keyboard, as on a piano, or on a MIDI keyboard"
+                    onClick={() => {
+                        setPianoFor(pianoFor() === props.id ? null : props.id)
+                        void hearKeyboards()
+                    }}
                 >
                     Keys
                 </button>
@@ -398,7 +402,9 @@ export function NoteRoll(props: {
             </GridFooter>
             <Show when={pianoFor() === props.id}>
                 <p class="rk-n" data-testid="piano-note">
-                    A S D F G H J K are the white keys from c{pianoOctave()} to c{pianoOctave() + 1}, W E T Y U the black ones between. Z and X go an octave down and up. {pianoWrites() ? 'While the song plays, what you play is written in.' : 'Nothing is written in: you only hear what you play.'}
+                    A S D F G H J K are the white keys from c{pianoOctave()} to c{pianoOctave() + 1}, W E T Y U the black ones between. Z and X go an octave down and up.{' '}
+                    <Show when={midiKeyboards()?.length}>A MIDI keyboard plays it too, each key the note it is. </Show>
+                    {pianoWrites() ? 'While the song plays, what you play is written in.' : 'Nothing is written in: you only hear what you play.'}
                 </p>
             </Show>
             <Show when={gridNotes()[props.id]}>

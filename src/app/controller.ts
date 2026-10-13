@@ -1649,7 +1649,8 @@ export function addNotesAt(id: string, at: { page: number; time: number; midis: 
 // For a pattern that is played from the computer's keyboard: one note of it sounded now,
 // whatever the song is doing; the step of its roll that the song is nearest to at this moment;
 // and a note put on a step.
-export const soundNote = (id: string, midi: number) => engine.previewNote(midi, find(id)?.soundName ?? null)
+// `force` is how hard the key was pressed, from 0 to 1, where a keyboard says.
+export const soundNote = (id: string, midi: number, force?: number) => engine.previewNote(midi, find(id)?.soundName ?? null, undefined, force)
 
 export function rollPlace(id: string): { step: number; perCycle: number; steps: number } | null {
     const block = find(id)

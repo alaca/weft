@@ -1,3 +1,4 @@
+mod midi;
 mod recorder;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -11,7 +12,8 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(recorder::Recorder::default())
         .manage(recorder::Speaker::default())
-        .invoke_handler(tauri::generate_handler![recorder::start_take, recorder::stop_take, recorder::start_voice, recorder::stop_voice, recorder::sound_inputs])
+        .manage(midi::Keyboards::default())
+        .invoke_handler(tauri::generate_handler![recorder::start_take, recorder::stop_take, recorder::start_voice, recorder::stop_voice, recorder::sound_inputs, midi::midi_inputs, midi::midi_listen, midi::midi_stop])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -118,7 +118,7 @@ export interface Engine {
     receive(updates: SentUpdate[]): void
     // How many of the jam's changes are in the code here, in the relay's count.
     syncVersion(): number
-    previewNote(midi: number, sound: string | null, seconds?: number): void
+    previewNote(midi: number, sound: string | null, seconds?: number, force?: number): void
     // The tempo of every bar, in bars a second, where the tempo changes along the song. A list
     // shorter than the song goes round. Null when the song has one tempo.
     setTempoLane(barsPerSecond: number[] | null): void
@@ -1537,8 +1537,9 @@ export function createEngine(): Engine {
             offset = on ? 0 : startBar - Math.floor(mirror.repl.scheduler.now())
             void mirror.evaluate(true)
         },
-        previewNote(midi, sound, seconds = 0.3) {
-            audition(() => ({ note: midi, s: sound ?? 'triangle' }), seconds)
+        previewNote(midi, sound, seconds = 0.3, force) {
+            // A key pressed softly is quieter, and never so quiet that it is not heard.
+            audition(() => ({ note: midi, s: sound ?? 'triangle', ...(force === undefined ? {} : { gain: 0.25 + 0.75 * Math.min(1, Math.max(0, force)) }) }), seconds)
         },
         setTempoLane(barsPerSecond) {
             tempoLane = barsPerSecond?.length ? barsPerSecond : null

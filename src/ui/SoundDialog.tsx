@@ -1,7 +1,9 @@
 import { createResource, createSignal, onCleanup, onMount, Show, For } from 'solid-js'
 import { chooseInput, chooseOutput, closeSoundSettings, testOutput } from '../app/controller'
 import { askForNames, listInputs, listOutputs, outputRoute } from '../library/soundDevices'
-import { soundChoice, soundOpen } from '../stores/song'
+import { hearKeyboards } from '../app/piano'
+import { canHearMidi } from '../library/midi'
+import { midiKeyboards, soundChoice, soundOpen } from '../stores/song'
 
 const SYSTEM = ''
 
@@ -30,6 +32,7 @@ function Settings() {
     onMount(() => {
         document.addEventListener('keydown', escape)
         navigator.mediaDevices?.addEventListener?.('devicechange', again)
+        void hearKeyboards()
     })
     onCleanup(() => {
         document.removeEventListener('keydown', escape)
@@ -100,6 +103,15 @@ function Settings() {
                         What the song and every sound you listen to are played through.
                         <Show when={route === 'element'}> Through an output chosen here the sound comes a moment later than through the system’s.</Show>
                         <Show when={outputGone()}> The one that was chosen ({soundChoice().outputName ?? 'unnamed'}) is not there, so the system’s is used.</Show>
+                    </Show>
+                </p>
+                <div class="sd-r">
+                    <span>MIDI</span>
+                    <b class="sd-m" data-testid="sound-midi">{midiKeyboards()?.length ? midiKeyboards()!.join(', ') : 'No keyboard plugged in'}</b>
+                </div>
+                <p class="sd-t">
+                    <Show when={canHearMidi()} fallback={<>This window cannot reach a MIDI keyboard. The desktop app can.</>}>
+                        A MIDI keyboard or pad is heard as soon as it is plugged in. It plays the pattern you are on: its notes, or the sounds of a drum grid. With Keys on at a piano roll, what you play while the song plays is written into it.
                     </Show>
                 </p>
                 <p class="xp-n" role="status" data-testid="sound-note">
