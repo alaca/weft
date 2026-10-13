@@ -485,6 +485,7 @@ svg.mini rect { fill: var(--h); }
 .sg-kn { display: flex; align-items: center; gap: 6px; height: var(--row, 30px); min-width: 0; padding: 0 8px 0 69px; font: 500 10.5px/1 var(--mono); font-stretch: 87%; text-transform: uppercase; letter-spacing: 0.06em; color: var(--linen-2); }
 .sg-kn span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sg-kn .rx { opacity: 0; }
+.sg-kn.sg-tn { padding-left: 17px; color: var(--linen-2); }
 .sg-kn:hover .rx, .sg-kn .rx:focus-visible { opacity: 1; }
 .sg-k { cursor: ns-resize; }
 .sg-v { position: relative; min-width: 0; height: 100%; display: flex; align-items: flex-end; padding: 3px 0; }

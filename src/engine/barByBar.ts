@@ -4,11 +4,14 @@
 // `startOf` when a sound starts, in seconds. What comes back is asked with a time and answers
 // the sounds that start before it and were not given yet, in the order they start in, and two
 // that start together in the order they were answered in.
-export function barByBar<T>(bars: number, barsPerSecond: number, inBar: (bar: number) => T[], startOf: (sound: T) => number): (until: number) => T[] {
+// Where the tempo changes along the song, when a bar starts is given in place of how many bars
+// go by in a second.
+export function barByBar<T>(bars: number, barsPerSecond: number | ((bar: number) => number), inBar: (bar: number) => T[], startOf: (sound: T) => number): (until: number) => T[] {
+    const startOfBar = typeof barsPerSecond === 'function' ? barsPerSecond : (bar: number) => bar / barsPerSecond
     const waiting: T[] = []
     let asked = 0
     return (until) => {
-        for (; asked < bars && asked / barsPerSecond < until; asked++) {
+        for (; asked < bars && startOfBar(asked) < until; asked++) {
             for (const sound of inBar(asked).sort((a, b) => startOf(a) - startOf(b))) waiting.push(sound)
         }
         let due = 0

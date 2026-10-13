@@ -2,7 +2,7 @@ import { history, isolateHistory, redo, undo } from '@codemirror/commands'
 import { Annotation, EditorState, Prec, StateEffect, Transaction } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
 import { BlockWidget, StrudelMirror, codemirrorSettings, sliderPlugin, sliderValues } from '@strudel/codemirror'
-import { evaluate as evaluateText, Pattern, silence } from '@strudel/core'
+import { evaluate as evaluateText, Pattern, pure, silence, slowcat } from '@strudel/core'
 import { mini } from '@strudel/mini'
 import {
     getAnalyserById,
@@ -47,7 +47,8 @@ const NUMBER = /^-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/i
 export type { BlockMark } from './marks'
 
 export type EvalError = { message: string; line: number | null; guard?: boolean }
-export type Rendered = { channels: Float32Array[]; sampleRate: number; secondsPerBar: number; missed: number }
+// `seconds` is how long the bars that were asked for last, without what rings after them.
+export type Rendered = { channels: Float32Array[]; sampleRate: number; secondsPerBar: number; seconds: number; missed: number }
 // `only` names one pattern to make the recording of. The others are left out of it, but what
 // they do to it stays: a pattern that is pushed down by the kick is still pushed down.
 // `from` is the bar the recording starts at when that is not the first one, and `bars` is
@@ -116,6 +117,9 @@ export interface Engine {
     // How many of the jam's changes are in the code here, in the relay's count.
     syncVersion(): number
     previewNote(midi: number, sound: string | null, seconds?: number): void
+    // The tempo of every bar, in bars a second, where the tempo changes along the song. A list
+    // shorter than the song goes round. Null when the song has one tempo.
+    setTempoLane(barsPerSecond: number[] | null): void
     // The microphone was used a moment ago, so what the sound goes out through may have changed.
     micWasUsed(): void
     // The shape of a sample along its length, as so many heights, and how long it is. Null for
@@ -417,8 +421,17 @@ export function createEngine(): Engine {
         // Two patterns can have one name, so a pattern that sounded is known by its name and by
         // which one of that name it is.
         const named = new Map<string, number>()
+        let tempoPut = false
         Pattern.prototype.p = function (this: any, id: unknown) {
             if (typeof id !== 'string') return original.call(this, id)
+            // The tempo of every bar goes along with the first pattern of the song, as a
+            // pattern of its own that makes no sound, moved and sent round as the others are.
+            // Live, the bars are not followed, and neither is their tempo.
+            if (!tempoPut && tempoLane && !liveMode) {
+                tempoPut = true
+                const tempos = slowcat(...tempoLane.map((cps) => pure({ cps, [TEMPO]: true })))
+                original.call(loop ? tempos.ribbon(loop.from, loop.to - loop.from).early(offset) : offset ? tempos.early(offset) : tempos, '$')
+            }
             const bare = bareId(id)
             const key = bare.includes('$') ? `pattern ${++anonymous}` : bare
             const nth = (named.get(key) ?? 0) + 1
@@ -780,13 +793,21 @@ export function createEngine(): Engine {
     const query = (pattern: any, cycle: number): PatternEvent[] => {
         if (!pattern) return []
         try {
-            const haps = pattern.queryArc(cycle, cycle + 1)
+            const haps = pattern.queryArc(cycle, cycle + 1).filter((hap: any) => !isTempo(hap))
             ahead.note(haps, mirror?.repl.scheduler.cps)
             return toEvents(haps, cycle)
         } catch {
             return []
         }
     }
+
+    // Where the tempo changes along the song, Strudel is told the tempo of each bar by a note
+    // that carries it and nothing else. Its clock takes the tempo from such a note when the
+    // note falls due, which is at the start of its bar. The note itself is never played.
+    const TEMPO = '__weftTempo'
+    let tempoLane: number[] | null = null
+    const isTempo = (hap: any): boolean => Boolean(hap?.value && typeof hap.value === 'object' && hap.value[TEMPO])
+    const tempoOfBar = (bar: number, usual: number): number => (tempoLane ? tempoLane[((Math.floor(bar) % tempoLane.length) + tempoLane.length) % tempoLane.length] : usual)
 
     // A mixer shows how loud each pattern is by itself. The sound engine lets a sound be listened
     // to on its way out, after its own volume, by a name that is given with the sound. So while
@@ -824,6 +845,7 @@ export function createEngine(): Engine {
     const makeMirror = (root: HTMLElement, initialCode: string) =>
         new StrudelMirror({
             defaultOutput: (hap: any, deadline: number, duration: number, cps: number, time: number) => {
+                if (isTempo(hap)) return
                 toLight(hap)
                 if (guarded && carriesCode(hap.value)) return
                 readyToDuck(hap.value)
@@ -847,6 +869,10 @@ export function createEngine(): Engine {
                 sounding = pendingSounding
                 evaluated = true
                 evaluatedCode = done?.code ?? mirror.code
+                // The code sets the tempo of the song every time it is evaluated. Where each
+                // bar has its own, the bar the song is in gets it back at once.
+                // A song that has just started is a moment before its first bar, which is still that bar.
+                if (tempoLane && !liveMode) mirror.repl.scheduler.setCps(tempoOfBar(Math.max(0, mirror.repl.scheduler.started || state.paused ? engine.now() : startingAt()), mirror.repl.scheduler.cps))
                 setState({ error: null, dirty: false })
                 announce()
             },
@@ -1172,16 +1198,31 @@ export function createEngine(): Engine {
                 }
                 const pattern = mirror.repl.state.pattern
                 const cps: number = mirror.repl.scheduler.cps
-                const first = madeFrom(from, RUN_UP, (bar) => pattern.queryArc(bar, bar + 1, { _cps: cps }).flatMap((hap: any) => (hap.whole ? [hap.whole.begin.valueOf()] : [])))
+                // Where the tempo changes along the song, each bar lasts as long as its own tempo
+                // makes it, and a place in the song falls where the bars before it end. With one
+                // tempo all of this is the plain division it always was.
+                const lane = tempoLane
+                const cpsOf = (bar: number) => tempoOfBar(bar, cps)
+                const barStarts: number[] = [0]
+                if (lane) for (let bar = 0; bar < bars; bar++) barStarts.push(barStarts[bar] + 1 / cpsOf(bar))
+                const secondsAt = (place: number): number => {
+                    if (!lane) return place / cps
+                    const bar = Math.min(bars, Math.max(0, Math.floor(place)))
+                    return barStarts[bar] + (place - bar) / cpsOf(bar)
+                }
+                const first = madeFrom(from, RUN_UP, (bar) => pattern.queryArc(bar, bar + 1, { _cps: cpsOf(bar) }).flatMap((hap: any) => (hap.whole && !isTempo(hap) ? [hap.whole.begin.valueOf()] : [])))
                 // Nothing sounds on the clock before the bar the recording is made from.
-                const silent = first / cps
-                const seconds = bars / cps + ringSeconds
+                const silent = secondsAt(first)
+                const songSeconds = secondsAt(bars)
+                const seconds = songSeconds + ringSeconds
                 const along = (at: number) => (ASKED * Math.min(at, silent) + Math.max(0, at - silent)) / (ASKED * silent + seconds - silent)
                 const clock = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate)
                 setAudioContext(clock)
                 setSuperdoughAudioController(null)
                 await initAudio()
-                const startOf = (hap: any) => hap.whole.begin.valueOf() / cps
+                const startOf = (hap: any) => secondsAt(hap.whole.begin.valueOf())
+                const lengthOf = (hap: any) => (lane ? secondsAt(hap.whole.end.valueOf()) - startOf(hap) : hap.duration.valueOf() / cps)
+                const cpsAt = (hap: any) => cpsOf(hap.whole.begin.valueOf())
                 const ducks = (hap: any) => hap.value?.duckorbit !== undefined && hap.value?.duckorbit !== null
                 const rings = (hap: any) => Number(hap.value?.room) > 0
                 const own = only === undefined ? null : pending.get(only)
@@ -1195,7 +1236,7 @@ export function createEngine(): Engine {
                 // they push it down, and they have their say in the room it plays in. The whole
                 // song is asked for that only where it is not known yet.
                 const inBar = (bar: number): Sounded[] => {
-                    const hapsOf = (source: any): any[] => (source ? asItStood(() => source.queryArc(bar, Math.min(bar + 1, bars), { _cps: cps })).filter((hap: any) => hap.hasOnset()) : [])
+                    const hapsOf = (source: any): any[] => (source ? asItStood(() => source.queryArc(bar, Math.min(bar + 1, bars), { _cps: cpsOf(bar) })).filter((hap: any) => hap.hasOnset() && !isTempo(hap)) : [])
                     const kept: any[] | undefined = alone === null ? undefined : known[bar]
                     const everything = kept ? [] : hapsOf(pattern)
                     if (bar >= first) everything.forEach((hap: any) => hap.ensureObjectValue())
@@ -1205,7 +1246,7 @@ export function createEngine(): Engine {
                     // Before the bar a recording is made from, only what a sound does to a room counts.
                     return inOrder([...mine, ...others].filter((sound) => bar >= first || rings(sound.hap)))
                 }
-                const due = barByBar(bars, cps, inBar, (sound) => startOf(sound.hap))
+                const due = barByBar(bars, lane ? (bar) => barStarts[bar] : cps, inBar, (sound) => startOf(sound.hap))
                 // A reverb keeps what a sound last gave it, its size above all, however long
                 // ago that was. The sounds from before the bar a recording is made from are
                 // not made, so those of them with reverb are still asked for, and each gives
@@ -1253,10 +1294,10 @@ export function createEngine(): Engine {
                         if (!before && duckorbit !== undefined && duckorbit !== null && (only === undefined || !heard)) duckAt(hap.value, startOf(hap))
                         // The pattern asked for is in the list once more for what it pushes down.
                         if (!heard && of.name === only) continue
-                        const fitted = inSharedRoom(rooms(), value, startOf(hap), of, 1 / cps)
+                        const fitted = inSharedRoom(rooms(), value, startOf(hap), of, 1 / cpsAt(hap))
                         if (!heard) continue
                         if (before) await leaveRoom(fitted, startOf(hap))
-                        else await superdough(fitted, startOf(hap), hap.duration.valueOf() / cps, cps, hap.whole.begin.valueOf()).catch(() => void missed++)
+                        else await superdough(fitted, startOf(hap), lengthOf(hap), cpsAt(hap), hap.whole.begin.valueOf()).catch(() => void missed++)
                     }
                     await reverbsSound()
                 }
@@ -1281,8 +1322,8 @@ export function createEngine(): Engine {
                 await pause(SETTLE)
                 if (failed) throw failed.why
                 ducking = { code, cps, bars, byBar: found }
-                const early = Math.round((from / cps) * sampleRate)
-                return { channels: [buffer.getChannelData(0).subarray(early), buffer.getChannelData(1).subarray(early)], sampleRate, secondsPerBar: 1 / cps, missed }
+                const early = Math.round(secondsAt(from) * sampleRate)
+                return { channels: [buffer.getChannelData(0).subarray(early), buffer.getChannelData(1).subarray(early)], sampleRate, secondsPerBar: 1 / cps, seconds: songSeconds - secondsAt(from), missed }
             } finally {
                 setAudioContext(live)
                 setSuperdoughAudioController(liveController)
@@ -1425,6 +1466,9 @@ export function createEngine(): Engine {
         },
         previewNote(midi, sound, seconds = 0.3) {
             audition(() => ({ note: midi, s: sound ?? 'triangle' }), seconds)
+        },
+        setTempoLane(barsPerSecond) {
+            tempoLane = barsPerSecond?.length ? barsPerSecond : null
         },
         micWasUsed() {
             micUsed = performance.now()

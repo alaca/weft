@@ -11,6 +11,7 @@ import {
     saveSong,
     setPlayMode,
     setTempo,
+    tempoNow,
     setView,
     SONG_KINDS,
     stop,
@@ -167,9 +168,9 @@ export function TopBar() {
                         max="300"
                         step="1"
                         aria-label="Tempo in beats per minute"
-                        title={song().tempoLocked ? 'The tempo is worked out by code. Change it there.' : 'Tempo in beats per minute'}
-                        value={Math.round(song().tempo?.bpm ?? bpm())}
-                        disabled={stale() || song().tempoLocked}
+                        title={song().tempoLocked ? 'The tempo is worked out by code. Change it there.' : tempoNow() !== null ? 'The tempo is drawn over the song, bar by bar. Change it in the Tempo lane of the Song panel.' : 'Tempo in beats per minute'}
+                        value={Math.round(tempoNow() ?? song().tempo?.bpm ?? bpm())}
+                        disabled={stale() || song().tempoLocked || tempoNow() !== null}
                         onChange={(event) => {
                             setTempo(Number(event.currentTarget.value), keyHeld)
                             keyHeld = false

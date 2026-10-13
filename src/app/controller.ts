@@ -13,6 +13,8 @@ import { chooseFile } from '../desktop/open'
 import { saveFile, savePieces, textPieces, type FileKind, type Saved } from '../desktop/save'
 import { createEngine } from '../engine/engine'
 import { DEMO } from '../demo/demo'
+import { MAX_BARS } from '../song/bars'
+import { fitTempo, readTempoLane, tempoAt, tempoLaneEdit } from '../song/tempo'
 import { cleanPresetName, LIBRARY, presetCalls, presetEdits, previewText, PREVIEW_PITCH, readPresets, soundCalls, withPreset, writePresets, type Preset } from '../sounds/presets'
 import { keeping } from '../library/kept'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
@@ -84,7 +86,7 @@ import {
     textOutside,
     type StarterKind,
 } from '../song/patterns'
-import type { PatternBlock, PatternEvent } from '../song/types'
+import type { PatternBlock, PatternEvent, TextEdit } from '../song/types'
 import { fits, isPreset, isRow, soundEdit, soundTextAt } from '../sounds/apply'
 import { catalogue, type SoundItem } from '../sounds/catalog'
 import type { Bars } from '../jam/protocol'
@@ -167,8 +169,10 @@ import {
     type PlayMode,
     setTakeOpening,
     setTakeSince,
+    setTempoLane,
     takeOpening,
     takeSince,
+    tempoLane,
     setSongs,
     setSoundsOpen,
     setStartBar,
@@ -288,6 +292,11 @@ function firstSong(): SongRecord | null {
 
 function onCode(code: string) {
     if (removed() && code !== removed()?.after) setRemoved(null)
+    // The tempo of every bar is read with every change of the code, and told to the engine as
+    // bars a second: four beats to the bar.
+    const lane = readTempoLane(code)
+    setTempoLane(lane)
+    engine.setTempoLane(lane ? lane.values.map((bpm) => bpm / 240) : null)
     const next = analyze(code, shownVariants())
     if (next.error) {
         setStale(true)
@@ -832,9 +841,52 @@ export function setEcho(id: string, value: number | null) {
 }
 
 export function setTempo(bpm: number, held = false) {
-    if (stale() || song().tempoLocked || !Number.isFinite(bpm)) return
+    if (stale() || song().tempoLocked || tempoLane() || !Number.isFinite(bpm)) return
     engine.applyEdit(tempoEdit(song(), Math.round(Math.min(300, Math.max(20, bpm)))))
     replay(held)
+}
+
+// ---- a tempo for every bar. It starts as the tempo of the song in every bar, and is drawn
+// from there, the way a knob is drawn over the song.
+export function drawTempo() {
+    if (stale() || tempoLane() || song().tempoLocked) return
+    const usual = fitTempo(song().tempo?.bpm ?? engine.bpm())
+    const edit = tempoLaneEdit(engine.getCode(), song(), Array.from({ length: songLengthNow() }, () => usual))
+    if (!edit) return
+    engine.applyEdit(edit)
+    replay()
+}
+
+export function setTempoCurve(values: number[], held = false) {
+    if (stale() || !tempoLane() || !values.length) return
+    const edit = tempoLaneEdit(engine.getCode(), song(), values)
+    if (!edit) return
+    engine.applyEdit(edit)
+    replay(held)
+}
+
+// One tempo for the whole song again: the one it is set to.
+export function stillTempo() {
+    if (stale() || !tempoLane()) return
+    const edit = tempoLaneEdit(engine.getCode(), song(), null)
+    if (!edit) return
+    engine.applyEdit(edit)
+    replay()
+}
+
+// The tempo of the bar the song is at, which is what the tempo in the top bar shows.
+export const tempoNow = (): number | null => {
+    const lane = tempoLane()
+    return lane && playMode() === 'song' ? tempoAt(lane, engineState().playing || engineState().paused ? cycle() : startBar(), lane.values[0]) : null
+}
+
+// A tempo that was drawn over the whole song follows it when the song is made longer or
+// shorter, or has bars put into it, as a knob that is drawn does.
+function followTempo(before: number, change: (values: string[]) => string[]): TextEdit[] {
+    const lane = tempoLane()
+    if (!lane || lane.values.length !== before) return []
+    const edit = tempoLaneEdit(engine.getCode(), song(), change(lane.values.map(String)).slice(0, MAX_BARS).map(Number))
+    return edit ? [edit] : []
 }
 
 // The mixer is how the song sounds on this machine. Nothing of it is written into the song.
@@ -1846,7 +1898,7 @@ export function setBars(id: string, bars: boolean[], painted?: { from: number; t
     const before = songLengthNow()
     const { edits, length } = arrangeSong(engine.getCode(), lanes(), id, bars, before)
     // What is drawn over the song is as long as the song, and stays so.
-    if (length !== before) edits.push(...followSong(lanes(), before, (values) => stretched(values, length)), ...followChoices(lanes(), before, (kinds) => stretched(kinds.map(String), length).map(Number), painted ? id : undefined))
+    if (length !== before) edits.push(...followTempo(before, (values) => stretched(values, length)), ...followSong(lanes(), before, (values) => stretched(values, length)), ...followChoices(lanes(), before, (kinds) => stretched(kinds.map(String), length).map(Number), painted ? id : undefined))
     if (painted && block.variants) {
         const kinds = stretched(variantBars(block, before).map(String), length).map(Number)
         const choice = chooseEdit(
@@ -1916,7 +1968,7 @@ export function repeatLoop() {
     const before = songLengthNow()
     const { edits, length } = repeatEdits(engine.getCode(), lanes(), range.from, range.to, before)
     const again = <T,>(values: T[]) => [...values.slice(0, range.to), ...values.slice(range.from, range.to), ...values.slice(range.to)].slice(0, length)
-    edits.push(...followSong(lanes(), before, again), ...followChoices(lanes(), before, again))
+    edits.push(...followTempo(before, again), ...followSong(lanes(), before, again), ...followChoices(lanes(), before, again))
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
     const moved = { from: range.to, to: Math.min(length, range.to + (range.to - range.from)) }
@@ -1935,7 +1987,7 @@ export function removeLoop() {
     if (!range || stale() || range.to - range.from >= before) return
     const { edits, length } = removeEdits(engine.getCode(), lanes(), range.from, range.to, before)
     const without = <T,>(values: T[]) => [...values.slice(0, range.from), ...values.slice(range.to)]
-    edits.push(...followSong(lanes(), before, without), ...followChoices(lanes(), before, without))
+    edits.push(...followTempo(before, without), ...followSong(lanes(), before, without), ...followChoices(lanes(), before, without))
     clearLoop()
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
@@ -1952,7 +2004,7 @@ export function spaceLoop() {
     if (!range || stale()) return
     const { edits, length } = spaceEdits(engine.getCode(), lanes(), range.from, range.to, before)
     const spaced = <T,>(values: T[]) => [...values.slice(0, range.from), ...Array.from({ length: range.to - range.from }, () => values[range.from]), ...values.slice(range.from)].slice(0, length)
-    edits.push(...followSong(lanes(), before, spaced), ...followChoices(lanes(), before, spaced))
+    edits.push(...followTempo(before, spaced), ...followSong(lanes(), before, spaced), ...followChoices(lanes(), before, spaced))
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
     replay()
@@ -2534,7 +2586,7 @@ export async function exportAudio(options: AudioOptions) {
     setExportNote('Making the audio, 0%.')
     try {
         const made = await engine.render({ bars, ringSeconds: RING_SECONDS, sampleRate: grade.sampleRate }, (done) => setExportNote(`Making the audio, ${percent(done)}.`))
-        const whole = Math.min(made.channels[0].length, Math.round(bars * made.secondsPerBar * made.sampleRate))
+        const whole = Math.min(made.channels[0].length, Math.round(made.seconds * made.sampleRate))
         const length = soundingLength(made.channels, made.sampleRate, whole)
         const peak = peakOf(made.channels, length)
         if (!peak) return void setExportNote('Nothing sounds in this song, so there is no audio to save.')
@@ -2588,7 +2640,7 @@ export async function exportPatterns(options: AudioOptions) {
         const { length, peak, missed } = await engine
             .render({ bars, ringSeconds: RING_SECONDS, sampleRate: grade.sampleRate }, (done) => setExportNote(`Listening to the whole song first, ${percent(done)}.`))
             .then((whole) => {
-                const length = soundingLength(whole.channels, whole.sampleRate, Math.min(whole.channels[0].length, Math.round(bars * whole.secondsPerBar * whole.sampleRate)))
+                const length = soundingLength(whole.channels, whole.sampleRate, Math.min(whole.channels[0].length, Math.round(whole.seconds * whole.sampleRate)))
                 return { length, peak: peakOf(whole.channels, length), missed: whole.missed }
             })
         if (!peak) return void setExportNote('Nothing sounds in this song, so there is no audio to save.')

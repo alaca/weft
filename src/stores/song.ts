@@ -6,6 +6,7 @@ import type { SongInfo, SongRecord } from '../library/shelf'
 import type { ViewMode } from '../library/layout'
 import type { OwnSoundInfo } from '../library/sounds'
 import type { Key } from '../song/scales'
+import type { TempoLane } from '../song/tempo'
 import type { Song } from '../song/types'
 import type { SoundItem } from '../sounds/catalog'
 import type { Preset } from '../sounds/presets'
@@ -26,6 +27,8 @@ export const [songShown, setSongShown] = createSignal(true)
 export const [soundsWidth, setSoundsWidth] = createSignal<number | null>(null)
 export const [codeWidth, setCodeWidth] = createSignal<number | null>(null)
 export const [soloIds, setSoloIds] = createSignal<string[]>([])
+// The tempo of every bar, where the tempo changes along the song.
+export const [tempoLane, setTempoLane] = createSignal<TempoLane | null>(null, { equals: (a, b) => a === b || (a !== null && b !== null && a.from === b.from && a.to === b.to && a.values.length === b.values.length && a.values.every((bpm, at) => bpm === b.values[at])) })
 export const [cycle, setCycle] = createSignal(0)
 export const [beat, setBeat] = createSignal(0)
 export const [position, setPosition] = createSignal(0)

@@ -1,5 +1,5 @@
 import { batch, createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { chooseScene, clearLoop, codeNow, colorAt, drawControl, eventsOf, inStep, keepSceneNow, loopBetween, nameScene, patternText, removeLoop, removeScene, repeatLoop, scenesOf, select, setBars, setCurve, setMix, setMotion, songLengthNow, spaceLoop, startFrom, takeKnobs, toggleBar, toggleMute, toggleSolo } from '../app/controller'
+import { chooseScene, clearLoop, codeNow, colorAt, drawControl, drawTempo, eventsOf, inStep, keepSceneNow, loopBetween, nameScene, patternText, removeLoop, removeScene, repeatLoop, scenesOf, select, setBars, setCurve, setMix, setMotion, setTempoCurve, songLengthNow, spaceLoop, startFrom, stillTempo, takeKnobs, toggleBar, toggleMute, toggleSolo } from '../app/controller'
 import { fromUnit, toUnit } from '../controls/catalog'
 import { drawableIn, drawnIn, panOf, volumeOf, type ControlView } from '../controls/views'
 import { barsOf, clips, paint, type Clip } from '../song/arrange'
@@ -7,7 +7,8 @@ import { MAX_BARS } from '../song/bars'
 import type { PatternEvent } from '../song/types'
 import { sceneIsOn, SCENE_NAME_LIMIT } from '../song/scenes'
 import { barKeys, variantBars, variantName } from '../song/variants'
-import { bpm, cycle, engineState, loopBars, playMode, position, revision, sceneWaiting, soloIds, song, stale, startBar, takingKnobs } from '../stores/song'
+import { secondsOf, TEMPO_LEAST, TEMPO_MOST, type TempoLane } from '../song/tempo'
+import { bpm, cycle, engineState, loopBars, playMode, position, revision, sceneWaiting, soloIds, song, stale, startBar, takingKnobs, tempoLane } from '../stores/song'
 import { Knob } from './Knob'
 import { MixStrips } from './MixStrips'
 import { askSoon } from './askSoon'
@@ -46,8 +47,8 @@ function runsOf(kinds: number[], from: number, to: number): { from: number; kind
 
 const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((id, i) => id === b[i])
 
-function duration(bars: number, tempo: number): string {
-    const seconds = Math.round((bars * 240) / Math.max(1, tempo))
+function duration(bars: number, tempo: number, lane: TempoLane | null = null): string {
+    const seconds = Math.round(secondsOf(lane, bars, tempo))
     if (seconds < 100) return `${seconds} seconds`
     return `${Math.floor(seconds / 60)} min ${seconds % 60} s`
 }
@@ -303,13 +304,18 @@ function Lane(props: { id: string; index: number; view: View }) {
 // from where the drag began, which is how something opens or closes over a stretch of bars.
 const KEYS: Record<string, number> = { ArrowUp: 0.02, ArrowDown: -0.02, PageUp: 0.1, PageDown: -0.1 }
 
-function CurveLane(props: { id: string; fn: string; index: number; view: View }) {
+// What a lane draws when it is not a knob of a pattern: what it is, and how it is written.
+type Drawn = { control: () => ControlView | undefined; write: (values: number[], held?: boolean) => void; hue: string }
+
+function CurveLane(props: { id: string; fn: string; index: number; view: View; drawn?: Drawn }) {
     let track!: HTMLDivElement
     let drag: { from: number; start: number; last: number } | null = null
     const control = createMemo(() => {
+        if (props.drawn) return props.drawn.control()
         const block = song().patterns.find((p) => p.id === props.id)
         return block ? drawnIn(block).find((view) => view.fn === props.fn) : undefined
     })
+    const write = (values: number[], held = false) => (props.drawn ? props.drawn.write(values, held) : setCurve(props.id, props.fn, values, held))
     const written = createMemo(() => {
         const curve = control()?.curve
         return curve?.length ? Array.from({ length: props.view.length }, (_, bar) => curve[bar % curve.length]) : []
@@ -351,17 +357,17 @@ function CurveLane(props: { id: string; fn: string; index: number; view: View })
         if (!drag) return
         drag = null
         batch(() => {
-            if (keep && next) setCurve(props.id, props.fn, next)
+            if (keep && next) write(next)
             setDraft(null)
         })
     }
-    const nudge = (bar: number, unit: number, held: boolean) => setCurve(props.id, props.fn, written().map((value, at) => (at === bar ? valueOf(unit) : value)), held)
+    const nudge = (bar: number, unit: number, held: boolean) => write(written().map((value, at) => (at === bar ? valueOf(unit) : value)), held)
 
     return (
         <div
             class="sg-l sg-k"
             ref={track}
-            style={{ '--h': colorAt(props.index) }}
+            style={{ '--h': props.drawn?.hue ?? colorAt(props.index) }}
             data-testid={`curve-${props.id}-${props.fn}`}
             onPointerDown={(event) => {
                 // Past the last bar of the song there is nothing to draw on.
@@ -385,7 +391,7 @@ function CurveLane(props: { id: string; fn: string; index: number; view: View })
                                     class="sg-v"
                                     role="slider"
                                     tabindex="0"
-                                    aria-label={`${props.id} ${control()?.label ?? props.fn} in bar ${bar() + 1}`}
+                                    aria-label={`${props.drawn ? '' : `${props.id} `}${control()?.label ?? props.fn} in bar ${bar() + 1}`}
                                     aria-valuemin={control()?.min}
                                     aria-valuemax={control()?.max}
                                     aria-valuenow={values()[bar()]}
@@ -618,6 +624,19 @@ function Scenes() {
     )
 }
 
+// The tempo of every bar as something a lane draws, the way it draws a knob.
+const tempoDrawn: Drawn = {
+    hue: 'var(--linen-2)',
+    control: () => {
+        const lane = tempoLane()
+        if (!lane) return undefined
+        const low = Math.min(...lane.values)
+        const high = Math.max(...lane.values)
+        return { fn: 'tempo', label: 'Tempo', group: 'pattern', describe: 'The tempo of every bar', state: 'drawn', curve: lane.values, value: high, min: TEMPO_LEAST, max: TEMPO_MOST, scale: 'linear', text: low === high ? `${high} bpm` : `${low} to ${high} bpm` }
+    },
+    write: (values, held) => setTempoCurve(values, held),
+}
+
 export function SongPanel() {
     let scroller!: HTMLDivElement
     // The patterns are shown as the bars they play in, or side by side as the strips of a mixer.
@@ -703,7 +722,7 @@ export function SongPanel() {
                     </button>
                 </div>
                 <span class="lines" data-testid="song-length">
-                    {length()} bars, {duration(length(), song().tempo?.bpm ?? bpm())}
+                    {length()} bars, {duration(length(), song().tempo?.bpm ?? bpm(), playMode() === 'song' ? tempoLane() : null)}
                 </span>
                 <Show when={playMode() === 'live'}>
                     <span class="sg-lp" data-testid="live-note">
@@ -737,6 +756,11 @@ export function SongPanel() {
                     )}
                 </Show>
                 <span class="grow" />
+                <Show when={playMode() === 'song' && !tempoLane()}>
+                    <button class="chip tgl" classList={{ away: mixing() }} disabled={stale() || song().tempoLocked} title="Gives every bar a tempo of its own, drawn over the song the way a knob is: for a song that speeds up, slows down or changes tempo" onClick={drawTempo}>
+                        Draw the tempo
+                    </button>
+                </Show>
                 <button
                     class="chip tgl tk"
                     classList={{ on: takingKnobs() }}
@@ -769,6 +793,16 @@ export function SongPanel() {
                         <span>Vol</span>
                         <span>Pan</span>
                     </div>
+                    <Show when={playMode() === 'song' && tempoLane()}>
+                        <div class="sg-kn sg-tn" data-testid="tempo-name">
+                            <span title="The tempo of every bar, in beats a minute. Drag to draw it, with Shift held for a straight line.">Tempo</span>
+                            <button class="rx" aria-label="One tempo for the whole song again" title="One tempo for the whole song again" disabled={stale()} onClick={stillTempo}>
+                                <svg viewBox="0 0 8 8">
+                                    <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
+                                </svg>
+                            </button>
+                        </div>
+                    </Show>
                     <For each={ids()}>{(id, index) => <NameRows id={id} index={index()} />}</For>
                 </div>
                 <div class="sg-s" ref={scroller} data-testid="song-scroll" onScroll={() => setLeft(scroller.scrollLeft)}>
@@ -828,6 +862,9 @@ export function SongPanel() {
                                 }}
                             </Index>
                         </div>
+                        <Show when={playMode() === 'song' && tempoLane()}>
+                            <CurveLane id="Tempo" fn="tempo" index={0} view={view()} drawn={tempoDrawn} />
+                        </Show>
                         <For each={ids()}>{(id, index) => <Lanes id={id} index={index()} view={view()} />}</For>
                         <div class="sg-end" data-testid="song-end" style={{ left: `${length() * barWidth()}px` }} />
                         <Show when={playMode() === 'song' && (playing() || paused() || startBar() > 0 || loopBars())}>
