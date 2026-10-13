@@ -29,6 +29,7 @@ import { withoutLead } from '../library/shrink'
 import { turnWhenDue } from '../library/turn'
 import { startTake, whyNot, type NoTake, type Take } from '../library/recorder'
 import { fitPreset, isOfPack, PACK_FILE, packIdFor, packOf, packSoundName, readPackFile, readPacks, writePackFile, writePacks, type PackFile, type PackInfo, type PackPreset } from '../library/packs'
+import { keepChoice, readChoice, type SoundChoice } from '../library/soundDevices'
 import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
 import { readKey, writeKey, type Key } from '../song/scales'
 import { gradeOf, readAudio, RING_SECONDS, sizeOf, type AudioOptions, type Format } from '../library/audio'
@@ -178,6 +179,9 @@ import {
     packs,
     setPacks,
     setPackNote,
+    setSoundOpen,
+    soundChoice,
+    setSoundChoice,
     setTempoLane,
     takeOpening,
     chordLane,
@@ -351,6 +355,8 @@ function tick() {
 export async function mount(root: HTMLElement): Promise<void> {
     setOwnPresets(readPresets(keeping.getItem(PRESETS_KEY)))
     setPacks(readPacks(keeping.getItem(PACKS_KEY)))
+    setSoundChoice(readChoice())
+    void engine.setOutput(soundChoice().output)
     const startMix = readMix(keeping.getItem(MIX_KEY))
     setMixNow(startMix)
     engine.setMix(startMix)
@@ -439,6 +445,7 @@ export async function mount(root: HTMLElement): Promise<void> {
             { id: 'weft-file-export', text: 'Export…', enabled: inSong, action: openExport },
             { id: 'weft-file-publish', text: 'Publish…', enabled: inSong, action: openPublish },
             { id: 'weft-file-account', text: 'Your Account…', action: openAccount },
+            { id: 'weft-file-sound', text: 'Sound Settings…', action: openSoundSettings },
             'line',
             { id: 'weft-file-close', text: 'Close Song', enabled: () => inSong() && alone(), action: closeSong },
         ],
@@ -2044,7 +2051,7 @@ export async function recordTake() {
     setOwnSoundNote(null)
     setTakeOpening(true)
     try {
-        take = await startTake()
+        take = await startTake(readChoice().input)
         takeAt = engineState().playing && playMode() === 'song' ? Math.max(0, engine.now()) : null
         setTakeSince(Date.now())
     } catch (err) {
@@ -2164,6 +2171,34 @@ function keepPacks(next: PackInfo[]): boolean {
 }
 
 export const dismissPackNote = () => setPackNote(null)
+
+// ---- sound settings: which microphone takes and a jam's voice are made with, and what the
+// app plays through, when they are not the ones the system uses.
+export const openSoundSettings = () => setSoundOpen(true)
+export const closeSoundSettings = () => setSoundOpen(false)
+
+function keepSoundChoice(next: SoundChoice) {
+    setSoundChoice(next)
+    keepChoice(next)
+}
+
+// Null is the microphone the system records from.
+export const chooseInput = (input: string | null) => keepSoundChoice({ ...soundChoice(), input })
+
+// Null is the system's output. False when the output could not be played through: it is then
+// not kept, and the sound stays where it was.
+export async function chooseOutput(output: { id: string; name: string } | null): Promise<boolean> {
+    const told = await engine.setOutput(output?.id ?? null)
+    if (!told) {
+        await engine.setOutput(soundChoice().output)
+        return false
+    }
+    keepSoundChoice({ ...soundChoice(), output: output?.id ?? null, outputName: output?.name ?? null })
+    return true
+}
+
+// A short note, to hear where the sound comes out.
+export const testOutput = () => engine.previewNote(69, 'triangle', 0.5)
 
 // A pack file added. A pack that is here already is taken to be a newer one of itself: what
 // it no longer holds goes, and the rest is replaced. A sound of the pack that came here before

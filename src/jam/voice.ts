@@ -1,4 +1,5 @@
 import type { Told } from './protocol'
+import { playThrough, readChoice } from '../library/soundDevices'
 
 // The call between the two people in a jam. Their voices and pictures go straight from one
 // machine to the other; only the few messages that set the call up pass through the relay.
@@ -87,7 +88,12 @@ export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
 
     const listen = (stream: MediaStream, aloud: boolean): AnalyserNode | null => {
         try {
-            context ??= new AudioContext()
+            if (!context) {
+                context = new AudioContext()
+                // Where a window's clock can be told what to play through, their voice comes out
+                // where the song does.
+                void playThrough(context, readChoice().output)
+            }
             const meter = context.createAnalyser()
             meter.fftSize = 512
             const source = context.createMediaStreamSource(stream)

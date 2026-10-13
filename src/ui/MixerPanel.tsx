@@ -1,5 +1,5 @@
 import { For, onCleanup, onMount, Show } from 'solid-js'
-import { changeMix, levelsOf, resetMix, toggleMixer } from '../app/controller'
+import { changeMix, levelsOf, resetMix, toggleMixer, openSoundSettings } from '../app/controller'
 import { DEMO } from '../demo/demo'
 import type { ControlView } from '../controls/views'
 import { isUsualMix, METER_MARKS, meterShare, panText, settle, shareOf, toneText, TONE_MOST, VOLUME_MOST, volumeText, type Mix } from '../library/mix'
@@ -80,6 +80,9 @@ export function MixerPanel() {
                     <Fold panel="mixer" name="the mixer" />
                     <h2>Mixer</h2>
                     <span class="grow" />
+                    <button class="chip tgl" title="Sound settings: which microphone is used and what the app plays through" onClick={openSoundSettings}>
+                        Devices
+                    </button>
                     <button class="chip tgl" disabled={isUsualMix(mix())} title="Put everything back where it usually is" onClick={resetMix}>
                         Reset
                     </button>

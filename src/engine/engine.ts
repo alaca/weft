@@ -1,4 +1,5 @@
 import { history, isolateHistory, redo, undo } from '@codemirror/commands'
+import { outputRoute, playThrough } from '../library/soundDevices'
 import { Annotation, EditorState, Prec, StateEffect, Transaction } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
 import { BlockWidget, StrudelMirror, codemirrorSettings, sliderPlugin, sliderValues } from '@strudel/codemirror'
@@ -126,6 +127,9 @@ export interface Engine {
     barSeconds(): number
     // The microphone was used a moment ago, so what the sound goes out through may have changed.
     micWasUsed(): void
+    // Plays through the output the window knows by this name, or the system's for null. False
+    // when the window cannot be told, or the output is not there.
+    setOutput(output: string | null): Promise<boolean>
     // The shape of a sample along its length, as so many heights, and how long it is. Null for
     // a sound that is no sample, or whose file cannot be had.
     peaksOf(sound: string, count: number): Promise<{ peaks: number[]; seconds: number } | null>
@@ -277,8 +281,60 @@ export function createEngine(): Engine {
         heard: Float32Array<ArrayBuffer>
         side: Float32Array<ArrayBuffer>
         limited: boolean | null
+        // Where the sound goes when it is not left to the clock: a stream that an audio element
+        // plays, because that element can be told what to play through and the clock cannot.
+        routed: { to: MediaStreamAudioDestinationNode; player: HTMLAudioElement } | null
     }
     let desk: Desk | null = null
+    // What the sound is played through when it is not the system's output, as the window calls it.
+    let chosenOutput: string | null = null
+    const unroute = (old: Desk) => {
+        if (!old.routed) return
+        old.routed.player.pause()
+        old.routed.player.srcObject = null
+        old.routed = null
+    }
+    // The sound sent where it was chosen to go. A window whose clock can be told is told. One
+    // whose clock cannot, the Mac's, plays through an audio element that can, and only while
+    // an output is chosen: left to the system, the sound goes the short way it always went.
+    const routeOutput = async (): Promise<boolean> => {
+        const now = deskNow()
+        if (!now) return chosenOutput === null
+        const context = now.out.context as AudioContext
+        const route = outputRoute()
+        if (route === 'clock') return playThrough(context, chosenOutput)
+        if (route !== 'element') return chosenOutput === null
+        if (chosenOutput === null) {
+            if (now.routed) {
+                now.out.disconnect(now.routed.to)
+                now.out.connect(context.destination)
+                unroute(now)
+            }
+            return true
+        }
+        if (!now.routed) {
+            const to = context.createMediaStreamDestination()
+            const player = new Audio()
+            player.srcObject = to.stream
+            now.out.disconnect(context.destination)
+            now.out.connect(to)
+            now.routed = { to, player }
+        }
+        const told = await playThrough(now.routed.player, chosenOutput)
+        await now.routed.player.play().catch(() => undefined)
+        if (told) return true
+        // An output that is not there: back to the system's, so that there is sound at all.
+        now.out.disconnect(now.routed.to)
+        now.out.connect(context.destination)
+        unroute(now)
+        return false
+    }
+    // An audio element is only let to start inside a press or a key. One that was set up
+    // outside of one, as at the start of the app, starts at the next.
+    const wakeOutput = () => {
+        const player = desk?.routed?.player
+        if (player?.paused) void player.play().catch(() => undefined)
+    }
     const deskNow = (): Desk | null => {
         const output: AudioNode | null = getSuperdoughAudioController().output.destinationGain
         if (!output || output.context instanceof OfflineAudioContext) return null
@@ -326,7 +382,10 @@ export function createEngine(): Engine {
         out.connect(split)
         split.connect(sides[0], 0)
         split.connect(sides[1], 1)
-        desk = { of: output, low, mid, high, pan, limiter, out, wave, sides, heard: new Float32Array(wave.fftSize), side: new Float32Array(sides[0].fftSize), limited: null }
+        if (desk) unroute(desk)
+        desk = { of: output, low, mid, high, pan, limiter, out, wave, sides, heard: new Float32Array(wave.fftSize), side: new Float32Array(sides[0].fftSize), limited: null, routed: null }
+        // A new clock begins on the system's output, whatever the one before it played through.
+        if (chosenOutput !== null) queueMicrotask(() => void routeOutput())
         return desk
     }
     const applyMix = () => {
@@ -901,6 +960,7 @@ export function createEngine(): Engine {
                 () => {
                     gesture++
                     freshClock()
+                    wakeOutput()
                 },
                 true,
             )
@@ -909,6 +969,7 @@ export function createEngine(): Engine {
                 () => {
                     gesture++
                     freshClock()
+                    wakeOutput()
                 },
                 true,
             )
@@ -1478,6 +1539,10 @@ export function createEngine(): Engine {
         },
         setTempoLane(barsPerSecond) {
             tempoLane = barsPerSecond?.length ? barsPerSecond : null
+        },
+        setOutput(wanted) {
+            chosenOutput = wanted
+            return routeOutput()
         },
         micWasUsed() {
             micUsed = performance.now()

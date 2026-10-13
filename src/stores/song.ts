@@ -5,6 +5,7 @@ import type { EngineState } from '../engine/engine'
 import type { SongInfo, SongRecord } from '../library/shelf'
 import type { ViewMode } from '../library/layout'
 import type { PackInfo } from '../library/packs'
+import type { SoundChoice } from '../library/soundDevices'
 import type { OwnSoundInfo } from '../library/sounds'
 import type { Key } from '../song/scales'
 import type { ChordLane } from '../song/chords'
@@ -62,6 +63,9 @@ export const [deletedSong, setDeletedSong] = createSignal<SongRecord | null>(nul
 export const [startOpen, setStartOpen] = createSignal(false)
 // A song with changes since it was saved is being closed, and the question is whether to save.
 export const [closingSong, setClosingSong] = createSignal(false)
+// The sound settings: whether their window is open, and what was chosen in them.
+export const [soundOpen, setSoundOpen] = createSignal(false)
+export const [soundChoice, setSoundChoice] = createSignal<SoundChoice>({ input: null, output: null, outputName: null })
 // Whether the open song is one that is only played while all of it is music code.
 export const [songGuarded, setSongGuarded] = createSignal(false)
 // The key each pattern's piano roll keeps to, by the pattern's name.

@@ -902,6 +902,15 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .sl-f { display: flex; align-items: center; gap: 6px; flex: 1; }
 .sbar-off { color: var(--saffron); }
 
+/* The sound settings: a row for the microphone and one for the output. */
+.sd-r { display: grid; grid-template-columns: 86px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 34px; }
+.sd-r > span:first-child { color: var(--linen-2); font-size: 12px; }
+.sd-s { min-width: 0; height: 30px; padding: 0 28px 0 10px; border-radius: 8px; background: var(--vat); border: 1px solid var(--seam); color: var(--linen); font: inherit; font-size: 12.5px; appearance: none; -webkit-appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--linen-2) 50%), linear-gradient(135deg, var(--linen-2) 50%, transparent 50%); background-position: calc(100% - 15px) 13px, calc(100% - 10px) 13px; background-size: 5px 5px; background-repeat: no-repeat; text-overflow: ellipsis; }
+.sd-s:focus { outline: none; border-color: var(--linen-3); }
+.sd-s:disabled { color: var(--linen-3); }
+.sd-t { margin-left: 96px; color: var(--linen-3); font-size: 11.5px; line-height: 1.45; }
+.sd-t button { color: var(--linen); text-decoration: underline; text-underline-offset: 2px; }
+
 /* The packs that were added, over their sounds, and the window a pack is made in. */
 .pk-l { list-style: none; margin: 0 12px 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .pk-i { display: flex; align-items: baseline; gap: 7px; min-width: 0; padding: 7px 9px; border-radius: 8px; background: rgba(236, 230, 214, 0.04); font-size: 11.5px; color: var(--linen-2); }

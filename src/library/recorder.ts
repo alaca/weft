@@ -14,9 +14,9 @@ function fromApp(err: unknown): TakeRefused {
     return new TakeRefused('other', said)
 }
 
-async function appTake(): Promise<Take> {
+async function appTake(input: string | null): Promise<Take> {
     const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('start_take').catch((err) => {
+    await invoke('start_take', { device: input }).catch((err) => {
         throw fromApp(err)
     })
     return {
@@ -60,10 +60,14 @@ export function whyNot(err: unknown): TakeRefused {
     return new TakeRefused('other', said)
 }
 
-export async function startTake(): Promise<Take> {
-    if (inDesktop()) return appTake()
+// `input` is the microphone that was chosen in the sound settings: its name in the desktop app,
+// what the window calls it in a browser. Without one, or when it is not there, the system's is used.
+const chosen = (input: string | null) => (input ? { deviceId: { ideal: input } } : {})
+
+export async function startTake(input: string | null = null): Promise<Take> {
+    if (inDesktop()) return appTake(input)
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new TakeRefused('unreachable', 'no way to record in this window')
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }).catch((err) => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { ...chosen(input), echoCancellation: false, noiseSuppression: false, autoGainControl: false } }).catch((err) => {
         throw whyNot(err)
     })
     const recorder = new MediaRecorder(stream)

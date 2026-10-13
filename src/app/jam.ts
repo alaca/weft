@@ -33,6 +33,7 @@ import { sizeText } from '../library/audio'
 import { whyNot, type NoTake } from '../library/recorder'
 import { looksLikeAudio } from '../guard/file'
 import { fitSoundName, soundRenames, soundsUsed } from '../library/songfile'
+import { readChoice } from '../library/soundDevices'
 import { keeping } from '../library/kept'
 import { soundNameFor, type OwnSound } from '../library/sounds'
 import {
@@ -687,7 +688,7 @@ export async function toggleMic() {
     setJamMicOpening(true)
     setJamVoiceNote(null)
     try {
-        const made = await captureVoice()
+        const made = await captureVoice(readChoice().input)
         if (jamStage() !== 'jamming' || !voice) return made.stop()
         captured = made
         await voice.speak(made.stream)

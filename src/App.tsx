@@ -18,6 +18,7 @@ import { StatusBar } from './ui/StatusBar'
 import { StripList } from './ui/StripList'
 import { TooNarrow } from './ui/TooNarrow'
 import { TopBar } from './ui/TopBar'
+import { SoundDialog } from './ui/SoundDialog'
 import { TrimDialog } from './ui/TrimDialog'
 import { UpdateCard } from './ui/UpdateCard'
 
@@ -88,6 +89,7 @@ export function App() {
                 <UpdateCard />
                 <ExportDialog />
                 <TrimDialog />
+                <SoundDialog />
                 <PublishDialog />
                 <AccountDialog />
             </Show>

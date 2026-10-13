@@ -11,7 +11,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(recorder::Recorder::default())
         .manage(recorder::Speaker::default())
-        .invoke_handler(tauri::generate_handler![recorder::start_take, recorder::stop_take, recorder::start_voice, recorder::stop_voice])
+        .invoke_handler(tauri::generate_handler![recorder::start_take, recorder::stop_take, recorder::start_voice, recorder::stop_voice, recorder::sound_inputs])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

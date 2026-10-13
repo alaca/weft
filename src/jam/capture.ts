@@ -28,7 +28,7 @@ function fromApp(err: unknown): TakeRefused {
     return new TakeRefused(said === 'missing' ? 'missing' : 'other', said)
 }
 
-async function appVoice(): Promise<Captured> {
+async function appVoice(input: string | null): Promise<Captured> {
     const { invoke, Channel } = await import('@tauri-apps/api/core')
     const context = new AudioContext()
     const out = context.createMediaStreamDestination()
@@ -51,7 +51,7 @@ async function appVoice(): Promise<Captured> {
     const heard = new Channel<ArrayBuffer>()
     heard.onmessage = (bytes) => (rate === null ? void early.push(bytes) : play(bytes))
     try {
-        rate = await invoke<number>('start_voice', { onSound: heard })
+        rate = await invoke<number>('start_voice', { device: input, onSound: heard })
     } catch (err) {
         void context.close()
         throw fromApp(err)
@@ -76,10 +76,11 @@ export async function captureCamera(): Promise<Captured> {
     return { stream, stop: () => stream.getTracks().forEach((track) => track.stop()) }
 }
 
-export async function captureVoice(): Promise<Captured> {
-    if (inDesktop()) return appVoice()
+// `input` is the microphone chosen in the sound settings, as for a take.
+export async function captureVoice(input: string | null = null): Promise<Captured> {
+    if (inDesktop()) return appVoice(input)
     if (!navigator.mediaDevices?.getUserMedia) throw new TakeRefused('unreachable', 'no way to reach a microphone in this window')
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }).catch((err) => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { ...(input ? { deviceId: { ideal: input } } : {}), echoCancellation: true, noiseSuppression: true, autoGainControl: true } }).catch((err) => {
         throw whyNot(err)
     })
     return { stream, stop: () => stream.getTracks().forEach((track) => track.stop()) }
