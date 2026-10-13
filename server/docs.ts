@@ -4,7 +4,7 @@
 export type DocPicture = { file: string; width: number; height: number; alt: string }
 export type DocSection = { id: string; title: string; pictures: DocPicture[]; html: string }
 
-export const DOCS_ABOUT = 'How Weft Loom works, one thing at a time: patterns, sounds, the song, tempo and time, chords, knobs over the song, versions, scenes, recordings, jams, and getting a song out.'
+export const DOCS_ABOUT = 'How Weft Loom works, one thing at a time: patterns, sounds, the song, tempo and time, chords, knobs over the song, versions, scenes, recordings, packs, jams, and getting a song out.'
 
 export const DOCS: DocSection[] = [
     {
@@ -129,6 +129,14 @@ export const DOCS: DocSection[] = [
 <p>A recording keeps the speed it was made at. Change the tempo afterwards and it still plays without a break, but no longer on the beat.</p>`,
     },
     {
+        id: 'packs',
+        title: 'Packs',
+        pictures: [{ file: '/docs/packs.webp', width: 300, height: 520, alt: 'The Sounds with Packs chosen: a pack called Starter loops with nine sounds, and its loops and hits listed under it with buttons to use, slice and put each in the song.' }],
+        html: `<p>A pack is one file with sounds and presets in it, made for Weft Loom: drum loops, single hits, instruments, whatever its maker put in. In the Sounds choose <b>Packs</b> and press <b>Add a pack</b>. The pack is listed with who made it, and its sounds are under it.</p>
+<p>A sound from a pack goes wherever a sound of your own goes: a row in a drum grid, the sound of a pattern of notes, a loop to cut into parts, a recording along the song. Its presets are among the Presets, under the pack's name. A song that uses a sound from a pack carries that sound along, so it plays for whoever opens it, with the pack or without.</p>
+<p>To make a pack, choose Yours and press <b>Make a pack</b>. Give it a name, choose which of your sounds and presets go in, and save it. The file is the pack: give it to anyone who uses Weft Loom.</p>`,
+    },
+    {
         id: 'mixer',
         title: 'The mixer',
         pictures: [
@@ -138,6 +146,14 @@ export const DOCS: DocSection[] = [
         html: `<p>Volume, pan, low, mid and high for everything you hear, with a limiter and two meters.</p>
 <p>It is how the song sounds on your machine and not part of the song. A file you export, and someone you jam with, get the song without it.</p>
 <p>Each pattern has a strip of its own as well. In the Song panel switch from Bars to <b>Mix</b>: a meter, a volume fader, pan, low cut, cutoff, room and delay for every pattern, side by side, with M and S. These are the pattern's own knobs, so they are part of the song.</p>`,
+    },
+    {
+        id: 'devices',
+        title: 'Microphone and output',
+        pictures: [{ file: '/docs/devices.webp', width: 460, height: 302, alt: 'The sound settings: a list to choose the microphone from, a list to choose the output from, and a button that plays a short note.' }],
+        html: `<p>Weft Loom records from the microphone the system uses and plays through the system's output, until you choose otherwise. Press <b>Devices</b> at the top of the mixer, or choose Sound Settings in the File menu.</p>
+<p><b>Microphone</b> is what a take and your voice in a jam are made with. <b>Output</b> is what the song is played through, and Test plays a short note there. If the list of outputs is empty, press Show the outputs: a window is only told what it could play through once it may use the microphone. Nothing is recorded.</p>
+<p>Both go back to the system's own when what you chose is unplugged.</p>`,
     },
     {
         id: 'jams',
@@ -156,6 +172,13 @@ export const DOCS: DocSection[] = [
 <p><b>Export</b> makes files. A song file (.weft) is the whole song with your own sounds inside, to open in Weft Loom on another machine or to send to someone. Code (.js) is the code alone. Export audio makes a WAV or an MP3 of the song. With Each pattern chosen it makes a zip with a file for every pattern, all the same length, to mix in another audio program.</p>
 <p><b>Publish</b> puts a song among the <a href="/songs">songs on this site</a>, where anyone can listen to half a minute of it, download it and open it in Weft Loom. It needs an account, made in the same window with an email and a password. An account holds ten songs of up to 1 MB each, and Weft Loom makes your own sounds smaller where it has to.</p>
 <p>A song from someone else is code. Weft Loom plays it only if it is music code and nothing more. If it holds anything else, it says which line and asks first.</p>`,
+    },
+    {
+        id: 'pictures',
+        title: 'Pictures in the code',
+        pictures: [{ file: '/docs/pictures.webp', width: 432, height: 490, alt: 'The code of a song with a small piano roll drawn under the line that says pianoroll, and a wave drawn under the line that says scope.' }],
+        html: `<p>Strudel can draw what a pattern plays. Write <code>.pianoroll()</code> at the end of a pattern in the code and its notes are drawn under that line while the song plays. <code>.scope()</code> draws the wave of its sound, <code>.spectrum()</code> how much of it is low and high, and <code>.pitchwheel()</code> the notes that sound as places on a wheel.</p>
+<p>A picture can be told how large to be: <code>.pianoroll({ height: 120 })</code>.</p>`,
     },
     {
         id: 'more',

@@ -370,6 +370,7 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
 .docs-n i, .docs-b h2 i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--h); }
 .docs-b { min-width: 0; max-width: 800px; }
 .docs-b section { scroll-margin-top: 20px; padding-bottom: 52px; }
+.docs-b code { padding: 1px 5px; border-radius: 5px; background: var(--cloth-2); font: 500 13px/1.5 var(--mono); font-stretch: 87%; color: var(--linen); white-space: nowrap; }
 .docs-b section + section { padding-top: 48px; border-top: 1px solid var(--seam-soft); }
 .docs-b h2 { display: flex; align-items: center; gap: 13px; font: 600 29px/1.15 var(--voice); letter-spacing: -0.012em; }
 .docs-b h2 i { width: 10px; height: 10px; }
