@@ -15,7 +15,7 @@ import { saveFile, savePieces, textPieces, type FileKind, type Saved } from '../
 import { createEngine } from '../engine/engine'
 import { DEMO } from '../demo/demo'
 import { MAX_BARS } from '../song/bars'
-import { chordAt, chordsEdit, followerCode, followerEdits, FOLLOW_KINDS, readChords, readFollower, registerEdit, TONES, USUAL_CHORD, type Follower, type FollowKind, type Register } from '../song/chords'
+import { chordAt, chordsEdit, followAgain, followerCode, followerEdits, FOLLOW_KINDS, keepOwnEdits, readChords, readFollower, registerEdit, TONES, USUAL_CHORD, type Follower, type FollowKind, type Register } from '../song/chords'
 import { meterEdits, meterNow, METERS, readMeter, setMeterNow, sliceSteps } from '../song/meter'
 import { fitTempo, readTempoLane, secondsOf, tempoAt, tempoLaneEdit } from '../song/tempo'
 import { cleanPresetName, LIBRARY, presetCalls, presetEdits, previewText, PREVIEW_PITCH, readPresets, soundCalls, withPreset, writePresets, type Preset } from '../sounds/presets'
@@ -877,9 +877,11 @@ export function chooseMeter(label: string) {
 export function addChords(): boolean {
     if (stale()) return false
     if (chordLane()) return true
-    const edit = chordsEdit(engine.getCode(), song(), Array.from({ length: songLengthNow() }, () => USUAL_CHORD))
+    // Patterns that were left with chords of their own follow the song's again, which begin as theirs.
+    const again = followAgain(engine.getCode(), lanes())
+    const edit = chordsEdit(engine.getCode(), song(), Array.from({ length: songLengthNow() }, (_, bar) => (again.values ? again.values[bar % again.values.length] : USUAL_CHORD)))
     if (!edit) return false
-    engine.applyEdit(edit)
+    engine.applyEdit([edit, ...again.edits])
     replay()
     return true
 }
@@ -896,13 +898,14 @@ export function paintChords(from: number, to: number, chord: string) {
     replay()
 }
 
-// The chords taken out. The patterns that followed them have nothing to follow until there
-// are chords again, and say so as an error in the code.
+// The chords taken out. The patterns that followed them go on playing what they played: each
+// gets the chords written into itself, since a name that is gone would stop the whole song.
 export function removeChords() {
-    if (stale() || !chordLane()) return
+    const lane = chordLane()
+    if (stale() || !lane) return
     const edit = chordsEdit(engine.getCode(), song(), null)
     if (!edit) return
-    engine.applyEdit(edit)
+    engine.applyEdit([edit, ...keepOwnEdits(engine.getCode(), lanes(), lane.values)])
     replay()
 }
 
@@ -2530,7 +2533,12 @@ export function closeSaved() {
     toStart()
 }
 
-export const closeUnsaved = () => toStart()
+// Closing without saving takes the song back to the version that was saved, as the words say.
+// The change can still be undone for as long as the app is open.
+export function closeUnsaved() {
+    if (current && current.draft !== current.saved) engine.applyEdit({ from: 0, to: engine.getCode().length, insert: current.saved })
+    toStart()
+}
 export const keepOpen = () => setClosingSong(false)
 
 // Going on with the song that was open: the start screen is put away and the song is there.

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { checkSong } from '../../src/guard/check'
 import { analyze } from '../../src/song/analyze'
 import { applyEdit, applyEdits } from '../../src/song/edits'
-import { chordAt, chordsEdit, followCells, followerCode, followerEdits, readChords, readFollower, registerEdit, tonesText } from '../../src/song/chords'
+import { chordAt, chordsEdit, followAgain, followCells, followerCode, followerEdits, keepOwnEdits, readChords, readFollower, registerEdit, tonesText } from '../../src/song/chords'
 
 const SONG = 'setcpm(120/4)\n\ndrums: s("bd*4")\n'
 const put = (code: string, values: string[] | null) => {
@@ -64,8 +64,24 @@ describe('a pattern that follows the chords', () => {
         expect(registerEdit(text, block, read(text), 'low')).toBeNull()
     })
 
+    it('keeps the chords it played when the chords of the song are taken out, and follows again when the song has chords again', () => {
+        const withChords = `${put(SONG, ['Am', 'Am', 'F', 'G7'])}\n${followerCode('bass', 'bass', [])}\n`
+        const lane = readChords(withChords)!
+        const without = applyEdits(withChords, [chordsEdit(withChords, analyze(withChords), null)!, ...keepOwnEdits(withChords, analyze(withChords).patterns, lane.values)])
+        expect(without).not.toContain('const chords')
+        expect(without).toContain('.chord("<Am!2 F G7>").mode("root:c2").voicing()')
+        const kept = readFollower(without, analyze(without).patterns[1])!
+        expect(kept.own).toEqual(['Am', 'Am', 'F', 'G7'])
+        expect(kept.cells).toEqual(readFollower(withChords, analyze(withChords).patterns[1])!.cells)
+
+        const again = followAgain(without, analyze(without).patterns)
+        expect(again.values).toEqual(['Am', 'Am', 'F', 'G7'])
+        const back = applyEdits(without, [chordsEdit(without, analyze(without), again.values)!, ...again.edits])
+        expect(back).toBe(withChords)
+    })
+
     it('is left to the code when it follows something else, or is written another way', () => {
-        for (const text of ['a: n("0 1").chord("<Am F>").voicing()', 'a: n("0 1").chord(chords)', 'a: n("0 9").chord(chords).voicing()', 'a: n("0*2 1").chord(chords).voicing()', 'a: note("c e").chord(chords).voicing()']) {
+        for (const text of ['a: n("0 1").chord("Am F").voicing()', 'a: n("0 1").chord(chords)', 'a: n("0 9").chord(chords).voicing()', 'a: n("0*2 1").chord(chords).voicing()', 'a: note("c e").chord(chords).voicing()']) {
             expect(readFollower(text, analyze(text).patterns[0]), text).toBeNull()
         }
     })

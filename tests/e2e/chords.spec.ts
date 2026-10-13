@@ -74,6 +74,17 @@ test('a song gets chords, one for every bar, and the patterns that follow them p
     expect(await notesOf(page, 'bass', 0)).toEqual(['f2', 'f3'])
     expect(await notesOf(page, 'pad', 0)).toEqual(['f2', 'c3', 'f3', 'a3'])
 
+    // The chords are taken out of the song: the patterns keep the ones they played, and follow
+    // again when the song is given chords again.
+    await page.getByRole('button', { name: 'Take the chords out of the song', exact: true }).click()
+    expect(await code(page)).not.toContain('const chords')
+    expect(await code(page)).toContain('.chord("<F Am C G7>").mode("root:c3").voicing()')
+    expect(await notesOf(page, 'bass', 0)).toEqual(['f2', 'f3'])
+    await expect(bass.getByTestId('chord-now')).toContainText('Plays chords of its own')
+    await page.getByRole('button', { name: 'Add chords', exact: true }).click()
+    expect(await code(page)).toContain('const chords = "<F Am C G7>"')
+    expect(await code(page)).toContain('.chord(chords).mode("root:c3").voicing()')
+
     await page.getByRole('button', { name: 'Live', exact: true }).click()
     await page.getByRole('button', { name: 'Play', exact: true }).click()
     await expect(page.getByTestId('code-status')).toHaveText('Playing this code')

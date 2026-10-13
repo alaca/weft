@@ -54,13 +54,13 @@ test('the first start has no songs, offers a new one and the songs on the site, 
     await expect(songName(page)).toContainText('Untitled')
 })
 
-test('closing a song with changes asks whether to save them, and loses nothing either way', async ({ page }) => {
+test('closing a song with changes asks whether to save them, and without saving it goes back to the saved version', async ({ page }) => {
     await firstStart(page)
     await start(page).getByRole('button', { name: 'New song', exact: true }).click()
     await change(page)
     await closeSong(page)
     await expect(closing(page)).toContainText('Save the changes to Untitled?')
-    await expect(closing(page)).toContainText('Your work is kept either way')
+    await expect(closing(page)).toContainText('Closing without saving drops them')
     await closing(page).getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect(closing(page)).toHaveCount(0)
     await expect(start(page)).toHaveCount(0)
@@ -68,10 +68,11 @@ test('closing a song with changes asks whether to save them, and loses nothing e
     await closeSong(page)
     await closing(page).getByRole('button', { name: 'Close without saving', exact: true }).click()
     await expect(start(page)).toBeVisible()
-    await expect(recent(page)).toContainText('changed since saved')
+    await expect(recent(page)).not.toContainText('changed since saved')
     await page.getByTestId('start-go-on').click()
-    expect(await page.evaluate(() => (window as any).__weft.engine.getCode())).toContain('// changed')
+    expect(await page.evaluate(() => (window as any).__weft.engine.getCode())).not.toContain('// changed')
 
+    await change(page)
     await closeSong(page)
     await closing(page).getByRole('button', { name: 'Save and close', exact: true }).click()
     await expect(start(page)).toBeVisible()

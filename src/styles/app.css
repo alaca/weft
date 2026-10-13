@@ -488,6 +488,8 @@ svg.mini rect { fill: var(--h); }
 .sg-kn .rx { opacity: 0; }
 .sg-kn.sg-tn { padding-left: 17px; color: var(--linen-2); }
 .sg-kn:hover .rx, .sg-kn .rx:focus-visible { opacity: 1; }
+/* The chords and the tempo of the song are taken out with this alone, so it is always in sight. */
+.sg-kn.sg-tn .rx { opacity: 1; }
 .sg-k { cursor: ns-resize; }
 .sg-v { position: relative; min-width: 0; height: 100%; display: flex; align-items: flex-end; padding: 3px 0; }
 .sg-v i { display: block; width: 100%; min-height: 2px; background: color-mix(in srgb, var(--h) 42%, var(--vat)); border-top: 2px solid var(--h); }

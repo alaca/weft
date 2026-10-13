@@ -40,18 +40,24 @@ const LINE = new RegExp(`^[ \\t]*const[ \\t]+${CHORDS}[ \\t]*=[ \\t]*"(<[^"<>\\n
 
 export type ChordLane = { values: string[]; from: number; to: number }
 
-export function readChords(code: string): ChordLane | null {
-    const found = LINE.exec(code)
-    if (!found) return null
+// A list of chords as it is written, "<Am!4 F!4>", as the chord of every bar.
+function readList(text: string): string[] | null {
+    if (!/^<[^<>]*>$/.test(text)) return null
     const values: string[] = []
-    for (const word of found[1].slice(1, -1).trim().split(/\s+/)) {
+    for (const word of text.slice(1, -1).trim().split(/\s+/)) {
         const token = TOKEN.exec(word)
         if (!token || !CHORD.test(token[1])) return null
         const count = token[2] ? Number(token[2]) : 1
         if (values.length + count > MAX_BARS) return null
         for (let at = 0; at < count; at++) values.push(token[1])
     }
-    return values.length ? { values, from: found.index, to: found.index + found[0].length } : null
+    return values.length ? values : null
+}
+
+export function readChords(code: string): ChordLane | null {
+    const found = LINE.exec(code)
+    const values = found ? readList(found[1]) : null
+    return found && values ? { values, from: found.index, to: found.index + found[0].length } : null
 }
 
 export function chordsText(values: string[]): string {
@@ -100,7 +106,9 @@ export const REGISTERS: { id: Register; label: string; under: string }[] = [
 export const TONES = 8
 
 type Text = Extract<Call['args'][number], { kind: 'string' }>
-export type Follower = { text: Text; slow: Call | null; mode: Call | null; register: Register; cells: number[][]; steps: number; cycles: number; perCycle: number }
+// `own` are the chords a pattern has written in itself, in a song that has none to follow: it
+// plays those, and is the same pattern in every other way.
+export type Follower = { text: Text; slow: Call | null; mode: Call | null; register: Register; cells: number[][]; steps: number; cycles: number; perCycle: number; named: Call['args'][number]; own: string[] | null }
 
 function readCell(text: string): number[] | null {
     if (text === '~') return []
@@ -116,7 +124,8 @@ export function readFollower(code: string, block: PatternBlock): Follower | null
     if (!source || source.name !== 'n' || !text || text.kind !== 'string') return null
     const chord = block.calls.find((call) => call.name === 'chord')
     const named = chord?.args.length === 1 ? chord.args[0] : undefined
-    if (!chord || !named || code.slice(named.from, named.to) !== CHORDS || !block.calls.some((call) => call.name === 'voicing')) return null
+    const own = named?.kind === 'string' ? readList(named.value.trim()) : null
+    if (!chord || !named || (code.slice(named.from, named.to) !== CHORDS && !own) || !block.calls.some((call) => call.name === 'voicing')) return null
     const slow = next?.name === 'slow' ? next : null
     const count = slow?.args[0]
     if (slow && !(slow.args.length === 1 && count?.kind === 'number' && Number.isInteger(count.value) && count.value >= 1)) return null
@@ -126,7 +135,25 @@ export function readFollower(code: string, block: PatternBlock): Follower | null
     const mode = block.calls.find((call) => call.name === 'mode') ?? null
     const said = mode?.args[0]?.kind === 'string' ? mode.args[0].value : ''
     const register = REGISTERS.find((one) => said === `root:${one.under}`)?.id ?? 'middle'
-    return { text, slow, mode, register, cells: cells as number[][], steps: cells.length, cycles, perCycle: cells.length / cycles }
+    return { text, slow, mode, register, cells: cells as number[][], steps: cells.length, cycles, perCycle: cells.length / cycles, named, own }
+}
+
+// The chords of the song written into every pattern that follows them, for when the song's
+// own are taken out: each goes on playing what it played.
+export const keepOwnEdits = (code: string, blocks: PatternBlock[], values: string[]): TextEdit[] =>
+    blocks.flatMap((block) => {
+        const follower = readFollower(code, block)
+        return follower && !follower.own ? [{ from: follower.named.from, to: follower.named.to, insert: `"${chordsText(values)}"` }] : []
+    })
+
+// The other way round, for when the song is given chords again: the patterns that had their
+// own follow the song's, which begin as the chords of the first of them.
+export function followAgain(code: string, blocks: PatternBlock[]): { values: string[] | null; edits: TextEdit[] } {
+    const own = blocks.flatMap((block) => {
+        const follower = readFollower(code, block)
+        return follower?.own ? [follower] : []
+    })
+    return { values: own[0]?.own ?? null, edits: own.map((follower) => ({ from: follower.named.from, to: follower.named.to, insert: CHORDS })) }
 }
 
 export function tonesText(cells: number[][]): string {

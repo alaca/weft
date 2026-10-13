@@ -30,15 +30,21 @@ export function ChordRack(props: { id: string; block: PatternBlock; head: HTMLEl
         return now ? { rows: Array.from({ length: TONES }, (_, tone) => ({ sound: String(tone + 1), steps: now.cells.map((cell) => cell.includes(tone)) })), steps: now.steps, cycles: now.cycles, perCycle: now.perCycle } : null
     }
     const toneOf = (name: string) => Number(name) - 1
+    const own = () => follower()?.own ?? null
     const chordNow = () => {
         const lane = chordLane()
-        return lane ? chordAt(lane, props.cycle) : null
+        const kept = own()
+        return kept ? kept[props.cycle % kept.length] : lane ? chordAt(lane, props.cycle) : null
     }
 
     return (
         <div class="rk cr" onClick={(event) => event.stopPropagation()}>
             <p class="cr-n" data-testid="chord-now">
-                {chordNow() ? (
+                {own() ? (
+                    <>
+                        Plays chords of its own, the ones the song had. The chord of this bar is <b>{chordNow()}</b>. Add chords in the Song panel and it follows them again.
+                    </>
+                ) : chordNow() ? (
                     <>
                         Follows the chords of the song. The chord of this bar is <b>{chordNow()}</b>: row 1 is the note it is named after, the rows above it the next notes of the chord.
                     </>

@@ -2,8 +2,8 @@ import { onCleanup, onMount, Show } from 'solid-js'
 import { closeSaved, closeUnsaved, keepOpen } from '../app/controller'
 import { closingSong, currentSong } from '../stores/song'
 
-// Asked when a song with changes since it was saved is closed. Nothing is lost either way: the
-// work is kept as it goes. Saving marks the version that can be gone back to.
+// Asked when a song with changes since it was saved is closed. Saving keeps them, and closing
+// without saving takes the song back to the version that was saved.
 export function CloseDialog() {
     const escape = (event: KeyboardEvent) => {
         if (closingSong() && event.key === 'Escape') keepOpen()
@@ -25,7 +25,7 @@ export function CloseDialog() {
                             Save the changes to <b>{currentSong()?.name}</b>?
                         </h2>
                     </div>
-                    <p class="pb-t">It has changes since it was saved. Your work is kept either way; saving marks the version you can go back to.</p>
+                    <p class="pb-t">It has changes since it was saved. Closing without saving drops them: the song goes back to the version that was saved.</p>
                     <div class="xp-f">
                         <button class="btn" onClick={keepOpen}>
                             Cancel
