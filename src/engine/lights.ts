@@ -52,7 +52,7 @@ export function lightNotes(mirror: any, root: HTMLElement): (hap: any) => void {
             lit = sounding
             mirror.highlight(sounding, time)
         }
-        // Weft has Strudel draw the present moment only, so a picture is given the same notes.
+        // Weft Loom has Strudel draw the present moment only, so a picture is given the same notes.
         if (drawer.painters.length) mirror.onDraw(sounding, time, drawer.painters)
     }
 

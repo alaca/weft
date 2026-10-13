@@ -15,7 +15,7 @@ describe('invites', () => {
     })
 
     it('are found at the end of a line of text', () => {
-        expect(readInvite('Join my jam in Weft: 7KQ-M2D')).toBe('7KQM2D')
+        expect(readInvite('Join my jam in Weft Loom: 7KQ-M2D')).toBe('7KQM2D')
         expect(readInvite('code is\n7KQ-M2D\n')).toBe('7KQM2D')
     })
 

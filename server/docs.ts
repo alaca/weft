@@ -4,14 +4,14 @@
 export type DocPicture = { file: string; width: number; height: number; alt: string }
 export type DocSection = { id: string; title: string; pictures: DocPicture[]; html: string }
 
-export const DOCS_ABOUT = 'How Weft works, one thing at a time: patterns, the song, sounds, knobs over the song, versions, scenes, jams, and getting a song out.'
+export const DOCS_ABOUT = 'How Weft Loom works, one thing at a time: patterns, the song, sounds, knobs over the song, versions, scenes, jams, and getting a song out.'
 
 export const DOCS: DocSection[] = [
     {
         id: 'window',
         title: 'The window',
-        pictures: [{ file: '/app-1.webp', width: 1440, height: 900, alt: 'The Weft window while a song plays: the mixer and the sounds on the left, the Song panel and the patterns in the middle, the code on the right.' }],
-        html: `<p>A song in Weft is a handful of patterns: drums, a bass line, a melody. Each pattern has a strip in the middle of the window, where you click steps and notes and turn knobs. On the right is the song's code.</p>
+        pictures: [{ file: '/app-1.webp', width: 1440, height: 900, alt: 'The Weft Loom window while a song plays: the mixer and the sounds on the left, the Song panel and the patterns in the middle, the code on the right.' }],
+        html: `<p>A song in Weft Loom is a handful of patterns: drums, a bass line, a melody. Each pattern has a strip in the middle of the window, where you click steps and notes and turn knobs. On the right is the song's code.</p>
 <p>The strips and the code are the same song. Whatever you do in a strip is written into the code, and whatever you type into the code shows up in the strips, so you can use whichever suits you at the moment. The code is <a href="https://strudel.cc" rel="noopener">Strudel</a>, and everything Strudel can do works here.</p>
 <p>On the left are the Mixer and the Sounds. The icons at the top right show and hide each part of the window, and Controls, Both and Code choose between the strips, the code, or the two side by side.</p>
 <p><kbd>Space</kbd> plays and pauses. After typing in the code, <kbd>Cmd</kbd> <kbd>Enter</kbd> plays what you typed. Where this page says Cmd, it is Ctrl on Windows and Linux.</p>
@@ -109,10 +109,10 @@ export const DOCS: DocSection[] = [
         id: 'files',
         title: 'Saving, exporting, publishing',
         pictures: [{ file: '/docs/export.webp', width: 460, height: 306, alt: 'The export window: the song or each pattern, WAV or MP3, a quality, and buttons for a song file, the code and the audio.' }],
-        html: `<p>Weft keeps your songs itself and writes every change down as you make it, so closing the app loses nothing. <kbd>Cmd</kbd> <kbd>S</kbd> saves a version you can go back to from the song's menu.</p>
-<p><b>Export</b> makes files. A song file (.weft) is the whole song with your own sounds inside, to open in Weft on another machine or to send to someone. Code (.js) is the code alone. Export audio makes a WAV or an MP3 of the song. With Each pattern chosen it makes a zip with a file for every pattern, all the same length, to mix in another audio program.</p>
-<p><b>Publish</b> puts a song among the <a href="/songs">songs on this site</a>, where anyone can listen to half a minute of it, download it and open it in Weft. It needs an account, made in the same window with an email and a password. An account holds ten songs of up to 1 MB each, and Weft makes your own sounds smaller where it has to.</p>
-<p>A song from someone else is code. Weft plays it only if it is music code and nothing more. If it holds anything else, it says which line and asks first.</p>`,
+        html: `<p>Weft Loom keeps your songs itself and writes every change down as you make it, so closing the app loses nothing. <kbd>Cmd</kbd> <kbd>S</kbd> saves a version you can go back to from the song's menu.</p>
+<p><b>Export</b> makes files. A song file (.weft) is the whole song with your own sounds inside, to open in Weft Loom on another machine or to send to someone. Code (.js) is the code alone. Export audio makes a WAV or an MP3 of the song. With Each pattern chosen it makes a zip with a file for every pattern, all the same length, to mix in another audio program.</p>
+<p><b>Publish</b> puts a song among the <a href="/songs">songs on this site</a>, where anyone can listen to half a minute of it, download it and open it in Weft Loom. It needs an account, made in the same window with an email and a password. An account holds ten songs of up to 1 MB each, and Weft Loom makes your own sounds smaller where it has to.</p>
+<p>A song from someone else is code. Weft Loom plays it only if it is music code and nothing more. If it holds anything else, it says which line and asks first.</p>`,
     },
     {
         id: 'more',
@@ -129,6 +129,6 @@ export const DOCS: DocSection[] = [
 <div><dt>Arrow keys</dt><dd>Move the chosen note in a roll; with <kbd>Shift</kbd>, left and right change its length</dd></div>
 <div><dt><kbd>Delete</kbd></dt><dd>Remove the chosen note</dd></div>
 </dl>
-<p>Weft looks for a newer version of itself when it starts, and offers it in a card at the bottom right. Update and restart puts it in.</p>`,
+<p>Weft Loom looks for a newer version of itself when it starts, and offers it in a card at the bottom right. Update and restart puts it in.</p>`,
     },
 ]

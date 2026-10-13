@@ -1,4 +1,4 @@
-// A link on the site that says "Open in Weft" is an address that begins with weft://, which the
+// A link on the site that says "Open in Weft Loom" is an address that begins with weft://, which the
 // system hands to the desktop app. Only one kind is known: a published song, by its name on the
 // site. Anything else in such an address is ignored, so a link can make the app fetch a song
 // from the site it publishes to and nothing from anywhere else.

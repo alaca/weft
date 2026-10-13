@@ -69,7 +69,7 @@ test('a song is published from the app: make an account, say what the song is, a
     const songPage = await page.context().newPage()
     await songPage.goto(address)
     await expect(songPage.getByRole('heading', { name: 'Untitled', level: 1 })).toBeVisible()
-    for (const said of ['Ante', 'Two synths going round.', 'test tone', '120 bpm', 'bass', 'lead', 'CC0', 'Download .weft', 'Open in Weft']) await expect(songPage.locator('body')).toContainText(said)
+    for (const said of ['Ante', 'Two synths going round.', 'test tone', '120 bpm', 'bass', 'lead', 'CC0', 'Download .weft', 'Open in Weft Loom']) await expect(songPage.locator('body')).toContainText(said)
     await songPage.close()
 
     await dialog(page).getByRole('button', { name: 'Close', exact: true }).click()
@@ -211,7 +211,7 @@ test('a link to a song asks before anything is opened, and the song that is open
     const ask = page.getByTestId('link-ask')
     await page.evaluate((song) => (window as any).__weft.askFromLink(song), id)
     await expect(ask).toContainText(/^Open .+ by .+\?/)
-    await expect(ask).toContainText('A link asked Weft to open this song from the site.')
+    await expect(ask).toContainText('A link asked Weft Loom to open this song from the site.')
     await expect(page.getByTestId('song-name')).toHaveText(before!)
     await ask.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect(ask).toHaveCount(0)

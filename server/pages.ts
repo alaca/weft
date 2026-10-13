@@ -77,7 +77,7 @@ const PLATFORMS: { id: Platform; name: string }[] = [
 const FIRST_TIME: Record<Platform, string> = {
     macos: 'For Macs with Apple or Intel chips. This build is not signed with Apple yet, so macOS will not open it the first time. Try to open it once, then go to System Settings, Privacy and Security, and press Open Anyway.',
     windows: 'For Windows 10 and 11, 64 bit. This build is not signed with Microsoft yet, so Windows says it does not know it. Press More info, then Run anyway.',
-    linux: 'An AppImage for 64 bit Linux: make the file executable, then run it. For sound it uses the GStreamer plugins that most desktops come with (the base and the good set). A jam has no voice and no camera on Linux, because the window Weft runs in there cannot make a call.',
+    linux: 'An AppImage for 64 bit Linux: make the file executable, then run it. For sound it uses the GStreamer plugins that most desktops come with (the base and the good set). A jam has no voice and no camera on Linux, because the window Weft Loom runs in there cannot make a call.',
 }
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const MB = 1024 * 1024
@@ -128,7 +128,7 @@ const sourceLink = (around: Around, more = '') => (around.source ? html`<a${safe
 // picture is left out where the site was not told its own address.
 const pasted = (around: Around, title: string, about: string, picture = '/app-1.png') => html`<meta property="og:title" content="${title}">
 <meta property="og:description" content="${about}">
-<meta property="og:site_name" content="Weft">
+<meta property="og:site_name" content="Weft Loom">
 ${around.origin ? html`<meta property="og:image" content="${around.origin}${picture}">
 ` : ''}`
 
@@ -147,7 +147,7 @@ ${head}<link rel="icon" type="image/svg+xml" href="/icon.svg">
 ${defs}
 <header class="hd">
     <div class="wrap hd-in">
-        <a class="word" href="/" aria-label="Weft, home">${MARK}Weft</a>
+        <a class="word" href="/" aria-label="Weft Loom, home">${MARK}Weft Loom</a>
         <nav class="nav" aria-label="Site">
             <a href="/songs" data-nav="songs">Songs</a>
             <a href="/docs" data-nav="docs">Docs</a>
@@ -159,7 +159,7 @@ ${defs}
 ${main}
 <footer class="ft">
     <div class="wrap ft-in">
-        <a class="word" href="/" aria-label="Weft, home">${MARK}Weft</a>
+        <a class="word" href="/" aria-label="Weft Loom, home">${MARK}Weft Loom</a>
         <p>Free and open source. Sound engine: Strudel.</p>
         <span class="grow"></span>
         <nav aria-label="Footer">
@@ -246,8 +246,8 @@ function pick(song: Listed): Markup {
 }
 
 export function homePage(around: Around, songs: Listed[], builds: Build[]): string {
-    const title = 'Weft, build songs from patterns'
-    const about = 'Weft is a free desktop app for pattern music, built on Strudel. Click drums into a grid, draw notes in a piano roll, turn a knob, and the code follows.'
+    const title = 'Weft Loom, build songs from patterns'
+    const about = 'Weft Loom is a free desktop app for pattern music, built on Strudel. Click drums into a grid, draw notes in a piano roll, turn a knob, and the code follows.'
     const get = (platform: Platform) => (builds.some((build) => build.platform === platform) ? `/download/${platform}` : '/download')
     const defs = defsOf(songs.map((song) => waveDef(`w-${song.id}`, song.preview.peaks, 44)))
     const main = html`<main>
@@ -263,7 +263,7 @@ export function homePage(around: Around, songs: Listed[], builds: Build[]): stri
         <div class="shots" data-shots>
             <div class="shots-row" tabindex="0" aria-label="Pictures of the app, three of them, side by side">
                 <figure id="shot-1">
-                    <img src="/app-1.webp" width="1440" height="900" alt="The Weft window while a song plays: the mixer and the sounds on the left, the song laid out bar by bar and a drum grid in the middle, the song's code on the right.">
+                    <img src="/app-1.webp" width="1440" height="900" alt="The Weft Loom window while a song plays: the mixer and the sounds on the left, the song laid out bar by bar and a drum grid in the middle, the song's code on the right.">
                     <figcaption>The song bar by bar, grids and knobs under it, the code on the right. They are the same song.</figcaption>
                 </figure>
                 <figure id="shot-2">
@@ -286,7 +286,7 @@ export function homePage(around: Around, songs: Listed[], builds: Build[]): stri
     <section class="sec wrap" aria-labelledby="h-songs">
         <div class="sec-h">
             <div>
-                <h2 id="h-songs">Songs made in Weft</h2>
+                <h2 id="h-songs">Songs made in Weft Loom</h2>
                 <p>${songs.length ? 'Play a preview. Download the song and open it in the app.' : 'Nothing is published yet.'}</p>
             </div>
             <a class="btn" href="/songs">All songs</a>
@@ -361,7 +361,7 @@ export function homePage(around: Around, songs: Listed[], builds: Build[]): stri
 }
 
 export function downloadPage(around: Around, builds: Build[]): string {
-    const about = 'Weft is a desktop app. It is free, and it needs no account to make music.'
+    const about = 'Weft Loom is a desktop app. It is free, and it needs no account to make music.'
     const one = (platform: { id: Platform; name: string }) => {
         const build = builds.find((made) => made.platform === platform.id)
         if (!build) return html`<li><div><b>${platform.name}</b><p>Not out yet.</p></div></li>`
@@ -372,7 +372,7 @@ export function downloadPage(around: Around, builds: Build[]): string {
                     <p>${FIRST_TIME[platform.id]}</p>
                     ${platform.id === 'macos' ? '' : html`<p>This build is new. If something does not work, ${around.source ? html`say so where the <a href="${around.source}" rel="noopener">source code</a> is` : 'say so'}.</p>`}
                 </div>
-                <a class="btn go" href="/download/${platform.id}" aria-label="Download Weft for ${platform.name}">${DOWN}Download</a>
+                <a class="btn go" href="/download/${platform.id}" aria-label="Download Weft Loom for ${platform.name}">${DOWN}Download</a>
             </li>`
     }
     const main = html`<main class="wrap page">
@@ -385,16 +385,16 @@ export function downloadPage(around: Around, builds: Build[]): string {
     <ul class="card plats">
         ${PLATFORMS.map(one)}
     </ul>
-    ${builds.length ? '' : html`<p class="tail">Weft is not released yet, so there is nothing to download.</p>`}
+    ${builds.length ? '' : html`<p class="tail">Weft Loom is not released yet, so there is nothing to download.</p>`}
 </main>`
-    return layout(around, 'download', 'Download, Weft', main, '', pasted(around, 'Download Weft', about))
+    return layout(around, 'download', 'Download, Weft Loom', main, '', pasted(around, 'Download Weft Loom', about))
 }
 
 export function licencePage(around: Around, licences: readonly string[]): string {
     const main = html`<main class="wrap page mid">
     <div class="card note wide">
         <h1>Licence</h1>
-        <p>Weft is free and open source. It is licensed AGPL-3.0-or-later, the GNU Affero General Public License, version 3 or any later version.</p>
+        <p>Weft Loom is free and open source. It is licensed AGPL-3.0-or-later, the GNU Affero General Public License, version 3 or any later version.</p>
         <h2>The songs</h2>
         <p>A song on this site carries the licence its maker chose for it, one of these. The song's page says which.</p>
         <dl>
@@ -402,7 +402,7 @@ export function licencePage(around: Around, licences: readonly string[]): string
         </dl>
     </div>
 </main>`
-    return layout(around, 'licence', 'Licence, Weft', main)
+    return layout(around, 'licence', 'Licence, Weft Loom', main)
 }
 
 // How the app works. Each part is headed the way a pattern is in the app, with a dot of the
@@ -413,7 +413,7 @@ export function docsPage(around: Around): string {
     <div class="ph">
         <div>
             <h1>Docs</h1>
-            <p>How Weft works, one thing at a time.</p>
+            <p>How Weft Loom works, one thing at a time.</p>
         </div>
     </div>
     <div class="docs">
@@ -429,8 +429,8 @@ export function docsPage(around: Around): string {
         </div>
     </div>
 </main>`
-    return layout(around, 'docs', 'Docs, Weft', main, '', html`<meta name="description" content="${DOCS_ABOUT}">
-${pasted(around, 'How Weft works', DOCS_ABOUT)}`)
+    return layout(around, 'docs', 'Docs, Weft Loom', main, '', html`<meta name="description" content="${DOCS_ABOUT}">
+${pasted(around, 'How Weft Loom works', DOCS_ABOUT)}`)
 }
 
 // What the site and the app keep about a person, in plain words. It says what is so, and has to
@@ -439,7 +439,7 @@ export function privacyPage(around: Around): string {
     const main = html`<main class="wrap page mid">
     <div class="card note wide">
         <h1>Privacy</h1>
-        <p>Making music in Weft needs no account and sends nothing about you anywhere. This page says what is kept when you do more than that.</p>
+        <p>Making music in Weft Loom needs no account and sends nothing about you anywhere. This page says what is kept when you do more than that.</p>
         <h2>An account</h2>
         <p>An account is only for publishing songs. Of an account the site keeps your email, the name you chose, and when it was made. Your password is not kept: only a scrambled form of it that cannot be turned back into the password. While you are signed in the site keeps a mark for that, and the app keeps its counterpart on your machine.</p>
         <p>Your email is shown to nobody. It is used to sign you in, and to send you a code when you have forgotten your password. That mail is sent through a mail service, which sees the address it sends to.</p>
@@ -455,7 +455,7 @@ export function privacyPage(around: Around): string {
         <p>All of it is on one server in Germany. A copy of the accounts and the published songs is made every night and kept for two weeks, so what you delete is gone from the copies two weeks later. ${around.source ? html`Questions can be asked where the <a href="${around.source}" rel="noopener">source code</a> is.` : ''}</p>
     </div>
 </main>`
-    return layout(around, 'privacy', 'Privacy, Weft', main)
+    return layout(around, 'privacy', 'Privacy, Weft Loom', main)
 }
 
 // What stands over a list of songs: the names of its columns.
@@ -482,7 +482,7 @@ function songsAddress(search: Search): string {
 }
 
 export function songsPage(around: Around, search: Search, found: Found): string {
-    const about = 'Listen to a preview, then download the song and open it in Weft.'
+    const about = 'Listen to a preview, then download the song and open it in Weft Loom.'
     const order = (sort: Search['sort'], label: string) => html`<a href="${songsAddress({ ...search, sort, page: 1 })}"${search.sort === sort ? safe(' aria-current="true"') : ''}>${label}</a>`
     const turn = (page: number, label: string) => html`<a class="btn sm" href="${songsAddress({ ...search, page })}">${label}</a>`
     const pages = html`<nav class="pages" aria-label="Pages">
@@ -528,13 +528,13 @@ export function songsPage(around: Around, search: Search, found: Found): string 
     ${found.pages > 1 ? pages : ''}
     <p class="tail">A style is whatever its maker typed. Press one to see the songs that share it.</p>
 </main>`
-    return layout(around, 'songs', 'Songs, Weft', main, '', pasted(around, 'Songs made in Weft', about))
+    return layout(around, 'songs', 'Songs, Weft Loom', main, '', pasted(around, 'Songs made in Weft Loom', about))
 }
 
 // The songs of one person that are shown, newest first. There is always at least one: the site
 // has no such page for someone with nothing to show.
 export function makerPage(around: Around, who: Maker, songs: Listed[]): string {
-    const about = `${many(songs.length, 'song')} made in Weft.`
+    const about = `${many(songs.length, 'song')} made in Weft Loom.`
     const main = html`<main class="wrap page">
     <div class="ph">
         <div>
@@ -554,7 +554,7 @@ export function makerPage(around: Around, who: Maker, songs: Listed[]): string {
         </ul>
     </div>
 </main>`
-    return layout(around, 'maker', `Songs by ${who.name}, Weft`, main, '', pasted(around, `Songs by ${who.name}`, about))
+    return layout(around, 'maker', `Songs by ${who.name}, Weft Loom`, main, '', pasted(around, `Songs by ${who.name}`, about))
 }
 
 function player(song: Shown): Markup {
@@ -666,8 +666,8 @@ ${pasted(around, song.name, about, `/songs/${song.id}.png`)}${address ? html`<me
             <div class="card">
                 <div class="get-a">
                     <a class="btn go" href="/songs/${song.id}.weft">${DOWN}Download .weft</a>
-                    <a class="btn" href="weft://song/${song.id}">${OUT}Open in Weft</a>
-                    <p class="quiet needs">Needs the Weft app on this machine.</p>
+                    <a class="btn" href="weft://song/${song.id}">${OUT}Open in Weft Loom</a>
+                    <p class="quiet needs">Needs the Weft Loom app on this machine.</p>
                     <p class="mono">${song.fileName}, ${size(song.bytes)}</p>
                 </div>
                 <dl class="facts">
@@ -704,7 +704,7 @@ ${pasted(around, song.name, about, `/songs/${song.id}.png`)}${address ? html`<me
         </ul>
     </section>` : ''}
 </main>`
-    return layout(around, 'song', `${song.name} by ${by}, Weft`, main, defs, head)
+    return layout(around, 'song', `${song.name} by ${by}, Weft Loom`, main, defs, head)
 }
 
 // A small page with one thing on it: a refusal, what happened, or what is not there.

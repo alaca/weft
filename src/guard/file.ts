@@ -44,9 +44,9 @@ export function checkSongFile(text: string, limit = SONG_LIMIT): FileRefused | n
     try {
         file = JSON.parse(text)
     } catch {
-        return notASong('This is not a song file made by Weft.')
+        return notASong('This is not a song file made by Weft Loom.')
     }
-    if (!isRecord(file) || file.weft !== VERSION) return notASong('This is not a song file made by Weft.')
+    if (!isRecord(file) || file.weft !== VERSION) return notASong('This is not a song file made by Weft Loom.')
     const extra = Object.keys(file).find((part) => !PARTS.includes(part))
     if (extra !== undefined) return notASong(`The file holds something a song file does not have: ${extra.slice(0, 40)}.`)
     if (!isText(file.name, NAME_LIMIT) || !file.name.trim()) return notASong('The song has no name, or one that is too long.')

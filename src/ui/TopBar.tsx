@@ -58,7 +58,7 @@ export function TopBar() {
         <header class="top" data-testid="top">
             <div class="brand">
                 <Mark />
-                <div class="word">Weft</div>
+                <div class="word">Weft Loom</div>
             </div>
             <div class="top-l">
                 <SongMenu />
@@ -108,7 +108,7 @@ export function TopBar() {
                             <path class="ln" stroke-linejoin="round" d="M8 2.4v7.8M4.9 7.2 8 10.3l3.1-3.1M2.8 13.2h10.4" />
                         </svg>
                     </button>
-                    <button class="ib rare" aria-label="Publish" title="Publish: put this song on the Weft site, for others to hear and download" onClick={openPublish}>
+                    <button class="ib rare" aria-label="Publish" title="Publish: put this song on the Weft Loom site, for others to hear and download" onClick={openPublish}>
                         <svg viewBox="0 0 16 16" aria-hidden="true">
                             <path class="ln" stroke-linejoin="round" d="M8 10.4V2.6M4.9 5.6 8 2.5l3.1 3.1M2.8 13.2h10.4" />
                         </svg>
@@ -227,7 +227,7 @@ export function TopBar() {
                     )}
                 </For>
             </div>
-            <button class="ib who" classList={{ in: Boolean(me()) }} aria-label="Your account" title={me() ? `Your account on the Weft site: ${me()!.name}` : 'Your account on the Weft site: sign in, or make one'} onClick={openAccount}>
+            <button class="ib who" classList={{ in: Boolean(me()) }} aria-label="Your account" title={me() ? `Your account on the Weft Loom site: ${me()!.name}` : 'Your account on the Weft Loom site: sign in, or make one'} onClick={openAccount}>
                 <svg viewBox="0 0 16 16" aria-hidden="true">
                     <circle class="ln" cx="8" cy="5.5" r="2.7" />
                     <path class="ln" d="M2.7 13.6c.6-3 2.7-4.3 5.3-4.3s4.7 1.3 5.3 4.3" />

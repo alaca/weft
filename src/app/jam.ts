@@ -653,8 +653,8 @@ export function sayInJam(words: string) {
 
 const NO_MIC: Record<NoTake, string> = {
     unreachable: 'This window has no way to reach a microphone. In the desktop app, quit and start it again.',
-    refused: 'The microphone could not be used: the system did not allow it. Open System Settings, Privacy and Security, Microphone, and allow Weft there, or the browser, or the terminal the app was started from. Then press Microphone again.',
-    silent: 'Nothing is heard from your microphone. If the system has not allowed Weft to use it, allow it under System Settings, Privacy and Security, Microphone; if it has, check the input level under Sound.',
+    refused: 'The microphone could not be used: the system did not allow it. Open System Settings, Privacy and Security, Microphone, and allow Weft Loom there, or the browser, or the terminal the app was started from. Then press Microphone again.',
+    silent: 'Nothing is heard from your microphone. If the system has not allowed Weft Loom to use it, allow it under System Settings, Privacy and Security, Microphone; if it has, check the input level under Sound.',
     missing: 'No microphone was found. Plug one in, or choose an input in the sound settings of the system, and press Microphone again.',
     other: 'The microphone could not be used.',
 }
@@ -709,7 +709,7 @@ export async function toggleMic() {
 
 const NO_CAM: Record<NoTake, string> = {
     unreachable: 'This window has no way to reach a camera. The jam, the chat and your voice work without one.',
-    refused: 'The camera could not be used: the system did not allow it. Open System Settings, Privacy and Security, Camera, and allow Weft there, or the browser. Then press Camera again.',
+    refused: 'The camera could not be used: the system did not allow it. Open System Settings, Privacy and Security, Camera, and allow Weft Loom there, or the browser. Then press Camera again.',
     silent: 'The camera gives no picture.',
     missing: 'No camera was found. Plug one in, or close whatever else is using it, and press Camera again.',
     other: 'The camera could not be used.',

@@ -744,7 +744,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
         return { status: 206, file: { bytes, type, head: { ...head, 'Content-Range': `bytes ${part.from}-${part.to}/${size}` } } }
     }
 
-    const note = (status: number, heading: string, lines: string[], go?: { href: string; label: string }): Answer => ({ status, html: notePage(around, `${heading}, Weft`, heading, lines, go) })
+    const note = (status: number, heading: string, lines: string[], go?: { href: string; label: string }): Answer => ({ status, html: notePage(around, `${heading}, Weft Loom`, heading, lines, go) })
     const nothing = () => note(404, 'There is nothing at this address', ['The page may have moved, or the address may be mistyped.'], { href: '/', label: 'Go to the first page' })
     const noSong = () => note(404, 'No such song', ['It may have been hidden or deleted by whoever made it.'], { href: '/songs', label: 'See all songs' })
     const noMaker = () => note(404, 'No songs here', ['Whoever made them may have hidden or deleted them, or the address may be mistyped.'], { href: '/songs', label: 'See all songs' })
@@ -787,7 +787,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
         const wanted = /^\/download\/(macos|windows|linux)$/.exec(path)
         if (wanted && get) {
             const build = buildsNow().get(wanted[1] as Platform)
-            if (!build || !existsSync(build.file)) return note(404, 'Not out yet', [`Weft for ${PLATFORM_NAMES[wanted[1] as Platform]} is not out yet.`], { href: '/download', label: 'See what is out' })
+            if (!build || !existsSync(build.file)) return note(404, 'Not out yet', [`Weft Loom for ${PLATFORM_NAMES[wanted[1] as Platform]} is not out yet.`], { href: '/download', label: 'See what is out' })
             return { status: 200, build: { file: build.file, bytes: statSync(build.file).size } }
         }
 

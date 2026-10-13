@@ -86,7 +86,7 @@ export function StartScreen() {
                 <header class="sx-top">
                     <div class="brand">
                         <Mark />
-                        <div class="word">Weft</div>
+                        <div class="word">Weft Loom</div>
                     </div>
                     <span class="sx-what">Drum grids, piano rolls and knobs beside the code. Both show the same song.</span>
                 </header>
@@ -237,7 +237,7 @@ export function StartScreen() {
                         <div class="sx-pub-h">
                             <h3>Songs on the site</h3>
                         </div>
-                        <p class="sx-pub-t">Songs people made in Weft and published. Listen to half a minute, or open a copy and it is a song of yours.</p>
+                        <p class="sx-pub-t">Songs people made in Weft Loom and published. Listen to half a minute, or open a copy and it is a song of yours.</p>
                         <div class="sx-pub-q">
                             <div class="sx-find">
                                 <svg viewBox="0 0 16 16">

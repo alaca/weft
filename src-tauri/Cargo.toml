@@ -2,7 +2,7 @@
 name = "weft"
 version = "0.1.4"
 description = "Controls and code for making music with Strudel"
-authors = ["Weft contributors"]
+authors = ["Weft Loom contributors"]
 license = "AGPL-3.0-or-later"
 edition = "2021"
 rust-version = "1.77.2"

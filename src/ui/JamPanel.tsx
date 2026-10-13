@@ -162,7 +162,7 @@ export function JamPanel() {
                                                     {copied() ? 'Copied' : 'Copy invite'}
                                                 </button>
                                             </div>
-                                            <p class="jm-note">{jamListed() ? 'Or send this to one person. They open Jams in Weft and type it in. It works once, listed or not.' : 'Send this to one person. They open Jams in Weft and type it in. It works once.'}</p>
+                                            <p class="jm-note">{jamListed() ? 'Or send this to one person. They open Jams in Weft Loom and type it in. It works once, listed or not.' : 'Send this to one person. They open Jams in Weft Loom and type it in. It works once.'}</p>
                                             <p class="jm-note" role="status">
                                                 Waiting for them to join <b>{currentSong()?.name}</b>.
                                             </p>

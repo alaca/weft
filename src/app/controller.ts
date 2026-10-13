@@ -417,7 +417,7 @@ export async function mount(root: HTMLElement): Promise<void> {
             { id: 'weft-view-reset', text: 'Reset Layout', action: resetLayout },
         ],
         Help: [
-            { id: 'weft-help-docs', text: 'Weft Docs', action: () => void openInBrowser(`${SITE}/docs`) },
+            { id: 'weft-help-docs', text: 'Weft Loom Docs', action: () => void openInBrowser(`${SITE}/docs`) },
             { id: 'weft-help-update', text: 'Check for Updates…', action: () => void lookForNewVersion(true) },
         ],
     })
@@ -1475,9 +1475,9 @@ const MOST_GAIN = 60
 const NO_TAKE: Record<NoTake, string> = {
     unreachable: 'The microphone could not be used: this window has no way to reach one. In the desktop app, quit and start it again, so that it is built with the microphone allowed.',
     refused:
-        'The microphone could not be used: the system did not allow it. Open System Settings, Privacy and Security, Microphone, and allow Weft there, or the terminal it was started from. Then press Record again.',
+        'The microphone could not be used: the system did not allow it. Open System Settings, Privacy and Security, Microphone, and allow Weft Loom there, or the terminal it was started from. Then press Record again.',
     silent:
-        'The take is silent. That is what the system gives an app it has not allowed to use the microphone, and what a muted input gives. Open System Settings, Privacy and Security, Microphone, and allow Weft there, or the terminal it was started from; check the input level under Sound. Then press Record again.',
+        'The take is silent. That is what the system gives an app it has not allowed to use the microphone, and what a muted input gives. Open System Settings, Privacy and Security, Microphone, and allow Weft Loom there, or the terminal it was started from; check the input level under Sound. Then press Record again.',
     missing: 'The microphone could not be used: none was found. Plug one in, or choose an input in the sound settings of the system, and press Record again.',
     other: 'The microphone could not be used.',
 }
@@ -2104,7 +2104,7 @@ export async function exportCode() {
     }
 }
 
-const SONG_KIND: FileKind = { extension: SONG_FILE, label: 'Weft song', type: 'application/json' }
+const SONG_KIND: FileKind = { extension: SONG_FILE, label: 'Weft Loom song', type: 'application/json' }
 
 // The sounds of your own that the song's code names, as they go into a file. Only those are
 // read from where they are kept, one at a time, in the order they are kept in.

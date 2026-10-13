@@ -59,7 +59,7 @@ p { text-wrap: pretty; }
 
 .hd { background: var(--cloth); border-bottom: 1px solid var(--seam); }
 .hd-in { height: 60px; display: flex; align-items: center; gap: 26px; }
-.word { display: inline-flex; align-items: center; gap: 10px; font: italic 600 25px/1 var(--voice); letter-spacing: -0.01em; padding-bottom: 3px; }
+.word { display: inline-flex; align-items: center; gap: 10px; font: italic 600 25px/1 var(--voice); letter-spacing: -0.01em; padding-bottom: 3px; white-space: nowrap; }
 .word .mark { height: 20px; width: auto; flex: none; margin-top: 3px; }
 .ft .word .mark { height: 16px; }
 .nav { display: flex; align-items: center; gap: 2px; }
@@ -154,6 +154,12 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
     .hd-in { gap: 12px; }
     .nav [data-nav='source'] { display: none; }
     .ph h1 { font-size: 34px; }
+}
+@media (max-width: 420px) {
+    .hd-in { gap: 6px; }
+    .hd .word { font-size: 20px; gap: 7px; }
+    .hd .word .mark { height: 16px; }
+    .nav a { padding: 0 7px; font-size: 13px; }
 }
 
 /* Home */

@@ -20,8 +20,8 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: |
                   gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && exit 0
-                  gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "Weft ${GITHUB_REF_NAME#v}" \
-                      --notes "Installers for Windows and Linux, built from this tag by the workflow in this repository. Weft for macOS, and what to expect when opening each of them the first time, is at https://weftloom.dev/download"
+                  gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "Weft Loom ${GITHUB_REF_NAME#v}" \
+                      --notes "Installers for Windows and Linux, built from this tag by the workflow in this repository. Weft Loom for macOS, and what to expect when opening each of them the first time, is at https://weftloom.dev/download"
 
     build:
         needs: release

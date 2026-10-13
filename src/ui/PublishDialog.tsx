@@ -187,7 +187,7 @@ export function PublishDialog() {
                             )}
                         </Match>
                         <Match when={true}>
-                            <p class="pb-t">Publishing puts this song on the Weft site, where others can hear half a minute of it and download it to work on. It needs an account: your email and a password. You make it here, once, and the app stays signed in.</p>
+                            <p class="pb-t">Publishing puts this song on the Weft Loom site, where others can hear half a minute of it and download it to work on. It needs an account: your email and a password. You make it here, once, and the app stays signed in.</p>
                             <AccountForm />
                         </Match>
                     </Switch>

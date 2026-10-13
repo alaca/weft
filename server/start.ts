@@ -45,7 +45,7 @@ function mailer(program: string, from: string) {
             const sending = spawn(program, ['-t', '-f', from], { stdio: ['pipe', 'ignore', 'ignore'] })
             sending.on('error', failed)
             sending.on('close', (status) => (status === 0 ? done() : failed(new Error(`${program} ended with ${status}`))))
-            sending.stdin.end([`From: Weft <${from}>`, `To: ${to}`, `Subject: ${oneLine(subject)}`, 'Content-Type: text/plain; charset=utf-8', '', ...lines.map(oneLine), ''].join('\r\n'))
+            sending.stdin.end([`From: Weft Loom <${from}>`, `To: ${to}`, `Subject: ${oneLine(subject)}`, 'Content-Type: text/plain; charset=utf-8', '', ...lines.map(oneLine), ''].join('\r\n'))
         })
 }
 const ADDRESS = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/
@@ -102,8 +102,8 @@ async function start() {
         },
         mail: send
             ? (to, code) =>
-                  send(to, 'Your code for a new Weft password', [
-                      'Someone, most likely you, asked for a new password for the Weft account with this email.',
+                  send(to, 'Your code for a new Weft Loom password', [
+                      'Someone, most likely you, asked for a new password for the Weft Loom account with this email.',
                       '',
                       `The code is ${code}`,
                       '',
@@ -111,7 +111,7 @@ async function start() {
                       'If it was not you, do nothing: the password stays as it is.',
                   ])
             : undefined,
-        reported: send && reportsTo ? (report) => send(reportsTo, `A song on Weft was reported: ${report.name}`, [`The song: ${origin}/songs/${report.id}`, '', 'What was said about it:', report.reason, '', 'It can be hidden or deleted by whoever published it, in the app under Your account.']) : undefined,
+        reported: send && reportsTo ? (report) => send(reportsTo, `A song on Weft Loom was reported: ${report.name}`, [`The song: ${origin}/songs/${report.id}`, '', 'What was said about it:', report.reason, '', 'It can be hidden or deleted by whoever published it, in the app under Your account.']) : undefined,
     })
     closing.push(site.close)
     console.log(`weft: site on 127.0.0.1:${site.port} as ${origin}, mail ${from ? 'on' : 'off'}`)

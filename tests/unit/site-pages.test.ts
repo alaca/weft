@@ -75,7 +75,7 @@ describe('the first page', () => {
     it('sends each download button to its build when there is one, and to the download page when not', async () => {
         expect((await page('/')).match(/<a class="btn[^"]*" href="\/download">/g)).toHaveLength(4)
         await site.close()
-        const build = join(dataDir, 'Weft 0.1.0.dmg')
+        const build = join(dataDir, 'Weft Loom 0.1.0.dmg')
         writeFileSync(build, 'not really an installer')
         await start({ downloads: [{ platform: 'macos', file: build, version: '0.1.0' }] })
         const html = await page('/')
@@ -171,7 +171,7 @@ describe('the page of a song', () => {
         await fetch(made.preview)
         await fetch(made.file)
         const html = await page(`/songs/${made.id}`)
-        expect(html).toContain('<title>Slow burn by Ante, Weft</title>')
+        expect(html).toContain('<title>Slow burn by Ante, Weft Loom</title>')
         expect(html).toContain('<h1>Slow burn</h1>')
         expect(html).toContain('<span>Published 6 October 2026</span>')
         expect(html).toContain('<span>30 seconds, from bar 29</span>')
@@ -194,7 +194,7 @@ describe('the page of a song', () => {
         expect(html).toContain('You may rework this song and share what you make, as long as you credit Ante.')
         expect(html).toContain(`<a class="btn go" href="/songs/${made.id}.weft">`)
         expect(html).toContain(`<a class="btn" href="weft://song/${made.id}">`)
-        expect(html).toContain('Needs the Weft app on this machine.')
+        expect(html).toContain('Needs the Weft Loom app on this machine.')
         expect(html).toContain(`<form method="post" action="/songs/${made.id}/report">`)
         expect(html).toContain('<path id="w-preview" vector-effect="non-scaling-stroke" d="M2 3V37M6 3V37')
     })
@@ -278,7 +278,7 @@ describe('the page of a song', () => {
         const html = await (await fetch(`${here}/songs/${made.id}`)).text()
         const whole = `https://weft.example/songs/${made.id}`
         expect(html).toContain('<meta property="og:type" content="music.song">')
-        expect(html).toContain('<meta property="og:site_name" content="Weft">')
+        expect(html).toContain('<meta property="og:site_name" content="Weft Loom">')
         expect(html).toContain(`<meta property="og:url" content="${whole}">`)
         expect(html).toContain(`<meta property="og:image" content="${whole}.png">\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">`)
         // The sound is not named: whatever fetched it to look at the address would count as a listener.
@@ -312,9 +312,9 @@ describe('the page of a maker', () => {
         await ask(`/api/songs/${hidden.id}/hide`, { token: ante, method: 'POST' })
         const at = /<a href="(\/by\/[a-z0-9]+)">Ante<\/a>/.exec(await page(`/songs/${first.id}`))?.[1] ?? ''
         const html = await page(at)
-        expect(html).toContain('<title>Songs by Ante, Weft</title>')
+        expect(html).toContain('<title>Songs by Ante, Weft Loom</title>')
         expect(html).toContain('<h1>Ante</h1>')
-        expect(html).toContain('<p>2 songs made in Weft.</p>')
+        expect(html).toContain('<p>2 songs made in Weft Loom.</p>')
         expect(names(html)).toEqual(['Stillness', 'Undertow'])
         expect(html).not.toContain('ante@example.com')
         for (const path of ['/', '/songs']) expect(await page(path)).toContain(`<a href="${at}">Ante</a>`)
@@ -375,7 +375,7 @@ describe('the downloads', () => {
     it('are said to be not out yet when nothing is built', async () => {
         const html = await page('/download')
         expect(html.match(/<p>Not out yet\.<\/p>/g)).toHaveLength(3)
-        expect(html).toContain('Weft is not released yet, so there is nothing to download.')
+        expect(html).toContain('Weft Loom is not released yet, so there is nothing to download.')
         expect(html).not.toContain('href="/download/')
         for (const platform of ['macos', 'windows', 'linux']) {
             const answer = await fetch(`${site.origin}/download/${platform}`)
@@ -387,7 +387,7 @@ describe('the downloads', () => {
 
     it('hand out each build that is there under its own name, with its version and size', async () => {
         await site.close()
-        const mac = join(dataDir, 'Weft 0.1.0 (arm64).dmg')
+        const mac = join(dataDir, 'Weft Loom 0.1.0 (arm64).dmg')
         const linux = join(dataDir, 'weft_0.1.0_amd64.AppImage')
         writeFileSync(mac, Buffer.alloc(300 * 1024, 7))
         writeFileSync(linux, 'an image')
@@ -398,11 +398,11 @@ describe('the downloads', () => {
         expect(html).toContain('This build is not signed with Apple yet, so macOS will not open it the first time.')
         expect(html.match(/This build is not signed/g)).toHaveLength(1)
         expect(html.match(/<p>Not out yet\.<\/p>/g)).toHaveLength(1)
-        expect(html).toContain('<a class="btn go" href="/download/macos" aria-label="Download Weft for macOS">')
+        expect(html).toContain('<a class="btn go" href="/download/macos" aria-label="Download Weft Loom for macOS">')
         expect(html).not.toContain('href="/download/windows"')
         const file = await fetch(`${site.origin}/download/macos`)
         expect(file.status).toBe(200)
-        expect(file.headers.get('content-disposition')).toBe('attachment; filename="Weft 0.1.0 _arm64_.dmg"')
+        expect(file.headers.get('content-disposition')).toBe('attachment; filename="Weft Loom 0.1.0 _arm64_.dmg"')
         expect(file.headers.get('content-type')).toBe('application/octet-stream')
         expect(file.headers.get('cache-control')).toBe('no-store')
         expect(Buffer.from(await file.arrayBuffer()).equals(readFileSync(mac))).toBe(true)
@@ -466,7 +466,7 @@ describe('a folder of releases', () => {
         writeFileSync(join(releases, 'downloads.json'), JSON.stringify({ builds: [{ platform: 'macos', file: 'Weft_0.1.0_aarch64.dmg', version: '0.1.0' }, { platform: 'linux', file: '../site.json', version: '9' }, { platform: 'windows', file: 'missing.msi', version: '0.1.0' }] }))
         const html = await page('/download')
         expect(html).toContain('<span class="num">Version 0.1.0, 0.3 MB</span>')
-        expect(html).toContain('<a class="btn go" href="/download/macos" aria-label="Download Weft for macOS">')
+        expect(html).toContain('<a class="btn go" href="/download/macos" aria-label="Download Weft Loom for macOS">')
         expect(html).not.toContain('href="/download/linux"')
         expect(html).not.toContain('href="/download/windows"')
         const got = await fetch(`${site.origin}/download/macos`)

@@ -1,6 +1,6 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-    "productName": "Weft",
+    "productName": "Weft Loom",
     "version": "0.1.4",
     "identifier": "app.weft.desktop",
     "build": {
@@ -12,7 +12,7 @@
     "app": {
         "windows": [
             {
-                "title": "Weft",
+                "title": "Weft Loom",
                 "width": 1440,
                 "height": 900,
                 "minWidth": 1100,

@@ -44,7 +44,7 @@ export async function lookForNewVersion(asked: boolean) {
         if (version) return offer(version)
         if (!asked) return
         const mine = await versionNow().catch(() => null)
-        say(mine ? `You have the newest Weft, ${mine}.` : 'You have the newest Weft.')
+        say(mine ? `You have the newest Weft Loom, ${mine}.` : 'You have the newest Weft Loom.')
     } catch {
         if (asked) say('The site could not be asked for a newer version. Check that you are online, then choose Check for Updates again.')
     } finally {
@@ -65,7 +65,7 @@ export async function installNewVersion() {
         await version.install(setUpdateDone)
     } catch (err) {
         batch(() => {
-            setUpdateNote(`Weft ${version.version} could not be put in place: ${String((err as Error)?.message ?? err)}. The Weft you have is as it was. Press Try again, or leave it for later.`)
+            setUpdateNote(`Weft Loom ${version.version} could not be put in place: ${String((err as Error)?.message ?? err)}. The Weft Loom you have is as it was. Press Try again, or leave it for later.`)
             setUpdateStage('failed')
         })
     }

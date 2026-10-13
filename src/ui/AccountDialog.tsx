@@ -92,7 +92,7 @@ export function AccountDialog() {
                         when={me()}
                         fallback={
                             <>
-                                <p class="pb-t">An account is for publishing songs on the Weft site. It is an email and a password, and it is made here.</p>
+                                <p class="pb-t">An account is for publishing songs on the Weft Loom site. It is an email and a password, and it is made here.</p>
                                 <AccountForm />
                             </>
                         }

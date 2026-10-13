@@ -1,8 +1,8 @@
-# Weft
+# Weft Loom
 
 A free, open-source desktop app for making music with [Strudel](https://strudel.cc). Every pattern of a song is shown twice: as controls and as Strudel code. The code is the song; the controls read it and rewrite it, so you can make a whole song without writing any, and read or change the code whenever you want to.
 
-![The Weft window while a song plays: the mixer and the sounds on the left, the song laid out bar by bar and a drum grid in the middle, the song's code on the right.](server/assets/app-1.webp)
+![The Weft Loom window while a song plays: the mixer and the sounds on the left, the song laid out bar by bar and a drum grid in the middle, the song's code on the right.](server/assets/app-1.webp)
 
 - Step grids for drums, piano rolls for notes, and a knob for every number in the code.
 - A browser for trying and choosing sounds, and for recording or bringing in your own.

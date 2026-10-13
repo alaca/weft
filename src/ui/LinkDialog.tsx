@@ -28,7 +28,7 @@ export function LinkDialog() {
                                 {asked().by ? ` by ${asked().by}` : ''}?
                             </h2>
                         </div>
-                        <p class="pb-t">A link asked Weft to open this song from the site. It opens as a new song among yours, and is only played while all of it is music code. The song you have open stays with your songs as it is.</p>
+                        <p class="pb-t">A link asked Weft Loom to open this song from the site. It opens as a new song among yours, and is only played while all of it is music code. The song you have open stays with your songs as it is.</p>
                         <div class="xp-f">
                             <button class="btn" onClick={dropAsked}>
                                 Cancel
