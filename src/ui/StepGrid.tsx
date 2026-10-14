@@ -22,6 +22,9 @@ type Run = { sound: string; from: number; to: number; on: boolean }
 // A click whose pointer slips less than this many pixels is still a click on the one pad.
 const SLIP = 4
 
+// Steps chosen together: rows `first` to `last` of those shown, steps `from` to `to` of the bar.
+export type Chosen = { first: number; last: number; from: number; to: number }
+
 export function StepGrid(props: {
     rows: StepRow[]
     playing: boolean
@@ -36,6 +39,9 @@ export function StepGrid(props: {
     onRemove?: (sound: string) => void
     controls?: (sound: () => string) => JSX.Element
     lane?: ShownLane
+    // A box drawn with Shift held chooses steps. A Shift click is still a louder hit.
+    chosen?: Chosen | null
+    onChoose?: (chosen: Chosen | null) => void
 }) {
     const count = () => props.rows[0]?.steps.length ?? 16
     const beat = () => beatOf(count())
@@ -52,6 +58,17 @@ export function StepGrid(props: {
     let root!: HTMLDivElement
     let lefts: number[] = []
     let press = { x: 0, pointer: -1, moved: false }
+    let pick: { row: number; step: number; x: number; y: number; pointer: number; boxing: boolean } | null = null
+    let tops: number[] = []
+    const rowAt = (y: number) => {
+        let at = 0
+        for (let row = 1; row < tops.length && tops[row] <= y; row++) at = row
+        return at
+    }
+    const isChosen = (row: number, step: number) => {
+        const box = props.chosen
+        return Boolean(box) && row >= box!.first && row <= box!.last && step >= box!.from && step <= box!.to
+    }
     // The step under the pointer is the last pad that begins at or before it, so the gaps between
     // pads belong to the pad before them and a pointer past either end is on the pad at that end.
     const stepAt = (x: number) => {
@@ -61,6 +78,16 @@ export function StepGrid(props: {
     }
     const begin = (event: PointerEvent, row: StepRow) => {
         const pad = (event.target as HTMLElement).closest<HTMLButtonElement>('.pad')
+        // With Shift held a press may become a box. It is only taken from the pad once the
+        // pointer moves, or the click would not reach the pad and make the hit louder.
+        if (pad && !pad.disabled && props.onChoose && event.shiftKey && event.button === 0) {
+            const pads = [...(event.currentTarget as HTMLElement).querySelectorAll('.pad')]
+            lefts = pads.map((each) => each.getBoundingClientRect().left)
+            tops = [...root.querySelectorAll<HTMLElement>('.prow:not(.ln)')].map((each) => each.getBoundingClientRect().top)
+            pick = { row: props.rows.indexOf(row), step: pads.indexOf(pad), x: event.clientX, y: event.clientY, pointer: event.pointerId, boxing: false }
+            return
+        }
+        if (pad && !event.shiftKey) props.onChoose?.(null)
         if (!pad || pad.disabled || !props.onPaint || event.button !== 0 || asksForMenu(event) || (event.shiftKey && props.onAccent)) return
         if (props.canPaint && !props.canPaint()) return
         const pads = [...(event.currentTarget as HTMLElement).querySelectorAll('.pad')]
@@ -75,6 +102,17 @@ export function StepGrid(props: {
         root.setPointerCapture(event.pointerId)
     }
     const sweep = (event: PointerEvent) => {
+        if (pick) {
+            if (!pick.boxing && Math.hypot(event.clientX - pick.x, event.clientY - pick.y) < SLIP) return
+            if (!pick.boxing) {
+                pick.boxing = true
+                root.setPointerCapture(pick.pointer)
+            }
+            const step = stepAt(event.clientX)
+            const row = rowAt(event.clientY)
+            props.onChoose?.({ first: Math.min(pick.row, row), last: Math.max(pick.row, row), from: Math.min(pick.step, step), to: Math.max(pick.step, step) })
+            return
+        }
         const going = run()
         if (!going || (!press.moved && Math.abs(event.clientX - press.x) < SLIP)) return
         press.moved = true
@@ -83,6 +121,12 @@ export function StepGrid(props: {
     }
     // Also when the menu opens over a run: WebKit then never tells the page the pointer was let go.
     const finish = (keep: boolean) => {
+        if (pick) {
+            const was = pick
+            pick = null
+            if (was.boxing && root.hasPointerCapture(was.pointer)) root.releasePointerCapture(was.pointer)
+            return
+        }
         const done = run()
         if (!done) return
         batch(() => {
@@ -123,7 +167,7 @@ export function StepGrid(props: {
                 </span>
             </Show>
             <Index each={props.rows}>
-                {(row) => (
+                {(row, index) => (
                     <>
                         <span class="rh" classList={{ off: row().muted }}>
                             <Show when={props.onHear} fallback={<span class="rn">{row().name}</span>}>
@@ -164,6 +208,7 @@ export function StepGrid(props: {
                                                             skip: on() && played() === false,
                                                             ghost: !on() && played() === true,
                                                             maybe: chance() < 1,
+                                                            sel: isChosen(index, step()),
                                                         }}
                                                         aria-label={`${row().name} step ${step() + 1}`}
                                                         aria-pressed={on()}

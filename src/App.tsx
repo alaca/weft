@@ -1,6 +1,7 @@
 import { onCleanup, onMount, Show } from 'solid-js'
 import { play, redoChange, saveSong, stop, togglePlay, undoChange } from './app/controller'
 import { hearKeyboards, keysLetGo, pianoDown, pianoUp } from './app/piano'
+import { editKey, watchPresses } from './app/clip'
 import { DEMO } from './demo/demo'
 import { SOUNDS_WIDTH } from './library/layout'
 import { jamsOpen } from './stores/jam'
@@ -42,6 +43,8 @@ export function App() {
             else stop()
             return
         }
+        // Notes chosen in a roll and hits chosen in a grid are copied, pasted and taken out.
+        if (editKey(event)) return void event.preventDefault()
         // The editor and text boxes undo by themselves. Anywhere else the same keys undo the
         // last change to the song, so a wrong click in a grid is one key away.
         const letter = event.key.toLowerCase()
@@ -60,7 +63,9 @@ export function App() {
         event.preventDefault()
         togglePlay()
     }
+    let unwatch = () => undefined as void
     onMount(() => {
+        unwatch = watchPresses()
         document.addEventListener('keydown', onKey)
         document.addEventListener('keyup', pianoUp)
         // A window that is left with keys down is never told that they came up.
@@ -70,6 +75,7 @@ export function App() {
         if ('__TAURI_INTERNALS__' in window) void hearKeyboards()
     })
     onCleanup(() => {
+        unwatch()
         document.removeEventListener('keydown', onKey)
         document.removeEventListener('keyup', pianoUp)
         window.removeEventListener('blur', keysLetGo)

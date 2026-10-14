@@ -340,6 +340,10 @@ svg.mini rect { fill: var(--h); }
 .nt { position: absolute; height: 10px; padding: 0; border-radius: 2.5px; background: var(--h); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); cursor: grab; }
 /* A quieter note is paler, and never so pale that it is lost. */
 .nt { opacity: calc(0.4 + 0.6 * var(--lv, 1)); }
+/* Notes and steps chosen together, and the box that chooses them. */
+.nt.sel { box-shadow: inset 0 0 0 1.5px var(--linen), 0 0 0 1px rgba(0, 0, 0, 0.5); }
+.nr-box { position: absolute; z-index: 3; border: 1px solid var(--linen); border-radius: 2px; background: rgba(236, 230, 214, 0.08); pointer-events: none; }
+.dg .prow .pad.sel { box-shadow: inset 0 0 0 2px var(--linen); }
 .nt:focus-visible { outline: 2px solid var(--linen); outline-offset: 1px; z-index: 2; }
 .nt.ro { cursor: pointer; }
 .nd { position: absolute; height: 10px; border-radius: 2.5px; background: var(--h); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); pointer-events: none; }

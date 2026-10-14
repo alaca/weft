@@ -233,6 +233,21 @@ export function moveNote(notes: Note[], ref: NoteRef, to: NoteRef, steps: number
     return replace(notes, ref, (note) => levelled({ ...note, start: to.start, midi: to.midi }, there ?? note.level ?? 1), steps)
 }
 
+// Several notes moved together, by as many steps each and to the pitch `to` gives each. Null
+// when one of them would leave the pattern or lie over another note.
+export function moveNotes(notes: Note[], refs: NoteRef[], by: number, to: (midi: number) => number, steps: number): Note[] | null {
+    const moving = notes.filter((note) => refs.some((ref) => same(note, ref)))
+    if (!moving.length) return null
+    const staying = notes.filter((note) => !moving.includes(note))
+    const moved = moving.map((note) => ({ ...note, start: note.start + by, midi: to(note.midi) }))
+    let next = staying
+    for (const note of moved) {
+        if (!fits(next, note, -1, steps)) return null
+        next = [...next, note]
+    }
+    return inOrder(next)
+}
+
 export function resizeNote(notes: Note[], ref: NoteRef, length: number, steps: number): Note[] | null {
     return replace(notes, ref, (note) => ({ ...note, length }), steps)
 }

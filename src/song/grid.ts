@@ -72,9 +72,14 @@ const mapped = (row: GridRow, each: <T>(list: T[]) => T[]): GridRow => ({
     ...(row.chances ? { chances: each(row.chances) } : {}),
     ...(row.lanes ? { lanes: Object.fromEntries(Object.entries(row.lanes).map(([fn, values]) => [fn, each(values)])) } : {}),
 })
-const copy = (rows: GridRow[]): GridRow[] => rows.map((row) => mapped(row, (list) => [...list]))
+export const copyRows = (rows: GridRow[]): GridRow[] => rows.map((row) => mapped(row, (list) => [...list]))
+const copy = copyRows
 
 // A step that is no hit any more is an ordinary step again: not louder, sounding once, always.
+export function clearStep(row: GridRow, step: number) {
+    clear(row, step)
+}
+
 function clear(row: GridRow, step: number) {
     if (row.accents) row.accents[step] = false
     if (row.repeats) row.repeats[step] = 1

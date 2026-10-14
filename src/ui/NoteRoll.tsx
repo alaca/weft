@@ -1,5 +1,25 @@
-import { batch, createMemo, createSignal, For, Show } from 'solid-js'
-import { addNotesAt, canWriteNotes, chooseKey, convertNotes, hearNotes, moveNoteTo, newNoteLength, removeNoteAt, replayHeld, resizeNoteTo, setNoteLevels, setNotesLength, setNotesSteps } from '../app/controller'
+import { batch, createEffect, createMemo, createSignal, For, onCleanup, Show } from 'solid-js'
+import { clipboard, registerEditor, setClipboard } from '../app/clip'
+import {
+    addNotesAt,
+    canWriteNotes,
+    chooseKey,
+    convertNotes,
+    hearNotes,
+    moveNotesBy,
+    moveNoteTo,
+    newNoteLength,
+    notesClip,
+    pasteNotesAt,
+    removeNoteAt,
+    removeNotesAt,
+    replayHeld,
+    resizeNoteTo,
+    setNoteLevels,
+    setNotesLength,
+    setNotesSteps,
+} from '../app/controller'
+import { noteKey } from '../song/clip'
 import { stepKind } from '../song/grid'
 import { levelAt, NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, roomAt, type Note, type NoteRef } from '../song/notes'
 import { chordOn, inKey, nearestInKey, ROOTS, SCALE_KINDS, SCALES, stepInKey, type ScaleKind } from '../song/scales'
@@ -22,7 +42,10 @@ const LEVEL = stepKind('level')
 
 // `level` is how loud the note is, which is how full its colour is.
 type Drawn = { left: number; width: number; midi: number; start: number; length: number; level: number }
-type Drag = { ref: NoteRef; resize: boolean; fromStep: number; fromMidi: number }
+// `group` is the chosen notes, when the note that is dragged is one of several chosen.
+type Drag = { ref: NoteRef; resize: boolean; fromStep: number; fromMidi: number; group: NoteRef[] | null }
+// A box drawn with Shift held, in pixels within the roll.
+type Box = { x: number; y: number; toX: number; toY: number }
 // A note that is being drawn on an empty place. It begins where the pointer went down. Until
 // the pointer leaves that step it is as long as the last note made here, and from then on it
 // ends under the pointer. It is written once, when the pointer is let go.
@@ -161,6 +184,76 @@ export function NoteRoll(props: {
         })
     })
 
+    // Notes chosen together: by a box drawn with Shift held, by Shift and a click, or by Cmd A.
+    // They are moved, copied, cut and taken out as one.
+    const [chosen, setChosen] = createSignal<Set<string>>(new Set())
+    const [box, setBox] = createSignal<Box | null>(null)
+    const isChosen = (note: NoteRef) => chosen().has(noteKey(note))
+    const chosenNotes = (): NoteRef[] => (source()?.grid.notes ?? []).filter(isChosen).map((note) => ({ start: note.start, midi: note.midi }))
+    // A note that is gone, by an undo or a change in the code, is not chosen any more.
+    createEffect(() => {
+        const there = new Set((source()?.grid.notes ?? []).map(noteKey))
+        const kept = [...chosen()].filter((key) => there.has(key))
+        if (kept.length !== chosen().size) setChosen(new Set(kept))
+    })
+    const chooseIn = (drawnBox: Box) => {
+        const width = gridEl.getBoundingClientRect().width || 1
+        const from = Math.min(drawnBox.x, drawnBox.toX) / width
+        const to = Math.max(drawnBox.x, drawnBox.toX) / width
+        const high = range().high - Math.floor(Math.min(drawnBox.y, drawnBox.toY) / ROW)
+        const low = range().high - Math.floor(Math.max(drawnBox.y, drawnBox.toY) / ROW)
+        const inside = drawn().filter((note) => note.start >= 0 && note.midi >= low && note.midi <= high && note.left < to && note.left + note.width > from)
+        setChosen(new Set([...chosen(), ...inside.map(noteKey)]))
+    }
+    const moveChosen = (refs: NoteRef[], by: number, to: (midi: number) => number, held: boolean) => {
+        const moved = moveNotesBy(props.id, refs, by, to, held)
+        if (moved) setChosen(new Set(moved.map(noteKey)))
+        return moved
+    }
+    onCleanup(
+        registerEditor(props.id, {
+            selectAll: () => {
+                const notes = source()?.grid.notes ?? []
+                if (!notes.length) return false
+                setChosen(new Set(notes.map(noteKey)))
+                return true
+            },
+            copy: () => {
+                const clip = notesClip(props.id, chosen())
+                if (clip) setClipboard(clip)
+                return clip !== null
+            },
+            cut: () => {
+                const clip = notesClip(props.id, chosen())
+                if (!clip) return false
+                setClipboard(clip)
+                removeNotesAt(props.id, chosen())
+                return true
+            },
+            // Into the bar in sight; into the next one when that is the bar they came from.
+            paste: () => {
+                const clip = clipboard()
+                if (!clip || clip.kind !== 'notes' || !source()) return false
+                const bar = shown() + (clip.from.id === props.id && clip.from.bar === shown() ? clip.bars : 0)
+                const added = pasteNotesAt(props.id, clip, bar)
+                if (!added.length) return true
+                if (bar !== shown() && !props.playing) setPage(Math.min(bar, cycles() - 1))
+                setChosen(new Set(added.map(noteKey)))
+                return true
+            },
+            remove: () => {
+                if (!chosen().size) return false
+                removeNotesAt(props.id, chosen())
+                return true
+            },
+            clear: () => {
+                if (!chosen().size) return false
+                setChosen(new Set<string>())
+                return true
+            },
+        }),
+    )
+
     const focusNote = (ref: NoteRef) => queueMicrotask(() => gridEl.querySelector<HTMLElement>(`.nt[data-start="${ref.start}"][data-midi="${ref.midi}"]`)?.focus())
 
     const onPointerDown = (event: PointerEvent) => {
@@ -169,6 +262,27 @@ export function NoteRoll(props: {
         if (!source() && note) {
             convertNotes(props.id)
             return
+        }
+        // Shift and a click on a note chooses it, or lets it go. Shift and a drag over the roll
+        // draws a box, and the notes in it are chosen too.
+        if (event.shiftKey && source()) {
+            if (note && note.start >= 0) {
+                const next = new Set(chosen())
+                if (!next.delete(noteKey(note))) next.add(noteKey(note))
+                setChosen(next)
+                return
+            }
+            if (!note) {
+                const area = gridEl.getBoundingClientRect()
+                const x = event.clientX - area.left
+                const y = event.clientY - area.top
+                pointer = event.pointerId
+                setBox({ x, y, toX: x, toY: y })
+                setHeld(range())
+                setHeldPage(shown())
+                gridEl.setPointerCapture(event.pointerId)
+                return
+            }
         }
         // A pattern written some other way than as a grid counts its own steps, not the sixteen
         // it is drawn with here. A note for it is not drawn first: it goes in at once, on the
@@ -179,6 +293,7 @@ export function NoteRoll(props: {
         }
         pointer = event.pointerId
         if (!note) {
+            setChosen(new Set<string>())
             const start = offset() + cell.step
             const midis = put(cell.midi).filter((midi) => room(start, midi) > 0)
             if (!midis.length || (!source() && !canWriteNotes(props.id))) return
@@ -191,7 +306,10 @@ export function NoteRoll(props: {
             gridEl.setPointerCapture(event.pointerId)
             return
         }
-        drag = { ref: { start: note.start, midi: note.midi }, resize, fromStep: offset() + cell.step, fromMidi: cell.midi }
+        const ref = { start: note.start, midi: note.midi }
+        const group = chosen().size > 1 && isChosen(ref) ? chosenNotes() : null
+        if (!group && note.start >= 0) setChosen(new Set([noteKey(ref)]))
+        drag = { ref, resize: resize && !group, fromStep: offset() + cell.step, fromMidi: cell.midi, group }
         setHeld(range())
         setHeldPage(shown())
         gridEl.setPointerCapture(event.pointerId)
@@ -199,6 +317,12 @@ export function NoteRoll(props: {
     }
 
     const onPointerMove = (event: PointerEvent) => {
+        const drawingBox = box()
+        if (drawingBox) {
+            const area = gridEl.getBoundingClientRect()
+            setBox({ ...drawingBox, toX: Math.min(area.width, Math.max(0, event.clientX - area.left)), toY: Math.min(area.height - 1, Math.max(0, event.clientY - area.top)) })
+            return
+        }
         const drawing = draw()
         if (drawing) {
             const at = offset() + cellOf(event).step
@@ -214,6 +338,16 @@ export function NoteRoll(props: {
             resizeNoteTo(props.id, drag.ref, Math.max(1, at - drag.ref.start + 1), true)
             return
         }
+        if (drag.group) {
+            const by = at - drag.fromStep
+            const up = cell.midi - drag.fromMidi
+            if (!by && !up) return
+            const key = songKey()
+            const to = (midi: number) => (up ? Math.min(127, Math.max(0, nearestInKey(midi + up, key))) : midi)
+            const moved = moveChosen(drag.group, by, to, true)
+            if (moved) drag = { ...drag, group: moved, ref: { start: drag.ref.start + by, midi: to(drag.ref.midi) }, fromStep: at, fromMidi: cell.midi }
+            return
+        }
         const up = cell.midi - drag.fromMidi
         const to = { start: drag.ref.start + (at - drag.fromStep), midi: up ? toKey(drag.ref.midi + up) : drag.ref.midi }
         if (to.start === drag.ref.start && to.midi === drag.ref.midi) return
@@ -222,6 +356,17 @@ export function NoteRoll(props: {
 
     // Also when the menu opens over a drag: WebKit then never tells the page the pointer was let go.
     const finish = (keep: boolean) => {
+        const drawnBox = box()
+        if (drawnBox) {
+            if (keep) chooseIn(drawnBox)
+            batch(() => {
+                setBox(null)
+                setHeld(null)
+                setHeldPage(null)
+            })
+            if (gridEl.hasPointerCapture(pointer)) gridEl.releasePointerCapture(pointer)
+            return
+        }
         const drawing = draw()
         if (drag) {
             focusNote(drag.ref)
@@ -258,6 +403,23 @@ export function NoteRoll(props: {
         const resized = (next: number) => {
             resizeNoteTo(props.id, ref, next, event.repeat)
             focusNote(ref)
+        }
+        // The note with the keyboard is one of several chosen: the keys move or take out all of them.
+        if (chosen().size > 1 && isChosen(ref) && !event.shiftKey) {
+            const key = songKey()
+            const all = chosenNotes()
+            const moveAll = (by: number, to: (midi: number) => number) => {
+                const moved = moveChosen(all, by, to, event.repeat)
+                focusNote(moved ? { start: ref.start + by, midi: to(ref.midi) } : ref)
+            }
+            if (event.key === 'Delete' || event.key === 'Backspace') removeNotesAt(props.id, chosen())
+            else if (event.key === 'ArrowRight') moveAll(1, (midi) => midi)
+            else if (event.key === 'ArrowLeft') moveAll(-1, (midi) => midi)
+            else if (event.key === 'ArrowUp') moveAll(0, (midi) => stepInKey(midi, 1, key))
+            else if (event.key === 'ArrowDown') moveAll(0, (midi) => stepInKey(midi, -1, key))
+            else return
+            event.preventDefault()
+            return
         }
         if (event.key === 'Delete' || event.key === 'Backspace') removeNoteAt(props.id, ref)
         else if (event.shiftKey && event.key === 'ArrowRight') resized(length + 1)
@@ -309,7 +471,7 @@ export function NoteRoll(props: {
                         {(note) => (
                             <button
                                 class="nt"
-                                classList={{ ro: note.start < 0 }}
+                                classList={{ ro: note.start < 0, sel: note.start >= 0 && isChosen(note) }}
                                 data-start={note.start}
                                 data-midi={note.midi}
                                 data-length={note.length}
@@ -324,6 +486,19 @@ export function NoteRoll(props: {
                             </button>
                         )}
                     </For>
+                    <Show when={box()}>
+                        {(drawnBox) => (
+                            <i
+                                class="nr-box"
+                                style={{
+                                    left: `${Math.min(drawnBox().x, drawnBox().toX)}px`,
+                                    top: `${Math.min(drawnBox().y, drawnBox().toY)}px`,
+                                    width: `${Math.abs(drawnBox().toX - drawnBox().x)}px`,
+                                    height: `${Math.abs(drawnBox().toY - drawnBox().y)}px`,
+                                }}
+                            />
+                        )}
+                    </Show>
                     <For each={sketch()}>{(note) => <i class="nd" style={{ left: `${note.left * 100}%`, width: `${note.width * 100}%`, top: `${(range().high - note.midi) * ROW}px` }} />}</For>
                     <Show when={props.playing && shown() === props.cycle % cycles()}>
                         <div class="ph" style={{ left: `${props.position * 100}%` }} />

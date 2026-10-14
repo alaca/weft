@@ -1,5 +1,7 @@
-import { createMemo, createSignal, For, Show } from 'solid-js'
-import { addRow, canWriteDrums, clearStepValues, paintSteps, previewSound, removeGridRow, setLength, setMix, setStepsPerCycle, setStepValues, soundChoices, toggleAccent, togglePanel, toggleRowMute, toggleStep } from '../app/controller'
+import { createMemo, createSignal, For, onCleanup, Show } from 'solid-js'
+import { clipboard, registerEditor, setClipboard } from '../app/clip'
+import type { Cell } from '../song/clip'
+import { addRow, canWriteDrums, clearHitsAt, clearStepValues, hitsClip, pasteHitsAt, paintSteps, previewSound, removeGridRow, setLength, setMix, setStepsPerCycle, setStepValues, soundChoices, toggleAccent, togglePanel, toggleRowMute, toggleStep } from '../app/controller'
 import { drumLabel } from '../controls/drums'
 import { callFor, panOf, valueArg, volumeOf } from '../controls/views'
 import { DRUM_RESOLUTIONS, readGrid, resample, STEP_KINDS, stepKind, stepValues, type Grid, type StepWhat } from '../song/grid'
@@ -10,7 +12,7 @@ import { hearKeyboards } from '../app/piano'
 import { gridNotes, meter, midiKeyboards, openPanel, pianoFor, pianoWrites, setPianoFor, setPianoWrites, stale } from '../stores/song'
 import { GridFooter } from './GridFooter'
 import { Knob } from './Knob'
-import { StepGrid, type ShownLane, type StepRow } from './StepGrid'
+import { StepGrid, type Chosen, type ShownLane, type StepRow } from './StepGrid'
 
 const NO_CONTROLS: PatternBlock = { id: '', label: '', muted: false, labelFrom: 0, labelTo: 0, from: 0, to: 0, lineFrom: 0, lineTo: 0, soundName: null, calls: [] }
 
@@ -139,6 +141,66 @@ export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement
         }
     })
 
+    // Steps chosen together, in the bar they were chosen in. They are shown while that bar is.
+    const [chosen, setChosen] = createSignal<(Chosen & { bar: number }) | null>(null)
+    const chosenHere = () => {
+        const box = chosen()
+        return box && box.bar === shown() ? box : null
+    }
+    const cellsOf = (box: Chosen & { bar: number }): Cell[] =>
+        rows()
+            .slice(box.first, box.last + 1)
+            .flatMap((row) => Array.from({ length: box.to - box.from + 1 }, (_, at) => ({ sound: row.name, step: box.bar * perCycle() + box.from + at })))
+    const copied = () => {
+        const box = chosen()
+        const clip = box && canEdit() ? hitsClip(props.id, cellsOf(box)) : null
+        if (clip) setClipboard(clip)
+        return clip !== null
+    }
+    onCleanup(
+        registerEditor(props.id, {
+            selectAll: () => {
+                if (!canEdit() || !rows().length) return false
+                setChosen({ first: 0, last: rows().length - 1, from: 0, to: perCycle() - 1, bar: shown() })
+                return true
+            },
+            copy: copied,
+            cut: () => {
+                const box = chosen()
+                if (!box || !copied()) return false
+                clearHitsAt(props.id, cellsOf(box))
+                return true
+            },
+            // Into the bar in sight; into the next one when that is the bar they came from.
+            paste: () => {
+                const clip = clipboard()
+                if (!clip || clip.kind !== 'hits' || !canEdit()) return false
+                const bar = shown() + (clip.from.id === props.id && clip.from.bar === shown() ? clip.bars : 0)
+                const added = pasteHitsAt(props.id, clip, bar)
+                if (!added.length) return true
+                if (bar !== shown() && !props.playing) setPage(Math.min(bar, cycles() - 1))
+                queueMicrotask(() => {
+                    const names = rows().map((row) => row.name)
+                    const at = added.map((cell) => names.indexOf(cell.sound)).filter((index) => index >= 0)
+                    const steps = added.map((cell) => cell.step - bar * perCycle())
+                    if (at.length) setChosen({ first: Math.min(...at), last: Math.max(...at), from: Math.min(...steps), to: Math.max(...steps), bar })
+                })
+                return true
+            },
+            remove: () => {
+                const box = chosen()
+                if (!box || !canEdit()) return false
+                clearHitsAt(props.id, cellsOf(box))
+                return true
+            },
+            clear: () => {
+                if (!chosen()) return false
+                setChosen(null)
+                return true
+            },
+        }),
+    )
+
     const choices = () => soundChoices(props.id, rows().map((row) => row.name))
     return (
         <div class="rk" onClick={(event) => event.stopPropagation()}>
@@ -156,6 +218,8 @@ export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement
                     onHear={(sound) => previewSound(props.id, sound)}
                     onRemove={canEdit() ? (sound) => removeGridRow(props.id, sound) : undefined}
                     lane={lane()}
+                    chosen={chosenHere()}
+                    onChoose={canEdit() ? (box) => setChosen(box ? { ...box, bar: shown() } : null) : undefined}
                     controls={
                         canEdit()
                             ? (sound) => (

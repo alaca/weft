@@ -66,6 +66,7 @@ import { backwards, cellsOf, empty, fitEdit, inOrder, MOST_PARTS, readSlices, re
 import {
     addNote,
     forceOfLevel,
+    moveNotes,
     noteLevelsOf,
     moveNote,
     noteEdits,
@@ -82,6 +83,7 @@ import {
     type NoteRef,
     type NoteSource,
 } from '../song/notes'
+import { clearHits, copyHits, copyNotes, noteKey, pasteHits, pasteNotes, type Cell, type Clip } from '../song/clip'
 import {
     appendPattern,
     duplicateEdit,
@@ -1789,6 +1791,77 @@ export function resizeNoteTo(id: string, ref: NoteRef, length: number, held = fa
     }, held)
     if (resized) lastLength.set(id, length)
     return resized
+}
+
+// Notes chosen in a roll, by the key `noteKey` gives each.
+export function removeNotesAt(id: string, chosen: Set<string>) {
+    changeNotes(id, (source) => {
+        const notes = source.grid.notes.filter((note) => !chosen.has(noteKey(note)))
+        return notes.length === source.grid.notes.length ? null : { notes, perCycle: source.grid.perCycle, cycles: source.grid.cycles }
+    })
+}
+
+// The chosen notes moved together, by steps and to the pitch `to` gives each. What they are
+// called afterwards, or null when they could not be moved.
+export function moveNotesBy(id: string, refs: NoteRef[], by: number, to: (midi: number) => number, held = false): NoteRef[] | null {
+    let moved: NoteRef[] | null = null
+    changeNotes(id, (source) => {
+        const notes = moveNotes(source.grid.notes, refs, by, to, source.grid.steps)
+        if (!notes) return null
+        moved = refs.map((ref) => ({ start: ref.start + by, midi: to(ref.midi) }))
+        return { notes, perCycle: source.grid.perCycle, cycles: source.grid.cycles }
+    }, held)
+    return moved
+}
+
+export function notesClip(id: string, chosen: Set<string>): Clip | null {
+    const block = find(id)
+    const source = block ? editableNotes(block) : null
+    return source ? copyNotes(source.grid.notes, chosen, source.grid.perCycle, id) : null
+}
+
+// What was copied put into a roll from a bar on. The notes that went in, or none.
+export function pasteNotesAt(id: string, clip: Clip, bar: number): NoteRef[] {
+    if (clip.kind !== 'notes') return []
+    let added: NoteRef[] = []
+    changeNotes(id, (source) => {
+        const pasted = pasteNotes(source.grid.notes, clip, bar, source.grid.steps, source.grid.perCycle)
+        if (!pasted) return null
+        added = pasted.added
+        return { notes: pasted.notes, perCycle: source.grid.perCycle, cycles: source.grid.cycles }
+    })
+    return added
+}
+
+const drumsOf = (id: string): Grid | null => {
+    const block = find(id)
+    const kit = block ? readKit(block) : null
+    return kit ? { ...kit, rows: kit.rows.map(({ block: _, muted: __, ...row }) => row) } : (block ? (editableGrid(block)?.grid ?? null) : null)
+}
+
+export function hitsClip(id: string, cells: Cell[]): Clip | null {
+    const drums = drumsOf(id)
+    return drums ? copyHits(drums.rows, cells, drums.perCycle, id) : null
+}
+
+export function clearHitsAt(id: string, cells: Cell[]) {
+    changeDrums(id, (drums) => {
+        const rows = clearHits(drums.rows, cells)
+        return rows ? { rows, cycles: drums.cycles } : null
+    })
+}
+
+// What was copied put into a drum grid from a bar on. The hits that went in, or none.
+export function pasteHitsAt(id: string, clip: Clip, bar: number): Cell[] {
+    if (clip.kind !== 'hits') return []
+    let added: Cell[] = []
+    changeDrums(id, (drums) => {
+        const pasted = pasteHits(drums.rows, clip, bar, drums.steps, drums.perCycle)
+        if (!pasted) return null
+        added = pasted.added
+        return { rows: pasted.rows, cycles: drums.cycles }
+    })
+    return added
 }
 
 export function setNotesLength(id: string, cycles: number) {
