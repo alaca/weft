@@ -17,6 +17,7 @@ import { createStun } from './stun'
 //   WEFT_STUN_PORT   port on which machines are told their address from outside, for calls
 //                    between two networks; not run unless said. Open to the world, over UDP.
 //   WEFT_SOURCE      where the source code can be read, when there is such a place
+//   WEFT_COFFEE      a page where people can buy the maker a coffee, when there is one
 //   WEFT_RELEASES    folder that releases of the app are put into, when there is one
 //   WEFT_SENDMAIL    a program that sends a mail it is given, like /usr/bin/msmtp
 //   WEFT_MAIL_FROM   the address that mail is sent from
@@ -94,6 +95,7 @@ async function start() {
         dataDir,
         origin,
         source: env.WEFT_SOURCE,
+        coffee: env.WEFT_COFFEE,
         releases: env.WEFT_RELEASES,
         behindProxy: true,
         ice: {

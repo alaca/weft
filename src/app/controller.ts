@@ -522,6 +522,8 @@ export async function mount(root: HTMLElement): Promise<void> {
         Help: [
             { id: 'weft-help-docs', text: 'Weft Loom Docs', action: () => void openInBrowser(`${SITE}/docs`) },
             { id: 'weft-help-update', text: 'Check for Updates…', action: () => void lookForNewVersion(true) },
+            'line',
+            { id: 'weft-help-coffee', text: 'Buy Me a Coffee', action: () => void openInBrowser(`${SITE}/coffee`) },
         ],
     })
     createRoot(() => {

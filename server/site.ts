@@ -45,6 +45,9 @@ export type SiteOptions = {
     // Where the app's source code can be read. The pages leave that link out until there is
     // such a place.
     source?: string
+    // A page where people can give the maker something for the app. `/coffee` leads there, and
+    // the pages leave the button out until there is one.
+    coffee?: string
     // The installers that are built. A platform without one is said to be not out yet.
     downloads?: { platform: Platform; file: string; version: string }[]
     // A folder that releases of the app are put into. `downloads.json` in it lists the installers,
@@ -367,7 +370,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
     for (const [path, file] of demoFiles(options.demo ?? join(HERE, 'demo'))) fixed.set(path, file)
     // An address is only written into a page when it begins the way a web address does.
     const webAddress = (given: string | undefined) => (/^https?:\/\//.test(given ?? '') ? given : undefined)
-    const around: Around = { source: webAddress(options.source), origin: webAddress(options.origin), demo: fixed.has('/demo') }
+    const around: Around = { source: webAddress(options.source), origin: webAddress(options.origin), demo: fixed.has('/demo'), coffee: webAddress(options.coffee) }
     type Installer = { file: string; version: string; bytes: number }
     const installers = (list: { platform: Platform; file: string; version: string }[]) => {
         const there = new Map<Platform, Installer>()
@@ -819,6 +822,8 @@ export function createSite(options: SiteOptions): Promise<Site> {
         if (get && path === '/privacy') return { status: 200, html: privacyPage(around) }
         if (get && path === '/docs') return { status: 200, html: docsPage(around) }
         if (get && path === '/download') return { status: 200, html: downloadPage(around, built()) }
+        // The app and the readme lead here, so the page they go on to can change without either.
+        if (get && path === '/coffee') return around.coffee ? { status: 302, file: { type: 'text/plain; charset=utf-8', head: { Location: around.coffee }, bytes: Buffer.from('') } } : note(404, 'Not here', ['There is nowhere to buy a coffee yet.'], { href: '/', label: 'Go to the first page' })
         const wanted = /^\/download\/(macos|windows|linux)$/.exec(path)
         if (wanted && get) {
             const build = buildsNow().get(wanted[1] as Platform)

@@ -93,6 +93,19 @@ describe('the first page', () => {
         await start({ source: 'javascript:alert(1)' })
         expect(await page('/')).not.toContain('Source code')
     })
+
+    it('leads to a page to buy the maker a coffee only when the site is told of one', async () => {
+        expect(await page('/')).not.toContain('Buy me a coffee')
+        expect((await ask('/coffee', { redirect: 'manual' })).status).toBe(404)
+        await site.close()
+        await start({ coffee: 'https://buymeacoffee.com/weft' })
+        expect(await page('/')).toContain('href="/coffee"')
+        const led = await ask('/coffee', { redirect: 'manual' })
+        expect([led.status, led.headers.get('location')]).toEqual([302, 'https://buymeacoffee.com/weft'])
+        await site.close()
+        await start({ coffee: 'javascript:alert(1)' })
+        expect(await page('/')).not.toContain('Buy me a coffee')
+    })
 })
 
 describe('the list of songs', () => {

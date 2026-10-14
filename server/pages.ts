@@ -24,7 +24,7 @@ export type Build = { platform: Platform; version: string; bytes: number }
 // What stands around every page. `source` is where the app's source code can be read; the
 // link to it is left out until there is such a place. `origin` is the address people reach the
 // site at, for the few places where a page has to give an address in full.
-export type Around = { source?: string; origin?: string; demo?: boolean }
+export type Around = { source?: string; origin?: string; demo?: boolean; coffee?: string }
 // `tint` picks the colour of the disc that stands for a person, 0 to 5.
 export type Maker = { id: string; name: string; tint: number }
 export type Part = { name: string; sound: string; own: boolean }
@@ -122,6 +122,8 @@ const SOUND = safe('<svg viewBox="0 0 20 14"><path d="M1 6v2M4.6 3.5v7M8.2 1v12M
 const disc = (who: Maker, small = false) => html`<i class="av${small ? ' xs' : ''}${who.tint ? ` w${who.tint}` : ''}">${initial(who.name)}</i>`
 // A maker's name, which leads to the page of their songs.
 const nameLink = (who: Maker) => html`<a href="/by/${who.id}">${who.name}</a>`
+// A cup, for the button that leads to where the maker can be bought a coffee.
+const CUP = safe('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5.5h8v4.2A3.3 3.3 0 0 1 7.7 13H6.3A3.3 3.3 0 0 1 3 9.7zM11 6.6h1.1a1.7 1.7 0 0 1 0 3.4H11M5.4 2.6v1.4M8.4 2.6v1.4" /></svg>')
 const sourceLink = (around: Around, more = '') => (around.source ? html`<a${safe(more)} href="${around.source}" rel="noopener">Source code</a>` : '')
 
 // What a page says of itself for wherever its address is pasted, so that it is shown there with
@@ -163,6 +165,7 @@ ${main}
     <div class="wrap ft-in">
         <a class="word" href="/" aria-label="Weft Loom, home">${MARK}Weft Loom</a>
         <p>Free and open source. Sound engine: Strudel.</p>
+        ${around.coffee ? html`<a class="btn sm coffee" href="/coffee" rel="noopener">${CUP}Buy me a coffee</a>` : ''}
         <span class="grow"></span>
         <nav aria-label="Footer">
             <a href="/songs">Songs</a>
@@ -389,6 +392,7 @@ export function downloadPage(around: Around, builds: Build[]): string {
         ${PLATFORMS.map(one)}
     </ul>
     ${builds.length ? '' : html`<p class="tail">Weft Loom is not released yet, so there is nothing to download.</p>`}
+    ${around.coffee && builds.length ? html`<p class="tail">Weft Loom is free and stays free. If it helps you make music, you can <a href="/coffee" rel="noopener">buy me a coffee</a>.</p>` : ''}
 </main>`
     return layout(around, 'download', 'Download, Weft Loom', main, '', pasted(around, 'Download Weft Loom', about))
 }
