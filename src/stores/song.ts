@@ -84,6 +84,12 @@ export const [pianoWrites, setPianoWrites] = createSignal(true)
 export const [midiKeyboards, setMidiKeyboards] = createSignal<string[] | null>(null)
 // The tempo of a MIDI clock the song follows while that clock runs, in quarter notes a minute.
 export const [clockTempo, setClockTempo] = createSignal<number | null>(null)
+// How many bars a change of the code waits for while the song plays: none, the next bar, or the
+// next of every four.
+export const [landingBars, setLandingBars] = createSignal<0 | 1 | 4>(0)
+// The performance view: the code over the whole window, as large as is asked for.
+export const [performing, setPerforming] = createSignal(false)
+export const [performSize, setPerformSize] = createSignal(20)
 // For the patterns that have versions, which one is in sight. The first when nothing is said.
 export const [shownVariants, setShownVariants] = createSignal<Record<string, number>>({})
 // The scene that was chosen while the song plays and waits for the next bar to begin.

@@ -62,12 +62,17 @@ export type Rendered = { channels: Float32Array[]; sampleRate: number; secondsPe
 export type RenderRequest = { bars: number; from?: number; ringSeconds: number; sampleRate: number; only?: string }
 export type Moved = { k: 'play'; at: number } | { k: 'pause'; at: number } | { k: 'stop' }
 
+// How large the code is written, in pixels, where nothing else is asked for.
+export const CODE_SIZE = 12.5
+
 export type EngineState = {
     playing: boolean
     paused: boolean
     dirty: boolean
     error: EvalError | null
     sounds: 'loading' | 'ready' | 'failed'
+    // The bar of the song a change of the code waits for, when it is to come in on a bar.
+    landing?: number | null
 }
 
 export interface Engine {
@@ -80,6 +85,12 @@ export interface Engine {
     selectAll(): void
     moveSlider(from: number, text: string): boolean
     evaluate(): Promise<void>
+    // The code made to sound as it now reads, by the one who wrote it: while the song plays the
+    // change comes in on the next bar, or the next of every four, when that is chosen.
+    update(): Promise<void>
+    setLanding(bars: number): void
+    // How large the code is written, in pixels.
+    setCodeSize(pixels: number): void
     refresh(): Promise<void>
     replay(held?: boolean): void
     replayHeld(): void
@@ -239,7 +250,7 @@ export function createEngine(): Engine {
     keepPartsToTheirClock()
     tellPicturesApart()
     let mirror: any = null
-    let state: EngineState = { playing: false, paused: false, dirty: false, error: null, sounds: 'loading' }
+    let state: EngineState = { playing: false, paused: false, dirty: false, error: null, sounds: 'loading', landing: null }
     let registry = new Map<string, any>()
     let pending = new Map<string, any>()
     let unmasked = new Map<string, any>()
@@ -270,6 +281,19 @@ export function createEngine(): Engine {
     // over is kept, so that the clicks can be switched while it plays.
     let played: any = null
     let reclick = () => undefined as void
+    // A change of the code that is to come in on a bar: how many bars it waits for at most, and,
+    // while one waits, the clock's cycle it comes in at. Until then the song plays on as it was.
+    // It is given a quarter of a second at least, as Strudel hands notes out a little ahead.
+    let landing = 0
+    let landNext = false
+    let landed: { at: number; timer: number } | null = null
+    const LAND_LEAD = 0.25
+    const dropLanding = () => {
+        if (landed) window.clearTimeout(landed.timer)
+        landed = null
+        if (state.landing != null) setState({ landing: null })
+    }
+    const beginOf = (hap: any): number => (hap.whole ?? hap.part).begin.valueOf()
     const withClicks = (pattern: any) => (clicking || countUntil ? stack(pattern, clicks(beats, clicking ? null : countUntil)) : pattern)
     const afterCount = (pattern: any) => (countUntil ? pattern.filterHaps((hap: any) => (hap.whole ?? hap.part).begin.valueOf() >= countUntil) : pattern)
     // Strudel's own pause plays everything it missed at once when it goes on. Pausing here is
@@ -278,6 +302,26 @@ export function createEngine(): Engine {
     let baseExtensions: unknown = null
     let evaluatedCode: string | null = null
     let dress: () => void = () => undefined
+    // How the editor is set up, with the code as large as it is asked to be.
+    let codeSize = CODE_SIZE
+    const editorSettings = () => ({
+        ...codemirrorSettings.get(),
+        theme: 'weft',
+        fontFamily: "'Martian Mono Variable', ui-monospace, Menlo, monospace",
+        fontSize: codeSize,
+        keybindings: 'codemirror',
+        isLineNumbersDisplayed: true,
+        isActiveLineHighlighted: false,
+        isPatternHighlightingEnabled: true,
+        isFlashEnabled: true,
+        isLineWrappingEnabled: false,
+        isBracketMatchingEnabled: false,
+        isBracketClosingEnabled: true,
+        isAutoCompletionEnabled: true,
+        isTooltipEnabled: false,
+        isTabIndentationEnabled: false,
+        isMultiCursorEnabled: false,
+    })
     let soloIds: string[] = []
     // The sounds that push others down, bar by bar, as the last recording was answered them.
     // A recording of one pattern needs nothing else from the rest of the song, so one that
@@ -1088,32 +1132,41 @@ export function createEngine(): Engine {
             const scheduler = mirror.repl.scheduler
             const own = scheduler.setPattern.bind(scheduler)
             scheduler.setPattern = (pattern: any, autostart?: boolean) => {
-                played = pattern
-                return own(withClicks(pattern), autostart)
+                const wait = landNext && landing > 0 && scheduler.started && !countUntil && played
+                landNext = false
+                dropLanding()
+                if (!wait) {
+                    played = pattern
+                    return own(withClicks(pattern), autostart)
+                }
+                const now = scheduler.now()
+                const at = Math.ceil((now + offset + LAND_LEAD * scheduler.cps) / landing) * landing - offset
+                const before = played
+                played = stack(
+                    before.filterHaps((hap: any) => beginOf(hap) < at),
+                    pattern.filterHaps((hap: any) => beginOf(hap) >= at),
+                )
+                // Once it is in, the song as it was is not asked for any more.
+                const timer = window.setTimeout(
+                    () => {
+                        if (landed?.timer !== timer) return
+                        landed = null
+                        played = pattern
+                        void own(withClicks(pattern), false)
+                        setState({ landing: null })
+                    },
+                    ((at - now) / scheduler.cps) * 1000 + 300,
+                )
+                landed = { at, timer }
+                setState({ landing: at + offset })
+                return own(withClicks(played), autostart)
             }
             reclick = () => {
                 if (played && scheduler.started) void own(withClicks(played), false)
             }
 
             dress = () => {
-                mirror.updateSettings({
-                    ...codemirrorSettings.get(),
-                    theme: 'weft',
-                    fontFamily: "'Martian Mono Variable', ui-monospace, Menlo, monospace",
-                    fontSize: 12.5,
-                    keybindings: 'codemirror',
-                    isLineNumbersDisplayed: true,
-                    isActiveLineHighlighted: false,
-                    isPatternHighlightingEnabled: true,
-                    isFlashEnabled: true,
-                    isLineWrappingEnabled: false,
-                    isBracketMatchingEnabled: false,
-                    isBracketClosingEnabled: true,
-                    isAutoCompletionEnabled: true,
-                    isTooltipEnabled: false,
-                    isTabIndentationEnabled: false,
-                    isMultiCursorEnabled: false,
-                })
+                mirror.updateSettings(editorSettings())
                 mirror.editor.dispatch({
                     effects: StateEffect.appendConfig.of([
                         history({ joinToEvent: (tr) => tr.annotation(sameGesture) === true }),
@@ -1125,7 +1178,7 @@ export function createEngine(): Engine {
                         tooltips({ parent: document.body }),
                         Prec.highest(
                             keymap.of([
-                                { key: 'Mod-Enter', run: () => (void engine.evaluate(), true) },
+                                { key: 'Mod-Enter', run: () => (void engine.update(), true) },
                                 { key: 'Mod-.', run: () => (engine.stop(), true) },
                             ]),
                         ),
@@ -1235,6 +1288,18 @@ export function createEngine(): Engine {
             sayHeard()
             await mirror.evaluate(true)
         },
+        async update() {
+            landNext = state.playing && landing > 0
+            await engine.evaluate()
+            landNext = false
+        },
+        setLanding(bars) {
+            landing = bars > 0 ? bars : 0
+        },
+        setCodeSize(pixels) {
+            codeSize = pixels
+            if (mirror) mirror.updateSettings(editorSettings())
+        },
         async refresh() {
             if (blank()) return silence()
             if (!state.playing) offset = startingAt()
@@ -1248,6 +1313,7 @@ export function createEngine(): Engine {
         },
         pause() {
             if (!state.playing) return
+            dropLanding()
             const at = engine.now()
             resumeAt = at
             setState({ paused: true })
@@ -1518,6 +1584,7 @@ export function createEngine(): Engine {
         },
         stop() {
             const was = state.playing || state.paused
+            dropLanding()
             resumeAt = null
             countUntil = 0
             if (state.paused) setState({ paused: false })

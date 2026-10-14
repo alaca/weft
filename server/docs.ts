@@ -16,7 +16,8 @@ export const DOCS: DocSection[] = [
 <p>On the left are the Mixer and the Sounds. The icons at the top right show and hide each part of the window, and Controls, Both and Code choose between the strips, the code, or the two side by side.</p>
 <p><kbd>Space</kbd> plays and pauses. After typing in the code, <kbd>Cmd</kbd> <kbd>Enter</kbd> plays what you typed. Where this page says Cmd, it is Ctrl on Windows and Linux.</p>
 <p>Beside Stop is the <b>metronome</b>: a click on every beat while the song plays, the first beat of each bar higher. The arrow next to it has the <b>count-in</b>: a bar of clicks before the song starts, whenever it starts, so you can come in on the beat. Neither is part of the song.</p>
-<p>Beside the play button are Song and Live. <b>Live</b> plays every pattern round and round, which is what you want while trying things out, and is where a new song starts. <b>Song</b> plays the bars you laid out in the Song panel, from the first to the last.</p>`,
+<p>Beside the play button are Song and Live. <b>Live</b> plays every pattern round and round, which is what you want while trying things out, and is where a new song starts. <b>Song</b> plays the bars you laid out in the Song panel, from the first to the last.</p>
+<p>To play live from the code, the arrow beside <b>Update</b> chooses when a change comes in: at once, on the next bar, or on the next four bars. While a change waits, the song plays on as it was and the code counts the beats left. The <b>performance view</b>, the button at the top right of the code or <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>F</kbd>, puts the code over the whole window, large enough for a projector, with the scenes over it in Live; <kbd>Cmd</kbd> <kbd>+</kbd> and <kbd>Cmd</kbd> <kbd>-</kbd> make it larger and smaller. The strips are out of the window while it is on, so that nothing beside the code takes the window's time from the sound.</p>`,
     },
     {
         id: 'patterns',

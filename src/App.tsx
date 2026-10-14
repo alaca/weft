@@ -1,11 +1,11 @@
 import { onCleanup, onMount, Show } from 'solid-js'
-import { play, redoChange, saveSong, stop, togglePlay, undoChange } from './app/controller'
+import { performLarger, redoChange, saveSong, stop, togglePerform, togglePlay, undoChange, update } from './app/controller'
 import { hearKeyboards, keysLetGo, pianoDown, pianoUp } from './app/piano'
 import { editKey, watchPresses } from './app/clip'
 import { DEMO } from './demo/demo'
 import { SOUNDS_WIDTH } from './library/layout'
 import { jamsOpen } from './stores/jam'
-import { codeWidth, engineState, mixerOpen, soundsOpen, soundsWidth, startOpen, viewMode } from './stores/song'
+import { codeWidth, engineState, mixerOpen, performing, soundsOpen, soundsWidth, startOpen, viewMode } from './stores/song'
 import { CodePane } from './ui/CodePane'
 import { ExportDialog } from './ui/ExportDialog'
 import { LeftColumn } from './ui/LeftColumn'
@@ -39,8 +39,19 @@ export function App() {
         // can be updated without first clicking into the code.
         if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && (event.key === 'Enter' || event.key === '.') && !target?.closest('.cm-editor, [role="dialog"]')) {
             event.preventDefault()
-            if (event.key === 'Enter') play()
+            if (event.key === 'Enter') update()
             else stop()
+            return
+        }
+        // The performance view, and the size of the code in it.
+        if ((event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey && event.key.toLowerCase() === 'f') {
+            event.preventDefault()
+            togglePerform()
+            return
+        }
+        if (performing() && (event.metaKey || event.ctrlKey) && !event.altKey && ['=', '+', '-'].includes(event.key)) {
+            event.preventDefault()
+            performLarger(event.key === '-' ? -2 : 2)
             return
         }
         // Notes chosen in a roll and hits chosen in a grid are copied, pasted and taken out.
@@ -84,14 +95,18 @@ export function App() {
     return (
         <div
             class="app"
-            data-view={viewMode()}
-            data-left={soundsOpen() || jamsOpen() || mixerOpen() ? 'shown' : 'hidden'}
+            data-view={performing() ? 'perform' : viewMode()}
+            data-left={!performing() && (soundsOpen() || jamsOpen() || mixerOpen()) ? 'shown' : 'hidden'}
             data-playing={engineState().playing ? 'yes' : 'no'}
             style={{ '--sounds-w': `${soundsWidth() ?? SOUNDS_WIDTH}px`, '--code-w': codeWidth() === null ? undefined : `${codeWidth()}px` }}
         >
             <TopBar />
-            <LeftColumn />
-            <StripList />
+            {/* Out of the window while performing, so that nothing of them is drawn or worked out
+                beside the code, and the sound has the window to itself. */}
+            <Show when={!performing()}>
+                <LeftColumn />
+                <StripList />
+            </Show>
             <CodePane />
             <StatusBar />
             <Show when={!DEMO} fallback={<TooNarrow />}>

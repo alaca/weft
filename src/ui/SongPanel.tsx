@@ -554,7 +554,7 @@ function Lanes(props: { id: string; index: number; view: View }) {
 
 // The scenes of the song as a row of switches, for playing it live: one press and the patterns
 // of that scene are the ones that play, from the next bar on. A double click on a name changes it.
-function Scenes() {
+export function Scenes() {
     const scenes = createMemo(() => {
         song()
         return scenesOf(codeNow())

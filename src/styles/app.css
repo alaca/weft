@@ -17,7 +17,8 @@ svg { display: block; }
 .split::after { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; background: transparent; }
 .split:hover::after, .split:focus-visible::after, .split:active::after { background: var(--linen-3); }
 .split:focus-visible { outline: none; }
-.app[data-view='code'] .code .split { display: none; }
+.app[data-view='code'] .code .split, .app[data-view='perform'] .code .split { display: none; }
+.app[data-view='perform'] { --sounds: 0px; --middle: 0px; --code: minmax(0, 1fr); }
 
 .cap { font: 600 9.5px/1 var(--ui); font-stretch: 85%; letter-spacing: 0.12em; text-transform: uppercase; color: var(--linen-3); }
 .grow { flex: 1; }
@@ -208,6 +209,24 @@ button.rn:hover { border-color: var(--linen-3); }
 .sync i { width: 7px; height: 7px; border-radius: 50%; background: var(--linen-3); flex: none; }
 .sync[data-kind='live'] i { background: var(--lichen); }
 .sync[data-kind='dirty'] i { background: var(--saffron); }
+.sync[data-kind='wait'] i { background: var(--saffron); animation: wait 0.5s ease-in-out infinite alternate; }
+.sync[data-kind='wait'] { color: var(--linen); }
+@keyframes wait { to { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .sync[data-kind='wait'] i { animation: none; } }
+.upd { position: relative; display: flex; }
+/* Where the code pane is narrow, Update leaves out its keys, which the status bar also shows,
+   and the header keeps to one line. */
+.code { container-type: inline-size; }
+@container (max-width: 520px) { .upd kbd { display: none; } }
+.upd > .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.upd .up-m { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 0; padding: 0 8px; gap: 5px; }
+.up-m b { font: 600 10px/1 var(--mono); font-stretch: 87%; color: var(--saffron); }
+.up-m svg { width: 9px; height: 9px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.menu.single.up-dm { left: auto; right: 0; top: 36px; width: 250px; z-index: 30; }
+.up-dm p { margin: 4px 8px 6px; color: var(--linen-3); font-size: 11px; line-height: 1.45; }
+.pf svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.pf-sc { flex: none; padding: 6px 14px 8px 18px; border-bottom: 1px solid var(--seam); }
+.pf-sc .sg-sc { margin: 0; }
 /* What is wrong with the code has a line of its own under the header, at any width. */
 .sync[data-kind='err'] { order: 9; flex: 0 0 100%; align-items: flex-start; padding: 7px 0 3px; color: var(--madder); line-height: 1.45; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
 .sync[data-kind='err'] i { margin-top: 5px; }

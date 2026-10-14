@@ -13,7 +13,7 @@ import { openInBrowser } from '../desktop/browser'
 import { installMenus } from '../desktop/menu'
 import { chooseFile } from '../desktop/open'
 import { saveFile, savePieces, textPieces, type FileKind, type Saved } from '../desktop/save'
-import { createEngine } from '../engine/engine'
+import { CODE_SIZE, createEngine } from '../engine/engine'
 import { DEMO } from '../demo/demo'
 import { MAX_BARS } from '../song/bars'
 import { chordAt, chordsEdit, followAgain, followerCode, followerEdits, FOLLOW_KINDS, keepOwnEdits, readChords, readFollower, registerEdit, TONES, USUAL_CHORD, type Follower, type FollowKind, type Register } from '../song/chords'
@@ -224,6 +224,13 @@ import {
     startBar,
     unfolded,
     setClockTempo,
+    beat,
+    landingBars,
+    setLandingBars,
+    performing,
+    setPerforming,
+    performSize,
+    setPerformSize,
 } from '../stores/song'
 
 // Where the one song was kept before there could be several. It is read once, to become the
@@ -261,6 +268,55 @@ export function toggleCountIn() {
     setCountInOn(!countInOn())
     engine.setCountIn(countInOn())
     keepClick()
+}
+
+// ---- for playing live from the code: when a change comes in, and the performance view.
+const LIVE_KEY = 'weft.live'
+const PERFORM_LEAST = 12
+const PERFORM_MOST = 48
+
+function keepLive() {
+    try {
+        keeping.setItem(LIVE_KEY, JSON.stringify({ landing: landingBars(), size: performSize() }))
+    } catch {
+        // Not kept: both still hold until the app is closed.
+    }
+}
+
+function readLive(): { landing: 0 | 1 | 4; size: number } {
+    try {
+        const kept = JSON.parse(keeping.getItem(LIVE_KEY) ?? '{}') as { landing?: unknown; size?: unknown } | null
+        const landing = kept?.landing === 1 || kept?.landing === 4 ? kept.landing : 0
+        const size = typeof kept?.size === 'number' && kept.size >= PERFORM_LEAST && kept.size <= PERFORM_MOST ? kept.size : 20
+        return { landing, size }
+    } catch {
+        return { landing: 0, size: 20 }
+    }
+}
+
+// The code made to sound as it now reads, coming in when it was chosen to.
+export const update = () => void engine.update()
+
+export function chooseLanding(bars: 0 | 1 | 4) {
+    setLandingBars(bars)
+    engine.setLanding(bars)
+    keepLive()
+}
+
+// How many beats the change that waits still waits for. Asked again on every beat.
+export function landingBeats(): number | null {
+    beat()
+    const at = engineState().landing
+    if (at == null || !engineState().playing) return null
+    return Math.max(1, Math.ceil((at - engine.now()) * meterNow().quarters - 0.05))
+}
+
+export const togglePerform = () => setPerforming(!performing())
+
+export function performLarger(by: number) {
+    if (!performing()) return
+    setPerformSize(Math.min(PERFORM_MOST, Math.max(PERFORM_LEAST, performSize() + by)))
+    keepLive()
 }
 // How long after its start the app looks for a newer version of itself.
 const UPDATE_AFTER = 5000
@@ -416,6 +472,11 @@ export async function mount(root: HTMLElement): Promise<void> {
     const startMix = readMix(keeping.getItem(MIX_KEY))
     setMixNow(startMix)
     engine.setMix(startMix)
+    const live = readLive()
+    setLandingBars(live.landing)
+    setPerformSize(live.size)
+    engine.setLanding(live.landing)
+    createRoot(() => createEffect(() => engine.setCodeSize(performing() ? performSize() : CODE_SIZE)))
     const clicked = readClick()
     setClickOn(clicked.click)
     setCountInOn(clicked.countIn)
@@ -521,6 +582,8 @@ export async function mount(root: HTMLElement): Promise<void> {
             { id: 'weft-view-mixer', text: 'Mixer', checked: mixerOpen, action: toggleMixer },
             { id: 'weft-view-wave', text: 'Waveform', checked: waveShown, action: toggleWaveform },
             { id: 'weft-view-song', text: 'Song Panel', checked: songShown, action: toggleSongPanel },
+            'line',
+            { id: 'weft-view-perform', text: 'Performance View', keys: 'CmdOrCtrl+Shift+F', checked: performing, action: togglePerform },
             'line',
             { id: 'weft-view-reset', text: 'Reset Layout', action: resetLayout },
         ],

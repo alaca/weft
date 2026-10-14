@@ -1,9 +1,10 @@
-import { createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js'
-import { codeNow, copyCode, dragCode, mount, play, trustSong, usualWidth } from '../app/controller'
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
+import { chooseLanding, codeNow, copyCode, dragCode, landingBeats, mount, performLarger, togglePerform, trustSong, update, usualWidth } from '../app/controller'
 import { DEMO } from '../demo/demo'
 import { LARGE_ONLY } from '../engine/pictures'
 import { jamming } from '../stores/jam'
-import { engineState, song } from '../stores/song'
+import { engineState, landingBars, performing, playMode, song } from '../stores/song'
+import { Scenes } from './SongPanel'
 import { Divider } from './Divider'
 import { MOD } from './keys'
 
@@ -13,6 +14,12 @@ import { MOD } from './keys'
 const PICTURES = new RegExp(`\\.(${LARGE_ONLY.join('|')})\\s*\\(`)
 // A line that is switched off with two slashes asks for nothing.
 const drawsAPicture = (code: string): boolean => code.split('\n').some((line) => PICTURES.test(line.replace(/(^|[^:])\/\/.*$/, '$1')))
+
+const LANDINGS: { bars: 0 | 1 | 4; label: string; about: string }[] = [
+    { bars: 0, label: 'At once', about: 'A change comes in as soon as it is updated' },
+    { bars: 1, label: 'On the next bar', about: 'A change comes in at the start of the next bar' },
+    { bars: 4, label: 'On the next four bars', about: 'A change comes in at the start of the next four bars' },
+]
 
 export function CodePane() {
     let root!: HTMLDivElement
@@ -45,6 +52,15 @@ export function CodePane() {
         fitted?.disconnect()
     })
 
+    // When a change of the code comes in, chosen beside Update.
+    let updateBox!: HTMLDivElement
+    const [landingOpen, setLandingOpen] = createSignal(false)
+    const away = (event: PointerEvent) => {
+        if (landingOpen() && !updateBox.contains(event.target as Node)) setLandingOpen(false)
+    }
+    onMount(() => document.addEventListener('pointerdown', away))
+    onCleanup(() => document.removeEventListener('pointerdown', away))
+
     const copy = async () => {
         if (!(await copyCode())) return
         setCopied(true)
@@ -58,6 +74,8 @@ export function CodePane() {
             return { kind: 'err', text: state.error.line ? `Line ${state.error.line}: ${state.error.message}` : state.error.message }
         }
         if (state.dirty) return { kind: 'dirty', text: 'Changed', about: `The sound is still the code as it was. Press Update, or ${MOD} Enter, to hear the change.` }
+        const waits = landingBeats()
+        if (waits !== null) return { kind: 'wait', text: `In ${waits} ${waits === 1 ? 'beat' : 'beats'}`, about: 'The change comes in at the start of the bar. Until then the song plays on as it was.' }
         if (state.playing) return { kind: 'live', text: 'Playing this code' }
         if (state.paused) return { kind: 'idle', text: 'Paused' }
         return { kind: 'idle', text: 'Stopped' }
@@ -78,10 +96,60 @@ export function CodePane() {
                         {copied() ? 'Copied' : 'Copy'}
                     </button>
                 </Show>
-                <button class="btn" onClick={play}>
-                    Update <kbd>{MOD} Enter</kbd>
+                <Show when={performing()}>
+                    <div class="seg s" role="group" aria-label="Size of the code">
+                        <button aria-label="Smaller code" title={`Smaller code, ${MOD} -`} onClick={() => performLarger(-2)}>
+                            A-
+                        </button>
+                        <button aria-label="Larger code" title={`Larger code, ${MOD} +`} onClick={() => performLarger(2)}>
+                            A+
+                        </button>
+                    </div>
+                </Show>
+                <div class="upd" ref={updateBox}>
+                    <button class="btn" onClick={update}>
+                        Update <kbd>{MOD} Enter</kbd>
+                    </button>
+                    <button class="btn up-m" aria-label="When a change comes in" aria-haspopup="menu" aria-expanded={landingOpen()} title={LANDINGS.find((one) => one.bars === landingBars())?.about} onClick={() => setLandingOpen(!landingOpen())}>
+                        <Show when={landingBars()}>
+                            <b>{landingBars() === 1 ? 'Bar' : '4 bars'}</b>
+                        </Show>
+                        <svg viewBox="0 0 10 10" aria-hidden="true">
+                            <path d="M2 3.6 5 6.6 8 3.6" />
+                        </svg>
+                    </button>
+                    <Show when={landingOpen()}>
+                        <div class="menu single up-dm" role="menu" aria-label="When a change comes in">
+                            <For each={LANDINGS}>
+                                {(one) => (
+                                    <button
+                                        role="menuitemradio"
+                                        aria-checked={landingBars() === one.bars}
+                                        onClick={() => {
+                                            chooseLanding(one.bars)
+                                            setLandingOpen(false)
+                                        }}
+                                    >
+                                        {one.label}
+                                        <i class="ck-x" classList={{ on: landingBars() === one.bars }} />
+                                    </button>
+                                )}
+                            </For>
+                            <p>While the song plays, a change waits for the bar and the song plays on as it was until then, so that it comes in in time.</p>
+                        </div>
+                    </Show>
+                </div>
+                <button class="ib pf" classList={{ on: performing() }} aria-label="Performance view" aria-pressed={performing()} title={performing() ? `Back to the song, ${MOD} Shift F` : `The code over the whole window, large, to play live from: ${MOD} Shift F`} onClick={togglePerform}>
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <path d={performing() ? 'M6 2v4H2M10 2v4h4M6 14v-4H2M10 14v-4h4' : 'M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4'} />
+                    </svg>
                 </button>
             </div>
+            <Show when={performing() && playMode() === 'live'}>
+                <div class="pf-sc">
+                    <Scenes />
+                </div>
+            </Show>
             <Show when={engineState().error?.guard}>
                 <div class="guard" role="status" data-testid="guard">
                     <Show when={DEMO}>
