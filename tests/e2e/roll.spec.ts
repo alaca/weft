@@ -174,4 +174,15 @@ test('a note glides from the note before when its step is switched on in the Gli
     await expect.poll(() => code(page)).not.toContain('penv')
     const straight = await pitch()
     expect(Math.abs(straight.starting - 196)).toBeLessThan(25)
+
+    // How long a slide takes is chosen beside the lane, and every note is made to glide, or none.
+    const times = strip.getByRole('group', { name: 'How long a glide of lead takes' })
+    await expect(times.getByRole('button', { name: '200 ms', exact: true })).toBeDisabled()
+    await strip.getByRole('button', { name: 'All glide', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('.penv("-7 0 7 0").pattack(0.08)')
+    await times.getByRole('button', { name: '200 ms', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('.penv("-7 0 7 0").pattack(0.2).prelease(600)')
+    await expect(times.getByRole('button', { name: '200 ms', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await strip.getByRole('button', { name: 'None', exact: true }).click()
+    await expect.poll(() => code(page)).not.toContain('penv')
 })

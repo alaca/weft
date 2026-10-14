@@ -15,6 +15,8 @@ import {
     removeNotesAt,
     replayHeld,
     resizeNoteTo,
+    setAllGlides,
+    setGlideTime,
     setNoteGlides,
     setNoteLevels,
     setNotesLength,
@@ -22,7 +24,7 @@ import {
 } from '../app/controller'
 import { noteKey } from '../song/clip'
 import { stepKind } from '../song/grid'
-import { glideFrom, levelAt, NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, roomAt, type Note, type NoteRef } from '../song/notes'
+import { GLIDE_TIME, glideFrom, levelAt, NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, roomAt, type Note, type NoteRef } from '../song/notes'
 import { chordOn, inKey, nearestInKey, ROOTS, SCALE_KINDS, SCALES, stepInKey, type ScaleKind } from '../song/scales'
 import type { PatternBlock } from '../song/types'
 import { noteName } from '../song/view'
@@ -142,6 +144,10 @@ export function NoteRoll(props: {
     const [glidesAsked, setGlidesAsked] = createSignal<boolean | null>(null)
     const glidesShown = () => Boolean(source()) && (glidesAsked() ?? Boolean(source()?.grid.notes.some((note) => note.glide)))
     const glideOff = () => Boolean(source()?.otherGlide || source()?.stacked)
+    // The times a slide can take, with the one the code has when it is none of them.
+    const GLIDE_TIMES = [0.03, 0.06, GLIDE_TIME, 0.12, 0.2, 0.4]
+    const glideTime = () => source()?.glideTime ?? GLIDE_TIME
+    const glideTimes = () => (GLIDE_TIMES.some((seconds) => Math.abs(seconds - glideTime()) < 0.0005) ? GLIDE_TIMES : [...GLIDE_TIMES, glideTime()].sort((a, b) => a - b))
     const glides = createMemo(() => {
         const notes = source()?.grid.notes ?? []
         const from = offset()
@@ -565,6 +571,31 @@ export function NoteRoll(props: {
                                 </div>
                             )}
                         </For>
+                    </div>
+                    <span />
+                    <div class="gl-o">
+                        <span class="cap">Glide time</span>
+                        <div class="seg s" role="group" aria-label={`How long a glide of ${props.id} takes`}>
+                            <For each={glideTimes()}>
+                                {(seconds) => (
+                                    <button
+                                        classList={{ on: Math.abs(glideTime() - seconds) < 0.0005 }}
+                                        aria-pressed={Math.abs(glideTime() - seconds) < 0.0005}
+                                        disabled={stale() || glideOff() || !source()?.glides}
+                                        title={source()?.glides ? `A slide takes ${Math.round(seconds * 1000)} thousandths of a second${seconds === GLIDE_TIME ? ', as on an acid bass line' : ''}` : 'Switch a glide on first'}
+                                        onClick={() => setGlideTime(props.id, seconds)}
+                                    >
+                                        {Math.round(seconds * 1000)} ms
+                                    </button>
+                                )}
+                            </For>
+                        </div>
+                        <button class="chip tgl" disabled={stale() || glideOff() || !glides().some((step) => step.can)} title="Every note that can glide slides in from the note before it" onClick={() => setAllGlides(props.id, true)}>
+                            All glide
+                        </button>
+                        <button class="chip tgl" disabled={stale() || glideOff() || !source()?.glides} title="No note glides" onClick={() => setAllGlides(props.id, false)}>
+                            None
+                        </button>
                     </div>
                 </Show>
             </div>

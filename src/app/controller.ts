@@ -1828,6 +1828,31 @@ export function setNoteGlides(id: string, from: number, on: boolean[]) {
     })
 }
 
+// Every step that can glide given a glide, or none.
+export function setAllGlides(id: string, on: boolean) {
+    changeNotes(id, (source) => {
+        const next = source.otherGlide || source.stacked ? null : setGlides(source.grid.notes, 0, Array<boolean>(source.grid.steps).fill(on))
+        return next ? { notes: next, perCycle: source.grid.perCycle, cycles: source.grid.cycles } : null
+    })
+}
+
+// How long a slide of this roll takes, in seconds: the pattack written with its glides.
+export function setGlideTime(id: string, seconds: number) {
+    const block = find(id)
+    const source = block && !stale() ? readNotes(block) : null
+    const glides = source?.glides
+    if (!block || !glides) return
+    const at = block.calls.indexOf(glides)
+    const time = block.calls[at + 1]
+    const arg = time?.name === 'pattack' && time.from === glides.to ? time.args[0] : undefined
+    const value = String(Number(seconds.toFixed(3)))
+    if (arg) {
+        if (arg.kind === 'number' && arg.value === seconds) return
+        engine.applyEdit({ from: arg.from, to: arg.to, insert: value })
+    } else engine.applyEdit({ from: glides.to, to: glides.to, insert: `.pattack(${value})` })
+    replay()
+}
+
 export const addNoteAt = (id: string, at: { page: number; time: number; midi: number }): NoteRef | null => addNotesAt(id, { page: at.page, time: at.time, midis: [at.midi] })
 
 export function removeNoteAt(id: string, ref: NoteRef) {
