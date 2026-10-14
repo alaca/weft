@@ -15,6 +15,7 @@ export const DOCS: DocSection[] = [
 <p>The strips and the code are the same song. Whatever you do in a strip is written into the code, and whatever you type into the code shows up in the strips, so you can use whichever suits you at the moment. The code is <a href="https://strudel.cc" rel="noopener">Strudel</a>, and everything Strudel can do works here.</p>
 <p>On the left are the Mixer and the Sounds. The icons at the top right show and hide each part of the window, and Controls, Both and Code choose between the strips, the code, or the two side by side.</p>
 <p><kbd>Space</kbd> plays and pauses. After typing in the code, <kbd>Cmd</kbd> <kbd>Enter</kbd> plays what you typed. Where this page says Cmd, it is Ctrl on Windows and Linux.</p>
+<p>Beside Stop is the <b>metronome</b>: a click on every beat while the song plays, the first beat of each bar higher. The arrow next to it has the <b>count-in</b>: a bar of clicks before the song starts, whenever it starts, so you can come in on the beat. Neither is part of the song.</p>
 <p>Beside the play button are Song and Live. <b>Live</b> plays every pattern round and round, which is what you want while trying things out, and is where a new song starts. <b>Song</b> plays the bars you laid out in the Song panel, from the first to the last.</p>`,
     },
     {
@@ -138,7 +139,7 @@ export const DOCS: DocSection[] = [
         id: 'audio',
         title: 'A recording along the song',
         pictures: [{ file: '/docs/audio.webp', width: 980, height: 329, alt: 'A recording laid along the song: its wave with the bars of the song over it, and under it where it starts, a nudge, the bars it is heard in and its fades.' }],
-        html: `<p>A sung take, a guitar, anything longer than a bar can play along the song as it is. In the Sounds choose Yours and press the button with the wave beside a sound. It is laid on the bars from the bar the song is at, and the song is made longer if it has to be. A take you record while the song plays in Song goes where you sang it.</p>
+        html: `<p>A sung take, a guitar, anything longer than a bar can play along the song as it is. In the Sounds choose Yours and press the button with the wave beside a sound. It is laid on the bars from the bar the song is at, and the song is made longer if it has to be. A take you record while the song plays in Song goes where you sang it. With the count-in on, press Record with the song stopped: the song starts after a bar of clicks, and the take starts where the song does.</p>
 <p>Its strip shows the recording with the bars of the song over it, and a press plays it from there. <b>Starts at bar</b> moves it, and <b>Nudge</b> moves it by 10 milliseconds at a time, for a take that came out a little late. <b>Heard from bar</b> and <b>to</b> cut it at both ends. To cut it anywhere else, empty its bars in the Song panel where it should rest. <b>Fade in</b> brings it in over that many seconds, and <b>Fade out</b> lets it go on for that many after its last bar while it fades.</p>
 <p>A recording keeps the speed it was made at. Change the tempo afterwards and it still plays without a break, but no longer on the beat.</p>`,
     },

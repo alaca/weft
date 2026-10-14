@@ -128,6 +128,11 @@ import {
     rollRanges,
     selected,
     setBeat,
+    setClickOn,
+    setCountBeat,
+    setCountInOn,
+    clickOn,
+    countInOn,
     setBpm,
     setCurrentSong,
     setCycle,
@@ -216,6 +221,37 @@ import {
 const FIRST_SONG_KEY = 'weft.song'
 const START_KEY = 'weft.start'
 const MIX_KEY = 'weft.mix'
+// The metronome and the count-in are the same in every song, and kept as they were switched.
+const CLICK_KEY = 'weft.click'
+
+function keepClick() {
+    try {
+        keeping.setItem(CLICK_KEY, JSON.stringify({ click: clickOn(), countIn: countInOn() }))
+    } catch {
+        // Not kept: both still hold until the app is closed.
+    }
+}
+
+function readClick(): { click: boolean; countIn: boolean } {
+    try {
+        const kept = JSON.parse(keeping.getItem(CLICK_KEY) ?? '{}') as { click?: unknown; countIn?: unknown } | null
+        return { click: kept?.click === true, countIn: kept?.countIn === true }
+    } catch {
+        return { click: false, countIn: false }
+    }
+}
+
+export function toggleClick() {
+    setClickOn(!clickOn())
+    engine.setClick(clickOn())
+    keepClick()
+}
+
+export function toggleCountIn() {
+    setCountInOn(!countInOn())
+    engine.setCountIn(countInOn())
+    keepClick()
+}
 // How long after its start the app looks for a newer version of itself.
 const UPDATE_AFTER = 5000
 const LAYOUT_KEY = 'weft.layout'
@@ -320,6 +356,7 @@ function onCode(code: string) {
     setMeterNow(counted)
     setMeter(counted)
     engine.setQuarters(counted.quarters)
+    engine.setBeats(counted.beats)
     setChordLane(readChords(code))
     const lane = readTempoLane(code)
     setTempoLane(lane)
@@ -351,10 +388,12 @@ function tick() {
     const end = playMode() === 'live' ? null : songEnd()
     if (end !== null && now >= end) return engine.stop()
     const whole = Math.floor(now)
+    const counting = engine.countIn()
     batch(() => {
         setCycle(whole)
         setPosition(now - whole)
         setBeat(Math.min(meterNow().beats - 1, Math.floor((now - whole) * meterNow().beats)))
+        setCountBeat(counting === null ? null : Math.min(meterNow().beats - 1, Math.floor(counting * meterNow().beats)))
     })
     frame = requestAnimationFrame(tick)
 }
@@ -367,6 +406,11 @@ export async function mount(root: HTMLElement): Promise<void> {
     const startMix = readMix(keeping.getItem(MIX_KEY))
     setMixNow(startMix)
     engine.setMix(startMix)
+    const clicked = readClick()
+    setClickOn(clicked.click)
+    setCountInOn(clicked.countIn)
+    engine.setClick(clicked.click)
+    engine.setCountIn(clicked.countIn)
     current = firstSong()
     if (current) {
         guardAs(current)
@@ -398,6 +442,7 @@ export async function mount(root: HTMLElement): Promise<void> {
                 setCycle(startBar())
                 setPosition(0)
                 setBeat(0)
+                setCountBeat(null)
             })
         }
     })
@@ -1407,6 +1452,9 @@ function followAudio(before: number, next: (was: { list: (number | null)[]; play
 // is open: a take that was sung to the song goes where it was sung.
 const takenAt = new Map<string, number>()
 let takeAt: number | null = null
+// How long the microphone was open before the song itself began, when the take began with the
+// song stopped and was counted in: that much is cut off, so the take starts where the song does.
+let takeLead = 0
 
 // A sound of your own as a new pattern that plays it along the song, from the bar it was
 // recorded at, or else from the bar the song is at. Unlike any other new pattern it is in the
@@ -1675,7 +1723,7 @@ export const letNotesGo = () => engine.letNotesGo()
 // Where the song is in a drum grid: the step that is nearest.
 export function gridPlace(id: string): { step: number; steps: number } | null {
     const block = find(id)
-    const kit = block && engineState().playing ? readKit(block) : null
+    const kit = block && engineState().playing && engine.countIn() === null ? readKit(block) : null
     if (!kit || !kit.steps) return null
     const at = ((engine.now() % kit.cycles) + kit.cycles) % kit.cycles
     return { step: Math.round((at * kit.steps) / kit.cycles) % kit.steps, steps: kit.steps }
@@ -1694,7 +1742,7 @@ export function putHit(id: string, sound: string, step: number, level?: number):
 
 export function rollPlace(id: string): { step: number; perCycle: number; steps: number } | null {
     const block = find(id)
-    const source = block && engineState().playing ? editableNotes(block) : null
+    const source = block && engineState().playing && engine.countIn() === null ? editableNotes(block) : null
     if (!source) return null
     const { perCycle, cycles, steps } = source.grid
     const at = ((engine.now() % cycles) + cycles) % cycles
@@ -2102,6 +2150,12 @@ export async function recordTake() {
     setTakeOpening(true)
     try {
         take = await startTake(readChoice().input)
+        const opened = performance.now()
+        takeLead = 0
+        if (countInOn() && !engineState().playing && jamStage() !== 'jamming') {
+            await engine.evaluate()
+            takeLead = (performance.now() - opened) / 1000 + engine.untilSong()
+        }
         takeAt = engineState().playing && playMode() === 'song' ? Math.max(0, engine.now()) : null
         setTakeSince(Date.now())
     } catch (err) {
@@ -2115,8 +2169,10 @@ export async function recordTake() {
 export async function keepTake() {
     const made = take
     const at = takeAt
+    const lead = takeLead
     take = null
     takeAt = null
+    takeLead = 0
     setTakeSince(null)
     if (!made) return
     const had = new Set(ownSounds().map((sound) => sound.name))
@@ -2125,8 +2181,11 @@ export async function keepTake() {
         if (!file) return void setOwnSoundNote('Nothing was recorded.')
         // A microphone is often set low, so a take is brought up to a level that is heard, and
         // one with nothing in it is not kept. It is stored as a plain WAV file either way.
-        const heard = await engine.decodeAudio(await file.arrayBuffer())
-        if (!heard) return void (await addOwnSounds([file]))
+        const whole = await engine.decodeAudio(await file.arrayBuffer())
+        if (!whole) return void (await addOwnSounds([file]))
+        const cut = Math.round(lead * whole.sampleRate)
+        if (cut >= whole.channels[0].length) return void setOwnSoundNote('Nothing was recorded after the count-in.')
+        const heard = cut > 0 ? { ...whole, channels: whole.channels.map((channel) => channel.subarray(cut)) } : whole
         const peak = peakOf(heard.channels)
         if (peak < QUIET_TAKE) return void setOwnSoundNote(NO_TAKE.silent)
         const level = Math.min(MOST_GAIN, TAKE_LEVEL / peak)

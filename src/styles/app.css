@@ -73,13 +73,26 @@ kbd { font: 500 9.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); b
 .ib svg, .play svg { width: 16px; height: 16px; fill: currentColor; }
 .play { width: 36px; height: 36px; border-radius: 50%; background: var(--linen); color: var(--vat); display: grid; place-items: center; }
 .ros { display: flex; height: 38px; background: var(--vat); border: 1px solid var(--seam); border-radius: 10px; }
-.ro { padding: 6px 14px 0; border-right: 1px solid var(--seam); }
+.ro { padding: 6px 10px 0; border-right: 1px solid var(--seam); }
 .ro:last-child { border-right: 0; }
 .ro b { display: flex; align-items: center; gap: 9px; font: 500 14px/1.15 var(--mono); font-stretch: 87%; white-space: nowrap; }
 .ro .cap { display: block; margin-top: 4px; }
 .beats { display: flex; gap: 4px; }
 .beats i { width: 7px; height: 7px; border-radius: 50%; background: var(--cloth-3); }
 .beats i.on { background: var(--linen); }
+/* The bar of clicks before the song is counted in another colour than the song's own beats. */
+.beats.count i.on { background: var(--saffron); }
+/* The metronome, with the count-in in a small menu beside it. A dot on it says the count-in is on. */
+.ck { position: relative; display: flex; align-items: center; }
+.ck .ib { position: relative; }
+.ck-m { width: 16px; margin-left: -2px; }
+.ck-m svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ck-d { position: absolute; right: 4px; top: 4px; width: 5px; height: 5px; border-radius: 50%; }
+.ck-d.on { background: var(--saffron); }
+.menu.single.ck-dm { left: 0; right: auto; top: 34px; width: 250px; z-index: 30; }
+.ck-dm p { margin: 4px 8px 6px; color: var(--linen-3); font-size: 11px; line-height: 1.45; }
+.ck-x { width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1.5px var(--linen-3); flex: none; }
+.ck-x.on { background: var(--saffron); box-shadow: none; }
 .seg { display: flex; background: var(--vat); border: 1px solid var(--seam); border-radius: 9px; padding: 2px; }
 .seg button { height: 26px; padding: 0 13px; border-radius: 7px; font-size: 12px; font-weight: 500; color: var(--linen-3); }
 .seg button.on { background: var(--linen); color: var(--vat); }

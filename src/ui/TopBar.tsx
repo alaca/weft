@@ -28,9 +28,10 @@ import { DEMO } from '../demo/demo'
 import { METERS } from '../song/meter'
 import { SITE } from '../site/api'
 import { me } from '../stores/account'
-import { beat, bpm, currentSong, cycle, engineState, meter, mixerOpen, playMode, song, songNote, songShown, soundsOpen, stale, startOpen, viewMode, waveShown, type PlayMode, type ViewMode } from '../stores/song'
+import { beat, bpm, countBeat, currentSong, cycle, engineState, meter, mixerOpen, playMode, song, songNote, songShown, soundsOpen, stale, startOpen, viewMode, waveShown, type PlayMode, type ViewMode } from '../stores/song'
 import { jamListed, jamming, jamPeer, jamsOpen, jamUnread } from '../stores/jam'
 import { MOD } from './keys'
+import { ClickMenu } from './ClickMenu'
 import { DemoMenu } from './DemoMenu'
 import { Mark } from './Mark'
 import { SongMenu } from './SongMenu'
@@ -150,6 +151,7 @@ export function TopBar() {
                         <rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.4" />
                     </svg>
                 </button>
+                <ClickMenu />
             </div>
             <div class="seg" role="group" aria-label="What plays">
                 <For each={MODES}>
@@ -182,7 +184,7 @@ export function TopBar() {
                             if (event.key === 'Enter') event.currentTarget.blur()
                         }}
                     />
-                    <span class="cap">Tempo, bpm</span>
+                    <span class="cap">Tempo</span>
                 </div>
                 <div class="ro">
                     <select
@@ -206,11 +208,11 @@ export function TopBar() {
                 <div class="ro">
                     <b>
                         <span data-testid="cycle">{cycle() + 1}</span>
-                        <span class="beats">
-                            <For each={Array.from({ length: meter().beats }, (_, at) => at)}>{(i) => <i classList={{ on: engineState().playing && beat() === i }} />}</For>
+                        <span class="beats" classList={{ count: countBeat() !== null }}>
+                            <For each={Array.from({ length: meter().beats }, (_, at) => at)}>{(i) => <i classList={{ on: engineState().playing && (countBeat() ?? beat()) === i }} />}</For>
                         </span>
                     </b>
-                    <span class="cap">Cycle</span>
+                    <span class="cap" data-testid="cycle-cap">{countBeat() === null ? 'Cycle' : 'Count'}</span>
                 </div>
             </div>
             <div class="grow" />

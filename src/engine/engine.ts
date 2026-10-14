@@ -6,7 +6,7 @@ import { outputRoute, playThrough } from '../library/soundDevices'
 import { Annotation, EditorState, Prec, StateEffect, Transaction } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
 import { BlockWidget, StrudelMirror, codemirrorSettings, sliderPlugin, sliderValues } from '@strudel/codemirror'
-import { evaluate as evaluateText, Pattern, pure, silence, slowcat } from '@strudel/core'
+import { evaluate as evaluateText, Pattern, pure, silence, slowcat, stack } from '@strudel/core'
 import { mini } from '@strudel/mini'
 import {
     getAnalyserById,
@@ -28,6 +28,7 @@ import { DEFAULT_MIX, fitMix, type Mix } from '../library/mix'
 import { levelOfForce } from '../song/notes'
 import type { PatternEvent, TextEdit } from '../song/types'
 import { loadAhead } from './ahead'
+import { clicks } from './metronome'
 import { barByBar } from './barByBar'
 import { cutAt } from './cut'
 import { toEvents } from './events'
@@ -131,6 +132,18 @@ export interface Engine {
     setTempoLane(barsPerSecond: number[] | null): void
     // How many quarter notes the song's bar holds: the tempo counts those.
     setQuarters(quarters: number): void
+    // How many beats the song's bar is counted in: the metronome clicks that many.
+    setBeats(beats: number): void
+    // A click on every beat while the song plays.
+    setClick(on: boolean): void
+    // A bar of clicks before the song, whenever it starts to play. Not in a jam, where both
+    // start together.
+    setCountIn(on: boolean): void
+    // How far into the bar of clicks the song is, from 0 to 1, while it is counted in. Null
+    // otherwise.
+    countIn(): number | null
+    // How long until the song itself starts, in seconds: nought once it has.
+    untilSong(): number
     // How long a bar lasts at the tempo the song is at, in seconds.
     barSeconds(): number
     // The microphone was used a moment ago, so what the sound goes out through may have changed.
@@ -242,6 +255,20 @@ export function createEngine(): Engine {
     const span = () => (loop ? loop.to - loop.from : 1)
     const around = (cycles: number) => ((cycles % span()) + span()) % span()
     let offset = 0
+    // The metronome, and the count-in. While a song is counted in, the clock starts a bar before
+    // the song, and the patterns are moved that bar later and kept silent in it. `countUntil`
+    // is where on the clock the song begins: 1 for a song that was counted in, else 0.
+    let clicking = false
+    let countingIn = false
+    let countUntil = 0
+    let beats = 4
+    const COUNT_BARS = 1
+    // What the clock plays is the song with the clicks beside it. The song as it was handed
+    // over is kept, so that the clicks can be switched while it plays.
+    let played: any = null
+    let reclick = () => undefined as void
+    const withClicks = (pattern: any) => (clicking || countUntil ? stack(pattern, clicks(beats, clicking ? null : countUntil)) : pattern)
+    const afterCount = (pattern: any) => (countUntil ? pattern.filterHaps((hap: any) => (hap.whole ?? hap.part).begin.valueOf() >= countUntil) : pattern)
     // Strudel's own pause plays everything it missed at once when it goes on. Pausing here is
     // stopping while remembering where the song was, and going on is starting from there.
     let resumeAt: number | null = null
@@ -501,7 +528,7 @@ export function createEngine(): Engine {
             if (!tempoPut && tempoLane && !liveMode) {
                 tempoPut = true
                 const tempos = slowcat(...tempoLane.map((cps) => pure({ cps, [TEMPO]: true })))
-                original.call(loop ? tempos.ribbon(loop.from, loop.to - loop.from).early(offset) : offset ? tempos.early(offset) : tempos, '$')
+                original.call(afterCount(loop ? tempos.ribbon(loop.from, loop.to - loop.from).early(offset) : offset ? tempos.early(offset) : tempos), '$')
             }
             const bare = bareId(id)
             const key = bare.includes('$') ? `pattern ${++anonymous}` : bare
@@ -531,11 +558,11 @@ export function createEngine(): Engine {
                 const round = switched ? new Pattern(cutAt((asked: unknown) => whole.query(asked), bar, muted ? 'before' : 'from')) : whole
                 // Strudel plays nothing under a muted name, so a pattern that is switched off
                 // is handed over under its bare one.
-                return original.call(tagged(shift ? round.early(shift) : round), switched ? bare : id)
+                return original.call(afterCount(tagged(shift ? round.early(shift) : round)), switched ? bare : id)
             }
-            if (loop) return original.call(tagged(this.ribbon(loop.from, loop.to - loop.from).early(shift)), id)
+            if (loop) return original.call(afterCount(tagged(this.ribbon(loop.from, loop.to - loop.from).early(shift))), id)
             const within = (hap: any) => endBar === null || (hap.whole ?? hap.part).begin.valueOf() + shift < endBar
-            return original.call(tagged((shift ? this.early(shift) : this).filterHaps(within)), id)
+            return original.call(afterCount(tagged((shift ? this.early(shift) : this).filterHaps(within))), id)
         }
         Pattern.prototype.p[STRUDELS_OWN] = original
     }
@@ -1053,6 +1080,15 @@ export function createEngine(): Engine {
                 ;(EditorState as any).create = create
             }
             toLight = lightNotes(mirror, root)
+            const scheduler = mirror.repl.scheduler
+            const own = scheduler.setPattern.bind(scheduler)
+            scheduler.setPattern = (pattern: any, autostart?: boolean) => {
+                played = pattern
+                return own(withClicks(pattern), autostart)
+            }
+            reclick = () => {
+                if (played && scheduler.started) void own(withClicks(played), false)
+            }
 
             dress = () => {
                 mirror.updateSettings({
@@ -1184,8 +1220,10 @@ export function createEngine(): Engine {
             if (blank()) return silence()
             if (!state.playing && !audioLoaded) await audioIsLoaded()
             if (!state.playing) {
-                offset = startingAt()
-                moved({ k: 'play', at: liveMode ? 0 : loop ? loop.from + offset : offset })
+                const from = startingAt()
+                countUntil = countingIn && !sync ? COUNT_BARS : 0
+                offset = from - countUntil
+                moved({ k: 'play', at: liveMode ? 0 : loop ? loop.from + from : from })
             }
             resumeAt = null
             if (state.paused) setState({ paused: false })
@@ -1221,6 +1259,7 @@ export function createEngine(): Engine {
             resumeAt = null
             if (state.paused) setState({ paused: false })
             const counted = state.playing ? mirror.repl.scheduler.now() : 0
+            countUntil = 0
             offset = (loop && !liveMode ? position - loop.from : position) - counted
             void mirror.evaluate(true)
         },
@@ -1256,6 +1295,7 @@ export function createEngine(): Engine {
             resumeAt = null
             if (state.paused) setState({ paused: false })
             if (!state.playing || blank() || liveMode) return
+            countUntil = 0
             offset = bar - Math.floor(mirror.repl.scheduler.now())
             replay()
         },
@@ -1272,6 +1312,7 @@ export function createEngine(): Engine {
             if (state.paused) setState({ paused: false })
             if (!state.playing || blank() || liveMode) return
             const counted = mirror.repl.scheduler.now()
+            countUntil = 0
             offset = range ? -Math.floor(counted) : Math.floor(at) - Math.floor(counted)
             replay()
         },
@@ -1288,7 +1329,7 @@ export function createEngine(): Engine {
             engine.stop()
             dropSpare()
             if (renewing) await renewing
-            const before = { soloIds, offset, endBar, loop, liveMode }
+            const before = { soloIds, offset, endBar, loop, liveMode, countUntil }
             endAfter = before
             const live = getAudioContext()
             const liveController = getSuperdoughAudioController()
@@ -1306,6 +1347,7 @@ export function createEngine(): Engine {
             let missed = 0
             soloIds = []
             offset = 0
+            countUntil = 0
             endBar = bars
             loop = null
             liveMode = false
@@ -1463,6 +1505,7 @@ export function createEngine(): Engine {
                 endBar = before.endBar
                 loop = before.loop
                 liveMode = before.liveMode
+                countUntil = before.countUntil
                 await mirror.repl.evaluate(mirror.code, false).catch(() => undefined)
                 applyMix()
                 if (running) void live.resume().catch(() => undefined)
@@ -1471,6 +1514,7 @@ export function createEngine(): Engine {
         stop() {
             const was = state.playing || state.paused
             resumeAt = null
+            countUntil = 0
             if (state.paused) setState({ paused: false })
             mirror.stop()
             silenceMidi()
@@ -1481,11 +1525,33 @@ export function createEngine(): Engine {
             soloIds = ids
             if (state.playing) replay()
         },
+        // While the song is counted in it stands at the bar it starts from.
         now: () => {
-            if (liveMode) return mirror?.repl.scheduler.started ? mirror.repl.scheduler.now() + offset : (resumeAt ?? 0)
+            const heard = () => (countUntil ? Math.max(mirror.repl.scheduler.now(), countUntil) : mirror.repl.scheduler.now()) + offset
+            if (liveMode) return mirror?.repl.scheduler.started ? heard() : (resumeAt ?? 0)
             if (!mirror?.repl.scheduler.started) return resumeAt ?? (loop ? loop.from : startBar)
-            const counted = mirror.repl.scheduler.now() + offset
+            const counted = heard()
             return loop ? loop.from + around(counted) : counted
+        },
+        countIn() {
+            if (!countUntil || !mirror?.repl.scheduler.started) return null
+            const at = mirror.repl.scheduler.now()
+            return at < countUntil ? Math.max(0, at) / countUntil : null
+        },
+        untilSong() {
+            if (!countUntil || !mirror?.repl.scheduler.started) return 0
+            return Math.max(0, countUntil - mirror.repl.scheduler.now()) / mirror.repl.scheduler.cps
+        },
+        setBeats(count) {
+            beats = count > 0 ? count : 4
+            reclick()
+        },
+        setClick(on) {
+            clicking = on
+            reclick()
+        },
+        setCountIn(on) {
+            countingIn = on
         },
         bpm: () => (mirror ? mirror.repl.scheduler.cps * 60 * quarters : 120),
         barSeconds: () => (mirror ? 1 / mirror.repl.scheduler.cps : (60 * quarters) / 120),
@@ -1596,6 +1662,7 @@ export function createEngine(): Engine {
             resumeAt = null
             if (state.paused) setState({ paused: false })
             if (!mirror || !state.playing || blank()) return
+            countUntil = 0
             offset = on ? 0 : startBar - Math.floor(mirror.repl.scheduler.now())
             void mirror.evaluate(true)
         },

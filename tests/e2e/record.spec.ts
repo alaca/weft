@@ -102,6 +102,24 @@ test('a take from the microphone becomes a sound of your own', async ({ page }) 
     await expect(browser(page).locator('.sb-i code')).toHaveText(['recording', 'recording_2'])
 })
 
+test('with the count-in on, Record starts the song after a bar of clicks, and the take starts where the song does', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('weft.click', JSON.stringify({ click: false, countIn: true })))
+    await open(page, 'tone')
+    await browser(page).getByRole('button', { name: 'Record', exact: true }).click()
+    await expect(page.getByTestId('cycle-cap')).toHaveText('Count')
+    await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible()
+    await expect(page.getByTestId('cycle-cap')).toHaveText('Cycle', { timeout: 4000 })
+    // A bar at this tempo is two seconds: the take kept is that much shorter than the time the
+    // microphone was open.
+    await page.waitForTimeout(1600)
+    await browser(page).getByRole('button', { name: 'Stop recording', exact: true }).click()
+    const length = browser(page).locator('.sb-i .sb-c')
+    await expect(length).toHaveCount(1)
+    const seconds = Number((await length.textContent())?.replace(' s', ''))
+    expect(seconds).toBeGreaterThan(1)
+    expect(seconds).toBeLessThan(2.6)
+})
+
 test('a press on Record while the microphone is still opening does not start a second take', async ({ page }) => {
     await open(page, 'slow')
     await browser(page).getByRole('button', { name: 'Record', exact: true }).click()

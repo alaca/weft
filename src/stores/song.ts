@@ -39,6 +39,11 @@ export const [meter, setMeter] = createSignal<Meter>(USUAL)
 export const [tempoLane, setTempoLane] = createSignal<TempoLane | null>(null, { equals: (a, b) => a === b || (a !== null && b !== null && a.from === b.from && a.to === b.to && a.values.length === b.values.length && a.values.every((bpm, at) => bpm === b.values[at])) })
 export const [cycle, setCycle] = createSignal(0)
 export const [beat, setBeat] = createSignal(0)
+// The metronome and the count-in, as they are switched, and the beat of the bar of clicks a song
+// is being counted in with. Null when it is not being counted in.
+export const [clickOn, setClickOn] = createSignal(false)
+export const [countInOn, setCountInOn] = createSignal(false)
+export const [countBeat, setCountBeat] = createSignal<number | null>(null)
 export const [position, setPosition] = createSignal(0)
 export const [bpm, setBpm] = createSignal(120)
 export const [revision, setRevision] = createSignal(0)
