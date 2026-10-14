@@ -447,6 +447,9 @@ export function privacyPage(around: Around): string {
     <div class="card note wide">
         <h1>Privacy</h1>
         <p>Making music in Weft Loom needs no account and sends nothing about you anywhere. This page says what is kept when you do more than that.</p>
+        <h2>What the app asks for by itself</h2>
+        <p>The app reaches the network by itself in three ways, and sends nothing about you in any of them. A few seconds after it starts, it asks this site whether there is a newer version. Its start screen asks this site for the newest songs, and, when you are signed in, for your account and your songs. The sounds that come with Strudel are fetched from GitHub, where they are kept, when they are first needed. The server that answers each of these sees the address the request came from, as every web server does.</p>
+        <p>Everything else it fetches only when you ask for it: a published song you open, the list of open jams while the Jams panel is open, and a jam you start or join.</p>
         <h2>An account</h2>
         <p>An account is only for publishing songs. Of an account the site keeps your email, the name you chose, and when it was made. Your password is not kept: only a scrambled form of it that cannot be turned back into the password. While you are signed in the site keeps a mark for that, and the app keeps its counterpart on your machine.</p>
         <p>Your email is shown to nobody. It is used to sign you in, and to send you a code when you have forgotten your password. That mail is sent through a mail service, which sees the address it sends to.</p>
@@ -459,7 +462,7 @@ export function privacyPage(around: Around): string {
         ${around.demo ? html`<h2>The demo</h2>
         <p>The <a href="/demo">demo</a> is the app in your browser. It keeps nothing there: what you change lives in the page and is gone when you close it. Its sounds are fetched as the app fetches them, from GitHub, where Strudel's sounds are kept. GitHub sees the address that asks for them, as every web server does.</p>` : ''}
         <h2>What the server notes</h2>
-        <p>Like every web server it notes each request: the address it came from, the time and what was asked for. Those notes are kept for two weeks and used only to keep the site running. The site sets no cookies and uses no tracking.</p>
+        <p>Like every web server it notes each request: the address it came from, the time and what was asked for. Those notes are kept for two weeks and used only to keep the site running and to count how many visit it, as numbers. The site sets no cookies and uses no tracking.</p>
         <h2>Where</h2>
         <p>All of it is on one server in Germany. A copy of the accounts and the published songs is made every night and kept for two weeks, so what you delete is gone from the copies two weeks later. ${around.source ? html`Questions can be asked where the <a href="${around.source}" rel="noopener">source code</a> is.` : ''}</p>
     </div>

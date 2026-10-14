@@ -248,8 +248,8 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
 .range .in::-webkit-outer-spin-button, .range .in::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .tools .mono { margin-left: auto; color: var(--linen-3); }
 .tail { margin-top: 18px; color: var(--linen-3); font-size: 13px; }
-.tail a { color: var(--linen-2); text-decoration: underline; text-decoration-color: var(--linen-3); text-underline-offset: 3px; }
-.tail a:hover { color: var(--linen); text-decoration-color: var(--linen); }
+.tail a, .note p a, .note dd a { color: var(--linen-2); text-decoration: underline; text-decoration-color: var(--linen-3); text-underline-offset: 3px; }
+.tail a:hover, .note p a:hover, .note dd a:hover { color: var(--linen); text-decoration-color: var(--linen); }
 
 @media (max-width: 860px) {
     .find { max-width: none; flex-basis: 100%; }
