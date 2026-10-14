@@ -6,6 +6,7 @@ import { callFor, controlOf, valueArg, type ControlView } from '../controls/view
 import { audioCode, audioEdits, barsOfSound, heardIn, JOIN, listFrom, LONGEST_FADE, readLaid, relist, startOf, type Audio, type AudioPlan } from '../song/audio'
 import { curveOver, curveText, followSong, readCurve, stretched } from '../song/curves'
 import { dropScene, freeSceneName, keepScene, readScenes, renameScene, sceneBar, sceneEdits, type Scene } from '../song/scenes'
+import { cleanSectionName, namedBars, readSections, sameSections, sectionEdits, sectionsAfter, type Section } from '../song/sections'
 import { addVariant, chooseEdit, followChoices, removeVariant, variantBars } from '../song/variants'
 import { onSongLink } from '../desktop/links'
 import { openInBrowser } from '../desktop/browser'
@@ -2834,7 +2835,7 @@ export function repeatLoop() {
     const before = songLengthNow()
     const { edits, length } = repeatEdits(engine.getCode(), lanes(), range.from, range.to, before)
     const again = <T,>(values: T[]) => [...values.slice(0, range.to), ...values.slice(range.from, range.to), ...values.slice(range.to)].slice(0, length)
-    edits.push(...followChords(before, again), ...followTempo(before, again), ...followSong(lanes(), before, again), ...followChoices(lanes(), before, again), ...followAudio(before, (was) => ({ list: again(was.list), plays: again(was.plays) })))
+    edits.push(...followSections(before, again), ...followChords(before, again), ...followTempo(before, again), ...followSong(lanes(), before, again), ...followChoices(lanes(), before, again), ...followAudio(before, (was) => ({ list: again(was.list), plays: again(was.plays) })))
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
     const moved = { from: range.to, to: Math.min(length, range.to + (range.to - range.from)) }
@@ -2853,7 +2854,7 @@ export function removeLoop() {
     if (!range || stale() || range.to - range.from >= before) return
     const { edits, length } = removeEdits(engine.getCode(), lanes(), range.from, range.to, before)
     const without = <T,>(values: T[]) => [...values.slice(0, range.from), ...values.slice(range.to)]
-    edits.push(...followChords(before, without), ...followTempo(before, without), ...followSong(lanes(), before, without), ...followChoices(lanes(), before, without), ...followAudio(before, (was) => ({ list: without(was.list), plays: without(was.plays) })))
+    edits.push(...followSections(before, without), ...followChords(before, without), ...followTempo(before, without), ...followSong(lanes(), before, without), ...followChoices(lanes(), before, without), ...followAudio(before, (was) => ({ list: without(was.list), plays: without(was.plays) })))
     clearLoop()
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
@@ -2872,7 +2873,7 @@ export function spaceLoop() {
     const spaced = <T,>(values: T[]) => [...values.slice(0, range.from), ...Array.from({ length: range.to - range.from }, () => values[range.from]), ...values.slice(range.from)].slice(0, length)
     // A recording rests through the empty bars and goes on after them.
     const apart = <T,>(values: T[], rest: T) => [...values.slice(0, range.from), ...Array.from({ length: range.to - range.from }, () => rest), ...values.slice(range.from)].slice(0, length)
-    edits.push(...followChords(before, spaced), ...followTempo(before, spaced), ...followSong(lanes(), before, spaced), ...followChoices(lanes(), before, spaced), ...followAudio(before, (was) => ({ list: apart(was.list, null), plays: apart(was.plays, false) })))
+    edits.push(...followSections(before, spaced), ...followChords(before, spaced), ...followTempo(before, spaced), ...followSong(lanes(), before, spaced), ...followChoices(lanes(), before, spaced), ...followAudio(before, (was) => ({ list: apart(was.list, null), plays: apart(was.plays, false) })))
     setSongBars(length)
     if (edits.length) engine.applyEdit(edits)
     replay()
@@ -2918,6 +2919,42 @@ const SCENE_LEAD = 0.45
 let sceneTimer = 0
 
 export const scenesOf = (code: string): Scene[] => readScenes(code)
+
+// ---- the sections of the song: stretches of its bars under a name, kept as lines of its code.
+export const sectionsOf = (code: string): Section[] => readSections(code)
+
+function writeSections(next: Section[]) {
+    const edits = sectionEdits(engine.getCode(), song().patterns, next)
+    if (edits.length) engine.applyEdit(edits)
+}
+
+export function nameSection(from: number, to: number, name: string) {
+    if (stale()) return
+    const now = readSections(engine.getCode())
+    const next = namedBars(now, Math.max(0, from), Math.min(MAX_BARS, to), name)
+    if (!sameSections(now, next)) writeSections(next)
+}
+
+export function renameSection(at: number, name: string) {
+    const now = readSections(engine.getCode())
+    const clean = cleanSectionName(name)
+    if (stale() || !now[at] || !clean || now[at].name === clean) return
+    writeSections(now.map((section, index) => (index === at ? { ...section, name: clean } : section)))
+}
+
+export function removeSection(at: number) {
+    const now = readSections(engine.getCode())
+    if (stale() || !now[at]) return
+    writeSections(now.filter((_, index) => index !== at))
+}
+
+// The sections go along with bars that are repeated, put in or taken out.
+function followSections(before: number, change: <T>(values: T[]) => T[]): TextEdit[] {
+    const code = engine.getCode()
+    const now = readSections(code)
+    const next = sectionsAfter(now, before, change)
+    return sameSections(now, next) ? [] : sectionEdits(code, song().patterns, next)
+}
 export const codeNow = (): string => engine.getCode()
 
 export function keepSceneNow() {

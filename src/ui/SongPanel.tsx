@@ -1,5 +1,5 @@
 import { batch, createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { addChords, addFollower, chooseScene, clearLoop, codeNow, colorAt, drawControl, drawTempo, eventsOf, paintChords, removeChords, inStep, keepSceneNow, loopBetween, nameScene, patternText, removeLoop, removeScene, repeatLoop, scenesOf, select, setBars, setCurve, setMix, setMotion, setTempoCurve, songLengthNow, spaceLoop, startFrom, stillTempo, takeKnobs, toggleBar, toggleMute, toggleSolo } from '../app/controller'
+import { addChords, addFollower, chooseScene, nameSection, removeSection, renameSection, sectionsOf, clearLoop, codeNow, colorAt, drawControl, drawTempo, eventsOf, paintChords, removeChords, inStep, keepSceneNow, loopBetween, nameScene, patternText, removeLoop, removeScene, repeatLoop, scenesOf, select, setBars, setCurve, setMix, setMotion, setTempoCurve, songLengthNow, spaceLoop, startFrom, stillTempo, takeKnobs, toggleBar, toggleMute, toggleSolo } from '../app/controller'
 import { fromUnit, toUnit } from '../controls/catalog'
 import { drawableIn, drawnIn, panOf, volumeOf, type ControlView } from '../controls/views'
 import { barsOf, clips, paint, type Clip } from '../song/arrange'
@@ -625,6 +625,126 @@ function Scenes() {
     )
 }
 
+// The sections of the song over its bars. Dragging over bars, or pressing an empty one, names
+// them; a press on a section starts the song from it, a double press renames it.
+function SectionsLane(props: { view: View }) {
+    let track!: HTMLDivElement
+    let pressed: { bar: number; moved: boolean } | null = null
+    const sections = createMemo(() => {
+        song()
+        return sectionsOf(codeNow())
+    })
+    const [run, setRun] = createSignal<{ from: number; to: number } | null>(null)
+    const [naming, setNaming] = createSignal<{ from: number; to: number; at: number | null; text: string } | null>(null)
+    const barAt = (x: number) => Math.min(props.view.length - 1, Math.max(0, Math.floor((x - track.getBoundingClientRect().left) / props.view.barWidth)))
+    const sectionAt = (bar: number) => sections().findIndex((section) => bar >= section.from && bar < section.to)
+    const finish = (keep: boolean, text: string) => {
+        const now = naming()
+        setNaming(null)
+        if (!keep || !now) return
+        // A section whose name is cleared is taken off.
+        if (now.at !== null && !text.trim()) removeSection(now.at)
+        else if (!text.trim()) return
+        else if (now.at === null) nameSection(now.from, now.to, text)
+        else renameSection(now.at, text)
+    }
+    const place = (from: number, to: number) => ({ left: `${from * props.view.barWidth}px`, width: `${(to - from) * props.view.barWidth}px` })
+    return (
+        <div
+            class="sg-l sg-sl"
+            ref={track}
+            data-testid="sections-lane"
+            onPointerDown={(event) => {
+                if (stale() || event.button !== 0 || naming() || (event.target as HTMLElement).closest('button, input')) return
+                const bar = Math.floor((event.clientX - track.getBoundingClientRect().left) / props.view.barWidth)
+                if (bar < 0 || bar >= props.view.length) return
+                pressed = { bar, moved: false }
+                track.setPointerCapture(event.pointerId)
+            }}
+            onPointerMove={(event) => {
+                if (!pressed) return
+                const bar = barAt(event.clientX)
+                if (bar === pressed.bar && !pressed.moved) return
+                pressed.moved = true
+                setRun({ from: Math.min(pressed.bar, bar), to: Math.max(pressed.bar, bar) + 1 })
+            }}
+            onPointerUp={() => {
+                const was = pressed
+                const drawn = run()
+                pressed = null
+                setRun(null)
+                if (!was) return
+                if (was.moved && drawn) return setNaming({ ...drawn, at: null, text: '' })
+                const at = sectionAt(was.bar)
+                if (at >= 0) startFrom(sections()[at].from)
+                else setNaming({ from: was.bar, to: was.bar + 1, at: null, text: '' })
+            }}
+            onPointerCancel={() => {
+                pressed = null
+                setRun(null)
+            }}
+            // The lane holds the pointer while it is pressed, so a double press arrives here and
+            // not at the section under it.
+            onDblClick={(event) => {
+                const at = sectionAt(barAt(event.clientX))
+                const section = sections()[at]
+                if (section && !stale() && !(event.target as HTMLElement).closest('button')) setNaming({ from: section.from, to: section.to, at, text: section.name })
+            }}
+        >
+            <Show when={!sections().length && !run() && !naming()}>
+                <span class="sg-sh">Drag over bars to name them: Intro, Verse, Drop</span>
+            </Show>
+            <For each={sections()}>
+                {(section, at) => (
+                    <div
+                        class="sg-sec"
+                        style={place(section.from, section.to)}
+                        role="button"
+                        tabindex="0"
+                        aria-label={`${section.name}, ${section.to - section.from === 1 ? `bar ${section.from + 1}` : `bars ${section.from + 1} to ${section.to}`}`}
+                        title={`${section.name}. Press to start from here, press twice to rename it. Clear its name to take it off.`}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault()
+                                startFrom(section.from)
+                            } else if (event.key === 'F2' && !stale()) setNaming({ from: section.from, to: section.to, at: at(), text: section.name })
+                            else if ((event.key === 'Delete' || event.key === 'Backspace') && !stale()) removeSection(at())
+                        }}
+                    >
+                        <b>{section.name}</b>
+                        <Show when={(section.to - section.from) * props.view.barWidth >= 72}>
+                            <button class="rx" aria-label={`Take the name ${section.name} off these bars`} title="Take the name off these bars" disabled={stale()} onClick={() => removeSection(at())}>
+                                <svg viewBox="0 0 8 8">
+                                    <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
+                                </svg>
+                            </button>
+                        </Show>
+                    </div>
+                )}
+            </For>
+            <Show when={run()}>{(drawn) => <div class="sg-sec run" style={place(drawn().from, drawn().to)} />}</Show>
+            <Show when={naming()}>
+                {(now) => (
+                    <input
+                        class="sg-sec-in"
+                        aria-label={now().at === null ? 'Name of these bars' : 'New name of the section'}
+                        placeholder="Name these bars"
+                        maxLength={24}
+                        value={now().text}
+                        style={{ left: `${now().from * props.view.barWidth}px`, width: `${Math.max(140, (now().to - now().from) * props.view.barWidth)}px` }}
+                        ref={(box) => queueMicrotask(() => box.isConnected && (box.focus(), box.select()))}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter') finish(true, event.currentTarget.value)
+                            else if (event.key === 'Escape') finish(false, '')
+                        }}
+                        onBlur={(event) => finish(true, event.currentTarget.value)}
+                    />
+                )}
+            </Show>
+        </div>
+    )
+}
+
 // The chord that is put on the bars that are pressed or dragged over: a note and a kind of
 // chord, chosen in the row over the lanes.
 const [brushRoot, setBrushRoot] = createSignal('C')
@@ -785,6 +905,12 @@ export function SongPanel() {
             scroller: () => scroller,
         }),
     )
+    // The lane of sections is there once the song has one, or once it is asked for.
+    const [sectionsAsked, setSectionsAsked] = createSignal(false)
+    const sectionsShown = createMemo(() => {
+        song()
+        return sectionsAsked() || sectionsOf(codeNow()).length > 0
+    })
     const playing = () => engineState().playing
     const paused = () => engineState().paused
     const head = () => (playing() || paused() ? (cycle() % length()) + position() : (loopBars()?.from ?? startBar()))
@@ -881,6 +1007,11 @@ export function SongPanel() {
                     )}
                 </Show>
                 <span class="sg-he">
+                    <Show when={!sectionsShown()}>
+                        <button class="chip tgl" classList={{ away: mixing() }} disabled={stale()} title="A lane over the bars to give them names: Intro, Verse, Drop" onClick={() => setSectionsAsked(true)}>
+                            Name bars
+                        </button>
+                    </Show>
                     <Show when={!chordLane()}>
                         <button class="chip tgl" classList={{ away: mixing() }} disabled={stale()} title="Gives the song chords, one for every bar, that patterns can follow: change a chord in one place and every pattern that follows plays the new one" onClick={addChords}>
                             Add chords
@@ -927,6 +1058,11 @@ export function SongPanel() {
                         <span>Vol</span>
                         <span>Pan</span>
                     </div>
+                    <Show when={sectionsShown()}>
+                        <div class="sg-kn sg-tn" data-testid="sections-name">
+                            <span title="Names over the bars of the song: Intro, Verse, Drop. Drag over bars to name them.">Sections</span>
+                        </div>
+                    </Show>
                     <Show when={chordLane()}>
                         <div class="sg-kn sg-tn" data-testid="chords-name">
                             <span title="The chord of every bar. Patterns that follow the chords play notes of it.">Chords</span>
@@ -1006,6 +1142,9 @@ export function SongPanel() {
                                 }}
                             </Index>
                         </div>
+                        <Show when={sectionsShown()}>
+                            <SectionsLane view={view()} />
+                        </Show>
                         <Show when={chordLane()}>
                             <ChordsLane view={view()} />
                         </Show>

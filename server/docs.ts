@@ -62,13 +62,15 @@ export const DOCS: DocSection[] = [
         html: `<p>The Song panel is the song from left to right: a row for each pattern, a cell for each bar. Drag across a row to fill bars or to empty them. A pattern plays in the bars that are filled, and the song is as long as its last filled bar.</p>
 <p>Each row has M and S, and a knob for volume and for pan.</p>
 <p>Click a bar number to start from that bar. Drag across bar numbers and those bars go round, which is the way to work on one part of a song. While they go round, three buttons work on them in every pattern at once: <b>Repeat them</b> puts them in once more, <b>Empty bars before</b> makes room in front of them, and <b>Take them out</b> removes them.</p>
-<p>A pattern you have just added plays in no bar yet. In Live you hear it at once; in Song you hear it once you fill bars for it.</p>`,
+<p>A pattern you have just added plays in no bar yet. In Live you hear it at once; in Song you hear it once you fill bars for it.</p>
+<p>Bars can have a name over them, such as Intro, Verse or Drop. Press <b>Name bars</b>, then drag over bars in the Sections row and type a name. Press a section to start from it, and press it twice to rename it; clear its name to take it off. Sections move with the bars when bars are repeated, put in or taken out.</p>`,
     },
     {
         id: 'tempo',
         title: 'Tempo and time',
         pictures: [{ file: '/docs/tempo.webp', width: 980, height: 185, alt: 'The Song panel with a Tempo row over the patterns: level for eight bars, then rising bar by bar to the end of the song.' }],
         html: `<p>The tempo is the number at the top, in beats a minute. Beside it is the <b>Time</b>: 4/4 to begin with, and 2/4, 3/4, 5/4, 6/8, 7/8 or 12/8 for a song that is counted another way. A new pattern gets the steps of that bar, and the lights beside the tempo count its beats. The time is one for the whole song, and the patterns a song already has stay as they are.</p>
+<p>The arrows beside the tempo make it a beat faster or slower, ten with <kbd>Shift</kbd>, and go on while you hold them. The menu beside them has <b>Tap tempo</b>, to tap the tempo in time, and halves or doubles it.</p>
 <p>A song can also speed up, slow down or change tempo. In the Song panel press <b>Draw the tempo</b>. A Tempo row appears over the patterns: drag in it to set the tempo bar by bar, and hold <kbd>Shift</kbd> for a straight line. The length of the song follows it, and so does a file you export.</p>
 <p>The cross beside Tempo gives the song one tempo again.</p>`,
     },

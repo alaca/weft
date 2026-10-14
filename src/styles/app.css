@@ -1056,7 +1056,16 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 
 /* The chords of the song: a lane of bars with the chord named where it begins, the row the
    chord is chosen in, and the grid of a pattern that follows them. */
-.sg-cd { cursor: pointer; }
+.sg-cd, .sg-sl { cursor: pointer; }
+.sg-sec { position: absolute; top: 3px; bottom: 3px; display: flex; align-items: center; gap: 4px; padding: 0 3px 0 7px; border-radius: 5px; background: color-mix(in srgb, var(--linen-3) 16%, transparent); box-shadow: inset 2px 0 0 var(--saffron); overflow: hidden; }
+.sg-sec b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 11px/1 var(--mono); font-stretch: 87%; color: var(--linen); }
+.sg-sec .rx { opacity: 0; flex: none; }
+.sg-sec:hover .rx, .sg-sec .rx:focus-visible { opacity: 1; }
+.sg-sec:focus-visible { outline: 2px solid var(--linen); outline-offset: -2px; }
+.sg-sec.run { background: color-mix(in srgb, var(--linen) 26%, transparent); pointer-events: none; }
+.sg-sec-in { position: absolute; top: 3px; bottom: 3px; z-index: 3; padding: 0 7px; border-radius: 5px; border: 1px solid var(--linen-3); background: var(--cloth-2); color: var(--linen); font: 600 11px/1 var(--mono); font-stretch: 87%; }
+.sg-sec-in:focus { outline: none; border-color: var(--linen); }
+.sg-sh { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--linen-3); font-size: 11px; white-space: nowrap; pointer-events: none; }
 .sg-ch { position: relative; min-width: 0; height: 100%; background: color-mix(in srgb, var(--linen-3) 14%, transparent); border-left: 1px solid transparent; }
 .sg-ch.begins { border-left-color: var(--linen-3); }
 .sg-ch.drawn { background: color-mix(in srgb, var(--linen) 30%, transparent); }

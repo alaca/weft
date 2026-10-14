@@ -240,3 +240,46 @@ test('a pattern is muted, played alone, turned up and moved to a side from its r
     await expect.poll(() => code(page)).toContain('.pan(slider(0, 0, 1))')
     await expect(pan).toHaveAttribute('aria-valuenow', '0')
 })
+
+test('bars are named as sections by dragging over them, a section starts the song from it, and is renamed or taken off', async ({ page }) => {
+    await open(page)
+    await song(page).getByRole('button', { name: 'Name bars', exact: true }).click()
+    const sections = page.getByTestId('sections-lane')
+    await expect(sections).toContainText('Drag over bars to name them')
+    const across = async (from: number, to: number) => {
+        const lane = (await sections.boundingBox())!
+        const a = (await bar(page, 'drums', from).boundingBox())!
+        const b = (await bar(page, 'drums', to).boundingBox())!
+        await page.mouse.move(a.x + a.width / 2, lane.y + lane.height / 2)
+        await page.mouse.down()
+        await page.mouse.move(b.x + b.width / 2, lane.y + lane.height / 2, { steps: 6 })
+        await page.mouse.up()
+    }
+
+    await across(1, 4)
+    await page.getByRole('textbox', { name: 'Name of these bars' }).fill('Intro')
+    await page.keyboard.press('Enter')
+    await expect.poll(() => code(page)).toContain('// section Intro: 1-4\n')
+    // A press on a bar with no name names that bar.
+    const fifth = (await bar(page, 'drums', 5).boundingBox())!
+    const lane = (await sections.boundingBox())!
+    await page.mouse.click(fifth.x + fifth.width / 2, lane.y + lane.height / 2)
+    await page.getByRole('textbox', { name: 'Name of these bars' }).fill('Verse')
+    await page.keyboard.press('Enter')
+    await expect.poll(() => code(page)).toContain('// section Intro: 1-4\n// section Verse: 5\n')
+
+    await sections.getByRole('button', { name: 'Verse, bar 5' }).click()
+    await expect(page.getByRole('button', { name: 'Start from bar 5', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await sections.getByRole('button', { name: 'Intro, bars 1 to 4' }).dblclick()
+    await page.getByRole('textbox', { name: 'New name of the section' }).fill('Start')
+    await page.keyboard.press('Enter')
+    await expect.poll(() => code(page)).toContain('// section Start: 1-4\n')
+    // A section is taken off by clearing its name, or by its cross where there is room for one.
+    await sections.getByRole('button', { name: 'Verse, bar 5' }).dblclick()
+    await page.getByRole('textbox', { name: 'New name of the section' }).fill('')
+    await page.keyboard.press('Enter')
+    await expect.poll(() => code(page)).not.toContain('Verse')
+    await sections.getByRole('button', { name: 'Take the name Start off these bars' }).click()
+    await expect.poll(() => code(page)).not.toContain('// section')
+    await expect(page.getByTestId('sections-name')).toBeVisible()
+})
