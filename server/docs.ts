@@ -4,7 +4,7 @@
 export type DocPicture = { file: string; width: number; height: number; alt: string }
 export type DocSection = { id: string; title: string; pictures: DocPicture[]; html: string }
 
-export const DOCS_ABOUT = 'How Weft Loom works, one thing at a time: patterns, sounds, the song, tempo and time, chords, knobs over the song, versions, scenes, recordings, packs, MIDI, jams, and getting a song out.'
+export const DOCS_ABOUT = 'How Weft Loom works, one thing at a time: patterns, sounds, the song, tempo and time, choosing several notes at once, chords, knobs over the song, versions, scenes, recordings, packs, MIDI, jams, and getting a song out.'
 
 export const DOCS: DocSection[] = [
     {
@@ -27,12 +27,22 @@ export const DOCS: DocSection[] = [
             { file: '/docs/roll.webp', width: 980, height: 327, alt: 'A pattern of notes in a piano roll, with its knobs in a row under it.' },
         ],
         html: `<p>The row under the strips adds a pattern: Drums, Bass line, Chords or Melody.</p>
-<p><b>Drums</b> are a grid. Click a step to put a hit there, and click it again to take it away. Press and drag along a row to fill every step you pass, or to empty them when the drag begins on a hit. Hold <kbd>Shift</kbd> and click to make a hit louder. Add a sound adds a row, and a click on a row's name plays that sound. Every row has its own mute, volume, pan and controls at its end. A right click on a sound's name opens what can be done with its whole row: hear it, give it another sound, let it cut itself off when it is hit again, copy and paste the row onto another, fill it on every 2, 4 or 8 steps, clear it, or move it a step left or right.</p>
+<p><b>Drums</b> are a grid. Click a step to put a hit there, and click it again to take it away. Press and drag along a row to fill every step you pass, or to empty them when the drag begins on a hit. Hold <kbd>Shift</kbd> and click to make a hit louder. Add a sound adds a row, and a click on a row's name plays that sound. Every row has its own mute, volume, pan and controls at its end. A right click on a sound's name opens a menu for its row: see Several at once.</p>
 <p>Each hit of a row can be its own. The button with the bars at the end of a row opens it <b>step by step</b>: drag over the bars to give every hit its level, and choose Chance, Repeats, Pan, Pitch, Cutoff or Echo to do the same with those. A hit with a chance plays only some of the times round, and a hit with repeats plays two, three or four times in its step.</p>
 <p><b>Notes</b> are a piano roll. Click an empty cell for a note, or press there and drag to the right to draw one as long as the drag. Drag a note to move it, drag its right edge to make it longer, and double click it to remove it. Higher and Lower show more of the keyboard. Choose a Key and the roll keeps to the notes of that key; with Chords on, one click puts in the whole chord. <b>Level</b> puts a bar under the roll for every step a note starts on: drag over them to make notes louder or quieter.</p>
-<p>To work on several notes or hits at once, hold <kbd>Shift</kbd> and drag a box over them. In a roll <kbd>Shift</kbd> and a click adds a note, and in a grid it is still a louder hit. Drag one of the chosen notes and they all move, and the arrow keys move them too. <kbd>Cmd</kbd> <kbd>C</kbd> copies what is chosen and <kbd>Cmd</kbd> <kbd>V</kbd> puts it into the bar in sight, at the same place in the bar, or into the next bar when the bar in sight is the one it came from. It goes into another pattern of the same kind as well: click in that one first. <kbd>Delete</kbd> takes out what is chosen, <kbd>Cmd</kbd> <kbd>A</kbd> chooses everything and <kbd>Escape</kbd> lets it go.</p>
 <p><b>Length</b> is how many bars the pattern lasts before it comes round again. <b>Steps</b> is how finely a bar is divided: 16 is the usual, 12 and 24 divide each beat in three, for a shuffle or a swing. When a pattern is longer than one bar, <b>Cycle</b> pages through its bars.</p>
 <p>At the right of a strip, M mutes the pattern and S plays it alone. The three dots rename, duplicate and move it, and the cross removes it. Under the grid or the roll are the pattern's knobs, with Volume and Pan first.</p>`,
+    },
+    {
+        id: 'several',
+        title: 'Several at once',
+        pictures: [
+            { file: '/docs/select.webp', width: 980, height: 367, alt: 'A piano roll with a box drawn over four notes while Shift is held, to choose them.' },
+            { file: '/docs/menu.webp', width: 760, height: 427, alt: 'The menu of a sound in a drum grid, in two columns: hear, step by step, mute, replace with, cut itself, remove; cut, copy, paste, fill each 2, 4 or 8 steps, clear, rotate left and right.' },
+        ],
+        html: `<p>Hold <kbd>Shift</kbd> and drag a box over notes in a roll, or over steps in a grid, to choose them. In a roll <kbd>Shift</kbd> and a click adds a note; in a grid it is still a louder hit. Drag one of the chosen notes and they all move, and the arrow keys move them too.</p>
+<p><kbd>Cmd</kbd> <kbd>C</kbd> copies what is chosen, <kbd>Cmd</kbd> <kbd>X</kbd> cuts it, and <kbd>Cmd</kbd> <kbd>V</kbd> puts it into the bar in sight, at the same place in the bar. When the bar in sight is the one it came from, it goes into the next bar, so copying a bar and pasting it fills the bar after it. It goes into another pattern of the same kind as well: click in that one first. <kbd>Delete</kbd> takes out what is chosen, <kbd>Cmd</kbd> <kbd>A</kbd> chooses everything and <kbd>Escape</kbd> lets it go.</p>
+<p>A right click on the name of a sound in a drum grid opens what can be done with its whole row: hear it, give it another sound, let it cut itself off when it is hit again, copy it and paste it onto another row, fill it on every 2, 4 or 8 steps, clear it, or move it a step left or right.</p>`,
     },
     {
         id: 'sounds',
