@@ -29,10 +29,11 @@ import { withoutLead } from '../library/shrink'
 import { turnWhenDue } from '../library/turn'
 import { startTake, whyNot, type NoTake, type Take } from '../library/recorder'
 import { fitPreset, isOfPack, PACK_FILE, packIdFor, packOf, packSoundName, readPackFile, readPacks, writePackFile, writePacks, type PackFile, type PackInfo, type PackPreset } from '../library/packs'
-import { clockMidi, listMidiOutputs, silenceMidi } from '../library/midi'
+import { clockMidi, followMidiClock, listMidiOutputs, silenceMidi } from '../library/midi'
+import { followClock } from '../library/clockIn'
 import { DRUM_CHANNEL, readMidiFile, writeMidiFile, type MidiNote, type MidiSong, type MidiTrack } from '../library/midifile'
 import { songFromMidi } from '../song/fromMidi'
-import { keepChoice, readChoice, type ClockTo, type SoundChoice } from '../library/soundDevices'
+import { keepChoice, readChoice, type ClockTo, type FollowFrom, type SoundChoice } from '../library/soundDevices'
 import { ownSoundStore, soundNameFor, type OwnSound } from '../library/sounds'
 import { readKey, writeKey, type Key } from '../song/scales'
 import { gradeOf, readAudio, RING_SECONDS, sizeOf, type AudioOptions, type Format } from '../library/audio'
@@ -219,6 +220,7 @@ import {
     stale,
     startBar,
     unfolded,
+    setClockTempo,
 } from '../stores/song'
 
 // Where the one song was kept before there could be several. It is read once, to become the
@@ -2504,6 +2506,69 @@ createRoot(() =>
         if (said === clocked) return
         clockMidi(to.kind === 'named' ? to.name : null, tempo, clocked === null ? CLOCK_AHEAD : 0)
         clocked = said
+    }),
+)
+
+// ---- a MIDI clock the song follows, from a drum machine or a program that leads. Its start,
+// its going on and its stop start, go on and stop the song, and the song keeps the clock's tempo
+// and its place: it is pushed a little faster or slower towards where the clock is, and is put
+// there when it is more than two beats off. The song's own tempo is not changed, and comes back
+// when the clock stops. Not in a jam, where the other's song leads.
+export const chooseFollow = (follow: FollowFrom) => keepSoundChoice({ ...soundChoice(), follow })
+
+const NUDGE = 0.2
+const MOST = 0.04
+const LOST = 2
+let clockFrom = 0
+
+const following = () => soundChoice().follow.kind !== 'off' && jamStage() !== 'jamming' && !stale()
+const takeClockTempo = (bpm: number, faster = 0) => {
+    const perBar = meterNow().quarters
+    engine.followTempo((bpm / (60 * perBar)) * (1 + faster))
+    setClockTempo(Math.round(bpm * 10) / 10)
+}
+const letClockGo = () => {
+    engine.followTempo(null)
+    setClockTempo(null)
+}
+
+export const clockHeard = followClock({
+    start(quarters, bpm) {
+        if (!following()) return
+        clockFrom = playMode() === 'live' ? 0 : (loopBars()?.from ?? 0)
+        if (bpm !== null) takeClockTempo(bpm)
+        engine.playAt(clockFrom + quarters / meterNow().quarters)
+    },
+    stop() {
+        if (!following()) return
+        engine.pause()
+        letClockGo()
+    },
+    beat(bpm, quarters) {
+        if (!following() || !engineState().playing) return
+        const perBar = meterNow().quarters
+        const wanted = clockFrom + quarters / perBar
+        let off = wanted - engine.now()
+        const loop = playMode() === 'song' ? loopBars() : null
+        if (loop) {
+            const length = loop.to - loop.from
+            off = ((((off + length / 2) % length) + length) % length) - length / 2
+        }
+        const beats = off * perBar
+        if (Math.abs(beats) > LOST) {
+            takeClockTempo(bpm)
+            engine.playAt(wanted)
+            return
+        }
+        takeClockTempo(bpm, Math.max(-MOST, Math.min(MOST, beats * NUDGE)))
+    },
+})
+
+createRoot(() =>
+    createEffect(() => {
+        const from = soundChoice().follow
+        followMidiClock(from)
+        if (from.kind === 'off') letClockGo()
     }),
 )
 

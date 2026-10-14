@@ -70,7 +70,7 @@ export const [startOpen, setStartOpen] = createSignal(false)
 export const [closingSong, setClosingSong] = createSignal(false)
 // The sound settings: whether their window is open, and what was chosen in them.
 export const [soundOpen, setSoundOpen] = createSignal(false)
-export const [soundChoice, setSoundChoice] = createSignal<SoundChoice>({ input: null, output: null, outputName: null, clock: { kind: 'off' } })
+export const [soundChoice, setSoundChoice] = createSignal<SoundChoice>({ input: null, output: null, outputName: null, clock: { kind: 'off' }, follow: { kind: 'off' } })
 // Whether the open song is one that is only played while all of it is music code.
 export const [songGuarded, setSongGuarded] = createSignal(false)
 // The key each pattern's piano roll keeps to, by the pattern's name.
@@ -82,6 +82,8 @@ export const [pianoOctave, setPianoOctave] = createSignal(3)
 export const [pianoWrites, setPianoWrites] = createSignal(true)
 // The MIDI keyboards that are plugged in, by name. Null while the app is not listening for any.
 export const [midiKeyboards, setMidiKeyboards] = createSignal<string[] | null>(null)
+// The tempo of a MIDI clock the song follows while that clock runs, in quarter notes a minute.
+export const [clockTempo, setClockTempo] = createSignal<number | null>(null)
 // For the patterns that have versions, which one is in sight. The first when nothing is said.
 export const [shownVariants, setShownVariants] = createSignal<Record<string, number>>({})
 // The scene that was chosen while the song plays and waits for the next bar to begin.

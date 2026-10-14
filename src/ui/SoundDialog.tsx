@@ -1,7 +1,7 @@
 import { createResource, createSignal, onCleanup, onMount, Show, For } from 'solid-js'
 import { chooseInput, chooseOutput, closeSoundSettings, testOutput } from '../app/controller'
 import { askForNames, listInputs, listOutputs, outputRoute } from '../library/soundDevices'
-import { chooseClock, midiOutputs } from '../app/controller'
+import { chooseClock, chooseFollow, midiOutputs } from '../app/controller'
 import { bindings, forgetKnob, knobName, learnKnobs } from '../app/knobs'
 import { hearKeyboards } from '../app/piano'
 import { canHearMidi, canSendClock } from '../library/midi'
@@ -30,6 +30,10 @@ function Settings() {
     const clockNames = () => {
         const chosen = soundChoice().clock
         return [...new Set([...(clockOutputs() ?? []), ...(chosen.kind === 'named' ? [chosen.name] : [])])]
+    }
+    const followNames = () => {
+        const chosen = soundChoice().follow
+        return [...new Set([...(midiKeyboards() ?? []), ...(chosen.kind === 'named' ? [chosen.name] : [])])]
     }
 
     const escape = (event: KeyboardEvent) => {
@@ -141,6 +145,25 @@ function Settings() {
                         </select>
                     </label>
                     <p class="sd-t">The tempo of the song as a MIDI clock, with its start and its stop, for a drum machine or a synth that follows one.</p>
+                </Show>
+                <Show when={canHearMidi()}>
+                    <label class="sd-r">
+                        <span>Follow</span>
+                        <select
+                            class="sd-s"
+                            aria-label="Whose MIDI clock the song follows"
+                            value={soundChoice().follow.kind === 'named' ? `from:${(soundChoice().follow as { name: string }).name}` : soundChoice().follow.kind}
+                            onChange={(event) => {
+                                const chosen = event.currentTarget.value
+                                chooseFollow(chosen === 'off' ? { kind: 'off' } : chosen === 'any' ? { kind: 'any' } : { kind: 'named', name: chosen.slice(5) })
+                            }}
+                        >
+                            <option value="off">Nothing: the song keeps its own tempo</option>
+                            <option value="any">Any MIDI clock that comes in</option>
+                            <For each={followNames()}>{(name) => <option value={`from:${name}`}>The clock of {name}</option>}</For>
+                        </select>
+                    </label>
+                    <p class="sd-t">The song starts, stops and keeps the tempo of a drum machine or a program that sends a MIDI clock. Its own tempo comes back when that clock stops. Not in a jam.</p>
                 </Show>
                 <Show when={canHearMidi()}>
                     <div class="sd-r">

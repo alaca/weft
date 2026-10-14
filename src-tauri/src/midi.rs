@@ -31,23 +31,78 @@ fn names() -> Vec<String> {
     }
 }
 
+// Whose clock the song follows: nobody's, any that comes in, or that of one keyboard by name.
+#[derive(Clone, PartialEq, Debug)]
+pub enum Following {
+    Nobody,
+    Any,
+    Named(String),
+}
+
+static FOLLOWED: Mutex<Following> = Mutex::new(Following::Nobody);
+
+// The words of a clock: where the song is, a tick, start, go on, stop.
+fn is_clock(status: u8) -> bool {
+    matches!(status, 0xf2 | 0xf8 | 0xfa | 0xfb | 0xfc)
+}
+
+// What of a message from the keyboard of that name goes on to the window. A word of a clock goes
+// only from the keyboard that is followed, with the moment it came in, in millionths of a
+// second, put after it: the window could only tell the moment it got it, which is far less
+// even. Time code and the long messages are of no use here.
+fn passed(bytes: &[u8], stamp: u64, from: &str, followed: &Following) -> Option<Vec<u8>> {
+    let status = *bytes.first()?;
+    if status == 0xf1 || status == 0xf0 {
+        return None;
+    }
+    if !is_clock(status) {
+        return Some(bytes.to_vec());
+    }
+    let follows = match followed {
+        Following::Nobody => false,
+        Following::Any => true,
+        Following::Named(name) => name == from,
+    };
+    if !follows {
+        return None;
+    }
+    let mut said = bytes.to_vec();
+    said.extend_from_slice(&stamp.to_le_bytes());
+    Some(said)
+}
+
 fn listen(name: &str, to: Channel<InvokeResponseBody>) -> Option<MidiInputConnection<()>> {
     let mut input = MidiInput::new(NAME).ok()?;
-    // The clock, the "still here" and the long messages of a keyboard are of no use here, and
-    // a clock sends many a second.
-    input.ignore(Ignore::All);
+    // A clock is heard, for a song that follows one; the "still here" of a keyboard is not.
+    input.ignore(Ignore::SysexAndActiveSense);
     let ports = input.ports();
     let port = ports.iter().find(|port| input.port_name(port).ok().as_deref() == Some(name))?;
+    let from = name.to_string();
     input
         .connect(
             port,
             "weft-loom-in",
-            move |_, bytes, _| {
-                let _ = to.send(InvokeResponseBody::Raw(bytes.to_vec()));
+            move |stamp, bytes, _| {
+                let followed = FOLLOWED.lock().map(|followed| followed.clone()).unwrap_or(Following::Nobody);
+                if let Some(said) = passed(bytes, stamp, &from, &followed) {
+                    let _ = to.send(InvokeResponseBody::Raw(said));
+                }
             },
             (),
         )
         .ok()
+}
+
+// Whose clock the song follows from now on: any keyboard's, the one of that name, or nobody's.
+#[tauri::command]
+pub fn midi_follow(port: Option<String>, any: bool) -> Result<(), String> {
+    let mut followed = FOLLOWED.lock().map_err(|_| "the clock is busy")?;
+    *followed = match (any, port) {
+        (true, _) => Following::Any,
+        (false, Some(name)) => Following::Named(name),
+        (false, None) => Following::Nobody,
+    };
+    Ok(())
 }
 
 // The keyboards that are plugged in now, by name.
@@ -381,6 +436,19 @@ mod tests {
         assert_eq!(clock.first(), Some(&0xfa));
         assert_eq!(clock.last(), Some(&0xfc));
         assert!((23..=26).contains(&ticks), "{ticks} ticks");
+    }
+
+    // A keyboard's notes always go on; its clock only when it is followed, with the moment after it.
+    #[test]
+    fn passes_on_a_clock_only_from_the_keyboard_that_is_followed() {
+        use super::{passed, Following};
+        let named = Following::Named("Drum machine".into());
+        assert_eq!(passed(&[0x90, 60, 100], 5, "Keys", &Following::Nobody), Some(vec![0x90, 60, 100]));
+        assert_eq!(passed(&[0xf8], 5, "Drum machine", &Following::Nobody), None);
+        assert_eq!(passed(&[0xf8], 5, "Keys", &named), None);
+        assert_eq!(passed(&[0xfa], 0x0102, "Drum machine", &named), Some(vec![0xfa, 2, 1, 0, 0, 0, 0, 0, 0]));
+        assert_eq!(passed(&[0xf2, 8, 1], 7, "Keys", &Following::Any), Some(vec![0xf2, 8, 1, 7, 0, 0, 0, 0, 0, 0, 0]));
+        assert_eq!(passed(&[0xf1, 3], 7, "Keys", &Following::Any), None);
     }
 
     #[test]

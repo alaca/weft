@@ -28,7 +28,7 @@ import { DEMO } from '../demo/demo'
 import { METERS } from '../song/meter'
 import { SITE } from '../site/api'
 import { me } from '../stores/account'
-import { beat, bpm, countBeat, currentSong, cycle, engineState, meter, mixerOpen, playMode, song, songNote, songShown, soundsOpen, stale, startOpen, viewMode, waveShown, type PlayMode, type ViewMode } from '../stores/song'
+import { beat, bpm, clockTempo, countBeat, currentSong, cycle, engineState, meter, mixerOpen, playMode, song, songNote, songShown, soundsOpen, stale, startOpen, viewMode, waveShown, type PlayMode, type ViewMode } from '../stores/song'
 import { jamListed, jamming, jamPeer, jamsOpen, jamUnread } from '../stores/jam'
 import { MOD } from './keys'
 import { ClickMenu } from './ClickMenu'
@@ -172,9 +172,17 @@ export function TopBar() {
                         max="300"
                         step="1"
                         aria-label="Tempo in beats per minute"
-                        title={song().tempoLocked ? 'The tempo is worked out by code. Change it there.' : tempoNow() !== null ? 'The tempo is drawn over the song, bar by bar. Change it in the Tempo lane of the Song panel.' : 'Tempo in beats per minute'}
-                        value={Math.round(tempoNow() ?? song().tempo?.bpm ?? bpm())}
-                        disabled={stale() || song().tempoLocked || tempoNow() !== null}
+                        title={
+                            clockTempo() !== null
+                                ? 'The song follows a MIDI clock. Its own tempo comes back when that clock stops.'
+                                : song().tempoLocked
+                                  ? 'The tempo is worked out by code. Change it there.'
+                                  : tempoNow() !== null
+                                    ? 'The tempo is drawn over the song, bar by bar. Change it in the Tempo lane of the Song panel.'
+                                    : 'Tempo in beats per minute'
+                        }
+                        value={Math.round(clockTempo() ?? tempoNow() ?? song().tempo?.bpm ?? bpm())}
+                        disabled={stale() || song().tempoLocked || tempoNow() !== null || clockTempo() !== null}
                         onChange={(event) => {
                             setTempo(Number(event.currentTarget.value), keyHeld)
                             keyHeld = false
@@ -184,7 +192,7 @@ export function TopBar() {
                             if (event.key === 'Enter') event.currentTarget.blur()
                         }}
                     />
-                    <span class="cap">Tempo</span>
+                    <span class="cap">{clockTempo() !== null ? 'Clock' : 'Tempo'}</span>
                 </div>
                 <div class="ro">
                     <select

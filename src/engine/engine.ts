@@ -130,6 +130,9 @@ export interface Engine {
     // The tempo of every bar, in bars a second, where the tempo changes along the song. A list
     // shorter than the song goes round. Null when the song has one tempo.
     setTempoLane(barsPerSecond: number[] | null): void
+    // The tempo of a clock the song follows, in bars a second, in place of its own; null gives
+    // the song its own back.
+    followTempo(barsPerSecond: number | null): void
     // How many quarter notes the song's bar holds: the tempo counts those.
     setQuarters(quarters: number): void
     // How many beats the song's bar is counted in: the metronome clicks that many.
@@ -525,7 +528,7 @@ export function createEngine(): Engine {
             // The tempo of every bar goes along with the first pattern of the song, as a
             // pattern of its own that makes no sound, moved and sent round as the others are.
             // Live, the bars are not followed, and neither is their tempo.
-            if (!tempoPut && tempoLane && !liveMode) {
+            if (!tempoPut && tempoLane && !liveMode && followed === null) {
                 tempoPut = true
                 const tempos = slowcat(...tempoLane.map((cps) => pure({ cps, [TEMPO]: true })))
                 original.call(afterCount(loop ? tempos.ribbon(loop.from, loop.to - loop.from).early(offset) : offset ? tempos.early(offset) : tempos), '$')
@@ -957,6 +960,7 @@ export function createEngine(): Engine {
     const TEMPO = '__weftTempo'
     let quarters = 4
     let tempoLane: number[] | null = null
+    let followed: number | null = null
     const isTempo = (hap: any): boolean => Boolean(hap?.value && typeof hap.value === 'object' && hap.value[TEMPO])
     const tempoOfBar = (bar: number, usual: number): number => (tempoLane ? tempoLane[((Math.floor(bar) % tempoLane.length) + tempoLane.length) % tempoLane.length] : usual)
 
@@ -1025,7 +1029,8 @@ export function createEngine(): Engine {
                 // The code sets the tempo of the song every time it is evaluated. Where each
                 // bar has its own, the bar the song is in gets it back at once.
                 // A song that has just started is a moment before its first bar, which is still that bar.
-                if (tempoLane && !liveMode) mirror.repl.scheduler.setCps(tempoOfBar(Math.max(0, mirror.repl.scheduler.started || state.paused ? engine.now() : startingAt()), mirror.repl.scheduler.cps))
+                if (followed !== null) mirror.repl.scheduler.setCps(followed)
+                else if (tempoLane && !liveMode) mirror.repl.scheduler.setCps(tempoOfBar(Math.max(0, mirror.repl.scheduler.started || state.paused ? engine.now() : startingAt()), mirror.repl.scheduler.cps))
                 setState({ error: null, dirty: false })
                 announce()
             },
@@ -1683,6 +1688,12 @@ export function createEngine(): Engine {
         },
         setTempoLane(barsPerSecond) {
             tempoLane = barsPerSecond?.length ? barsPerSecond : null
+        },
+        followTempo(barsPerSecond) {
+            const was = followed
+            followed = barsPerSecond
+            if (barsPerSecond !== null) mirror?.repl.scheduler.setCps(barsPerSecond)
+            else if (was !== null && state.playing) replay()
         },
         setOutput(wanted) {
             chosenOutput = wanted

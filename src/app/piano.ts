@@ -5,7 +5,7 @@ import { canHearMidi, drumFor, hearMidi, readKey } from '../library/midi'
 import { readKit } from '../song/kit'
 import { levelOfForce } from '../song/notes'
 import { bpm, midiKeyboards, patternKeys, pianoFor, pianoOctave, pianoWrites, selected, setMidiKeyboards, setPianoFor, setPianoOctave, song, stale } from '../stores/song'
-import { gridPlace, holdNote, letNoteGo, previewSound, putHit, putNote, resizeNoteTo, rollPlace } from './controller'
+import { clockHeard, gridPlace, holdNote, letNoteGo, previewSound, putHit, putNote, resizeNoteTo, rollPlace } from './controller'
 import { knobHeard } from './knobs'
 
 // A pattern of notes played from the computer's keyboard. The two rows of letters are the keys
@@ -132,7 +132,7 @@ let listening: Promise<boolean> | null = null
 
 export function hearKeyboards(): Promise<boolean> {
     if (DEMO || !canHearMidi()) return Promise.resolve(false)
-    listening ??= hearMidi({ message: midiHeard, keyboards: setMidiKeyboards })
+    listening ??= hearMidi({ message: midiHeard, keyboards: setMidiKeyboards, clock: clockHeard })
         .then(() => {
             if (midiKeyboards() === null) setMidiKeyboards([])
             return true

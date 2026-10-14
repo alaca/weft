@@ -1,3 +1,6 @@
+import { isClockByte, readClockWord, type ClockWord } from './clockIn'
+import type { FollowFrom } from './soundDevices'
+
 // MIDI keyboards. In the desktop app the app itself listens to them, because the window of a
 // Mac has no way to reach one. In a browser the window's own way is used where there is one.
 // Every keyboard that is plugged in is heard, the ones that come later too.
@@ -6,19 +9,33 @@ export type MidiHeard = {
     message(bytes: Uint8Array): void
     // The keyboards that are plugged in, by name, whenever that changes.
     keyboards(names: string[]): void
+    // A word of the clock that is followed.
+    clock?(word: ClockWord): void
 }
+
+// Whose clock is followed. The desktop app only hands on the clock of that one; a browser is
+// handed every keyboard's and leaves out the others.
+let following: FollowFrom = { kind: 'off' }
 
 const inDesktop = () => '__TAURI_INTERNALS__' in window
 
 async function appMidi(on: MidiHeard): Promise<() => void> {
     const { invoke, Channel } = await import('@tauri-apps/api/core')
     const heard = new Channel<ArrayBuffer | string[]>()
-    heard.onmessage = (said) => (said instanceof ArrayBuffer ? on.message(new Uint8Array(said)) : Array.isArray(said) ? on.keyboards(said.filter((name) => typeof name === 'string')) : undefined)
+    heard.onmessage = (said) => {
+        if (Array.isArray(said)) return on.keyboards(said.filter((name) => typeof name === 'string'))
+        if (!(said instanceof ArrayBuffer)) return
+        const bytes = new Uint8Array(said)
+        if (!isClockByte(bytes[0])) return on.message(bytes)
+        const word = readClockWord(bytes)
+        if (word) on.clock?.(word)
+    }
     await invoke('midi_listen', { onMessage: heard })
+    await invoke('midi_follow', followed())
     return () => void invoke('midi_stop').catch(() => undefined)
 }
 
-type WebInput = { name: string | null; state: string; onmidimessage: ((event: { data: Uint8Array | null }) => void) | null }
+type WebInput = { name: string | null; state: string; onmidimessage: ((event: { data: Uint8Array | null; timeStamp: number }) => void) | null }
 type WebOutput = { name: string | null; state: string; send(bytes: number[], at?: number): void }
 type WebAccess = { inputs: { values(): Iterable<WebInput> }; outputs?: { values(): Iterable<WebOutput> }; onstatechange: (() => void) | null }
 
@@ -36,7 +53,16 @@ async function windowMidi(on: MidiHeard): Promise<() => void> {
     const access = await windowAccess()
     const bind = () => {
         const there = [...access.inputs.values()].filter((input) => input.state !== 'disconnected')
-        for (const input of there) input.onmidimessage = (event) => event.data && on.message(event.data)
+        for (const input of there)
+            input.onmidimessage = (event) => {
+                const bytes = event.data
+                if (!bytes?.length) return
+                if (!isClockByte(bytes[0])) return on.message(bytes)
+                const name = input.name ?? 'MIDI keyboard'
+                if (following.kind === 'off' || (following.kind === 'named' && following.name !== name)) return
+                const word = readClockWord(bytes, event.timeStamp)
+                if (word) on.clock?.(word)
+            }
         on.keyboards(there.map((input) => input.name ?? 'MIDI keyboard'))
     }
     access.onstatechange = bind
@@ -45,6 +71,14 @@ async function windowMidi(on: MidiHeard): Promise<() => void> {
         access.onstatechange = null
         for (const input of access.inputs.values()) input.onmidimessage = null
     }
+}
+
+const followed = () => ({ port: following.kind === 'named' ? following.name : null, any: following.kind === 'any' })
+
+// Whose clock is followed from now on.
+export function followMidiClock(from: FollowFrom) {
+    following = from
+    if (inDesktop()) void import('@tauri-apps/api/core').then(({ invoke }) => invoke('midi_follow', followed())).catch(() => undefined)
 }
 
 // Whether this window can hear a MIDI keyboard at all.

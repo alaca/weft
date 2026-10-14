@@ -7,15 +7,24 @@ import { keeping } from './kept'
 // `clock` is where the tempo of the song is sent as a MIDI clock: nowhere when it is off, the
 // first output there is, or the output of a name.
 export type ClockTo = { kind: 'off' } | { kind: 'first' } | { kind: 'named'; name: string }
-export type SoundChoice = { input: string | null; output: string | null; outputName: string | null; clock: ClockTo }
+// `follow` is whose MIDI clock the song follows: nobody's, any that comes in, or the one of a
+// keyboard or a program of that name.
+export type FollowFrom = { kind: 'off' } | { kind: 'any' } | { kind: 'named'; name: string }
+export type SoundChoice = { input: string | null; output: string | null; outputName: string | null; clock: ClockTo; follow: FollowFrom }
 export type SoundDevice = { id: string; name: string }
 
 const KEY = 'weft.sound'
-const NONE: SoundChoice = { input: null, output: null, outputName: null, clock: { kind: 'off' } }
+const NONE: SoundChoice = { input: null, output: null, outputName: null, clock: { kind: 'off' }, follow: { kind: 'off' } }
 
 function readClock(kept: unknown): ClockTo {
     const said = kept as { kind?: unknown; name?: unknown } | null
     if (said?.kind === 'first') return { kind: 'first' }
+    const name = said?.kind === 'named' ? text(said.name) : null
+    return name ? { kind: 'named', name } : { kind: 'off' }
+}
+function readFollow(kept: unknown): FollowFrom {
+    const said = kept as { kind?: unknown; name?: unknown } | null
+    if (said?.kind === 'any') return { kind: 'any' }
     const name = said?.kind === 'named' ? text(said.name) : null
     return name ? { kind: 'named', name } : { kind: 'off' }
 }
@@ -25,7 +34,7 @@ const text = (value: unknown): string | null => (typeof value === 'string' && va
 export function readChoice(): SoundChoice {
     try {
         const kept = JSON.parse(keeping.getItem(KEY) ?? '{}') as Partial<SoundChoice> | null
-        return { input: text(kept?.input), output: text(kept?.output), outputName: text(kept?.outputName), clock: readClock(kept?.clock) }
+        return { input: text(kept?.input), output: text(kept?.output), outputName: text(kept?.outputName), clock: readClock(kept?.clock), follow: readFollow(kept?.follow) }
     } catch {
         return NONE
     }

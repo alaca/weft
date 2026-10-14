@@ -199,3 +199,56 @@ test('the notes of a song are saved as a MIDI file, and a MIDI file is opened as
     expect(opened).toMatch(/lead: note\(`\n\s+c3\s+_\s+_\s+_\s+e3\s+_\s+_\s+_\s+g3\s+_\s+_\s+_\s+c4\s+_\s+_\s+_\s+~/)
     await expect(page.getByTestId('strip-lead')).toBeVisible()
 })
+
+test('the song follows the MIDI clock of a drum machine: it starts with it, keeps its tempo and its place, and stops with it', async ({ page }) => {
+    await page.addInitScript((value) => {
+        localStorage.setItem('weft.song', value)
+        // A drum machine that is plugged in and sends a clock, as the window would be told of one.
+        const input: { name: string; state: string; onmidimessage: ((event: { data: Uint8Array; timeStamp: number }) => void) | null } = { name: 'Test drum machine', state: 'connected', onmidimessage: null }
+        const send = (bytes: number[]) => input.onmidimessage?.({ data: new Uint8Array(bytes), timeStamp: performance.now() })
+        // Twenty-four ticks to the quarter note at 90, from the moment it is plugged in. How many
+        // have been sent since the word to start says where the drum machine is.
+        const gap = 60000 / (90 * 24)
+        const clock = { since: -1, send }
+        let next = performance.now()
+        const tick = () => {
+            send([0xf8])
+            if (clock.since >= 0) clock.since++
+            next += gap
+            setTimeout(tick, Math.max(0, next - performance.now()))
+        }
+        tick()
+        ;(window as any).__clock = clock
+        ;(navigator as any).requestMIDIAccess = async () => ({ inputs: new Map([['one', input]]), onstatechange: null })
+    }, SONG)
+    await page.goto('/')
+    await page.waitForFunction(() => Boolean((window as any).__weft))
+    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
+
+    await page.getByRole('button', { name: 'Mixer', exact: true }).click()
+    await page.getByTestId('mixer').getByRole('button', { name: 'Devices', exact: true }).click()
+    await page.getByRole('combobox', { name: 'Whose MIDI clock the song follows' }).selectOption({ label: 'The clock of Test drum machine' })
+    await page.keyboard.press('Escape')
+
+    await page.evaluate(() => {
+        const clock = (window as any).__clock
+        clock.send([0xfa])
+        clock.since = 0
+    })
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('tempo')).toHaveValue('90')
+    await expect(page.locator('.ro .cap').first()).toHaveText('Clock')
+
+    // Two seconds in, the song is where the drum machine is, to within a sixteenth note.
+    await page.waitForTimeout(2000)
+    const apart = await page.evaluate(() => {
+        const quarters = (window as any).__clock.since / 24
+        return Math.abs((window as any).__weft.engine.now() * 4 - quarters)
+    })
+    expect(apart).toBeLessThan(0.25)
+
+    await page.evaluate(() => (window as any).__clock.send([0xfc]))
+    await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible()
+    await expect(page.getByTestId('tempo')).toHaveValue('120')
+    await expect(page.locator('.ro .cap').first()).toHaveText('Tempo')
+})
