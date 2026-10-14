@@ -192,7 +192,7 @@ test('the notes of a song are saved as a MIDI file, and a MIDI file is opened as
 
     // The same file opened: a new song with a drum grid and a piano roll.
     await page.getByTestId('song-file').setInputFiles({ name: 'From elsewhere.mid', mimeType: 'audio/midi', buffer: bytes })
-    await expect(page.getByTestId('song-note')).toHaveText('Opened From elsewhere from a MIDI file: 2 patterns of 2 bars.')
+    await expect(page.getByTestId('song-note')).toHaveText('Opened From elsewhere from a MIDI file: 2 patterns, 2 bars long.')
     const opened = await code(page)
     expect(opened).toContain('setcpm(120/4)')
     expect(opened).toMatch(/drums: stack\(\n\s+s\("bd"\)\.struct\("x ~ ~ ~   x ~ ~ ~/)

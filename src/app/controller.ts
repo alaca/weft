@@ -3513,7 +3513,7 @@ async function openMidiFile(file: File): Promise<boolean> {
     if (!keepNew(record)) return false
     show(record)
     setSongNote(
-        `Opened ${record.name} from a MIDI file: ${made.patterns} ${made.patterns === 1 ? 'pattern' : 'patterns'} of ${made.bars} ${made.bars === 1 ? 'bar' : 'bars'}.${made.cut ? ` The file is longer than that: its first ${made.bars} bars were taken.` : ''}`,
+        `Opened ${record.name} from a MIDI file: ${made.patterns} ${made.patterns === 1 ? 'pattern' : 'patterns'}, ${made.bars} ${made.bars === 1 ? 'bar' : 'bars'} long.${made.cut ? ` The file is longer than that: its first ${made.bars} bars were taken.` : ''}`,
     )
     return true
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DRUM_CHANNEL, readMidiFile, writeMidiFile, type MidiSong } from '../../src/library/midifile'
 import { analyze } from '../../src/song/analyze'
-import { songFromMidi } from '../../src/song/fromMidi'
+import { LONGEST, songFromMidi } from '../../src/song/fromMidi'
 import { readKit } from '../../src/song/kit'
 import { readNotes } from '../../src/song/notes'
 
@@ -100,11 +100,29 @@ describe('a song made from a MIDI file', () => {
         expect(readNotes(analyze(made.code).patterns[0])!.grid.notes.every((note) => note.level === undefined)).toBe(true)
     })
 
-    it('takes the first eight bars of a longer file, and says that it did', () => {
+    it('of a longer file has a pattern for each part of eight bars, one that comes again being the same, each playing in its bars', () => {
         const long = song()
         long.tracks[0].notes.push({ tick: BAR * 20, length: 480, note: 72, force: 100 })
+        // The drums of the first bar again in bar nine: the second part is the first one again.
+        long.tracks[1].notes.push(...long.tracks[1].notes.map((note) => ({ ...note, tick: note.tick + BAR * 8 })))
         const made = songFromMidi(long)!
-        expect([made.bars, made.cut]).toEqual([8, true])
+        expect([made.bars, made.cut, made.patterns]).toEqual([21, false, 3])
+        const read = analyze(made.code)
+        expect(read.error).toBeNull()
+        expect(read.patterns.map((block) => block.id)).toEqual(['lead', 'lead2', 'drums'])
+        expect(made.code).toContain('.mask("<1!8 0!13>")')
+        expect(made.code).toContain('.mask("<0!16 1!5>")')
+        expect(made.code).toContain('.mask("<1!16 0!5>")')
+        // The last part is a pattern of eight bars too, the note of its fifth bar where it was.
+        const last = readNotes(read.patterns[1])!
+        expect([last.grid.cycles, last.grid.notes]).toEqual([8, [{ start: 64, length: 4, midi: 72 }]])
+    })
+
+    it(`takes the first ${LONGEST} bars of a file longer than that, and says that it did`, () => {
+        const long = song()
+        long.tracks[0].notes.push({ tick: BAR * 300, length: 480, note: 72, force: 100 })
+        const made = songFromMidi(long)!
+        expect([made.bars, made.cut]).toEqual([LONGEST, true])
     })
 
     it('is not made from a file with no notes', () => {
