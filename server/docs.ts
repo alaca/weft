@@ -4,7 +4,7 @@
 export type DocPicture = { file: string; width: number; height: number; alt: string }
 export type DocSection = { id: string; title: string; pictures: DocPicture[]; html: string }
 
-export const DOCS_ABOUT = 'How Weft Loom works, one thing at a time: patterns, sounds, the song, tempo and time, chords, knobs over the song, versions, scenes, recordings, packs, jams, and getting a song out.'
+export const DOCS_ABOUT = 'How Weft Loom works, one thing at a time: patterns, sounds, the song, tempo and time, chords, knobs over the song, versions, scenes, recordings, packs, MIDI, jams, and getting a song out.'
 
 export const DOCS: DocSection[] = [
     {
@@ -28,7 +28,7 @@ export const DOCS: DocSection[] = [
         html: `<p>The row under the strips adds a pattern: Drums, Bass line, Chords or Melody.</p>
 <p><b>Drums</b> are a grid. Click a step to put a hit there, and click it again to take it away. Press and drag along a row to fill every step you pass, or to empty them when the drag begins on a hit. Hold <kbd>Shift</kbd> and click to make a hit louder. Add a sound adds a row, and a click on a row's name plays that sound. Every row has its own mute, volume, pan and controls at its end.</p>
 <p>Each hit of a row can be its own. The button with the bars at the end of a row opens it <b>step by step</b>: drag over the bars to give every hit its level, and choose Chance, Repeats, Pan, Pitch, Cutoff or Echo to do the same with those. A hit with a chance plays only some of the times round, and a hit with repeats plays two, three or four times in its step.</p>
-<p><b>Notes</b> are a piano roll. Click an empty cell for a note, or press there and drag to the right to draw one as long as the drag. Drag a note to move it, drag its right edge to make it longer, and double click it to remove it. Higher and Lower show more of the keyboard. Choose a Key and the roll keeps to the notes of that key; with Chords on, one click puts in the whole chord.</p>
+<p><b>Notes</b> are a piano roll. Click an empty cell for a note, or press there and drag to the right to draw one as long as the drag. Drag a note to move it, drag its right edge to make it longer, and double click it to remove it. Higher and Lower show more of the keyboard. Choose a Key and the roll keeps to the notes of that key; with Chords on, one click puts in the whole chord. <b>Level</b> puts a bar under the roll for every step a note starts on: drag over them to make notes louder or quieter.</p>
 <p><b>Length</b> is how many bars the pattern lasts before it comes round again. <b>Steps</b> is how finely a bar is divided: 16 is the usual, 12 and 24 divide each beat in three, for a shuffle or a swing. When a pattern is longer than one bar, <b>Cycle</b> pages through its bars.</p>
 <p>At the right of a strip, M mutes the pattern and S plays it alone. The three dots rename, duplicate and move it, and the cross removes it. Under the grid or the roll are the pattern's knobs, with Volume and Pan first.</p>`,
     },
@@ -101,7 +101,21 @@ export const DOCS: DocSection[] = [
         pictures: [{ file: '/docs/keys.webp', width: 980, height: 351, alt: 'A piano roll with Keys and Write switched on, and a line that says which keys of the computer keyboard are the keys of the piano.' }],
         html: `<p>On a piano roll press <b>Keys</b>. The computer's keyboard is now a piano for that pattern: <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>J</kbd> <kbd>K</kbd> are the white keys, <kbd>W</kbd> <kbd>E</kbd> <kbd>T</kbd> <kbd>Y</kbd> <kbd>U</kbd> the black ones between them, and <kbd>Z</kbd> and <kbd>X</kbd> go an octave down and up.</p>
 <p>With <b>Write</b> on, what you play while the song plays is written into the roll, where you played it and for as long as you held the key. With it off you only hear it.</p>
+<p>On a drum grid, Keys makes <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> and the letters after them its sounds, from the top row down, and Write puts a hit on the step the song is at.</p>
 <p>Typing in the code or in a box is still typing.</p>`,
+    },
+    {
+        id: 'midi',
+        title: 'MIDI',
+        pictures: [
+            { file: '/docs/level.webp', width: 980, height: 460, alt: 'A piano roll with Keys on and, under it, the level of every note as a bar: low for the notes played softly, high for the ones played hard.' },
+            { file: '/docs/played.webp', width: 620, height: 80, alt: 'The foot of a pattern\'s sound controls: Played by a synth plugged in over MIDI, on channel 1.' },
+        ],
+        html: `<p>Plug in a MIDI keyboard or pad and it plays at once: the pattern you are on, the notes of a piano roll or the sounds of a drum grid, where the pads go by the drum numbers every machine agrees on. A key sounds for as long as you hold it, and as loud as you pressed it. The sound settings, Devices at the top of the mixer, name the keyboards that are plugged in.</p>
+<p>With Keys and Write on, what you play while the song plays is written in, and every note keeps how hard its key was pressed. <b>Level</b> under the roll shows it, and quieter notes are paler. Drag over the bars to change them, and double click one to put it back. Notes that start together share one level.</p>
+<p>A pattern can be played by a synth or another music program instead of Weft Loom. Open its sound controls and choose the synth under <b>Played by</b>, and a channel beside it. Each note goes out as hard as its level says, times the pattern's volume.</p>
+<p>In the sound settings, <b>Clock</b> sends the tempo of the song to a drum machine or a synth that follows one, with its start and its stop. <b>Learn the knobs of a controller</b> lets a knob or a fader of yours turn a knob of the app: press the knob in the app, then turn yours. It turns that knob in every song that has the same pattern and the same knob.</p>
+<p>Export has <b>MIDI (.mid)</b>: a track for every pattern of notes or drums, to open in another music program. Open a File takes a MIDI file and makes a song of it, a piano roll for each instrument and a drum grid for the drums, of up to eight bars.</p>`,
     },
     {
         id: 'own',
@@ -150,7 +164,7 @@ export const DOCS: DocSection[] = [
     {
         id: 'devices',
         title: 'Microphone and output',
-        pictures: [{ file: '/docs/devices.webp', width: 460, height: 302, alt: 'The sound settings: a list to choose the microphone from, a list to choose the output from, and a button that plays a short note.' }],
+        pictures: [{ file: '/docs/devices.webp', width: 460, height: 500, alt: 'The sound settings: a list to choose the microphone from, a list to choose the output from, and a button that plays a short note.' }],
         html: `<p>Weft Loom records from the microphone the system uses and plays through the system's output, until you choose otherwise. Press <b>Devices</b> at the top of the mixer, or choose Sound Settings in the File menu.</p>
 <p><b>Microphone</b> is what a take and your voice in a jam are made with. <b>Output</b> is what the song is played through, and Test plays a short note there. If the list of outputs is empty, press Show the outputs: a window is only told what it could play through once it may use the microphone. Nothing is recorded.</p>
 <p>Both go back to the system's own when what you chose is unplugged.</p>`,
@@ -169,7 +183,7 @@ export const DOCS: DocSection[] = [
         title: 'Saving, exporting, publishing',
         pictures: [{ file: '/docs/export.webp', width: 460, height: 306, alt: 'The export window: the song or each pattern, WAV or MP3, a quality, and buttons for a song file, the code and the audio.' }],
         html: `<p>Weft Loom keeps your songs itself and writes every change down as you make it, so quitting the app loses nothing. <kbd>Cmd</kbd> <kbd>S</kbd> saves a version you can go back to from the song's menu. Closing a song that has changes asks whether to save them: Close without saving takes it back to the version that was saved.</p>
-<p><b>Export</b> makes files. A song file (.weft) is the whole song with your own sounds inside, to open in Weft Loom on another machine or to send to someone. Code (.js) is the code alone. Export audio makes a WAV or an MP3 of the song. With Each pattern chosen it makes a zip with a file for every pattern, all the same length, to mix in another audio program.</p>
+<p><b>Export</b> makes files. A song file (.weft) is the whole song with your own sounds inside, to open in Weft Loom on another machine or to send to someone. Code (.js) is the code alone. MIDI (.mid) is the notes alone, for another music program. Export audio makes a WAV or an MP3 of the song. With Each pattern chosen it makes a zip with a file for every pattern, all the same length, to mix in another audio program.</p>
 <p><b>Publish</b> puts a song among the <a href="/songs">songs on this site</a>, where anyone can listen to half a minute of it, download it and open it in Weft Loom. It needs an account, made in the same window with an email and a password. An account holds ten songs of up to 1 MB each, and Weft Loom makes your own sounds smaller where it has to.</p>
 <p>A song from someone else is code. Weft Loom plays it only if it is music code and nothing more. If it holds anything else, it says which line and asks first.</p>`,
     },
