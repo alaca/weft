@@ -100,6 +100,9 @@ test('nobody is heard until they press for it, and then the other hears them', a
     await expect(me(mara)).toHaveAttribute('data-mic', 'off')
     await expect(them(ante)).toHaveAttribute('data-sound', 'no')
     expect(await micsLeftOn(mara)).toBe(0)
+    // Their voice is played by an audio element: what a window plays that way is what it takes
+    // out of its own microphone, so it does not go back to them as an echo.
+    await expect.poll(() => mara.evaluate(() => [...document.querySelectorAll('audio')].some((ear) => ear.srcObject && !ear.paused && !ear.muted))).toBe(true)
 })
 
 test('a microphone that is switched off is let go of, and the other no longer hears it', async ({ browser }) => {

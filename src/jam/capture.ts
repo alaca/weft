@@ -1,9 +1,11 @@
 import { TakeRefused, whyNot } from '../library/recorder'
 
-// Your voice for a call, as a stream the call can send. In a browser the window's own way of
-// reaching a microphone is used, with the machine's tidying up of a voice switched on. In the
-// desktop app the app itself listens, as it does for a take, and hands what it hears to the
-// window a little at a time; here that is laid end to end into a stream.
+// Your voice for a call, as a stream the call can send. The window's own way of reaching a
+// microphone is used, with the machine's tidying up of a voice switched on: it takes the other
+// person's voice out of what the microphone hears of the speakers, which would otherwise go
+// back to them as an echo. Where the desktop app's window gives no microphone, the app itself
+// listens, as it does for a take, and hands what it hears to the window a little at a time;
+// here that is laid end to end into a stream. That way has no such tidying up.
 export type Captured = { stream: MediaStream; stop(): void }
 
 const LEAD = 0.06
@@ -76,12 +78,33 @@ export async function captureCamera(): Promise<Captured> {
     return { stream, stop: () => stream.getTracks().forEach((track) => track.stop()) }
 }
 
+const TIDY = { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+const ask = (device: string | null) => navigator.mediaDevices.getUserMedia({ audio: { ...(device ? { deviceId: { ideal: device } } : {}), ...TIDY } })
+const letGo = (stream: MediaStream) => stream.getTracks().forEach((track) => track.stop())
+
+// The desktop app knows a microphone by its name, and the window by a number of its own, which
+// it only shows once it has been let to use one. So the system's is asked for first, and the
+// chosen one by the number the window gives that name, when it is another.
+async function windowVoice(named: string | null): Promise<MediaStream> {
+    const first = await ask(null)
+    if (!named || first.getAudioTracks()[0]?.label === named) return first
+    const found = (await navigator.mediaDevices.enumerateDevices()).find((device) => device.kind === 'audioinput' && device.label === named)
+    const chosen = found ? await ask(found.deviceId).catch(() => null) : null
+    if (!chosen) return first
+    letGo(first)
+    return chosen
+}
+
 // `input` is the microphone chosen in the sound settings, as for a take.
 export async function captureVoice(input: string | null = null): Promise<Captured> {
-    if (inDesktop()) return appVoice(input)
-    if (!navigator.mediaDevices?.getUserMedia) throw new TakeRefused('unreachable', 'no way to reach a microphone in this window')
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { ...(input ? { deviceId: { ideal: input } } : {}), echoCancellation: true, noiseSuppression: true, autoGainControl: true } }).catch((err) => {
+    const reachable = Boolean(navigator.mediaDevices?.getUserMedia)
+    if (inDesktop()) {
+        const stream = reachable ? await windowVoice(input).catch(() => null) : null
+        return stream ? { stream, stop: () => letGo(stream) } : appVoice(input)
+    }
+    if (!reachable) throw new TakeRefused('unreachable', 'no way to reach a microphone in this window')
+    const stream = await ask(input).catch((err) => {
         throw whyNot(err)
     })
-    return { stream, stop: () => stream.getTracks().forEach((track) => track.stop()) }
+    return { stream, stop: () => letGo(stream) }
 }

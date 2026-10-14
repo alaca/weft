@@ -57,12 +57,15 @@ export function primeVoice() {
 export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
     if (typeof RTCPeerConnection === 'undefined') return null
     const peer = new RTCPeerConnection({ iceServers: helpers ?? builtWith() })
-    // Their voice is played through the same thing that measures it. Some browsers only let a
-    // voice from a call flow at all while an audio element holds it, so one does, in silence.
+    // Their voice is played by an audio element, the way a call is played in every window: a
+    // window takes out of its microphone only what it plays that way, so a voice played any
+    // other way goes back to the other person as an echo. Where the window does not let the
+    // element make sound before a click, the voice is played through the clock that measures
+    // it, until the click.
     const ear = document.createElement('audio')
-    ear.muted = true
     ear.hidden = true
     document.body.appendChild(ear)
+    void playThrough(ear, readChoice().output)
     let context: AudioContext | null = ready && ready.state !== 'closed' ? ready : null
     ready = null
     let mine: AnalyserNode | null = null
@@ -79,27 +82,43 @@ export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
 
     // A window is only let to make sound, or to measure it, after a click or a key. The jam
     // starts when the other person joins, which is neither, so both are tried again at the next.
+    let aloud: AudioNode | null = null
+    const hear = () => {
+        ear.muted = false
+        void ear
+            .play()
+            .then(() => {
+                aloud?.disconnect()
+                aloud = null
+            })
+            .catch(() => {
+                ear.muted = true
+                void ear.play().catch(() => undefined)
+                if (!ear.srcObject || aloud || !context) return
+                aloud = context.createGain()
+                aloud.connect(context.destination)
+                context.createMediaStreamSource(ear.srcObject as MediaStream).connect(aloud)
+            })
+    }
     const wake = () => {
         if (context && context.state !== 'running') void context.resume().catch(() => undefined)
-        if (ear.srcObject && ear.paused) void ear.play().catch(() => undefined)
+        if (ear.srcObject && (ear.paused || ear.muted)) hear()
     }
     const GESTURES = ['pointerdown', 'click', 'keydown'] as const
     for (const gesture of GESTURES) window.addEventListener(gesture, wake, true)
 
-    const listen = (stream: MediaStream, aloud: boolean): AnalyserNode | null => {
+    const listen = (stream: MediaStream): AnalyserNode | null => {
         try {
             if (!context) {
                 context = new AudioContext()
                 // Where a window's clock can be told what to play through, their voice comes out
-                // where the song does.
+                // where the song does, also when it is played through the clock.
                 void playThrough(context, readChoice().output)
             }
             const meter = context.createAnalyser()
             meter.fftSize = 512
-            const source = context.createMediaStreamSource(stream)
-            source.connect(meter)
-            if (aloud) source.connect(context.destination)
-            wake()
+            context.createMediaStreamSource(stream).connect(meter)
+            if (context.state !== 'running') void context.resume().catch(() => undefined)
             return meter
         } catch {
             return null
@@ -123,8 +142,8 @@ export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
         if (event.track.kind === 'video') return on.picture(new MediaStream([event.track]))
         const stream = new MediaStream([event.track])
         ear.srcObject = stream
-        void ear.play().catch(() => undefined)
-        theirs = listen(stream, true)
+        theirs = listen(stream)
+        hear()
     }
 
     const settle = async () => {
@@ -178,7 +197,7 @@ export function openVoice(host: boolean, on: VoiceEvents): Voice | null {
         async speak(stream) {
             if (closed) return
             voiced = stream?.getAudioTracks()[0] ?? null
-            mine = stream ? listen(stream, false) : null
+            mine = stream ? listen(stream) : null
             await sender?.replaceTrack(voiced)
         },
         async show(stream) {
