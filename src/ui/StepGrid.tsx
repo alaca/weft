@@ -42,6 +42,8 @@ export function StepGrid(props: {
     // A box drawn with Shift held chooses steps. A Shift click is still a louder hit.
     chosen?: Chosen | null
     onChoose?: (chosen: Chosen | null) => void
+    // A right click on a sound's name: what can be done with its row.
+    onMenu?: (sound: string, x: number, y: number) => void
 }) {
     const count = () => props.rows[0]?.steps.length ?? 16
     const beat = () => beatOf(count())
@@ -169,7 +171,15 @@ export function StepGrid(props: {
             <Index each={props.rows}>
                 {(row, index) => (
                     <>
-                        <span class="rh" classList={{ off: row().muted }}>
+                        <span
+                            class="rh"
+                            classList={{ off: row().muted }}
+                            onContextMenu={(event) => {
+                                if (!props.onMenu) return
+                                event.preventDefault()
+                                props.onMenu(row().name, event.clientX, event.clientY)
+                            }}
+                        >
                             <Show when={props.onHear} fallback={<span class="rn">{row().name}</span>}>
                                 <button class="rn" aria-label={`Hear ${row().name}`} title={row().name} onClick={() => props.onHear?.(row().name)}>
                                     {row().name}

@@ -122,3 +122,14 @@ export function clearHits(rows: GridRow[], cells: Cell[]): GridRow[] | null {
     }
     return changed ? next : null
 }
+
+// What was copied put onto one row in place of its hits, over the whole pattern: the copied row
+// of the same sound, or else the first one, and again every so many bars until the pattern ends.
+export function pasteRow(rows: GridRow[], clip: Extract<Clip, { kind: 'hits' }>, sound: string, steps: number, perCycle: number): GridRow[] | null {
+    const copied = clip.rows.find((row) => row.sound === sound) ?? clip.rows[0]
+    if (!copied || !rows.some((row) => row.sound === sound)) return null
+    let next = clearHits(rows, rows.find((row) => row.sound === sound)!.steps.map((_, step) => ({ sound, step }))) ?? copyRows(rows)
+    const one = { ...clip, rows: [{ ...copied, sound }] }
+    for (let bar = 0; bar * perCycle < steps; bar += clip.bars) next = pasteHits(next, one, bar, steps, perCycle)?.rows ?? next
+    return next
+}

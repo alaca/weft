@@ -117,6 +117,43 @@ export function paintSteps(rows: GridRow[], sound: string, from: number, to: num
     return changed ? next : null
 }
 
+// One row with a hit every so many steps over the whole pattern, and nothing else, as music
+// programs fill a row. Null when it already is.
+export function fillRow(rows: GridRow[], sound: string, every: number): GridRow[] | null {
+    const next = copy(rows)
+    const row = next.find((candidate) => candidate.sound === sound)
+    if (!row) return null
+    const filled = row.steps.map((_, at) => at % every === 0)
+    if (filled.every((on, at) => on === row.steps[at])) return null
+    row.steps.forEach((on, at) => {
+        if (on && !filled[at]) clear(row, at)
+    })
+    row.steps = filled
+    return next
+}
+
+// One row with every hit taken out. Null when it has none.
+export function clearRow(rows: GridRow[], sound: string): GridRow[] | null {
+    const next = copy(rows)
+    const row = next.find((candidate) => candidate.sound === sound)
+    if (!row?.steps.some(Boolean)) return null
+    row.steps.forEach((_, at) => clear(row, at))
+    row.steps = row.steps.map(() => false)
+    return next
+}
+
+// One row moved a step earlier or later over the whole pattern, with what each hit has of its
+// own; what falls off one end comes in at the other.
+export function rotateRow(rows: GridRow[], sound: string, by: number): GridRow[] | null {
+    const at = rows.findIndex((candidate) => candidate.sound === sound)
+    if (at < 0 || !rows[at].steps.some(Boolean)) return null
+    const next = copy(rows)
+    const length = next[at].steps.length
+    const turn = (((-by % length) + length) % length) as number
+    next[at] = mapped(next[at], (list) => [...list.slice(turn), ...list.slice(0, turn)])
+    return next
+}
+
 // A louder hit, or an ordinary one again. On an empty step it puts a louder hit in.
 export function toggleAccent(rows: GridRow[], sound: string, step: number, length: number): GridRow[] {
     const next = copy(rows)

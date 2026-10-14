@@ -89,6 +89,14 @@ kbd { font: 500 9.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); b
 .ck-m svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .ck-d { position: absolute; right: 4px; top: 4px; width: 5px; height: 5px; border-radius: 50%; }
 .ck-d.on { background: var(--saffron); }
+/* The menu of a sound in a drum grid: two columns, as music programs have it. */
+.menu.rw { position: fixed; width: 360px; align-items: start; }
+.rw-c { display: grid; gap: 2px; }
+.rw-list { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; max-height: 340px; overflow-y: auto; }
+.rw-list > button:first-child, .rw-list > hr { grid-column: 1 / -1; }
+.rw hr { border: 0; border-top: 1px solid var(--seam); margin: 4px 6px; }
+.rw button:disabled { opacity: 0.4; cursor: default; }
+.rw-more { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .menu.single.ck-dm { left: 0; right: auto; top: 34px; width: 250px; z-index: 30; }
 .ck-dm p { margin: 4px 8px 6px; color: var(--linen-3); font-size: 11px; line-height: 1.45; }
 .ck-x { width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1.5px var(--linen-3); flex: none; }

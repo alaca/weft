@@ -12,6 +12,7 @@ import { hearKeyboards } from '../app/piano'
 import { gridNotes, meter, midiKeyboards, openPanel, pianoFor, pianoWrites, setPianoFor, setPianoWrites, stale } from '../stores/song'
 import { GridFooter } from './GridFooter'
 import { Knob } from './Knob'
+import { RowMenu } from './RowMenu'
 import { StepGrid, type Chosen, type ShownLane, type StepRow } from './StepGrid'
 
 const NO_CONTROLS: PatternBlock = { id: '', label: '', muted: false, labelFrom: 0, labelTo: 0, from: 0, to: 0, lineFrom: 0, lineTo: 0, soundName: null, calls: [] }
@@ -141,6 +142,8 @@ export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement
         }
     })
 
+    // The menu of one sound, from a right click on its name.
+    const [rowMenu, setRowMenu] = createSignal<{ sound: string; x: number; y: number } | null>(null)
     // Steps chosen together, in the bar they were chosen in. They are shown while that bar is.
     const [chosen, setChosen] = createSignal<(Chosen & { bar: number }) | null>(null)
     const chosenHere = () => {
@@ -218,6 +221,7 @@ export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement
                     onHear={(sound) => previewSound(props.id, sound)}
                     onRemove={canEdit() ? (sound) => removeGridRow(props.id, sound) : undefined}
                     lane={lane()}
+                    onMenu={canEdit() ? (sound, x, y) => setRowMenu({ sound, x, y }) : undefined}
                     chosen={chosenHere()}
                     onChoose={canEdit() ? (box) => setChosen(box ? { ...box, bar: shown() } : null) : undefined}
                     controls={
@@ -235,6 +239,22 @@ export function Rack(props: { id: string; block: PatternBlock; head: HTMLElement
                             : undefined
                     }
                 />
+                <Show when={rowMenu()}>
+                    {(open) => (
+                        <RowMenu
+                            id={props.id}
+                            sound={open().sound}
+                            x={open().x}
+                            y={open().y}
+                            used={rows().map((row) => row.name)}
+                            block={kit()?.rows.find((row) => row.sound === open().sound)?.block}
+                            muted={mutedRows().includes(open().sound)}
+                            stepped={stepped()?.sound === open().sound}
+                            onSteps={() => setStepped(stepped()?.sound === open().sound ? null : { sound: open().sound, what: stepped()?.what ?? 'level' })}
+                            onClose={() => setRowMenu(null)}
+                        />
+                    )}
+                </Show>
             </Show>
             <Show when={canEdit()}>
                 <GridFooter

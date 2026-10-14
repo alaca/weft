@@ -49,6 +49,9 @@ import {
     paintSteps as paintGridSteps,
     readGrid,
     removeRow,
+    clearRow as clearGridRow,
+    fillRow as fillGridRow,
+    rotateRow as rotateGridRow,
     resample,
     resize,
     setSteps,
@@ -83,7 +86,7 @@ import {
     type NoteRef,
     type NoteSource,
 } from '../song/notes'
-import { clearHits, copyHits, copyNotes, noteKey, pasteHits, pasteNotes, type Cell, type Clip } from '../song/clip'
+import { clearHits, copyHits, copyNotes, noteKey, pasteHits, pasteNotes, pasteRow as pasteGridRow, type Cell, type Clip } from '../song/clip'
 import {
     appendPattern,
     duplicateEdit,
@@ -1604,6 +1607,49 @@ export function toggleRowMute(id: string, sound: string) {
 
 export function removeGridRow(id: string, sound: string) {
     changeDrums(id, (drums) => (drums.rows.some((row) => row.sound === sound) ? { rows: removeRow(drums.rows, sound), cycles: drums.cycles } : null))
+}
+
+// What the menu of a sound does with its row: over the whole pattern, as music programs do it.
+export const rowClip = (id: string, sound: string): Clip | null => {
+    const drums = drumsOf(id)
+    return drums ? copyHits(drums.rows, Array.from({ length: drums.steps }, (_, step) => ({ sound, step })), drums.perCycle, id) : null
+}
+
+export function pasteRowAt(id: string, sound: string, clip: Clip) {
+    if (clip.kind !== 'hits') return
+    changeDrums(id, (drums) => {
+        const rows = pasteGridRow(drums.rows, clip, sound, drums.steps, drums.perCycle)
+        return rows ? { rows, cycles: drums.cycles } : null
+    })
+}
+
+export const fillRow = (id: string, sound: string, every: number) =>
+    changeDrums(id, (drums) => {
+        const rows = fillGridRow(drums.rows, sound, every)
+        return rows ? { rows, cycles: drums.cycles } : null
+    })
+
+export const clearRow = (id: string, sound: string) =>
+    changeDrums(id, (drums) => {
+        const rows = clearGridRow(drums.rows, sound)
+        return rows ? { rows, cycles: drums.cycles } : null
+    })
+
+export const rotateRow = (id: string, sound: string, by: number) =>
+    changeDrums(id, (drums) => {
+        const rows = rotateGridRow(drums.rows, sound, by)
+        return rows ? { rows, cycles: drums.cycles } : null
+    })
+
+// Another sound for a row, which keeps its hits and whatever else is written on it.
+export function replaceRowSound(id: string, sound: string, to: string) {
+    if (stale() || drumsOf(id)?.rows.some((row) => row.sound === to)) return
+    const block = forEdit(rowTarget(id, sound))
+    const arg = block?.calls[0]?.args[0]
+    if (!arg || arg.kind !== 'string') return
+    engine.applyEdit({ from: arg.from, to: arg.to, insert: JSON.stringify(to) })
+    replay()
+    previewSound(id, to)
 }
 
 export function setLength(id: string, cycles: number) {
