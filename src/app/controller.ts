@@ -40,6 +40,7 @@ import { readKey, writeKey, type Key } from '../song/scales'
 import { gradeOf, readAudio, RING_SECONDS, sizeOf, type AudioOptions, type Format } from '../library/audio'
 import { encodeMp3 } from '../library/mp3'
 import { encodeWav, encodeWavInTurns, fileName, levelFor, peakOf, soundingLength } from '../library/wav'
+import { madeLoud } from '../library/loudness'
 import { ZIP_LIMIT, zipWriter } from '../library/zip'
 import { analyze } from '../song/analyze'
 import { arrangeEdit, arrangeSong, barsOf, readArrangement, removeEdits, repeatEdits, songLength, spaceEdits } from '../song/arrange'
@@ -3572,15 +3573,19 @@ export async function exportAudio(options: AudioOptions) {
         const length = soundingLength(made.channels, made.sampleRate, whole)
         const peak = peakOf(made.channels, length)
         if (!peak) return void setExportNote('Nothing sounds in this song, so there is no audio to save.')
-        const level = levelFor(peak)
+        if (options.loud) setExportNote('Making it as loud as music on streaming sites.')
+        const loud = options.loud ? madeLoud(made.channels, made.sampleRate, length) : null
+        const channels = loud?.channels ?? made.channels
+        const level = loud ? 1 : levelFor(peak)
         const bytes = grade.kbps
-            ? await encodeMp3(made.channels, made.sampleRate, grade.kbps, { length, level }, (done) => setExportNote(`Writing the MP3, ${percent(done)}.`))
-            : encodeWav(made.channels, made.sampleRate, { length, level, depth: grade.depth })
+            ? await encodeMp3(channels, made.sampleRate, grade.kbps, { length, level }, (done) => setExportNote(`Writing the MP3, ${percent(done)}.`))
+            : encodeWav(channels, made.sampleRate, { length, level, depth: grade.depth })
         setExportNote('Choose where to save it.')
         const saved = await saveFile(name, bytes, kind).catch((err) => String((err as Error)?.message ?? err))
         if (typeof saved === 'string') return void setExportNote(`The audio was made, but the file could not be saved: ${saved}`)
         const missing = made.missed ? ` ${made.missed} ${made.missed === 1 ? 'sound' : 'sounds'} could not be loaded and ${made.missed === 1 ? 'is' : 'are'} missing from it.` : ''
-        setExportNote(told(saved, name) + (saved.saved ? missing : ''))
+        const loudness = loud ? ` It is at ${Math.round(loud.lufs)} LUFS${loud.short ? ': louder, it would have been squeezed flat' : ''}.` : ''
+        setExportNote(told(saved, name) + (saved.saved ? loudness + missing : ''))
     } catch (err) {
         setExportNote(`The audio file could not be made: ${String((err as Error)?.message ?? err)}`)
     } finally {

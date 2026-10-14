@@ -9,9 +9,9 @@ describe('readAudio', () => {
     })
 
     it('keeps the choices that are on offer and drops the rest', () => {
-        expect(readAudio(JSON.stringify({ format: 'mp3', quality: 'highest' }))).toEqual({ format: 'mp3', quality: 'highest' })
-        expect(readAudio(JSON.stringify({ format: 'ogg', quality: 'high' }))).toEqual({ format: 'wav', quality: 'high' })
-        expect(readAudio(JSON.stringify({ format: 'mp3', quality: 9 }))).toEqual({ format: 'mp3', quality: 'standard' })
+        expect(readAudio(JSON.stringify({ format: 'mp3', quality: 'highest', loud: true }))).toEqual({ format: 'mp3', quality: 'highest', loud: true })
+        expect(readAudio(JSON.stringify({ format: 'ogg', quality: 'high' }))).toEqual({ format: 'wav', quality: 'high', loud: false })
+        expect(readAudio(JSON.stringify({ format: 'mp3', quality: 9, loud: 'yes' }))).toEqual({ format: 'mp3', quality: 'standard', loud: false })
     })
 })
 

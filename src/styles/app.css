@@ -612,6 +612,8 @@ svg.mini rect { fill: var(--h); }
 .xp-s { color: var(--linen-3); font-size: 11.5px; line-height: 1.45; margin-left: 86px; }
 .xp-n { min-height: 17px; margin-top: 4px; color: var(--linen); font-size: 11.5px; line-height: 1.45; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
 .xp-f { display: flex; align-items: center; gap: 8px; }
+/* Export has three more ways to save beside its two buttons, which need the room. */
+.xp.xp-x { width: 512px; }
 .xp .btn:disabled, .xp .ib:disabled, .xp .seg button:disabled { opacity: 0.45; cursor: default; }
 .xp.tr { width: 540px; }
 .tr-w { width: 100%; height: 120px; border-radius: 8px; background: var(--vat); box-shadow: inset 0 0 0 1px var(--seam-soft); cursor: ew-resize; touch-action: none; }

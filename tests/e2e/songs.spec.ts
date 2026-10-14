@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
+import { loudnessOf } from '../../src/library/loudness'
 
 const SONG = 'setcpm(120/4)\n\nbass: note("c2 e2")\n  .s("sawtooth")\n'
 const NEW = 'setcpm(120/4)\n'
@@ -248,6 +249,22 @@ test('a song can be exported as audio, from its first bar to its last, and plays
         return sum / count / 32767
     }
     expect(low(0, 0.1)).toBeGreaterThan(low(3, 3.1) * 1.3)
+
+    // For streaming, the same song is as loud as music is played there, and the note says how loud.
+    await page.getByRole('group', { name: 'Loudness' }).getByRole('button', { name: 'For streaming', exact: true }).click()
+    await expect(page.getByTestId('export-size')).toContainText('As loud as music on streaming sites, about -14 LUFS.')
+    const [streaming] = await Promise.all([
+        page.waitForEvent('download', { timeout: 60000 }),
+        page.getByTestId('export').getByRole('button', { name: 'Export audio', exact: true }).click(),
+    ])
+    await expect(page.getByTestId('export-note')).toContainText('LUFS')
+    const note = (await page.getByTestId('export-note').textContent()) ?? ''
+    const loud = await readFile(await streaming.path())
+    const channels = [0, 1].map((channel) => Float32Array.from({ length: (loud.length - 44) / 4 }, (_, frame) => loud.readInt16LE(44 + frame * 4 + channel * 2) / 32768))
+    const lufs = loudnessOf(channels, loud.readUInt32LE(24))!
+    expect(Math.abs(lufs - Number(/at (-?\d+) LUFS/.exec(note)![1]))).toBeLessThan(1)
+    if (!note.includes('squeezed')) expect(Math.abs(lufs + 14)).toBeLessThan(1)
+    expect(Math.max(...channels.map((channel) => channel.reduce((most, value) => Math.max(most, Math.abs(value)), 0)))).toBeLessThan(0.9)
 
     await page.keyboard.press('Escape')
     await expect(page.getByTestId('export')).toHaveCount(0)

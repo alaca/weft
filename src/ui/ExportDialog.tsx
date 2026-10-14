@@ -39,7 +39,7 @@ export function ExportDialog() {
                     if (event.target === event.currentTarget && !exporting()) closeExport()
                 }}
             >
-                <div class="xp" role="dialog" aria-modal="true" aria-label={`Export ${currentSong()?.name ?? ''}`} data-testid="export" tabindex="-1" ref={box}>
+                <div class="xp xp-x" role="dialog" aria-modal="true" aria-label={`Export ${currentSong()?.name ?? ''}`} data-testid="export" tabindex="-1" ref={box}>
                     <div class="xp-h">
                         <h2>
                             Export <b>{currentSong()?.name}</b>
@@ -87,12 +87,26 @@ export function ExportDialog() {
                             </For>
                         </div>
                     </div>
+                    <Show when={!apart()}>
+                        <div class="xp-r">
+                            <span class="xp-l">Loudness</span>
+                            <div class="seg" role="group" aria-label="Loudness">
+                                <button classList={{ on: !options().loud }} aria-pressed={!options().loud} disabled={exporting()} title="As loud as the song is, turned down only where it would clip" onClick={() => setOptions({ ...options(), loud: false })}>
+                                    As made
+                                </button>
+                                <button classList={{ on: options().loud }} aria-pressed={options().loud} disabled={exporting()} title="As loud as music on streaming sites, about -14 LUFS, with the peaks a decibel under full level" onClick={() => setOptions({ ...options(), loud: true })}>
+                                    For streaming
+                                </button>
+                            </div>
+                        </div>
+                    </Show>
                     <p class="xp-s" data-testid="export-size">
                         <Show
                             when={apart()}
                             fallback={
                                 <>
                                     {gradeOf(options()).about}. The whole song, {durationText(seconds())}, about {sizeText(sizeOf(options(), seconds() + RING_SECONDS / 2))}.
+                                    {options().loud ? ' As loud as music on streaming sites, about -14 LUFS.' : ''}
                                 </>
                             }
                         >

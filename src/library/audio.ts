@@ -3,12 +3,13 @@ import type { Depth } from './wav'
 // What can be chosen when a song is made into an audio file: the kind of file, and how good.
 export type Format = 'wav' | 'mp3'
 export type Quality = 'standard' | 'high' | 'highest'
-export type AudioOptions = { format: Format; quality: Quality }
+// `loud` makes the song as loud as music on streaming sites, where it would be quieter or louder.
+export type AudioOptions = { format: Format; quality: Quality; loud: boolean }
 export type Grade = { sampleRate: number; depth?: Depth; kbps?: number; about: string }
 
 export const FORMATS: Format[] = ['wav', 'mp3']
 export const QUALITIES: Quality[] = ['standard', 'high', 'highest']
-export const DEFAULT_AUDIO: AudioOptions = { format: 'wav', quality: 'standard' }
+export const DEFAULT_AUDIO: AudioOptions = { format: 'wav', quality: 'standard', loud: false }
 export const CHANNELS = 2
 // How long the last notes and their echo may go on after the last bar.
 export const RING_SECONDS = 4
@@ -26,7 +27,7 @@ export const GRADES: Record<Format, Record<Quality, Grade>> = {
     },
 }
 
-export const gradeOf = (options: AudioOptions): Grade => GRADES[options.format][options.quality]
+export const gradeOf = (options: Pick<AudioOptions, 'format' | 'quality'>): Grade => GRADES[options.format][options.quality]
 
 // What was chosen last time, as it was kept. Anything that is not a choice on offer is dropped.
 export function readAudio(text: string | null): AudioOptions {
@@ -35,6 +36,7 @@ export function readAudio(text: string | null): AudioOptions {
         return {
             format: FORMATS.includes(kept.format as Format) ? (kept.format as Format) : DEFAULT_AUDIO.format,
             quality: QUALITIES.includes(kept.quality as Quality) ? (kept.quality as Quality) : DEFAULT_AUDIO.quality,
+            loud: kept.loud === true,
         }
     } catch {
         return DEFAULT_AUDIO
@@ -42,7 +44,7 @@ export function readAudio(text: string | null): AudioOptions {
 }
 
 // The size of the file for this many seconds of sound.
-export function sizeOf(options: AudioOptions, seconds: number): number {
+export function sizeOf(options: Pick<AudioOptions, 'format' | 'quality'>, seconds: number): number {
     const grade = gradeOf(options)
     if (grade.kbps) return Math.round((seconds * grade.kbps * 1000) / 8)
     return 44 + Math.round(seconds * grade.sampleRate) * CHANNELS * ((grade.depth ?? 16) / 8)
