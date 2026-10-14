@@ -81,6 +81,24 @@ export function followMidiClock(from: FollowFrom) {
     if (inDesktop()) void import('@tauri-apps/api/core').then(({ invoke }) => invoke('midi_follow', followed())).catch(() => undefined)
 }
 
+// The app's own port, which other programs on the machine see as a MIDI device: they can play
+// the app and send it their clock through it, and a pattern can play them. Only the desktop app
+// has one, and not on Windows.
+export const OWN_PORT = 'Weft Loom'
+
+export async function ownMidiPort(): Promise<string | null> {
+    if (!inDesktop()) return null
+    try {
+        const { invoke } = await import('@tauri-apps/api/core')
+        return await invoke<string | null>('midi_own_port')
+    } catch {
+        return null
+    }
+}
+
+// An output as it is named in a list.
+export const outputLabel = (name: string): string => (name === OWN_PORT ? 'other programs (the Weft Loom port)' : name)
+
 // Whether this window can hear a MIDI keyboard at all.
 export const canHearMidi = (): boolean => inDesktop() || typeof (navigator as unknown as { requestMIDIAccess?: unknown }).requestMIDIAccess === 'function'
 

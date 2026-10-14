@@ -10,6 +10,10 @@ use std::time::Duration;
 use tauri::ipc::{Channel, InvokeResponseBody};
 
 const NAME: &str = "Weft Loom";
+// The app's own port, which other programs on this machine see as a MIDI device of that name:
+// what they send to it comes in as a keyboard's notes and clock would, and a pattern can play
+// them through it. Windows has no such ports.
+pub const OWN_PORT: &str = "Weft Loom";
 const LOOK_EVERY: Duration = Duration::from_millis(1500);
 
 pub struct Hearing {
@@ -19,9 +23,10 @@ pub struct Hearing {
 #[derive(Default)]
 pub struct Keyboards(pub Mutex<Option<Hearing>>);
 
-// A port that every Linux machine has and nothing is plugged into.
+// A port that every Linux machine has and nothing is plugged into, and the app's own: Linux names
+// a port after the program that made it, then the port, so every port of this app starts so.
 fn is_keyboard(name: &str) -> bool {
-    !name.starts_with("Midi Through")
+    !name.starts_with("Midi Through") && name != OWN_PORT && !name.starts_with("Weft Loom:")
 }
 
 fn names() -> Vec<String> {
@@ -71,26 +76,47 @@ fn passed(bytes: &[u8], stamp: u64, from: &str, followed: &Following) -> Option<
     Some(said)
 }
 
+// What comes in from the port of that name, handed on as far as it goes on (see `passed`).
+fn handing(from: &str, to: impl Fn(Vec<u8>) + Send + 'static) -> impl FnMut(u64, &[u8], &mut ()) + Send + 'static {
+    let from = from.to_string();
+    move |stamp, bytes, _| {
+        let followed = FOLLOWED.lock().map(|followed| followed.clone()).unwrap_or(Following::Nobody);
+        if let Some(said) = passed(bytes, stamp, &from, &followed) {
+            to(said);
+        }
+    }
+}
+
 fn listen(name: &str, to: Channel<InvokeResponseBody>) -> Option<MidiInputConnection<()>> {
     let mut input = MidiInput::new(NAME).ok()?;
     // A clock is heard, for a song that follows one; the "still here" of a keyboard is not.
     input.ignore(Ignore::SysexAndActiveSense);
     let ports = input.ports();
     let port = ports.iter().find(|port| input.port_name(port).ok().as_deref() == Some(name))?;
-    let from = name.to_string();
-    input
-        .connect(
-            port,
-            "weft-loom-in",
-            move |stamp, bytes, _| {
-                let followed = FOLLOWED.lock().map(|followed| followed.clone()).unwrap_or(Following::Nobody);
-                if let Some(said) = passed(bytes, stamp, &from, &followed) {
-                    let _ = to.send(InvokeResponseBody::Raw(said));
-                }
-            },
-            (),
-        )
-        .ok()
+    let hand = handing(name, move |said| {
+        let _ = to.send(InvokeResponseBody::Raw(said));
+    });
+    input.connect(port, "weft-loom-in", hand, ()).ok()
+}
+
+// The app's own port as other programs send to it.
+#[cfg(unix)]
+fn own_input(name: &str, to: impl Fn(Vec<u8>) + Send + 'static) -> Option<MidiInputConnection<()>> {
+    use midir::os::unix::VirtualInput;
+    let mut input = MidiInput::new(NAME).ok()?;
+    input.ignore(Ignore::SysexAndActiveSense);
+    input.create_virtual(name, handing(OWN_PORT, to), ()).ok()
+}
+
+#[cfg(not(unix))]
+fn own_input(_name: &str, _to: impl Fn(Vec<u8>) + Send + 'static) -> Option<MidiInputConnection<()>> {
+    None
+}
+
+// The name of the app's own port, where the machine has such ports.
+#[tauri::command]
+pub fn midi_own_port() -> Option<String> {
+    cfg!(unix).then(|| OWN_PORT.to_string())
 }
 
 // Whose clock the song follows from now on: any keyboard's, the one of that name, or nobody's.
@@ -113,8 +139,10 @@ pub fn midi_inputs() -> Vec<String> {
 
 // Starts handing the window what the keyboards play: each message as its bytes. Whenever the
 // keyboards that are there change, the window is handed their names, as a list.
+// The app's own port is made then too, both ways, so that other programs see it from the start.
 #[tauri::command(async)]
-pub fn midi_listen(keyboards: tauri::State<Keyboards>, on_message: Channel<InvokeResponseBody>) -> Result<(), String> {
+pub fn midi_listen(keyboards: tauri::State<Keyboards>, outputs: tauri::State<Outputs>, on_message: Channel<InvokeResponseBody>) -> Result<(), String> {
+    start_sending(&mut *outputs.0.lock().map_err(|_| "the outputs are busy")?);
     let mut slot = keyboards.0.lock().map_err(|_| "the keyboards are busy")?;
     if let Some(before) = slot.take() {
         let _ = before.stop.send(());
@@ -122,6 +150,10 @@ pub fn midi_listen(keyboards: tauri::State<Keyboards>, on_message: Channel<Invok
     let (stop, stopped) = channel::<()>();
     std::thread::spawn(move || {
         // A connection cannot be moved between threads on every system, so they live and end here.
+        let to = on_message.clone();
+        let _own = own_input(OWN_PORT, move |said| {
+            let _ = to.send(InvokeResponseBody::Raw(said));
+        });
         let mut open: HashMap<String, MidiInputConnection<()>> = HashMap::new();
         let mut told: Option<Vec<String>> = None;
         loop {
@@ -193,11 +225,28 @@ pub struct Sending {
 #[derive(Default)]
 pub struct Outputs(pub Mutex<Option<Sending>>);
 
+// The app's own port comes first, where the machine has one.
 fn output_names() -> Vec<String> {
-    match MidiOutput::new(NAME) {
+    let mut names: Vec<String> = match MidiOutput::new(NAME) {
         Ok(output) => output.ports().iter().filter_map(|port| output.port_name(port).ok()).filter(|name| is_keyboard(name)).collect(),
         Err(_) => Vec::new(),
+    };
+    if cfg!(unix) {
+        names.insert(0, OWN_PORT.to_string());
     }
+    names
+}
+
+// The app's own port as other programs hear from it.
+#[cfg(unix)]
+fn own_output(name: &str) -> Option<MidiOutputConnection> {
+    use midir::os::unix::VirtualOutput;
+    MidiOutput::new(NAME).ok()?.create_virtual(name).ok()
+}
+
+#[cfg(not(unix))]
+fn own_output(_name: &str) -> Option<MidiOutputConnection> {
+    None
 }
 
 // The output of that name, or the first there is when none is named.
@@ -230,8 +279,11 @@ fn opened(port: Option<String>, open: &mut HashMap<String, MidiOutputConnection>
     Some(name)
 }
 
-fn send_loop(told: std::sync::mpsc::Receiver<Out>) {
+fn send_loop(told: std::sync::mpsc::Receiver<Out>, own: &str) {
     let mut open: HashMap<String, MidiOutputConnection> = HashMap::new();
+    if let Some(connection) = own_output(own) {
+        open.insert(OWN_PORT.to_string(), connection);
+    }
     let mut usual: Option<String> = None;
     let mut due: Vec<(Instant, String, [u8; 3])> = Vec::new();
     let mut sounding: HashSet<(String, u8, u8)> = HashSet::new();
@@ -324,13 +376,17 @@ fn send_loop(told: std::sync::mpsc::Receiver<Out>) {
     }
 }
 
-fn tell(outputs: &tauri::State<Outputs>, said: Out) -> Result<(), String> {
-    let mut slot = outputs.0.lock().map_err(|_| "the outputs are busy")?;
+fn start_sending(slot: &mut Option<Sending>) {
     if slot.is_none() {
         let (tell, told) = channel::<Out>();
-        std::thread::spawn(move || send_loop(told));
+        std::thread::spawn(move || send_loop(told, OWN_PORT));
         *slot = Some(Sending { tell });
     }
+}
+
+fn tell(outputs: &tauri::State<Outputs>, said: Out) -> Result<(), String> {
+    let mut slot = outputs.0.lock().map_err(|_| "the outputs are busy")?;
+    start_sending(&mut slot);
     slot.as_ref().map(|sending| sending.tell.send(said)).transpose().map_err(|_| "the outputs have stopped".to_string())?;
     Ok(())
 }
@@ -407,7 +463,7 @@ mod tests {
         };
         std::thread::sleep(Duration::from_millis(300));
         let (tell, told) = channel::<Out>();
-        std::thread::spawn(move || send_loop(told));
+        std::thread::spawn(move || send_loop(told, "Weft Loom test own port"));
         let port = Some("Weft Loom test synth".to_string());
         let start = Instant::now();
         tell.send(Out::Send { port: port.clone(), at: start + Duration::from_millis(150), bytes: [0x80, 60, 0] }).unwrap();
@@ -452,8 +508,50 @@ mod tests {
     }
 
     #[test]
-    fn leaves_out_the_port_nothing_is_plugged_into() {
+    fn leaves_out_the_port_nothing_is_plugged_into_and_the_apps_own() {
         assert!(!is_keyboard("Midi Through Port-0"));
+        assert!(!is_keyboard("Weft Loom"));
+        assert!(!is_keyboard("Weft Loom:Weft Loom 128:0"));
         assert!(is_keyboard("Keystation 49 MK3"));
+    }
+
+    // Another program finds the app's own port both ways: what the app sends through it arrives,
+    // and what the program sends to it comes in as a keyboard's would.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn its_own_port_is_seen_by_other_programs_both_ways() {
+        use super::{own_input, send_loop, Out, OWN_PORT};
+        use midir::{MidiInput, MidiOutput};
+        use std::sync::mpsc::channel;
+        use std::time::{Duration, Instant};
+
+        let name = "Weft Loom test own port";
+        let (tell, told) = channel::<Out>();
+        std::thread::spawn(move || send_loop(told, name));
+        let (came, come) = channel::<Vec<u8>>();
+        let Some(_own) = own_input(name, move |said| {
+            let _ = came.send(said);
+        }) else {
+            println!("no port could be made on this machine, so nothing was sent");
+            return;
+        };
+        std::thread::sleep(Duration::from_millis(300));
+
+        let (got, gotten) = channel::<Vec<u8>>();
+        let program = MidiInput::new("Another program").unwrap();
+        let ports = program.ports();
+        let port = ports.iter().find(|port| program.port_name(port).ok().as_deref() == Some(name)).expect("the app's port is among the inputs of another program");
+        let _listening = program.connect(port, "in", move |_, bytes, _| {
+            let _ = got.send(bytes.to_vec());
+        }, ()).unwrap();
+        tell.send(Out::Send { port: Some(OWN_PORT.to_string()), at: Instant::now(), bytes: [0x90, 64, 90] }).unwrap();
+        assert_eq!(gotten.recv_timeout(Duration::from_secs(1)).unwrap(), vec![0x90, 64, 90]);
+
+        let sender = MidiOutput::new("Another program").unwrap();
+        let ports = sender.ports();
+        let port = ports.iter().find(|port| sender.port_name(port).ok().as_deref() == Some(name)).expect("the app's port is among the outputs of another program");
+        let mut sending = sender.connect(port, "out").unwrap();
+        sending.send(&[0x91, 60, 100]).unwrap();
+        assert_eq!(come.recv_timeout(Duration::from_secs(1)).unwrap(), vec![0x91, 60, 100]);
     }
 }

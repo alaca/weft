@@ -4,7 +4,7 @@ import { askForNames, listInputs, listOutputs, outputRoute } from '../library/so
 import { chooseClock, chooseFollow, midiOutputs } from '../app/controller'
 import { bindings, forgetKnob, knobName, learnKnobs } from '../app/knobs'
 import { hearKeyboards } from '../app/piano'
-import { canHearMidi, canSendClock } from '../library/midi'
+import { canHearMidi, canSendClock, outputLabel, ownMidiPort, OWN_PORT } from '../library/midi'
 import { midiKeyboards, soundChoice, soundOpen } from '../stores/song'
 
 const SYSTEM = ''
@@ -33,8 +33,9 @@ function Settings() {
     }
     const followNames = () => {
         const chosen = soundChoice().follow
-        return [...new Set([...(midiKeyboards() ?? []), ...(chosen.kind === 'named' ? [chosen.name] : [])])]
+        return [...new Set([...(midiKeyboards() ?? []), ...(chosen.kind === 'named' ? [chosen.name] : [])])].filter((name) => name !== OWN_PORT)
     }
+    const [ownPort] = createResource(ownMidiPort)
 
     const escape = (event: KeyboardEvent) => {
         if (event.key === 'Escape') closeSoundSettings()
@@ -124,6 +125,7 @@ function Settings() {
                 <p class="sd-t">
                     <Show when={canHearMidi()} fallback={<>This window cannot reach a MIDI keyboard. The desktop app can.</>}>
                         A MIDI keyboard or pad is heard as soon as it is plugged in. It plays the pattern you are on: its notes, or the sounds of a drum grid. With Keys on at a piano roll, what you play while the song plays is written into it.
+                        <Show when={ownPort()}> Other programs on this computer see Weft Loom as a MIDI device of that name: they can play it as a keyboard and send it their clock, and a pattern can play them.</Show>
                     </Show>
                 </p>
                 <Show when={canSendClock()}>
@@ -141,7 +143,7 @@ function Settings() {
                         >
                             <option value="off">Not sent</option>
                             <option value="first">To the first MIDI output there is</option>
-                            <For each={clockNames()}>{(name) => <option value={`to:${name}`}>To {name}</option>}</For>
+                            <For each={clockNames()}>{(name) => <option value={`to:${name}`}>To {outputLabel(name)}</option>}</For>
                         </select>
                     </label>
                     <p class="sd-t">The tempo of the song as a MIDI clock, with its start and its stop, for a drum machine or a synth that follows one.</p>
@@ -160,6 +162,9 @@ function Settings() {
                         >
                             <option value="off">Nothing: the song keeps its own tempo</option>
                             <option value="any">Any MIDI clock that comes in</option>
+                            <Show when={ownPort()}>
+                                <option value={`from:${OWN_PORT}`}>The clock other programs send to the Weft Loom port</option>
+                            </Show>
                             <For each={followNames()}>{(name) => <option value={`from:${name}`}>The clock of {name}</option>}</For>
                         </select>
                     </label>

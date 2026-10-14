@@ -26,6 +26,7 @@ import { DEMO } from '../demo/demo'
 import { drumLabel } from '../controls/drums'
 import { envelopeOf, envelopePoints } from '../controls/envelope'
 import { callFor, panelFor } from '../controls/views'
+import { outputLabel } from '../library/midi'
 import { isDrums } from '../song/kit'
 import { isLaid } from '../sounds/apply'
 import type { PatternBlock } from '../song/types'
@@ -268,7 +269,7 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
                     >
                         <option value={HERE}>Weft Loom</option>
                         <option value={FIRST}>MIDI, the first output there is</option>
-                        <For each={named()}>{(name) => <option value={name}>MIDI, {name}</option>}</For>
+                        <For each={named()}>{(name) => <option value={name}>MIDI, {outputLabel(name)}</option>}</For>
                     </select>
                     <Show when={out()}>
                         <span class="cap">Channel</span>

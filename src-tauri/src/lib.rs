@@ -14,7 +14,7 @@ pub fn run() {
         .manage(recorder::Speaker::default())
         .manage(midi::Keyboards::default())
         .manage(midi::Outputs::default())
-        .invoke_handler(tauri::generate_handler![recorder::start_take, recorder::stop_take, recorder::start_voice, recorder::stop_voice, recorder::sound_inputs, midi::midi_inputs, midi::midi_listen, midi::midi_stop, midi::midi_outputs, midi::midi_note, midi::midi_silence, midi::midi_clock, midi::midi_follow])
+        .invoke_handler(tauri::generate_handler![recorder::start_take, recorder::stop_take, recorder::start_voice, recorder::stop_voice, recorder::sound_inputs, midi::midi_inputs, midi::midi_listen, midi::midi_stop, midi::midi_outputs, midi::midi_note, midi::midi_silence, midi::midi_clock, midi::midi_follow, midi::midi_own_port])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
