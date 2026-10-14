@@ -85,7 +85,7 @@ test('the keys that update and silence the song work from anywhere in the window
 
 // WebKit gives back what a worklet node took only when its audio clock is closed, so a song
 // that has made very many gets a new clock a few seconds after it is stopped by a press. The
-// nodes are made here the way hours of a song with crush or distortion leave them.
+// nodes are made here the way hours of a song with a ladder filter leave them.
 test('a song that was stopped after very many effects plays on a new audio clock, with the mixer as it was', async ({ page }) => {
     await page.addInitScript(() => {
         const Clock = window.AudioContext
@@ -112,7 +112,7 @@ test('a song that was stopped after very many effects plays on a new audio clock
     await page.evaluate(async () => {
         const clock = ((window as any).__clocks as AudioContext[])[0]
         for (let at = 0; at < 20500; at++) {
-            const node = new AudioWorkletNode(clock, 'crush-processor')
+            const node = new AudioWorkletNode(clock, 'ladder-processor')
             node.connect(clock.createGain())
             node.disconnect()
             if (at % 500 === 499) await new Promise((done) => setTimeout(done, 20))
@@ -126,6 +126,34 @@ test('a song that was stopped after very many effects plays on a new audio clock
     await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
     await expect.poll(loudest, { timeout: 20_000 }).toBeGreaterThan(0.01)
     expect(await page.evaluate(() => (window as any).__weft.engine.mix())).toMatchObject({ volume: 0.4, pan: -0.5 })
+})
+
+// WebKit keeps every worklet node until its audio clock is closed, so the effect superdough makes
+// for each note is given from one note to the next instead of being made again.
+test('an effect on every note is made only as often as notes sound at once, and is heard on each', async ({ page }) => {
+    await page.addInitScript(() => {
+        localStorage.setItem('weft.song', 'setcpm(240/4)\n\nhats: s("hh*16").distort(2).crush(6).gain(0.4)\n')
+        const made: string[] = []
+        ;(window as any).__made = made
+        const Node = window.AudioWorkletNode
+        window.AudioWorkletNode = new Proxy(Node, {
+            construct(theirs, args: [BaseAudioContext, string, AudioWorkletNodeOptions?], asked) {
+                made.push(args[1])
+                return Reflect.construct(theirs, args, asked)
+            },
+        })
+    })
+    await page.goto('/')
+    await ready(page)
+    const loudest = () => page.evaluate(() => Math.max(...(((window as any).__weft.engine.levels() ?? [0, 0]) as number[])))
+    const made = (name: string) => page.evaluate((wanted) => ((window as any).__made as string[]).filter((one) => one === wanted).length, name)
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect.poll(loudest, { timeout: 20_000 }).toBeGreaterThan(0.01)
+    const from = await now(page)
+    await expect.poll(() => now(page), { timeout: 20_000 }).toBeGreaterThan(from + 4)
+    expect(await loudest()).toBeGreaterThan(0.01)
+    expect(await made('weft-distort')).toBeLessThan(16)
+    expect(await made('weft-crush')).toBeLessThan(16)
 })
 
 // A chord on a ZZFX synth in the first half of each of two bars.

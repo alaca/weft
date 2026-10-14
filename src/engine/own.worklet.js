@@ -1,4 +1,4 @@
-// Three of superdough 1.3.0's processors (worklets.mjs and helpers.mjs, Strudel contributors,
+// Six of superdough 1.3.0's processors (worklets.mjs and helpers.mjs, Strudel contributors,
 // AGPL-3.0-or-later), kept to the same sums so that they give the same samples, and changed only
 // in what costs WebKit dearly.
 //
@@ -11,6 +11,9 @@
 // Crush and distortion take each channel's samples as one array for a whole block, where
 // superdough's look the array up again for every sample. In WebKit that look-up is slow, and a
 // song with many such effects took more than twice as long to make into a file.
+//
+// The four effects and the LFO can be kept: such a one goes on after its note has ended, so that
+// the node can be given to the next note that wants the same (see unplug.ts).
 const blockSize = 128
 const INVSR = 1 / sampleRate
 
@@ -114,16 +117,16 @@ class Crush extends AudioWorkletProcessor {
     static get parameterDescriptors() {
         return [{ name: 'crush', defaultValue: 0 }]
     }
-    constructor() {
+    constructor(options) {
         super()
         this.started = false
+        this.kept = Boolean(options?.processorOptions?.kept)
     }
     process(inputs, outputs, parameters) {
         const input = inputs[0]
         const output = outputs[0]
-        const hasInput = !(input[0] === undefined)
-        if (this.started && !hasInput) return false
-        this.started = hasInput
+        if (input[0] === undefined) return this.kept || !this.started
+        this.started = true
         const x = Math.pow(2, Math.max(1, parameters.crush[0] ?? 8) - 1)
         for (let i = 0; i < input.length; i++) {
             const from = input[i]
@@ -197,14 +200,14 @@ class Distort extends AudioWorkletProcessor {
     constructor({ processorOptions }) {
         super()
         this.started = false
+        this.kept = Boolean(processorOptions.kept)
         this.algorithm = algorithmOf(processorOptions.algorithm)
     }
     process(inputs, outputs, parameters) {
         const input = inputs[0]
         const output = outputs[0]
-        const hasInput = !(input[0] === undefined)
-        if (this.started && !hasInput) return false
-        this.started = hasInput
+        if (input[0] === undefined) return this.kept || !this.started
+        this.started = true
         const algorithm = this.algorithm
         const gains = parameters.postgain
         const drives = parameters.distort
@@ -218,3 +221,157 @@ class Distort extends AudioWorkletProcessor {
 }
 
 registerProcessor('weft-distort', Distort)
+
+class Coarse extends AudioWorkletProcessor {
+    static get parameterDescriptors() {
+        return [{ name: 'coarse', defaultValue: 1 }]
+    }
+    constructor(options) {
+        super()
+        this.started = false
+        this.kept = Boolean(options?.processorOptions?.kept)
+    }
+    process(inputs, outputs, parameters) {
+        const input = inputs[0]
+        const output = outputs[0]
+        if (input[0] === undefined) return this.kept || !this.started
+        this.started = true
+        const coarse = Math.max(1, parameters.coarse[0] ?? 0)
+        for (let i = 0; i < input.length; i++) {
+            const from = input[i]
+            const to = output[i]
+            for (let n = 0; n < blockSize; n++) to[n] = n % coarse === 0 ? from[n] : to[n - 1]
+        }
+        return true
+    }
+}
+
+registerProcessor('weft-coarse', Coarse)
+
+class Shape extends AudioWorkletProcessor {
+    static get parameterDescriptors() {
+        return [
+            { name: 'shape', defaultValue: 0 },
+            { name: 'postgain', defaultValue: 1 },
+        ]
+    }
+    constructor(options) {
+        super()
+        this.started = false
+        this.kept = Boolean(options?.processorOptions?.kept)
+    }
+    process(inputs, outputs, parameters) {
+        const input = inputs[0]
+        const output = outputs[0]
+        if (input[0] === undefined) return this.kept || !this.started
+        this.started = true
+        let shape = parameters.shape[0]
+        shape = shape < 1 ? shape : 1.0 - 4e-10
+        shape = (2.0 * shape) / (1.0 - shape)
+        const postgain = Math.max(0.001, Math.min(1, parameters.postgain[0]))
+        for (let i = 0; i < input.length; i++) {
+            const from = input[i]
+            const to = output[i]
+            for (let n = 0; n < blockSize; n++) to[n] = (((1 + shape) * from[n]) / (1 + shape * Math.abs(from[n]))) * postgain
+        }
+        return true
+    }
+}
+
+registerProcessor('weft-shape', Shape)
+
+const TWO_PI = 2 * Math.PI
+const ffrac = (x) => x - (x | 0)
+
+// In the order superdough has them: a shape is asked for by its place.
+const SHAPES = {
+    tri(phase, skew = 0.5) {
+        const x = 1 - skew
+        if (phase >= skew) return 1 / x - phase / x
+        return phase / skew
+    },
+    sine: (phase) => Math.sin(TWO_PI * phase) * 0.5 + 0.5,
+    ramp: (phase) => phase,
+    saw: (phase) => 1 - phase,
+    square: (phase, skew = 0.5) => (phase >= skew ? 0 : 1),
+    custom(phase, values = [0, 1]) {
+        const numParts = values.length - 1
+        const currPart = Math.floor(phase * numParts)
+        const partLength = 1 / numParts
+        const startVal = clamp(values[currPart], 0, 1)
+        const endVal = clamp(values[currPart + 1], 0, 1)
+        return ((endVal - startVal) / partLength) * (phase - partLength * currPart) + startVal
+    },
+    sawblep: (phase, dt) => 2 * phase - 1 - polyBlep(phase, dt),
+}
+const SHAPE_NAMES = Object.keys(SHAPES)
+
+const silence = (output) => {
+    for (const channel of output) channel.fill(0)
+}
+
+// A kept LFO sees that it has been given its next note by the note's new beginning, and starts
+// its wave afresh.
+class Lfo extends AudioWorkletProcessor {
+    static get parameterDescriptors() {
+        return [
+            { name: 'begin', defaultValue: 0 },
+            { name: 'time', defaultValue: 0 },
+            { name: 'end', defaultValue: 0 },
+            { name: 'frequency', defaultValue: 0.5 },
+            { name: 'skew', defaultValue: 0.5 },
+            { name: 'depth', defaultValue: 1 },
+            { name: 'phaseoffset', defaultValue: 0 },
+            { name: 'shape', defaultValue: 0 },
+            { name: 'curve', defaultValue: 1 },
+            { name: 'dcoffset', defaultValue: 0 },
+            { name: 'min', defaultValue: -1e9 },
+            { name: 'max', defaultValue: 1e9 },
+        ]
+    }
+    constructor(options) {
+        super()
+        this.phase = undefined
+        this.begun = undefined
+        this.kept = Boolean(options?.processorOptions?.kept)
+    }
+    process(_inputs, outputs, parameters) {
+        const begin = parameters.begin[0]
+        const end = parameters.end[0]
+        const output = outputs[0]
+        if (begin !== this.begun) {
+            this.begun = begin
+            this.phase = undefined
+        }
+        if (currentTime >= end) {
+            if (!this.kept) return false
+            silence(output)
+            return true
+        }
+        if (currentTime <= begin) {
+            if (this.kept) silence(output)
+            return true
+        }
+        const frequency = parameters.frequency[0]
+        const time = parameters.time[0]
+        const depth = parameters.depth[0]
+        const skew = parameters.skew[0]
+        const phaseoffset = parameters.phaseoffset[0]
+        const curve = parameters.curve[0]
+        const dcoffset = parameters.dcoffset[0]
+        const min = parameters.min[0]
+        const max = parameters.max[0]
+        const shape = SHAPES[SHAPE_NAMES[parameters.shape[0]]]
+        const length = output[0].length ?? 0
+        if (this.phase == null) this.phase = ffrac(time * frequency + phaseoffset)
+        const dt = frequency * INVSR
+        for (let n = 0; n < length; n++) {
+            for (let i = 0; i < output.length; i++) output[i][n] = clamp(Math.pow((shape(this.phase, skew) + dcoffset) * depth, curve), min, max)
+            this.phase += dt
+            if (this.phase > 1.0) this.phase = this.phase - 1
+        }
+        return true
+    }
+}
+
+registerProcessor('weft-lfo', Lfo)

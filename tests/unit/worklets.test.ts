@@ -39,6 +39,8 @@ function blocks(processor: Processor, params: Record<string, number[]>, count: n
     return heard
 }
 
+const lfo = (begin: number, more: Record<string, number[]> = {}) => ({ begin: [begin], end: [begin + 2], time: [begin], frequency: [1], skew: [0.5], depth: [1], phaseoffset: [0], shape: [0], curve: [1], dcoffset: [-0.5], min: [-0.5], max: [0.5], ...more })
+
 // Sound to put through an effect: some of it louder than full, and never the same twice.
 function sound(channels: number, block: number): Float32Array[] {
     return Array.from({ length: channels }, (_, ch) => Float32Array.from({ length: 128 }, (_, n) => 1.3 * Math.sin(0.37 * (n + 128 * block) * (ch + 1)) * Math.cos(0.011 * (n + 128 * block))))
@@ -89,7 +91,7 @@ describe('the supersaw of this app', () => {
     })
 })
 
-describe('the crush and the distortion of this app', () => {
+describe('the effects of this app', () => {
     const rising = Array.from({ length: 128 }, (_, n) => n / 64)
 
     it('crush gives sample for sample what the one of superdough gives', async () => {
@@ -117,5 +119,57 @@ describe('the crush and the distortion of this app', () => {
                 }
             }
         }
+    })
+
+    it('coarse and shape give sample for sample what the ones of superdough give', async () => {
+        const made = await load()
+        for (const channels of [1, 2]) {
+            for (const coarse of [1, 2, 3.5, 8, 0]) {
+                const theirs = through(new made['coarse-processor'](), { coarse: [coarse] }, channels)
+                const ours = through(new made['weft-coarse'](), { coarse: [coarse] }, channels)
+                expect(theirs.heard.some((sample) => sample !== 0)).toBe(true)
+                expect(ours).toEqual(theirs)
+            }
+            for (const params of [{ shape: [0.5], postgain: [0.8] }, { shape: [0], postgain: [1] }, { shape: [1.2], postgain: [2] }]) {
+                const theirs = through(new made['shape-processor'](), params, channels)
+                const ours = through(new made['weft-shape'](), params, channels)
+                expect(theirs.heard.some((sample) => sample !== 0)).toBe(true)
+                expect(ours).toEqual(theirs)
+            }
+        }
+    })
+
+    it('the LFO gives sample for sample what the one of superdough gives, in every one of its shapes', async () => {
+        const made = await load()
+        for (const shape of [0, 1, 2, 3, 4, 5, 6]) {
+            for (const more of [{}, { frequency: [3], skew: [0.2], depth: [0.6], phaseoffset: [0.25], curve: [2], dcoffset: [-0.5], min: [-0.3], max: [0.3] }]) {
+                const params = { ...lfo(0.5), shape: [shape], ...more }
+                const theirs = blocks(new made['lfo-processor'](), params, 4)
+                const ours = blocks(new made['weft-lfo'](), params, 4)
+                expect(theirs.some((sample) => sample !== 0)).toBe(true)
+                expect(ours).toEqual(theirs)
+            }
+        }
+        expect(new made['weft-lfo']().process([], [[new Float32Array(128)]], lfo(-2))).toBe(false)
+    })
+
+    it('one that is kept goes on after its note, and gives the next note what a new one would', async () => {
+        const made = await load()
+        const kept = { processorOptions: { kept: true, algorithm: 'soft' } }
+        const effects: [string, Record<string, number[]>][] = [
+            ['weft-crush', { crush: [4] }],
+            ['weft-distort', { distort: [2], postgain: [0.5] }],
+            ['weft-coarse', { coarse: [3] }],
+            ['weft-shape', { shape: [0.6], postgain: [1] }],
+        ]
+        for (const [name, params] of effects) {
+            const node = new made[name](kept)
+            expect(through(node, params, 2).alive).toEqual([true, true, true, true, true])
+            expect(through(node, params, 2)).toEqual(through(new made[name](kept), params, 2))
+        }
+        const used = new made['weft-lfo'](kept)
+        blocks(used, lfo(0.2, { frequency: [3] }), 3)
+        expect(used.process([], [[new Float32Array(128)]], lfo(-2))).toBe(true)
+        expect(blocks(used, lfo(0.7), 3)).toEqual(blocks(new made['weft-lfo'](kept), lfo(0.7), 3))
     })
 })
