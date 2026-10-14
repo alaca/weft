@@ -368,6 +368,16 @@ svg.mini rect { fill: var(--h); }
 .nt { opacity: calc(0.4 + 0.6 * var(--lv, 1)); }
 /* Notes and steps chosen together, and the box that chooses them. */
 .nt.sel { box-shadow: inset 0 0 0 1.5px var(--linen), 0 0 0 1px rgba(0, 0, 0, 0.5); }
+/* A note that slides in from the note before has a tail that leads into it. */
+.nt.gl::before { content: ''; position: absolute; right: 100%; top: 50%; width: 9px; height: 2px; margin-top: -1px; background: var(--h); transform: skewY(-28deg); transform-origin: right center; border-radius: 1px; opacity: 0.8; pointer-events: none; }
+.gl-ln { height: 22px; margin-top: 6px; }
+.gb { display: grid; place-items: center; height: 100%; border-radius: 5px; background: rgba(236, 230, 214, 0.04); color: var(--linen-3); }
+.gb svg { width: 14px; height: 8px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; opacity: 0.35; }
+.gb.on { background: color-mix(in srgb, var(--h) 30%, transparent); color: var(--linen); }
+.gb.on svg { opacity: 1; }
+.gb:hover:not(:disabled) svg { opacity: 1; }
+.gb:disabled { cursor: default; }
+.gb:disabled svg { opacity: 0.1; }
 .nr-box { position: absolute; z-index: 3; border: 1px solid var(--linen); border-radius: 2px; background: rgba(236, 230, 214, 0.08); pointer-events: none; }
 .dg .prow .pad.sel { box-shadow: inset 0 0 0 2px var(--linen); }
 .nt:focus-visible { outline: 2px solid var(--linen); outline-offset: 1px; z-index: 2; }

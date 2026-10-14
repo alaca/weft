@@ -7,14 +7,30 @@ import { noteName } from './view'
 
 // `level` is how loud the note is, as a hit of a drum grid has one: 1 where nothing says, which
 // is how a note is written that was put in by hand. A note played on a keyboard has the level
-// of how hard its key was pressed.
-export type Note = { start: number; length: number; midi: number; level?: number }
+// of how hard its key was pressed. `glide` says the note slides into its pitch from the note
+// before it, as on an acid bass line.
+export type Note = { start: number; length: number; midi: number; level?: number; glide?: boolean }
 export type NoteRef = { start: number; midi: number }
 export type NoteGrid = { notes: Note[]; steps: number; cycles: number; perCycle: number }
 // `levels` is the call that holds a level for every step, when the code has one. `otherLevel`
 // says the code sets the level some other way, which is then left as it is. `stacked` says the
 // notes are written a line at a time, each line with levels of its own (see `rollText`).
-export type NoteSource = { grid: NoteGrid; from: number; to: number; slow: Call | null; levels: Call | null; otherLevel: boolean; stacked?: boolean }
+// `glides` is the call that says how far each step slides, with `glideEnd` where the calls
+// written with it end and `glideTime` how long a slide takes; `otherGlide` says the code bends
+// the pitch some other way, which is then left as it is.
+export type NoteSource = {
+    grid: NoteGrid
+    from: number
+    to: number
+    slow: Call | null
+    levels: Call | null
+    otherLevel: boolean
+    stacked?: boolean
+    glides?: Call | null
+    glideEnd?: number
+    glideTime?: number
+    otherGlide?: boolean
+}
 
 // Twelve and twenty-four are for music counted in threes. They stand in order of fineness, and
 // a pattern read from other code is put on the first of these that holds all its notes.
@@ -160,6 +176,97 @@ export function levelText(notes: Note[], steps: number, cycles: number): string 
     return cycles > 1 ? `[${text}]/${cycles}` : text
 }
 
+// A glide is written as how far the pitch of each step starts from its own, in semitones, with
+// how long it takes to get there, all after the notes and their levels:
+//   note(`c2 ~  g2 ~`).penv("0 0 -7 0").pattack(0.08).prelease(600)
+// That is the pitch envelope of every sound, held at the note's own pitch once it is there:
+// the long release keeps it from falling back while the note fades out. A step with a chord on
+// it cannot glide, as every note of the step would slide by the same.
+export const GLIDE = 'penv'
+export const GLIDE_TIME = 0.08
+const GLIDE_TAIL = 600
+
+// The note another slides from: the last to start before it, or, for the first, the last of the
+// pattern, as the pattern goes round. Where several start together, the one nearest in pitch.
+export function noteBefore(notes: Note[], note: Note): Note | null {
+    const earlier = notes.filter((other) => other.start < note.start)
+    const pool = earlier.length ? earlier : notes.filter((other) => other.start > note.start)
+    if (!pool.length) return null
+    const last = Math.max(...pool.map((other) => other.start))
+    return pool.filter((other) => other.start === last).sort((a, b) => Math.abs(a.midi - note.midi) - Math.abs(b.midi - note.midi))[0]
+}
+
+// How far the note on a step slides, in semitones; null where it cannot: no note or several
+// start there, or the one before it has its pitch.
+export function glideFrom(notes: Note[], start: number): number | null {
+    const there = notes.filter((note) => note.start === start)
+    if (there.length !== 1) return null
+    const from = noteBefore(notes, there[0])
+    return from && from.midi !== there[0].midi ? there[0].midi - from.midi : null
+}
+
+const stepsText = (valueAt: (step: number) => string, steps: number, cycles: number): string => {
+    const size = groupOf(steps)
+    const groups: string[] = []
+    for (let at = 0; at < steps; at += size) groups.push(Array.from({ length: Math.min(size, steps - at) }, (_, i) => valueAt(at + i)).join(' '))
+    const text = groups.join('   ')
+    return cycles > 1 ? `[${text}]/${cycles}` : text
+}
+
+export function glideText(notes: Note[], steps: number, cycles: number, time = GLIDE_TIME): string | null {
+    const by = new Map<number, number>()
+    for (const note of notes) {
+        const far = note.glide ? glideFrom(notes, note.start) : null
+        if (far !== null) by.set(note.start, far)
+    }
+    if (!by.size) return null
+    return `.${GLIDE}("${stepsText((step) => String(by.get(step) ?? 0), steps, cycles)}").pattack(${time}).prelease(${GLIDE_TAIL})`
+}
+
+// The glides the code says, if they are the app's own: each step that slides does so by exactly
+// as far as from the note before it.
+function readGlides(block: PatternBlock, notes: Note[], steps: number, cycles: number): { notes: Note[]; glides: Call | null; glideEnd?: number; glideTime?: number; otherGlide: boolean } {
+    const at = block.calls.findIndex((call) => call.name === GLIDE)
+    const call = at > 0 ? block.calls[at] : null
+    if (!call) return { notes, glides: null, otherGlide: false }
+    const arg = call.args.length === 1 ? call.args[0] : undefined
+    const long = arg?.kind === 'string' ? LONG.exec(arg.value.trim()) : null
+    const values = arg?.kind === 'string' ? (long ? long[1] : arg.value).trim().split(/\s+/).map(Number) : []
+    const other = { notes, glides: null, otherGlide: true }
+    if (values.length !== steps || (long ? Number(long[2]) : 1) !== cycles || !values.every(Number.isFinite)) return other
+    const sliding = new Set<number>()
+    for (let step = 0; step < steps; step++) {
+        if (!values[step]) continue
+        if (glideFrom(notes, step) !== values[step]) return other
+        sliding.add(step)
+    }
+    // Written with it, and so going with it: how long a slide takes, and the long release.
+    let end = call.to
+    let time: number | undefined
+    const next = block.calls[at + 1]
+    if (next?.name === 'pattack' && next.from === end && next.args[0]?.kind === 'number') {
+        time = next.args[0].value
+        end = next.to
+        const tail = block.calls[at + 2]
+        if (tail?.name === 'prelease' && tail.from === end) end = tail.to
+    }
+    return { notes: notes.map((note) => (sliding.has(note.start) ? { ...note, glide: true } : note)), glides: call, glideEnd: end, glideTime: time, otherGlide: false }
+}
+
+// The steps from one on given a glide or none: the note on each slides from the one before, or
+// does not. A step that cannot glide is left as it is. Null when nothing changes.
+export function setGlides(notes: Note[], from: number, on: boolean[]): Note[] | null {
+    let changed = false
+    const next = notes.map((note) => {
+        const wanted = on[note.start - from]
+        if (wanted === undefined || Boolean(note.glide) === wanted || (wanted && glideFrom(notes, note.start) === null)) return note
+        changed = true
+        const { glide: _, ...rest } = note
+        return wanted ? { ...rest, glide: true } : rest
+    })
+    return changed ? next : null
+}
+
 // Whether the notes of a chord have levels that differ, which a level for every step cannot say.
 export const levelsOfTheirOwn = (notes: Note[]): boolean => notes.some((note) => notes.some((other) => other.start === note.start && (other.level ?? 1) !== (note.level ?? 1)))
 
@@ -172,11 +279,11 @@ export const levelsOfTheirOwn = (notes: Note[]): boolean => notes.some((note) =>
 //     note(`e3 _ ~ ~`),
 //   ).slow(2)
 // Their levels stand inside, so they need no brackets for the bars.
-export function rollText(notes: Note[], steps: number, cycles: number): string {
+export function rollText(notes: Note[], steps: number, cycles: number, glideTime = GLIDE_TIME): string {
     const slow = cycles > 1 ? `.slow(${cycles})` : ''
     if (!levelsOfTheirOwn(notes)) {
         const levels = levelText(notes, steps, cycles)
-        return `note(${formatNoteGrid(notes, steps, steps / cycles)})${slow}${levels ? `.${LEVEL}("${levels}")` : ''}`
+        return `note(${formatNoteGrid(notes, steps, steps / cycles)})${slow}${levels ? `.${LEVEL}("${levels}")` : ''}${glideText(notes, steps, cycles, glideTime) ?? ''}`
     }
     const { voices, lines } = voiceLines(notes, steps)
     const voiceLevels = (voice: Note[]) => levelText(voice, steps, 1)
@@ -247,8 +354,9 @@ export function readNotes(block: PatternBlock): NoteSource | null {
     const { slow, cycles } = length
     if (parsed.steps % cycles !== 0) return null
     const levels = readLevels(block, parsed.steps, cycles)
-    const notes = levels.values ? parsed.notes.map((note) => levelled(note, fitLevel((levels.values as number[])[note.start]))) : parsed.notes
-    return { grid: { notes, steps: parsed.steps, cycles, perCycle: parsed.steps / cycles }, from: text.from, to: text.to, slow, ...noteLevelsOf(block, parsed.steps, cycles) }
+    const levelledNotes = levels.values ? parsed.notes.map((note) => levelled(note, fitLevel((levels.values as number[])[note.start]))) : parsed.notes
+    const { notes, ...glides } = readGlides(block, levelledNotes, parsed.steps, cycles)
+    return { grid: { notes, steps: parsed.steps, cycles, perCycle: parsed.steps / cycles }, from: text.from, to: text.to, slow, ...noteLevelsOf(block, parsed.steps, cycles), ...glides }
 }
 
 function readStacked(block: PatternBlock, voices: Voice[]): NoteSource | null {
@@ -269,7 +377,7 @@ function readStacked(block: PatternBlock, voices: Voice[]): NoteSource | null {
     const source = block.calls[0]
     // A level written for the whole pattern after the lines would sound in place of theirs.
     const other = block.calls.some((call) => call.name === LEVEL)
-    return { grid: { notes: inOrder(notes), steps, cycles, perCycle: steps / cycles }, from: source.from, to: source.to, slow, levels: null, otherLevel: other, stacked: true }
+    return { grid: { notes: inOrder(notes), steps, cycles, perCycle: steps / cycles }, from: source.from, to: source.to, slow, levels: null, otherLevel: other, stacked: true, otherGlide: block.calls.some((call) => call.name === GLIDE) }
 }
 
 // What a pattern's code says of the level of its notes, for whoever reads the notes another way.
@@ -381,14 +489,20 @@ export function notesFromEvents(cycles: Sounded[][]): { notes: Note[]; cycles: n
 export function noteEdits(block: PatternBlock, source: NoteSource, notes: Note[], steps: number, cycles: number): TextEdit[] {
     // Notes with levels of their own are written as a whole, and so is a pattern that had such
     // notes and has them no more. Where the code says the level some other way, there are none.
-    if (source.stacked || (!source.otherLevel && levelsOfTheirOwn(notes))) {
+    // So are notes that glide, and a pattern whose notes glided.
+    const gliding = !source.otherGlide && notes.some((note) => note.glide)
+    if (source.stacked || (!source.otherLevel && levelsOfTheirOwn(notes)) || source.glides || gliding) {
         const first = block.calls[0]
         let to = (source.slow ?? first).to
+        const apart: TextEdit[] = []
         const kept = source.levels
-        const apart = kept && kept.from !== to ? [removeCall(kept)] : []
         if (kept && kept.from === to) to = kept.to
+        else if (kept) apart.push(removeCall(kept))
+        const glides = source.glides
+        if (glides && glides.from === to) to = source.glideEnd ?? glides.to
+        else if (glides) apart.push({ from: glides.from, to: source.glideEnd ?? glides.to, insert: '' })
         const plain = source.otherLevel ? notes.map((note) => levelled(note, 1)) : notes
-        return [{ from: first.from, to, insert: rollText(plain, steps, cycles) }, ...apart]
+        return [{ from: first.from, to, insert: rollText(plain, steps, cycles, source.glideTime) }, ...apart]
     }
     const grid: TextEdit = { from: source.from, to: source.to, insert: formatNoteGrid(notes, steps, steps / cycles) }
     const length = lengthEdits(block, source.slow, cycles)

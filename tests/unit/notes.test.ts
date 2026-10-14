@@ -17,6 +17,8 @@ import {
     resizeNote,
     resizeNotes,
     roomAt,
+    glideFrom,
+    setGlides,
     setLevels,
 } from '../../src/song/notes'
 
@@ -366,5 +368,53 @@ describe('the level of the notes', () => {
         expect(levelOfForce(64 / 127)).toBe(0.64)
         expect(levelOfForce(1)).toBe(1.27)
         expect([1, 0.64, 1.5, 0].map(forceOfLevel)).toEqual([100, 64, 127, 1])
+    })
+})
+
+describe('a glide', () => {
+    const edited = (code: string, change: (notes: ReturnType<typeof readNotes> & object) => { notes: Parameters<typeof noteEdits>[2]; cycles?: number }) => {
+        const block = first(code)
+        const source = readNotes(block)!
+        const next = change(source)
+        const cycles = next.cycles ?? source.grid.cycles
+        return applyEdits(code, noteEdits(block, source, next.notes, source.grid.perCycle * cycles, cycles))
+    }
+    const PLAIN = 'bass: note(`\n  c2 ~  g2 ~\n`)\n  .s("sawtooth")\n'
+    const GLIDING = 'bass: note(`\n  c2 ~  g2 ~\n`).penv("0 0 7 0").pattack(0.08).prelease(600)\n  .s("sawtooth")\n'
+
+    it('slides from the note before, and the first note from the last, as the pattern goes round', () => {
+        const notes = readNotes(first(PLAIN))!.grid.notes
+        expect([glideFrom(notes, 2), glideFrom(notes, 0), glideFrom(notes, 1)]).toEqual([7, -7, null])
+        const chord = readNotes(first('bass: note(`\n  c2 ~  g2 ~ ,\n  ~  ~  b2 ~\n`)\n'))!.grid.notes
+        expect(glideFrom(chord, 2)).toBeNull()
+    })
+
+    it('is written after the notes as how far each step slides, read back, and taken out with all it brought', () => {
+        const on = edited(PLAIN, (from) => ({ notes: setGlides(from.grid.notes, 2, [true])! }))
+        expect(on).toBe(GLIDING)
+        expect(readNotes(first(on))!.grid.notes).toEqual([
+            { start: 0, length: 1, midi: 36 },
+            { start: 2, length: 1, midi: 43, glide: true },
+        ])
+        expect(edited(on, (from) => ({ notes: setGlides(from.grid.notes, 2, [false])! }))).toBe(PLAIN)
+    })
+
+    it('follows the notes: a note moved slides by as far as it now is, and the time chosen for it stays', () => {
+        const slower = GLIDING.replace('pattack(0.08)', 'pattack(0.2)')
+        const moved = edited(slower, (from) => ({ notes: moveNote(from.grid.notes, { start: 2, midi: 43 }, { start: 2, midi: 41 }, 4)! }))
+        expect(moved).toBe('bass: note(`\n  c2 ~  f2 ~\n`).penv("0 0 5 0").pattack(0.2).prelease(600)\n  .s("sawtooth")\n')
+        const two = edited(GLIDING, (from) => ({ notes: resizeNotes(from.grid, 2), cycles: 2 }))
+        expect(two).toBe('bass: note(`\n  c2 ~  g2 ~    c2 ~  g2 ~\n`).slow(2).penv("[0 0 7 0   0 0 7 0]/2").pattack(0.08).prelease(600)\n  .s("sawtooth")\n')
+        const loud = edited(GLIDING, (from) => ({ notes: setLevels(from.grid.notes, 0, [0.5])! }))
+        expect(loud).toBe('bass: note(`\n  c2 ~  g2 ~\n`).postgain("0.5 1 1 1").penv("0 0 7 0").pattack(0.08).prelease(600)\n  .s("sawtooth")\n')
+    })
+
+    it('is left alone where the code bends the pitch some other way', () => {
+        for (const code of ['bass: note(`\n  c2 ~  g2 ~\n`).penv(12)\n', 'bass: note(`\n  c2 ~  g2 ~\n`).penv("12 0 0 0")\n']) {
+            const source = readNotes(first(code))!
+            expect(source.otherGlide).toBe(true)
+            expect(source.grid.notes.some((note) => note.glide)).toBe(false)
+            expect(edited(code, (from) => ({ notes: setGlides(from.grid.notes, 2, [true])! }))).toContain('.penv(')
+        }
     })
 })

@@ -79,6 +79,7 @@ import {
     notesFromEvents,
     noteText,
     readNotes,
+    setGlides,
     removeNote,
     resampleNotes,
     resizeNote,
@@ -1815,6 +1816,14 @@ export function putNote(id: string, start: number, midi: number, level?: number)
 export function setNoteLevels(id: string, from: number, levels: number[], only?: NoteRef[]) {
     changeNotes(id, (source) => {
         const next = source.otherLevel ? null : setLevels(source.grid.notes, from, levels, only)
+        return next ? { notes: next, perCycle: source.grid.perCycle, cycles: source.grid.cycles } : null
+    })
+}
+
+// Steps from one on given a glide or none: the note on each slides from the note before it.
+export function setNoteGlides(id: string, from: number, on: boolean[]) {
+    changeNotes(id, (source) => {
+        const next = source.otherGlide || source.stacked ? null : setGlides(source.grid.notes, from, on)
         return next ? { notes: next, perCycle: source.grid.perCycle, cycles: source.grid.cycles } : null
     })
 }

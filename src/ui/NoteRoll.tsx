@@ -15,13 +15,14 @@ import {
     removeNotesAt,
     replayHeld,
     resizeNoteTo,
+    setNoteGlides,
     setNoteLevels,
     setNotesLength,
     setNotesSteps,
 } from '../app/controller'
 import { noteKey } from '../song/clip'
 import { stepKind } from '../song/grid'
-import { levelAt, NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, roomAt, type Note, type NoteRef } from '../song/notes'
+import { glideFrom, levelAt, NOTE_RESOLUTIONS, noteText, readNotes, resampleNotes, roomAt, type Note, type NoteRef } from '../song/notes'
 import { chordOn, inKey, nearestInKey, ROOTS, SCALE_KINDS, SCALES, stepInKey, type ScaleKind } from '../song/scales'
 import type { PatternBlock } from '../song/types'
 import { noteName } from '../song/view'
@@ -41,7 +42,7 @@ const EMPTY_RANGE = { low: 48, high: 60 }
 const LEVEL = stepKind('level')
 
 // `level` is how loud the note is, which is how full its colour is.
-type Drawn = { left: number; width: number; midi: number; start: number; length: number; level: number }
+type Drawn = { left: number; width: number; midi: number; start: number; length: number; level: number; glide?: boolean }
 // `group` is the chosen notes, when the note that is dragged is one of several chosen.
 type Drag = { ref: NoteRef; resize: boolean; fromStep: number; fromMidi: number; group: NoteRef[] | null }
 // A box drawn with Shift held, in pixels within the roll.
@@ -107,7 +108,7 @@ export function NoteRoll(props: {
             .map((note) => {
                 const begin = Math.max(note.start, from)
                 const end = Math.min(note.start + note.length, to)
-                return { left: (begin - from) / grid.perCycle, width: (end - begin) / grid.perCycle, midi: note.midi, start: note.start, length: note.length, level: note.level ?? 1 }
+                return { left: (begin - from) / grid.perCycle, width: (end - begin) / grid.perCycle, midi: note.midi, start: note.start, length: note.length, level: note.level ?? 1, glide: Boolean(note.glide) && begin === note.start }
             })
     }
 
@@ -117,7 +118,7 @@ export function NoteRoll(props: {
     const drawn = createMemo((): Drawn[] => {
         const next = new Map<string, Drawn>()
         const list = visible().map((note) => {
-            const key = `${note.start}:${note.midi}:${note.length}:${note.left}:${note.width}:${note.level}`
+            const key = `${note.start}:${note.midi}:${note.length}:${note.left}:${note.width}:${note.level}:${note.glide}`
             const same = next.has(key) ? note : (kept.get(key) ?? note)
             next.set(key, same)
             return same
@@ -136,6 +137,16 @@ export function NoteRoll(props: {
     const [chosen, setChosen] = createSignal<Set<string>>(new Set())
     const chosenAt = (from: number, count: number): NoteRef[] =>
         (source()?.grid.notes ?? []).filter((note) => note.start >= from && note.start < from + count && chosen().has(noteKey(note))).map((note) => ({ start: note.start, midi: note.midi }))
+    // Under it too, whether the note of each step slides in from the note before. Shown once a
+    // note glides, and whenever it is asked for.
+    const [glidesAsked, setGlidesAsked] = createSignal<boolean | null>(null)
+    const glidesShown = () => Boolean(source()) && (glidesAsked() ?? Boolean(source()?.grid.notes.some((note) => note.glide)))
+    const glideOff = () => Boolean(source()?.otherGlide || source()?.stacked)
+    const glides = createMemo(() => {
+        const notes = source()?.grid.notes ?? []
+        const from = offset()
+        return Array.from({ length: perCycle() }, (_, at) => ({ on: notes.some((note) => note.start === from + at && note.glide), can: glideFrom(notes, from + at) !== null }))
+    })
     const levels = createMemo(() => {
         const notes = source()?.grid.notes ?? []
         const from = offset()
@@ -478,7 +489,7 @@ export function NoteRoll(props: {
                         {(note) => (
                             <button
                                 class="nt"
-                                classList={{ ro: note.start < 0, sel: note.start >= 0 && isChosen(note) }}
+                                classList={{ ro: note.start < 0, sel: note.start >= 0 && isChosen(note), gl: note.glide }}
                                 data-start={note.start}
                                 data-midi={note.midi}
                                 data-length={note.length}
@@ -527,6 +538,34 @@ export function NoteRoll(props: {
                         }}
                         onHold={(on) => setHeldPage(on ? shown() : null)}
                     />
+                </Show>
+                <Show when={glidesShown()}>
+                    <span class="ln-n nr-ln">Glide</span>
+                    <div class="prow gl-ln" role="group" aria-label={`Glide of ${props.id}, step by step`}>
+                        <For each={Array.from({ length: Math.ceil(perCycle() / beat()) }, (_, group) => group)}>
+                            {(group) => (
+                                <div class="grp" style={{ '--in': beat() }}>
+                                    <For each={Array.from({ length: beat() }, (_, inside) => group * beat() + inside)}>
+                                        {(step) => (
+                                            <button
+                                                class="gb"
+                                                classList={{ on: glides()[step]?.on }}
+                                                aria-pressed={Boolean(glides()[step]?.on)}
+                                                aria-label={`Glide into step ${offset() + step + 1} of ${props.id}`}
+                                                title={glides()[step]?.can ? 'The note on this step slides in from the note before it' : 'Only a single note can slide in, from a note of another pitch'}
+                                                disabled={stale() || glideOff() || !glides()[step]?.can}
+                                                onClick={() => setNoteGlides(props.id, offset() + step, [!glides()[step]?.on])}
+                                            >
+                                                <svg viewBox="0 0 14 8" aria-hidden="true">
+                                                    <path d="M1.5 6.5 6 6.5 9 1.5 12.5 1.5" />
+                                                </svg>
+                                            </button>
+                                        )}
+                                    </For>
+                                </div>
+                            )}
+                        </For>
+                    </div>
                 </Show>
             </div>
             <GridFooter
@@ -581,6 +620,16 @@ export function NoteRoll(props: {
                         onClick={() => setLevelsAsked(!levelsShown())}
                     >
                         Level
+                    </button>
+                    <button
+                        class="chip tgl"
+                        classList={{ on: glidesShown() }}
+                        aria-pressed={glidesShown()}
+                        aria-label={`Glide of the notes of ${props.id}, step by step`}
+                        title={glideOff() ? 'This pattern bends its pitch in a way of its own, or plays chords whose notes are as loud as each was played, so its notes cannot glide here' : 'Notes that slide into their pitch from the note before, as on an acid bass line'}
+                        onClick={() => setGlidesAsked(!glidesShown())}
+                    >
+                        Glide
                     </button>
                 </Show>
                 <span class="cap">Key</span>

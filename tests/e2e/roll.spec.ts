@@ -141,3 +141,37 @@ test('a pattern is played on the computer keyboard, and what is played while the
     expect((await notes()).some((step) => step.startsWith('g'))).toBe(false)
 })
 
+
+test('a note glides from the note before when its step is switched on in the Glide lane, and is heard sliding up to its pitch', async ({ page }) => {
+    await open(page, 'setcpm(120/4)\n\nlead: note(`\n  c3 ~  g3 ~\n`)\n  .s("sine")\n')
+    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
+    const strip = page.getByTestId('strip-lead')
+    await strip.locator('.st-n').click()
+    await strip.getByRole('button', { name: 'Glide of the notes of lead, step by step', exact: true }).click()
+    await expect(strip.getByRole('button', { name: 'Glide into step 2 of lead', exact: true })).toBeDisabled()
+    await strip.getByRole('button', { name: 'Glide into step 3 of lead', exact: true }).click()
+    await expect.poll(() => code(page)).toContain('note(`\n  c3 ~  g3 ~\n`).penv("0 0 7 0").pattack(0.08).prelease(600)')
+    await expect(strip.locator('.nt.gl')).toHaveCount(1)
+
+    // The pitch of g3 as it starts, and once it is there, counted from the song made into sound.
+    const pitch = () =>
+        page.evaluate(async () => {
+            const made = await (window as any).__weft.engine.render({ bars: 1, ringSeconds: 0, sampleRate: 44100 }, () => undefined)
+            const wave = made.channels[0] as Float32Array
+            const rate = made.sampleRate as number
+            const hertz = (from: number, to: number) => {
+                let crossings = 0
+                for (let at = Math.floor(from * rate) + 1; at < Math.floor(to * rate); at++) if (wave[at - 1] < 0 && wave[at] >= 0) crossings++
+                return crossings / (to - from)
+            }
+            return { starting: hertz(1.0, 1.05), there: hertz(1.2, 1.45) }
+        })
+    const sliding = await pitch()
+    expect(sliding.starting).toBeLessThan(175)
+    expect(Math.abs(sliding.there - 196)).toBeLessThan(6)
+
+    await strip.getByRole('button', { name: 'Glide into step 3 of lead', exact: true }).click()
+    await expect.poll(() => code(page)).not.toContain('penv')
+    const straight = await pitch()
+    expect(Math.abs(straight.starting - 196)).toBeLessThan(25)
+})

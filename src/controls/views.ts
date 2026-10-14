@@ -1,5 +1,6 @@
 import { readLaid } from '../song/audio'
 import { readCurve } from '../song/curves'
+import { GLIDE, readNotes } from '../song/notes'
 import type { Arg, Call, PatternBlock } from '../song/types'
 import { readMotion, type Motion } from './motion'
 import {
@@ -117,7 +118,8 @@ function viewOfCall(call: Call): ControlView | null {
 // A recording that plays along the song is cut into pieces that are found by where they begin
 // and joined by how they fade. What would move either is not offered as a knob.
 const LAID = ['attack', 'decay', 'sustain', 'release', 'speed', 'begin', 'end']
-const notFor = (block: PatternBlock): string[] => (readLaid(block) ? LAID : [])
+// Nor is the pitch envelope of a piano roll whose notes glide: the roll writes it, step by step.
+const notFor = (block: PatternBlock): string[] => [...(readLaid(block) ? LAID : []), ...(readNotes(block)?.glides ? [GLIDE, 'pattack', 'prelease'] : [])]
 
 function present(block: PatternBlock): ControlView[] {
     const seen = new Set<string>()
