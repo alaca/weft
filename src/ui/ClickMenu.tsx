@@ -1,9 +1,10 @@
-import { createSignal, onCleanup, onMount } from 'solid-js'
-import { toggleClick, toggleCountIn } from '../app/controller'
-import { clickOn, countInOn } from '../stores/song'
+import { createSignal, onCleanup, onMount, Show } from 'solid-js'
+import { setTempo, toggleClick, toggleCountIn } from '../app/controller'
+import { tapped } from '../song/tap'
+import { clickOn, clockTempo, countInOn, song, stale, tempoLane } from '../stores/song'
 
-// The metronome beside the transport, and next to it a small menu with the count-in, as
-// music programs keep them: the click is pressed often, the count-in is set once.
+// The metronome beside the transport, and next to it a small menu with the count-in and the
+// tapped tempo, as music programs keep them: the click is pressed often, the rest now and then.
 export function ClickMenu() {
     let root!: HTMLDivElement
     const [open, setOpen] = createSignal(false)
@@ -21,6 +22,18 @@ export function ClickMenu() {
         document.removeEventListener('pointerdown', away)
         document.removeEventListener('keydown', escape)
     })
+
+    // The tempo goes by the moment a tap begins, so a tap is a press of the pointer, or a key.
+    let taps: number[] = []
+    const [tappedBpm, setTappedBpm] = createSignal<number | null>(null)
+    const fixed = () => stale() || song().tempoLocked || tempoLane() !== null || clockTempo() !== null
+    const tap = () => {
+        if (fixed()) return
+        const next = tapped(taps, performance.now())
+        taps = next.taps
+        setTappedBpm(next.bpm)
+        if (next.bpm !== null) setTempo(next.bpm, true)
+    }
 
     return (
         <div class="ck" ref={root}>
@@ -53,6 +66,23 @@ export function ClickMenu() {
                         <i class="ck-x" classList={{ on: countInOn() }} />
                     </button>
                     <p>A bar of clicks before the song starts. With the song stopped, Record starts it after the count, and the take starts where the song does. Not in a jam.</p>
+                    <hr />
+                    <button
+                        class="ck-tap"
+                        disabled={fixed()}
+                        title={fixed() ? 'The tempo is not set here now: it is drawn over the song, worked out by code, or follows a MIDI clock.' : 'Tap in time, and the song takes the tempo of your taps'}
+                        onPointerDown={(event) => {
+                            event.preventDefault()
+                            tap()
+                        }}
+                        onClick={(event) => event.detail === 0 && tap()}
+                    >
+                        Tap tempo
+                        <Show when={tappedBpm()}>
+                            <b data-testid="tapped">{tappedBpm()}</b>
+                        </Show>
+                    </button>
+                    <p>Tap here in time, four times or more, and the song takes the tempo of your taps.</p>
                 </div>
             )}
         </div>

@@ -52,3 +52,21 @@ test('the metronome clicks while the song plays, and the count-in clicks one bar
     await page.getByRole('button', { name: 'Count-in', exact: true }).click()
     await expect(countIn).toHaveAttribute('aria-checked', 'true')
 })
+
+test('tapping in time sets the tempo of the song', async ({ page }) => {
+    await page.addInitScript((text) => localStorage.setItem('weft.song', text), SONG)
+    await page.goto('/')
+    await page.waitForFunction(() => Boolean((window as any).__weft))
+    await page.getByRole('button', { name: 'Count-in', exact: true }).click()
+    const tap = page.getByRole('button', { name: /^Tap tempo/ })
+    for (let at = 0; at < 5; at++) {
+        await tap.click()
+        await page.waitForTimeout(400)
+    }
+    // Taps a little over 400 ms apart, as near as a test can press them, are about 140.
+    const tapped = Number(await page.getByTestId('tapped').textContent())
+    expect(tapped).toBeGreaterThan(115)
+    expect(tapped).toBeLessThan(150)
+    await expect(page.getByTestId('tempo')).toHaveValue(String(tapped))
+    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.getCode() as string)).toContain(`setcpm(${tapped}/4)`)
+})

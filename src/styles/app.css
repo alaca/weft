@@ -101,6 +101,11 @@ kbd { font: 500 9.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); b
 .ck-dm p { margin: 4px 8px 6px; color: var(--linen-3); font-size: 11px; line-height: 1.45; }
 .ck-x { width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1.5px var(--linen-3); flex: none; }
 .ck-x.on { background: var(--saffron); box-shadow: none; }
+.menu .ck-tap { height: 40px; margin: 2px 0; background: var(--cloth-3); border: 1px solid var(--seam); font-weight: 500; }
+.menu .ck-tap:hover { background: #3a3a42; }
+.menu .ck-tap:disabled { opacity: 0.45; }
+.ck-tap b { font: 500 13px/1 var(--mono); font-stretch: 87%; color: var(--saffron); }
+.ck-dm hr { border: 0; border-top: 1px solid var(--seam); margin: 4px 2px; }
 .seg { display: flex; background: var(--vat); border: 1px solid var(--seam); border-radius: 9px; padding: 2px; }
 .seg button { height: 26px; padding: 0 13px; border-radius: 7px; font-size: 12px; font-weight: 500; color: var(--linen-3); }
 .seg button.on { background: var(--linen); color: var(--vat); }
