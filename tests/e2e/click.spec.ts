@@ -53,12 +53,27 @@ test('the metronome clicks while the song plays, and the count-in clicks one bar
     await expect(countIn).toHaveAttribute('aria-checked', 'true')
 })
 
-test('tapping in time sets the tempo of the song', async ({ page }) => {
+test('the tempo goes up and down by the arrows beside it, is halved and doubled, and is tapped in time', async ({ page }) => {
     await page.addInitScript((text) => localStorage.setItem('weft.song', text), SONG)
     await page.goto('/')
     await page.waitForFunction(() => Boolean((window as any).__weft))
-    await page.getByRole('button', { name: 'Count-in', exact: true }).click()
-    const tap = page.getByRole('button', { name: /^Tap tempo/ })
+    const tempo = page.getByTestId('tempo')
+    const code = () => page.evaluate(() => (window as any).__weft.engine.getCode() as string)
+
+    await page.getByRole('button', { name: 'Faster', exact: true }).click()
+    await expect(tempo).toHaveValue('121')
+    await page.getByRole('button', { name: 'Slower', exact: true }).click({ modifiers: ['Shift'] })
+    await expect(tempo).toHaveValue('111')
+    await expect.poll(code).toContain('setcpm(111/4)')
+
+    const menu = page.getByRole('button', { name: 'Tempo settings', exact: true })
+    await menu.click()
+    await page.getByRole('menuitem', { name: /^Double the tempo/ }).click()
+    await expect(tempo).toHaveValue('222')
+    await page.getByRole('menuitem', { name: /^Half the tempo/ }).click()
+    await expect(tempo).toHaveValue('111')
+
+    const tap = page.getByRole('menuitem', { name: /^Tap tempo/ })
     for (let at = 0; at < 5; at++) {
         await tap.click()
         await page.waitForTimeout(400)
@@ -67,6 +82,6 @@ test('tapping in time sets the tempo of the song', async ({ page }) => {
     const tapped = Number(await page.getByTestId('tapped').textContent())
     expect(tapped).toBeGreaterThan(115)
     expect(tapped).toBeLessThan(150)
-    await expect(page.getByTestId('tempo')).toHaveValue(String(tapped))
-    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.getCode() as string)).toContain(`setcpm(${tapped}/4)`)
+    await expect(tempo).toHaveValue(String(tapped))
+    await expect.poll(code).toContain(`setcpm(${tapped}/4)`)
 })

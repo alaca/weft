@@ -26,6 +26,7 @@ import {
 import { openPublish } from '../app/publish'
 import { DEMO } from '../demo/demo'
 import { METERS } from '../song/meter'
+import { TempoMenu, TempoSteps } from './TempoMenu'
 import { SITE } from '../site/api'
 import { me } from '../stores/account'
 import { beat, bpm, clockTempo, countBeat, currentSong, cycle, engineState, meter, mixerOpen, playMode, song, songNote, songShown, soundsOpen, stale, startOpen, viewMode, waveShown, type PlayMode, type ViewMode } from '../stores/song'
@@ -164,34 +165,38 @@ export function TopBar() {
             </div>
             <div class="ros">
                 <div class="ro">
-                    <input
-                        class="tempo"
-                        data-testid="tempo"
-                        type="number"
-                        min="20"
-                        max="300"
-                        step="1"
-                        aria-label="Tempo in beats per minute"
-                        title={
-                            clockTempo() !== null
-                                ? 'The song follows a MIDI clock. Its own tempo comes back when that clock stops.'
-                                : song().tempoLocked
-                                  ? 'The tempo is worked out by code. Change it there.'
-                                  : tempoNow() !== null
-                                    ? 'The tempo is drawn over the song, bar by bar. Change it in the Tempo lane of the Song panel.'
-                                    : 'Tempo in beats per minute'
-                        }
-                        value={Math.round(clockTempo() ?? tempoNow() ?? song().tempo?.bpm ?? bpm())}
-                        disabled={stale() || song().tempoLocked || tempoNow() !== null || clockTempo() !== null}
-                        onChange={(event) => {
-                            setTempo(Number(event.currentTarget.value), keyHeld)
-                            keyHeld = false
-                        }}
-                        onKeyDown={(event) => {
-                            keyHeld = event.repeat
-                            if (event.key === 'Enter') event.currentTarget.blur()
-                        }}
-                    />
+                    <div class="tm">
+                        <input
+                            class="tempo"
+                            data-testid="tempo"
+                            type="number"
+                            min="20"
+                            max="300"
+                            step="1"
+                            aria-label="Tempo in beats per minute"
+                            title={
+                                clockTempo() !== null
+                                    ? 'The song follows a MIDI clock. Its own tempo comes back when that clock stops.'
+                                    : song().tempoLocked
+                                      ? 'The tempo is worked out by code. Change it there.'
+                                      : tempoNow() !== null
+                                        ? 'The tempo is drawn over the song, bar by bar. Change it in the Tempo lane of the Song panel.'
+                                        : 'Tempo in beats per minute'
+                            }
+                            value={Math.round(clockTempo() ?? tempoNow() ?? song().tempo?.bpm ?? bpm())}
+                            disabled={stale() || song().tempoLocked || tempoNow() !== null || clockTempo() !== null}
+                            onChange={(event) => {
+                                setTempo(Number(event.currentTarget.value), keyHeld)
+                                keyHeld = false
+                            }}
+                            onKeyDown={(event) => {
+                                keyHeld = event.repeat
+                                if (event.key === 'Enter') event.currentTarget.blur()
+                            }}
+                        />
+                        <TempoSteps />
+                        <TempoMenu />
+                    </div>
                     <span class="cap">{clockTempo() !== null ? 'Clock' : 'Tempo'}</span>
                 </div>
                 <div class="ro">
