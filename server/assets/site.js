@@ -100,3 +100,59 @@ function pictures(box) {
 
 document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('[data-shots]').forEach(pictures))
 
+// The docs. Without this file the menu beside them is a list of plain links and the arrow at
+// the foot of the window always leads back to the top. With it the menu lights the part that
+// is being read, and keeps it in sight where the menu is longer than the window, and the
+// arrow shows only once the page has been scrolled down.
+function docs(menu) {
+    const links = [...menu.querySelectorAll('a[href^="#"]')]
+    const parts = links.map((link) => document.getElementById(link.getAttribute('href').slice(1))).filter(Boolean)
+    const arrow = document.querySelector('[data-totop]')
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    let lit = null
+    let asked = false
+    // The part being read is the last one whose heading has passed a third of the way down the
+    // window; at the very end of the page it is the last part.
+    const reading = () => {
+        const line = window.innerHeight / 3
+        const atEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4
+        if (atEnd) return parts.length - 1
+        let found = 0
+        parts.forEach((part, at) => {
+            if (part.getBoundingClientRect().top <= line) found = at
+        })
+        return found
+    }
+    const light = () => {
+        asked = false
+        const at = reading()
+        const link = links[at]
+        if (link !== lit) {
+            if (lit) lit.removeAttribute('aria-current')
+            link.setAttribute('aria-current', 'location')
+            lit = link
+            // The menu scrolls by itself only where it is longer than the window.
+            if (menu.scrollHeight > menu.clientHeight) {
+                const above = link.offsetTop - menu.scrollTop
+                if (above < 0 || above + link.offsetHeight > menu.clientHeight) menu.scrollTop = link.offsetTop - menu.clientHeight / 2
+            }
+        }
+        if (arrow) arrow.toggleAttribute('hidden', window.scrollY < window.innerHeight * 0.8)
+    }
+    const soon = () => {
+        if (asked) return
+        asked = true
+        requestAnimationFrame(light)
+    }
+    window.addEventListener('scroll', soon, { passive: true })
+    window.addEventListener('resize', soon, { passive: true })
+    if (arrow)
+        arrow.addEventListener('click', (event) => {
+            event.preventDefault()
+            window.scrollTo({ top: 0, behavior: calm ? 'auto' : 'smooth' })
+            history.replaceState(null, '', location.pathname)
+        })
+    light()
+}
+
+document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('.docs-n').forEach(docs))

@@ -4,7 +4,7 @@
 export type DocPicture = { file: string; width: number; height: number; alt: string }
 export type DocSection = { id: string; title: string; pictures: DocPicture[]; html: string }
 
-export const DOCS_ABOUT = 'How Weft Loom works, one thing at a time: patterns, sounds, the song, tempo and time, choosing several notes at once, chords, knobs over the song, versions, scenes, recordings, packs, MIDI, jams, and getting a song out.'
+export const DOCS_ABOUT = 'How Weft Loom works, one thing at a time: patterns, sounds, the song, tempo and time, choosing several notes at once, chords, knobs over the song, versions, scenes, playing live from the code, recordings, packs, MIDI, jams, and getting a song out.'
 
 export const DOCS: DocSection[] = [
     {
@@ -16,8 +16,7 @@ export const DOCS: DocSection[] = [
 <p>On the left are the Mixer and the Sounds. The icons at the top right show and hide each part of the window, and Controls, Both and Code choose between the strips, the code, or the two side by side.</p>
 <p><kbd>Space</kbd> plays and pauses. After typing in the code, <kbd>Cmd</kbd> <kbd>Enter</kbd> plays what you typed. Where this page says Cmd, it is Ctrl on Windows and Linux.</p>
 <p>Beside Stop is the <b>metronome</b>: a click on every beat while the song plays, the first beat of each bar higher. The arrow next to it has the <b>count-in</b>: a bar of clicks before the song starts, whenever it starts, so you can come in on the beat. Neither is part of the song.</p>
-<p>Beside the play button are Song and Live. <b>Live</b> plays every pattern round and round, which is what you want while trying things out, and is where a new song starts. <b>Song</b> plays the bars you laid out in the Song panel, from the first to the last.</p>
-<p>To play live from the code, the arrow beside <b>Update</b> chooses when a change comes in: at once, on the next bar, or on the next four bars. While a change waits, the song plays on as it was and the code counts the beats left. The <b>performance view</b>, the button at the top right of the code or <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>F</kbd>, puts the code over the whole window, large enough for a projector, with the scenes over it in Live; <kbd>Cmd</kbd> <kbd>+</kbd> and <kbd>Cmd</kbd> <kbd>-</kbd> make it larger and smaller. The strips are out of the window while it is on, so that nothing beside the code takes the window's time from the sound.</p>`,
+<p>Beside the play button are Song and Live. <b>Live</b> plays every pattern round and round, which is what you want while trying things out, and is where a new song starts. <b>Song</b> plays the bars you laid out in the Song panel, from the first to the last.</p>`,
     },
     {
         id: 'patterns',
@@ -26,6 +25,7 @@ export const DOCS: DocSection[] = [
             { file: '/docs/grid.webp', width: 980, height: 270, alt: 'A drum pattern: a row of sixteen steps for each of two sounds, with volume, pan and a mute button at the end of each row.' },
             { file: '/docs/steps.webp', width: 980, height: 370, alt: 'A drum pattern with one row opened step by step: a bar under every hit says how loud it is, rising from the first hit to the last.' },
             { file: '/docs/roll.webp', width: 980, height: 327, alt: 'A pattern of notes in a piano roll, with its knobs in a row under it.' },
+            { file: '/docs/glide.webp', width: 980, height: 448, alt: 'An acid line in a piano roll: five notes have a short tail leading into them, and the Glide row under the roll has their steps switched on, with Glide time at 80 ms beside it.' },
         ],
         html: `<p>The row under the strips adds a pattern: Drums, Bass line, Chords or Melody.</p>
 <p><b>Drums</b> are a grid. Click a step to put a hit there, and click it again to take it away. Press and drag along a row to fill every step you pass, or to empty them when the drag begins on a hit. Hold <kbd>Shift</kbd> and click to make a hit louder. Add a sound adds a row, and a click on a row's name plays that sound. Every row has its own mute, volume, pan and controls at its end. A right click on a sound's name opens a menu for its row: see Several at once.</p>
@@ -60,7 +60,7 @@ export const DOCS: DocSection[] = [
     {
         id: 'song',
         title: 'The song',
-        pictures: [{ file: '/docs/song.webp', width: 980, height: 354, alt: 'The Song panel: a row for each pattern with the bars it plays in filled, and four bars chosen to go round, with buttons to repeat them, to put empty bars before them and to take them out.' }],
+        pictures: [{ file: '/docs/song.webp', width: 980, height: 354, alt: 'The Song panel: a row for each pattern with the bars it plays in filled, and four bars chosen to go round, with buttons to repeat them, to put empty bars before them and to take them out.' }, { file: '/docs/sections.webp', width: 980, height: 360, alt: 'The Song panel with a Sections row over the patterns: Intro over the first eight bars, then Build and Break.' }],
         html: `<p>The Song panel is the song from left to right: a row for each pattern, a cell for each bar. Drag across a row to fill bars or to empty them. A pattern plays in the bars that are filled, and the song is as long as its last filled bar.</p>
 <p>Each row has M and S, and a knob for volume and for pan.</p>
 <p>Click a bar number to start from that bar. Drag across bar numbers and those bars go round, which is the way to work on one part of a song. While they go round, three buttons work on them in every pattern at once: <b>Repeat them</b> puts them in once more, <b>Empty bars before</b> makes room in front of them, and <b>Take them out</b> removes them.</p>
@@ -70,7 +70,7 @@ export const DOCS: DocSection[] = [
     {
         id: 'tempo',
         title: 'Tempo and time',
-        pictures: [{ file: '/docs/tempo.webp', width: 980, height: 185, alt: 'The Song panel with a Tempo row over the patterns: level for eight bars, then rising bar by bar to the end of the song.' }],
+        pictures: [{ file: '/docs/tempo.webp', width: 980, height: 185, alt: 'The Song panel with a Tempo row over the patterns: level for eight bars, then rising bar by bar to the end of the song.' }, { file: '/docs/tempomenu.webp', width: 300, height: 240, alt: 'The menu under the tempo: Tap tempo, with 119 tapped, and Half the tempo and Double the tempo.' }],
         html: `<p>The tempo is the number at the top, in beats a minute. Beside it is the <b>Time</b>: 4/4 to begin with, and 2/4, 3/4, 5/4, 6/8, 7/8 or 12/8 for a song that is counted another way. A new pattern gets the steps of that bar, and the lights beside the tempo count its beats. The time is one for the whole song, and the patterns a song already has stay as they are.</p>
 <p>The arrows beside the tempo make it a beat faster or slower, ten with <kbd>Shift</kbd>, and go on while you hold them. The menu beside them has <b>Tap tempo</b>, to tap the tempo in time, and halves or doubles it.</p>
 <p>A song can also speed up, slow down or change tempo. In the Song panel press <b>Draw the tempo</b>. A Tempo row appears over the patterns: drag in it to set the tempo bar by bar, and hold <kbd>Shift</kbd> for a straight line. The length of the song follows it, and so does a file you export.</p>
@@ -110,6 +110,13 @@ export const DOCS: DocSection[] = [
         html: `<p>Scenes are for playing a song live. Switch to Live and the Song panel gets a row of them.</p>
 <p>A scene is a set of patterns that play together. Mute and unmute patterns until you hear one part of your song, and press <b>Keep what plays now</b>. Do the same for the next part.</p>
 <p>While the song plays, press a scene. It waits for the bar to end and comes in on the first beat of the next one. Pressed in the last half second of a bar, it waits for the bar after. Double click a scene to give it a name.</p>`,
+    },
+    {
+        id: 'live',
+        title: 'Playing live from the code',
+        pictures: [{ file: '/docs/perform.webp', width: 1440, height: 900, alt: 'The performance view: the code over the whole window in large letters, the scenes over it, and beside Update a change waiting for the next bar, a beat away.' }],
+        html: `<p>For playing a set from the code, two things help. The arrow beside <b>Update</b> chooses when a change comes in: at once, on the next bar, or on the next four bars. While a change waits, the song plays on as it was and the code counts the beats that are left, so the change comes in in time. Only Update and <kbd>Cmd</kbd> <kbd>Enter</kbd> wait; a knob, a step or a note comes in at once.</p>
+<p>The <b>performance view</b>, the button at the top right of the code or <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>F</kbd>, puts the code over the whole window, large enough for a projector, with the scenes over it in Live. <kbd>Cmd</kbd> <kbd>+</kbd> and <kbd>Cmd</kbd> <kbd>-</kbd> make it larger and smaller, and the size is kept. The strips are out of the window while it is on, so that nothing beside the code takes the window's time from the sound.</p>`,
     },
     {
         id: 'keys',
@@ -181,7 +188,7 @@ export const DOCS: DocSection[] = [
     {
         id: 'devices',
         title: 'Microphone and output',
-        pictures: [{ file: '/docs/devices.webp', width: 460, height: 500, alt: 'The sound settings: a list to choose the microphone from, a list to choose the output from, and a button that plays a short note.' }],
+        pictures: [{ file: '/docs/devices.webp', width: 460, height: 604, alt: 'The sound settings: a list to choose the microphone from, a list to choose the output from, and a button that plays a short note.' }],
         html: `<p>Weft Loom records from the microphone the system uses and plays through the system's output, until you choose otherwise. Press <b>Devices</b> at the top of the mixer, or choose Sound Settings in the File menu.</p>
 <p><b>Microphone</b> is what a take and your voice in a jam are made with. <b>Output</b> is what the song is played through, and Test plays a short note there. If the list of outputs is empty, press Show the outputs: a window is only told what it could play through once it may use the microphone. Nothing is recorded.</p>
 <p>Both go back to the system's own when what you chose is unplugged.</p>`,
@@ -198,7 +205,7 @@ export const DOCS: DocSection[] = [
     {
         id: 'files',
         title: 'Saving, exporting, publishing',
-        pictures: [{ file: '/docs/export.webp', width: 460, height: 306, alt: 'The export window: the song or each pattern, WAV or MP3, a quality, and buttons for a song file, the code and the audio.' }],
+        pictures: [{ file: '/docs/export.webp', width: 512, height: 306, alt: 'The export window: the song or each pattern, WAV or MP3, a quality, and buttons for a song file, the code and the audio.' }],
         html: `<p>Weft Loom keeps your songs itself and writes every change down as you make it, so quitting the app loses nothing. <kbd>Cmd</kbd> <kbd>S</kbd> saves a version you can go back to from the song's menu. Closing a song that has changes asks whether to save them: Close without saving takes it back to the version that was saved.</p>
 <p><b>Export</b> makes files. A song file (.weft) is the whole song with your own sounds inside, to open in Weft Loom on another machine or to send to someone. Code (.js) is the code alone. MIDI (.mid) is the notes alone, for another music program. Export audio makes a WAV or an MP3 of the song. With Each pattern chosen it makes a zip with a file for every pattern, all the same length, to mix in another audio program. Loudness <b>For streaming</b> makes the song as loud as music is played on streaming sites, about -14 LUFS, and the note under it says how loud the file came out.</p>
 <p><b>Publish</b> puts a song among the <a href="/songs">songs on this site</a>, where anyone can listen to half a minute of it, download it and open it in Weft Loom. It needs an account, made in the same window with an email and a password. An account holds ten songs of up to 1 MB each, and Weft Loom makes your own sounds smaller where it has to.</p>

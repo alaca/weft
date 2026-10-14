@@ -416,7 +416,7 @@ export function licencePage(around: Around, licences: readonly string[]): string
 // colour a pattern in that place would have.
 export function docsPage(around: Around): string {
     const picture = (shown: DocPicture) => html`<figure class="docs-f"><a href="${shown.file}" aria-label="The picture in full size"><img src="${shown.file}" width="${shown.width}" height="${shown.height}" loading="lazy" alt="${shown.alt}"></a></figure>`
-    const main = html`<main class="wrap page">
+    const main = html`<main class="wrap page" id="top">
     <div class="ph">
         <div>
             <h1>Docs</h1>
@@ -425,7 +425,7 @@ export function docsPage(around: Around): string {
     </div>
     <div class="docs">
         <nav class="docs-n" aria-label="On this page">
-            ${DOCS.map((part, at) => html`<a href="#${part.id}"><i class="${hue(at)}"></i>${part.title}</a>`)}
+            ${DOCS.map((part, at) => html`<a href="#${part.id}" class="${hue(at)}"><i></i>${part.title}</a>`)}
         </nav>
         <div class="docs-b">
             ${DOCS.map((part, at) => html`<section id="${part.id}" aria-labelledby="h-${part.id}">
@@ -435,6 +435,7 @@ export function docsPage(around: Around): string {
             </section>`)}
         </div>
     </div>
+    <a class="totop" href="#top" aria-label="Back to the top" title="Back to the top" data-totop><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" /></svg></a>
 </main>`
     return layout(around, 'docs', 'Docs, Weft Loom', main, '', html`<meta name="description" content="${DOCS_ABOUT}">
 ${pasted(around, 'How Weft Loom works', DOCS_ABOUT)}`)
