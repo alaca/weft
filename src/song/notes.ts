@@ -12,8 +12,9 @@ export type Note = { start: number; length: number; midi: number; level?: number
 export type NoteRef = { start: number; midi: number }
 export type NoteGrid = { notes: Note[]; steps: number; cycles: number; perCycle: number }
 // `levels` is the call that holds a level for every step, when the code has one. `otherLevel`
-// says the code sets the level some other way, which is then left as it is.
-export type NoteSource = { grid: NoteGrid; from: number; to: number; slow: Call | null; levels: Call | null; otherLevel: boolean }
+// says the code sets the level some other way, which is then left as it is. `stacked` says the
+// notes are written a line at a time, each line with levels of its own (see `rollText`).
+export type NoteSource = { grid: NoteGrid; from: number; to: number; slow: Call | null; levels: Call | null; otherLevel: boolean; stacked?: boolean }
 
 // Twelve and twenty-four are for music counted in threes. They stand in order of fineness, and
 // a pattern read from other code is put on the first of these that holds all its notes.
@@ -70,6 +71,13 @@ export function formatNoteGrid(notes: Note[], steps: number, perCycle = steps): 
         const groups = Array.from({ length: steps / size }, () => Array<string>(size).fill('~').join(' '))
         return `\`\n  ${groups.join('   ')}\n\``
     }
+    const { lines } = voiceLines(notes, steps)
+    return `\`\n${lines.map((line) => `  ${line}`).join(' ,\n')}\n\``
+}
+
+// The notes as lines in which none lies over another, each written as its steps, with every
+// step as wide as the widest of all lines so that the steps stand under each other.
+function voiceLines(notes: Note[], steps: number): { voices: Note[][]; lines: string[] } {
     const voices: Note[][] = []
     for (const note of inOrder(notes)) {
         const voice = voices.find((line) => {
@@ -99,9 +107,9 @@ export function formatNoteGrid(notes: Note[], steps: number, perCycle = steps): 
                     .join(' '),
             )
         }
-        return `  ${groups.join('   ').trimEnd()}`
+        return groups.join('   ').trimEnd()
     })
-    return `\`\n${lines.join(' ,\n')}\n\``
+    return { voices, lines }
 }
 
 // The level of the notes is written the way the level of a drum grid's hits is, as a number for
@@ -152,11 +160,39 @@ export function levelText(notes: Note[], steps: number, cycles: number): string 
     return cycles > 1 ? `[${text}]/${cycles}` : text
 }
 
+// Whether the notes of a chord have levels that differ, which a level for every step cannot say.
+export const levelsOfTheirOwn = (notes: Note[]): boolean => notes.some((note) => notes.some((other) => other.start === note.start && (other.level ?? 1) !== (note.level ?? 1)))
+
+// A pattern's notes as code, with how many bars they last and how loud each is. While every
+// note that starts on a step has one level, that is one line of notes for all of them with one
+// level for every step. Where the notes of a chord differ, as when a pianist plays the top note
+// louder, each line of notes is written with levels of its own and the lines are stacked:
+//   stack(
+//     note(`c3 _ ~ ~`).postgain("0.6 1 1 1"),
+//     note(`e3 _ ~ ~`),
+//   ).slow(2)
+// Their levels stand inside, so they need no brackets for the bars.
+export function rollText(notes: Note[], steps: number, cycles: number): string {
+    const slow = cycles > 1 ? `.slow(${cycles})` : ''
+    if (!levelsOfTheirOwn(notes)) {
+        const levels = levelText(notes, steps, cycles)
+        return `note(${formatNoteGrid(notes, steps, steps / cycles)})${slow}${levels ? `.${LEVEL}("${levels}")` : ''}`
+    }
+    const { voices, lines } = voiceLines(notes, steps)
+    const voiceLevels = (voice: Note[]) => levelText(voice, steps, 1)
+    const rows = voices.map((voice, at) => {
+        const levels = voiceLevels(voice)
+        return `  note(\`${lines[at]}\`)${levels ? `.${LEVEL}("${levels}")` : ''},\n`
+    })
+    return `stack(\n${rows.join('')})${slow}`
+}
+
 // A run of steps given a level each, from one step on: every note that starts on one of them
-// is that loud. Null when nothing changes.
-export function setLevels(notes: Note[], from: number, levels: number[]): Note[] | null {
+// is that loud, or, when some notes are named, every one of those. Null when nothing changes.
+export function setLevels(notes: Note[], from: number, levels: number[], only?: NoteRef[]): Note[] | null {
     let changed = false
     const next = notes.map((note) => {
+        if (only && !only.some((ref) => same(note, ref))) return note
         const level = levels[note.start - from]
         if (level === undefined || fitLevel(level) === (note.level ?? 1)) return note
         changed = true
@@ -165,26 +201,75 @@ export function setLevels(notes: Note[], from: number, levels: number[]): Note[]
     return changed ? next : null
 }
 
-export function noteText(block: PatternBlock): { text: string; from: number; to: number } | null {
+type Voice = { text: string; levels: string | null }
+
+// The lines of a roll written as a stack, each a line of notes with or without its levels.
+function stackedVoices(call: Call | undefined): Voice[] | null {
+    if (!call || call.name !== 'stack' || !call.args.length) return null
+    const voices: Voice[] = []
+    for (const arg of call.args) {
+        if (arg.kind !== 'chain') return null
+        const [notes, levels, ...more] = arg.calls
+        const text = notes?.name === 'note' && notes.args.length === 1 && notes.args[0].kind === 'string' ? notes.args[0].value : null
+        const said = levels?.name === LEVEL && levels.args.length === 1 && levels.args[0].kind === 'string' ? levels.args[0].value : null
+        if (text === null || more.length || (levels && said === null)) return null
+        voices.push({ text, levels: said })
+    }
+    return voices
+}
+
+// What the pattern plays, as the text of its notes. Notes written a line at a time come as one
+// text of all the lines, to be read and not to be written into.
+export function noteText(block: PatternBlock): { text: string; from: number; to: number; stacked?: boolean } | null {
     const source = block.calls[0]
+    const voices = stackedVoices(source)
+    if (voices) return { text: voices.map((voice) => voice.text).join(','), from: source.from, to: source.to, stacked: true }
     const arg = source?.args[0]
     if (!source || source.name !== 'note' || source.args.length !== 1 || !arg || arg.kind !== 'string') return null
     return { text: arg.value, from: arg.from, to: arg.to }
 }
 
-export function readNotes(block: PatternBlock): NoteSource | null {
-    const text = noteText(block)
-    const parsed = text ? parseNoteGrid(text.text) : null
-    if (!text || !parsed) return null
+function slowOf(block: PatternBlock): { slow: Call | null; cycles: number } | null {
     const next = block.calls[1]
     const slow = next?.name === 'slow' ? next : null
     const arg = slow?.args[0]
     if (slow && !(arg && arg.kind === 'number' && Number.isInteger(arg.value) && arg.value >= 1)) return null
-    const cycles = arg && arg.kind === 'number' ? arg.value : 1
+    return { slow, cycles: arg && arg.kind === 'number' ? arg.value : 1 }
+}
+
+export function readNotes(block: PatternBlock): NoteSource | null {
+    const voices = stackedVoices(block.calls[0])
+    if (voices) return readStacked(block, voices)
+    const text = noteText(block)
+    const parsed = text ? parseNoteGrid(text.text) : null
+    const length = slowOf(block)
+    if (!text || !parsed || !length) return null
+    const { slow, cycles } = length
     if (parsed.steps % cycles !== 0) return null
     const levels = readLevels(block, parsed.steps, cycles)
     const notes = levels.values ? parsed.notes.map((note) => levelled(note, fitLevel((levels.values as number[])[note.start]))) : parsed.notes
     return { grid: { notes, steps: parsed.steps, cycles, perCycle: parsed.steps / cycles }, from: text.from, to: text.to, slow, ...noteLevelsOf(block, parsed.steps, cycles) }
+}
+
+function readStacked(block: PatternBlock, voices: Voice[]): NoteSource | null {
+    const length = slowOf(block)
+    if (!length) return null
+    const notes: Note[] = []
+    let steps = 0
+    for (const voice of voices) {
+        const parsed = parseNoteGrid(voice.text)
+        if (!parsed || (steps && parsed.steps !== steps)) return null
+        steps = parsed.steps
+        const values = voice.levels === null ? null : voice.levels.trim().split(/\s+/).map(Number)
+        if (values && (values.length !== steps || !values.every((value) => Number.isFinite(value) && value >= 0))) return null
+        notes.push(...parsed.notes.map((note) => (values ? levelled(note, fitLevel(values[note.start])) : note)))
+    }
+    const { slow, cycles } = length
+    if (!steps || steps % cycles !== 0) return null
+    const source = block.calls[0]
+    // A level written for the whole pattern after the lines would sound in place of theirs.
+    const other = block.calls.some((call) => call.name === LEVEL)
+    return { grid: { notes: inOrder(notes), steps, cycles, perCycle: steps / cycles }, from: source.from, to: source.to, slow, levels: null, otherLevel: other, stacked: true }
 }
 
 // What a pattern's code says of the level of its notes, for whoever reads the notes another way.
@@ -208,12 +293,13 @@ export function roomAt(notes: Note[], start: number, midi: number, steps: number
 }
 
 // A note that says no level of its own takes the one of the notes that start with it. One
-// that does, a note played on a keyboard, gives them its own: the step has one level.
+// that does, a note played on a keyboard, keeps its own, so a chord keeps how hard each of its
+// keys was pressed.
 export function addNote(notes: Note[], note: Note, steps: number): Note[] | null {
     const candidate = { ...note, length: Math.min(note.length, steps - note.start) }
     if (!fits(notes, candidate, -1, steps)) return null
     const level = fitLevel(candidate.level ?? levelAt(notes, candidate.start) ?? 1)
-    return inOrder([...notes.map((other) => (other.start === candidate.start ? levelled(other, level) : other)), levelled(candidate, level)])
+    return inOrder([...notes, levelled(candidate, level)])
 }
 
 export function removeNote(notes: Note[], ref: NoteRef): Note[] {
@@ -293,6 +379,17 @@ export function notesFromEvents(cycles: Sounded[][]): { notes: Note[]; cycles: n
 }
 
 export function noteEdits(block: PatternBlock, source: NoteSource, notes: Note[], steps: number, cycles: number): TextEdit[] {
+    // Notes with levels of their own are written as a whole, and so is a pattern that had such
+    // notes and has them no more. Where the code says the level some other way, there are none.
+    if (source.stacked || (!source.otherLevel && levelsOfTheirOwn(notes))) {
+        const first = block.calls[0]
+        let to = (source.slow ?? first).to
+        const kept = source.levels
+        const apart = kept && kept.from !== to ? [removeCall(kept)] : []
+        if (kept && kept.from === to) to = kept.to
+        const plain = source.otherLevel ? notes.map((note) => levelled(note, 1)) : notes
+        return [{ from: first.from, to, insert: rollText(plain, steps, cycles) }, ...apart]
+    }
     const grid: TextEdit = { from: source.from, to: source.to, insert: formatNoteGrid(notes, steps, steps / cycles) }
     const length = lengthEdits(block, source.slow, cycles)
     const text = source.otherLevel ? null : levelText(notes, steps, cycles)

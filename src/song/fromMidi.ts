@@ -3,7 +3,7 @@ import { DRUM_CHANNEL, type MidiSong } from '../library/midifile'
 import { LEVEL, type GridRow } from './grid'
 import { kitText } from './kit'
 import { meterNow, METERS, setMeterNow, USUAL, usualSteps, type Meter } from './meter'
-import { formatNoteGrid, levelText, type Note } from './notes'
+import { rollText, type Note } from './notes'
 import { freeName, patternNameFrom } from './patterns'
 import { barsText } from './bars'
 import { ARRANGE } from './arrange'
@@ -98,8 +98,7 @@ function made(song: MidiSong, meter: Meter): FromMidi | null {
             if (before && before.start === start) continue
             notes.push({ start, length, midi, ...(levelOf(note.force) === 1 ? {} : { level: levelOf(note.force) }) })
         }
-        const levels = levelText(notes, steps, length)
-        return `note(${formatNoteGrid(notes, steps, STEPS)})${slow}${levels ? `.${LEVEL}("${levels}")` : ''}\n  .s("piano")${mix}`
+        return `${rollText(notes, steps, length)}\n  .s("piano")${mix}`
     }
 
     for (const track of song.tracks) {

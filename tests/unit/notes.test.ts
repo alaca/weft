@@ -331,16 +331,34 @@ describe('the level of the notes', () => {
         expect(edited(slow, (from) => ({ notes: setLevels(resizeNotes(from.grid, 1), 0, [0.5])!, cycles: 1 }))).toBe('lead: note(`\n  c3 ~  e3 ~\n`).postgain("0.5 1 1 1")\n')
     })
 
-    it('is one for the notes that start together: a note put in by hand takes theirs, a played one gives them its own, a moved one takes that of where it lands', () => {
+    it('of a note put in by hand is that of the notes that start with it, a played one keeps its own, a moved one takes that of where it lands', () => {
         const notes = readNotes(first(LEAD))!.grid.notes
         expect(addNote(notes, { start: 2, length: 1, midi: 55 }, 4)?.map((note) => note.level)).toEqual([undefined, 0.6, 0.6])
-        expect(addNote(notes, { start: 2, length: 1, midi: 55, level: 0.9 }, 4)?.map((note) => note.level)).toEqual([undefined, 0.9, 0.9])
+        expect(addNote(notes, { start: 2, length: 1, midi: 55, level: 0.9 }, 4)?.map((note) => note.level)).toEqual([undefined, 0.6, 0.9])
         expect(addNote(notes, { start: 0, length: 1, midi: 55, level: 1 }, 4)?.map((note) => note.level)).toEqual([undefined, undefined, 0.6])
         expect(moveNote(notes, { start: 2, midi: 52 }, { start: 1, midi: 52 }, 4)).toEqual([
             { start: 0, length: 1, midi: 48 },
             { start: 1, length: 1, midi: 52, level: 0.6 },
         ])
         expect(moveNote(notes, { start: 2, midi: 52 }, { start: 0, midi: 52 }, 4)?.map((note) => note.level)).toEqual([undefined, undefined])
+    })
+
+    it('of each note of a chord is its own: the lines of notes are then stacked, each with its levels, and are one line again when the levels agree', () => {
+        const plain = 'lead: note(`\n  c3 ~  e3 ~\n`)\n  .s("piano")\n'
+        const chord = edited(plain, (from) => ({ notes: addNote(from.grid.notes, { start: 0, length: 1, midi: 55, level: 0.6 }, 4)! }))
+        expect(chord).toBe('lead: stack(\n  note(`c3 ~  e3 ~`),\n  note(`g3 ~  ~  ~`).postgain("0.6 1 1 1"),\n)\n  .s("piano")\n')
+        expect(readNotes(first(chord))!.grid.notes).toEqual([
+            { start: 0, length: 1, midi: 48 },
+            { start: 0, length: 1, midi: 55, level: 0.6 },
+            { start: 2, length: 1, midi: 52 },
+        ])
+        const two = edited(chord, (from) => ({ notes: resizeNotes(from.grid, 2), cycles: 2 }))
+        expect(two).toBe('lead: stack(\n  note(`c3 ~  e3 ~    c3 ~  e3 ~`),\n  note(`g3 ~  ~  ~    g3 ~  ~  ~`).postgain("0.6 1 1 1   0.6 1 1 1"),\n).slow(2)\n  .s("piano")\n')
+        expect(readNotes(first(two))!.grid.notes.filter((note) => note.level === 0.6).map((note) => note.start)).toEqual([0, 4])
+        // The Level lane changes one note of the chord when that one is chosen.
+        const softer = edited(chord, (from) => ({ notes: setLevels(from.grid.notes, 0, [0.3], [{ start: 0, midi: 48 }])! }))
+        expect(readNotes(first(softer))!.grid.notes.map((note) => note.level)).toEqual([0.3, 0.6, undefined])
+        expect(edited(chord, (from) => ({ notes: setLevels(from.grid.notes, 0, [1])! }))).toBe('lead: note(`\n  c3 ~  e3 ~ ,\n  g3 ~  ~  ~\n`)\n  .s("piano")\n')
     })
 
     it('is how hard a key was pressed, 100 of 127 being a note put in by hand', () => {

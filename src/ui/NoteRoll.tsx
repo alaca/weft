@@ -130,11 +130,19 @@ export function NoteRoll(props: {
     // on. It is shown once a note has a level of its own, as one played on a MIDI keyboard
     // has, and whenever it is asked for.
     const [levelsAsked, setLevelsAsked] = createSignal<boolean | null>(null)
-    const levelsShown = () => Boolean(source()) && (levelsAsked() ?? Boolean(source()?.levels))
+    const levelsShown = () => Boolean(source()) && (levelsAsked() ?? Boolean(source()?.levels || source()?.stacked))
+    // Where chosen notes start, the lane is theirs, so that one note of a chord can be made
+    // louder or softer than the others.
+    const [chosen, setChosen] = createSignal<Set<string>>(new Set())
+    const chosenAt = (from: number, count: number): NoteRef[] =>
+        (source()?.grid.notes ?? []).filter((note) => note.start >= from && note.start < from + count && chosen().has(noteKey(note))).map((note) => ({ start: note.start, midi: note.midi }))
     const levels = createMemo(() => {
         const notes = source()?.grid.notes ?? []
         const from = offset()
-        return Array.from({ length: perCycle() }, (_, at) => levelAt(notes, from + at))
+        return Array.from({ length: perCycle() }, (_, at) => {
+            const mine = notes.filter((note) => note.start === from + at && chosen().has(noteKey(note)))
+            return levelAt(mine.length ? mine : notes, from + at)
+        })
     })
     const beat = () => beatSteps(perCycle()) ?? (perCycle() % 3 === 0 ? Math.max(3, perCycle() / 4) : 4)
 
@@ -186,7 +194,6 @@ export function NoteRoll(props: {
 
     // Notes chosen together: by a box drawn with Shift held, by Shift and a click, or by Cmd A.
     // They are moved, copied, cut and taken out as one.
-    const [chosen, setChosen] = createSignal<Set<string>>(new Set())
     const [box, setBox] = createSignal<Box | null>(null)
     const isChosen = (note: NoteRef) => chosen().has(noteKey(note))
     const chosenNotes = (): NoteRef[] => (source()?.grid.notes ?? []).filter(isChosen).map((note) => ({ start: note.start, midi: note.midi }))
@@ -514,7 +521,10 @@ export function NoteRoll(props: {
                         beat={beat()}
                         disabled={stale() || source()?.otherLevel}
                         empty="No note starts on this step"
-                        onDraw={(from, values) => setNoteLevels(props.id, offset() + from, values)}
+                        onDraw={(from, values) => {
+                            const only = chosenAt(offset() + from, values.length)
+                            setNoteLevels(props.id, offset() + from, values, only.length ? only : undefined)
+                        }}
                         onHold={(on) => setHeldPage(on ? shown() : null)}
                     />
                 </Show>

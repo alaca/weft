@@ -64,6 +64,24 @@ test('a MIDI keyboard plays the pattern you are on, and is written into a piano 
     await expect.poll(() => heard(page)).toBeGreaterThan(0.01)
     expect(await code(page)).toBe(drums)
 
+    // A chord keeps how hard each of its keys was pressed: its lines of notes are stacked, each
+    // with levels of its own.
+    await page.getByTestId('strip-lead').locator('.st-n').click()
+    await page.getByRole('button', { name: 'Play lead on the keyboard', exact: true }).click()
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await page.evaluate(() => {
+        ;(window as any).__keys.send([0x90, 72, 120])
+        ;(window as any).__keys.send([0x90, 76, 40])
+    })
+    await page.waitForTimeout(150)
+    await letGo(page, 72)
+    await letGo(page, 76)
+    await expect.poll(() => code(page)).toMatch(/lead: stack\(\n {2}note\(`/)
+    expect(await code(page)).toMatch(/\.postgain\("[^"]*0\.4/)
+    await page.getByRole('button', { name: 'Stop', exact: true }).click()
+    await page.getByRole('button', { name: 'Play lead on the keyboard', exact: true }).click()
+
     // The sound settings name the keyboard.
     await page.getByRole('button', { name: 'Mixer', exact: true }).click()
     await page.getByTestId('mixer').getByRole('button', { name: 'Devices', exact: true }).click()

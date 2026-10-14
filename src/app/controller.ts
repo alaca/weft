@@ -1687,7 +1687,7 @@ function editableNotes(block: PatternBlock): NoteSource | null {
     const direct = readNotes(block)
     if (direct) return direct
     const text = noteText(block)
-    if (!text) return null
+    if (!text || text.stacked) return null
     const slow = block.calls[1]?.name === 'slow' ? block.calls[1] : null
     if (slow) {
         // One rest played slower is an empty roll of that many bars, as older songs have it.
@@ -1810,9 +1810,9 @@ export function putNote(id: string, start: number, midi: number, level?: number)
 }
 
 // A level for each of a run of steps of a roll, from one step on.
-export function setNoteLevels(id: string, from: number, levels: number[]) {
+export function setNoteLevels(id: string, from: number, levels: number[], only?: NoteRef[]) {
     changeNotes(id, (source) => {
-        const next = source.otherLevel ? null : setLevels(source.grid.notes, from, levels)
+        const next = source.otherLevel ? null : setLevels(source.grid.notes, from, levels, only)
         return next ? { notes: next, perCycle: source.grid.perCycle, cycles: source.grid.cycles } : null
     })
 }
