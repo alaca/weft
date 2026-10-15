@@ -69,6 +69,11 @@
         "macOS": {
             "signingIdentity": "-",
             "entitlements": "Entitlements.plist"
+        },
+        "linux": {
+            "appimage": {
+                "bundleMediaFramework": true
+            }
         }
     },
     "plugins": {

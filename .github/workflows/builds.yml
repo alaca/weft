@@ -47,6 +47,16 @@ jobs:
               run: |
                   sudo apt-get update
                   sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev libasound2-dev patchelf
+            # The window plays its sound through GStreamer, and one built here cannot use another
+            # system's plugins: they are not where it looks, or are made for another version of it.
+            # So the AppImage carries its own, and only these sets of them, which may be handed on.
+            - name: What the Linux build plays its sound with
+              if: runner.os == 'Linux'
+              run: |
+                  sudo apt-get install -y gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-pulseaudio gstreamer1.0-alsa
+                  mkdir -p "$RUNNER_TEMP/gstreamer"
+                  dpkg -L libgstreamer1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-pulseaudio gstreamer1.0-alsa | grep '/gstreamer-1.0/libgst.*\.so$' | xargs -I{} cp {} "$RUNNER_TEMP/gstreamer"
+                  echo "GSTREAMER_PLUGINS_DIR=$RUNNER_TEMP/gstreamer" >> "$GITHUB_ENV"
             - run: npm ci
             - name: The tag has to be the version of the app
               shell: bash
@@ -54,6 +64,15 @@ jobs:
             - name: Build
               shell: bash
               run: npx tauri build --bundles ${{ matrix.bundles }} --config '{"bundle":{"createUpdaterArtifacts":false}}' 2>&1 | tee build.log
+            - name: The AppImage carries what plays its sound
+              if: runner.os == 'Linux'
+              shell: bash
+              run: |
+                  plugins="$(echo src-tauri/target/release/bundle/appimage/*.AppDir/usr/lib/gstreamer-1.0)"
+                  for plugin in coreelements autodetect pulseaudio audioconvert audioresample app playback wavparse; do
+                      test -f "$plugins/libgst$plugin.so" || { echo "::error::libgst$plugin.so is missing from the AppImage"; exit 1; }
+                  done
+                  test -f src-tauri/target/release/bundle/appimage/*.AppDir/apprun-hooks/linuxdeploy-plugin-gstreamer.sh
             # The log of a run can only be read by someone signed in. The end of a build that
             # failed is said here as well, where anyone can read it.
             - name: Say why it failed

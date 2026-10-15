@@ -3,6 +3,13 @@ mod recorder;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // The window on Linux counts the channels of the sound output from the devices GStreamer
+    // finds, and says 0 when none gives a plain number. Strudel cannot set up its mix with 0
+    // channels and drops every note, so the window is told the output is stereo.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("WEBKIT_GST_MAX_NUMBER_OF_AUDIO_OUTPUT_CHANNELS").is_none() {
+        std::env::set_var("WEBKIT_GST_MAX_NUMBER_OF_AUDIO_OUTPUT_CHANNELS", "2");
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
