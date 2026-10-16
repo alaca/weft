@@ -19,6 +19,7 @@ import { createStun } from './stun'
 //   WEFT_SOURCE      where the source code can be read, when there is such a place
 //   WEFT_COFFEE      a page where people can buy the maker a coffee, when there is one
 //   WEFT_RELEASES    folder that releases of the app are put into, when there is one
+//   WEFT_PACKS       folder of the packs that are handed out, when there is one
 //   WEFT_SENDMAIL    a program that sends a mail it is given, like /usr/bin/msmtp
 //   WEFT_MAIL_FROM   the address that mail is sent from
 //   WEFT_STUN        who tells a machine its address from outside, as the app is to be told,
@@ -97,6 +98,7 @@ async function start() {
         source: env.WEFT_SOURCE,
         coffee: env.WEFT_COFFEE,
         releases: env.WEFT_RELEASES,
+        packs: env.WEFT_PACKS,
         behindProxy: true,
         ice: {
             stun: env.WEFT_STUN ? [env.WEFT_STUN] : undefined,

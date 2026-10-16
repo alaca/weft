@@ -2736,6 +2736,9 @@ createRoot(() =>
     }),
 )
 
+// The page of the site where packs are handed out.
+export const findPacks = () => void openInBrowser(`${SITE}/packs`)
+
 // A pack file added. A pack that is here already is taken to be a newer one of itself: what
 // it no longer holds goes, and the rest is replaced. A sound of the pack that came here before
 // it, in a song that used it, is among yours under the same name, and is the pack's from now

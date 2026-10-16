@@ -65,7 +65,7 @@ p { text-wrap: pretty; }
 .nav { display: flex; align-items: center; gap: 2px; }
 .nav a { height: 32px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center; font-size: 14px; font-weight: 500; color: var(--linen-2); white-space: nowrap; }
 .nav a:hover { background: var(--cloth-3); color: var(--linen); }
-[data-page='songs'] .nav [data-nav='songs'], [data-page='song'] .nav [data-nav='songs'], [data-page='maker'] .nav [data-nav='songs'], [data-page='download'] .nav [data-nav='download'], [data-page='docs'] .nav [data-nav='docs'] { background: var(--cloth-2); color: var(--linen); box-shadow: inset 0 0 0 1px var(--seam); }
+[data-page='songs'] .nav [data-nav='songs'], [data-page='song'] .nav [data-nav='songs'], [data-page='maker'] .nav [data-nav='songs'], [data-page='download'] .nav [data-nav='download'], [data-page='docs'] .nav [data-nav='docs'], [data-page='packs'] .nav [data-nav='packs'] { background: var(--cloth-2); color: var(--linen); box-shadow: inset 0 0 0 1px var(--seam); }
 
 .ft { margin-top: 120px; border-top: 1px solid var(--seam-soft); }
 .ft-in { padding-top: 26px; padding-bottom: 30px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 22px; color: var(--linen-3); font-size: 13px; }
@@ -200,6 +200,12 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
 .pick-h > div { min-width: 0; display: grid; gap: 3px; }
 .pick h3 { font: 600 20px/1.15 var(--voice); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pick-f { display: flex; align-items: center; gap: 10px; }
+.packs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.pack { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr auto; }
+.pack-a { display: grid; align-content: start; gap: 12px; color: var(--linen-2); font-size: 13.5px; line-height: 1.5; }
+.pack-a .num { color: var(--linen-3); }
+.pack .at { display: none; margin-left: 8px; }
+.pack:has(.play[aria-pressed='true']) .at { display: inline; }
 .ib { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--linen-2); }
 .ib:hover { background: var(--cloth-3); color: var(--linen); }
 .ib svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
@@ -217,7 +223,7 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
 .end .dl { margin-top: 28px; }
 
 @media (max-width: 980px) {
-    .picks, .feats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .picks, .feats, .packs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
     .hero { padding-top: 60px; }
@@ -231,7 +237,7 @@ textarea.in { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertic
     .sec-h { flex-wrap: wrap; }
     .sec-h h2 { font-size: 28px; }
     .sec-h .btn { margin-left: 0; }
-    .picks, .feats { grid-template-columns: minmax(0, 1fr); }
+    .picks, .feats, .packs { grid-template-columns: minmax(0, 1fr); }
     .feat { display: grid; grid-template-columns: 54px minmax(0, 1fr); column-gap: 16px; align-items: start; padding: 18px; }
     .feat-i { grid-row: span 2; margin-bottom: 0; }
     .feat h3 { margin: 3px 0 5px; }

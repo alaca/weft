@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js'
 import { Fold, isFolded } from './Fold'
-import { addAudio, addOwnSounds, addPack, addSlices, closeSounds, colorAt, hearSound, keepTake, openTrim, presetOf, recordTake, removeOwnSound, removePack, removePreset, soundCatalogue, useSound } from '../app/controller'
+import { addAudio, addOwnSounds, addPack, addSlices, closeSounds, colorAt, findPacks, hearSound, keepTake, openTrim, presetOf, recordTake, removeOwnSound, removePack, removePreset, soundCatalogue, useSound } from '../app/controller'
 import { DEMO } from '../demo/demo'
 import { lengthText } from '../library/sounds'
 import { fits, inUse, isLaid, isOwn, isPreset, isSliced, takesKit } from '../sounds/apply'
@@ -217,7 +217,12 @@ export function SoundBrowser() {
                         <button class="btn" disabled={loaded() === 'loading'} onClick={() => packFile?.click()}>
                             + Add a pack
                         </button>
-                        <span>A pack is a file of sounds and presets made for Weft Loom.</span>
+                        <span>
+                            A pack is a file of sounds, presets and snippets made for Weft Loom.{' '}
+                            <button class="sb-lk" onClick={findPacks}>
+                                Free packs on weftloom.dev
+                            </button>
+                        </span>
                     </div>
                     <Show when={packNote()}>
                         <p class="sb-n" role="status" data-testid="pack-note">

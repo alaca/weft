@@ -23,8 +23,11 @@ export type Platform = 'macos' | 'windows' | 'linux'
 export type Build = { platform: Platform; version: string; bytes: number }
 // What stands around every page. `source` is where the app's source code can be read; the
 // link to it is left out until there is such a place. `origin` is the address people reach the
-// site at, for the few places where a page has to give an address in full.
-export type Around = { source?: string; origin?: string; demo?: boolean; coffee?: string }
+// site at, for the few places where a page has to give an address in full. `packs` says whether
+// there are packs to hand out.
+export type Around = { source?: string; origin?: string; demo?: boolean; coffee?: string; packs?: boolean }
+// A pack that is handed out, with what is in it and a preview to listen to.
+export type Pack = { id: string; name: string; about: string; tempo: number | null; sounds: number; presets: number; snippets: number; bytes: number; preview: Preview }
 // `tint` picks the colour of the disc that stands for a person, 0 to 5.
 export type Maker = { id: string; name: string; tint: number }
 export type Part = { name: string; sound: string; own: boolean }
@@ -154,6 +157,7 @@ ${defs}
         <nav class="nav" aria-label="Site">
             <a href="/songs" data-nav="songs">Songs</a>
             <a href="/docs" data-nav="docs">Docs</a>
+            ${around.packs ? html`<a href="/packs" data-nav="packs">Packs</a>` : ''}
             ${around.demo ? html`<a href="/demo" data-nav="demo">Demo</a>` : ''}
             <a href="/download" data-nav="download">Download</a>
             ${sourceLink(around, ' data-nav="source"')}
@@ -169,6 +173,7 @@ ${main}
         <span class="grow"></span>
         <nav aria-label="Footer">
             <a href="/songs">Songs</a>
+            ${around.packs ? html`<a href="/packs">Packs</a>` : ''}
             <a href="/docs">Docs</a>
             <a href="/download">Download</a>
             ${sourceLink(around)}
@@ -395,6 +400,50 @@ export function downloadPage(around: Around, builds: Build[]): string {
     ${around.coffee && builds.length ? html`<p class="tail">Weft Loom is free and stays free. If it helps you make music, you can <a href="/coffee" rel="noopener">buy me a coffee</a>.</p>` : ''}
 </main>`
     return layout(around, 'download', 'Download, Weft Loom', main, '', pasted(around, 'Download Weft Loom', about))
+}
+
+function packCard(pack: Pack): Markup {
+    const seconds = pack.preview.seconds
+    return html`<li class="card pick pack" data-player${seconds ? html` data-seconds="${seconds}"` : ''}>
+                <div class="pick-h">
+                    <a class="play" href="/packs/${pack.id}.mp3" aria-label="Listen to ${pack.name}">${PLAY}</a>
+                    <div>
+                        <h3>${pack.name}</h3>
+                        <span class="num">${pack.tempo ? bpm(pack.tempo) : 'Any tempo'}<span class="at"><span data-now>0:00</span>${seconds ? ` of ${clock(seconds)}` : ''}</span></span>
+                    </div>
+                </div>
+                <div class="wave" aria-hidden="true">
+                    ${waveUse(`p-${pack.id}`, 44)}
+                    <div class="wave-p">${waveUse(`p-${pack.id}`, 44)}</div>
+                </div>
+                <div class="pack-a">
+                    <p>${pack.about}</p>
+                    <p class="num">${[many(pack.sounds, 'sound'), many(pack.presets, 'preset'), many(pack.snippets, 'snippet')].join(', ')}</p>
+                </div>
+                <div class="pick-f">
+                    <span class="num">${size(pack.bytes)}</span>
+                    <span class="grow"></span>
+                    <a class="btn sm" href="/packs/${pack.id}.weftpack" aria-label="Download ${pack.name}, ${size(pack.bytes)}">${DOWN}.weftpack</a>
+                </div>
+            </li>`
+}
+
+export function packsPage(around: Around, packs: Pack[]): string {
+    const about = 'Sounds, presets and snippets to add to Weft Loom, free to use in anything you make. Listen to one, download it, then add it in the app.'
+    const defs = defsOf(packs.map((pack) => waveDef(`p-${pack.id}`, pack.preview.peaks, 44)))
+    const main = html`<main class="wrap page">
+    <div class="ph">
+        <div>
+            <h1>Packs</h1>
+            <p>${about}</p>
+        </div>
+    </div>
+    ${packs.length ? html`<ul class="packs">
+        ${packs.map(packCard)}
+    </ul>` : html`<p class="tail">There are no packs here yet.</p>`}
+    <p class="tail">In Weft Loom, open the Sounds, choose Packs and press Add a pack, then pick the file. Each sound in these packs is made from sums rather than taken from a recording, so it is yours to use in whatever you make, and to share.</p>
+</main>`
+    return layout(around, 'packs', 'Packs, Weft Loom', main, defs, pasted(around, 'Free packs for Weft Loom', about))
 }
 
 export function licencePage(around: Around, licences: readonly string[]): string {

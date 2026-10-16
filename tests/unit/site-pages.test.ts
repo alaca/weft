@@ -489,6 +489,35 @@ describe('a folder of releases', () => {
     })
 })
 
+describe('a folder of packs', () => {
+    it('lists the packs it is told of, with a preview of each to listen to and the pack to download, without a restart', async () => {
+        await site.close()
+        const packs = join(dataDir, 'packs')
+        mkdirSync(packs)
+        await start({ packs })
+        expect(await page('/')).not.toContain('href="/packs"')
+        writeFileSync(join(packs, 'cellar.weftpack'), Buffer.alloc(1500 * 1024, 1))
+        writeFileSync(join(packs, 'cellar.mp3'), Buffer.alloc(4000, 2))
+        writeFileSync(join(packs, 'gone.weftpack'), Buffer.alloc(10, 1))
+        writeFileSync(join(dataDir, 'secret.weftpack'), 'not for anyone')
+        const cellar = { id: 'cellar', name: 'Cellar Techno', about: 'Dark techno at 128.', tempo: 128, sounds: 9, presets: 4, snippets: 1, seconds: 17.5, peaks: [0.2, 1] }
+        writeFileSync(join(packs, 'packs.json'), JSON.stringify({ packs: [cellar, { ...cellar, id: 'gone', name: 'No preview' }, { ...cellar, id: 'nothing', name: 'No file' }] }))
+        const html = await page('/packs')
+        expect(html).toContain('<h3>Cellar Techno</h3>')
+        expect(html).toContain('9 sounds, 4 presets, 1 snippet')
+        expect(html).toContain('<a class="play" href="/packs/cellar.mp3" aria-label="Listen to Cellar Techno">')
+        expect(html).toContain('<a class="btn sm" href="/packs/cellar.weftpack" aria-label="Download Cellar Techno, 1.5 MB">')
+        expect(html).not.toContain('No preview')
+        expect(html).not.toContain('No file')
+        expect(await page('/')).toContain('href="/packs"')
+        const got = await fetch(`${site.origin}/packs/cellar.weftpack`)
+        expect([got.status, got.headers.get('content-disposition'), (await got.arrayBuffer()).byteLength]).toEqual([200, 'attachment; filename="Cellar Techno.weftpack"', 1500 * 1024])
+        const heard = await fetch(`${site.origin}/packs/cellar.mp3`, { headers: { Range: 'bytes=0-99' } })
+        expect([heard.status, heard.headers.get('content-type'), (await heard.arrayBuffer()).byteLength]).toEqual([206, 'audio/mpeg', 100])
+        for (const path of ['/packs/gone.weftpack', '/packs/nothing.weftpack', '/packs/..%2Fsecret.weftpack', '/packs/packs.json']) expect([path, (await fetch(site.origin + path)).status]).toEqual([path, 404])
+    })
+})
+
 describe('every page', () => {
     it('leaves nothing a person typed as markup, in text or in an attribute', async () => {
         const token = await signIn('ante@example.com', '<b>')

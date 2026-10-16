@@ -185,7 +185,7 @@ export const DOCS: DocSection[] = [
         id: 'packs',
         title: 'Packs',
         pictures: [{ file: '/docs/packs.webp', width: 300, height: 520, alt: 'The Sounds with Packs chosen: a pack called Starter loops with nine sounds, and its loops and hits listed under it with buttons to use, slice and put each in the song.' }],
-        html: `<p>A pack is one file with sounds, presets and snippets in it, made for Weft Loom: drum loops, single hits, instruments, whatever its maker put in. In the Sounds choose <b>Packs</b> and press <b>Add a pack</b>. The pack is listed with who made it, and its sounds are under it.</p>
+        html: `<p>A pack is one file with sounds, presets and snippets in it, made for Weft Loom: drum loops, single hits, instruments, whatever its maker put in. In the Sounds choose <b>Packs</b> and press <b>Add a pack</b>. The pack is listed with who made it, and its sounds are under it. There are free packs to start with on the <a href="/packs">Packs</a> page.</p>
 <p>A sound from a pack goes wherever a sound of your own goes: a row in a drum grid, the sound of a pattern of notes, a loop to cut into parts, a recording along the song. Its presets are among the Presets, under the pack's name, and its snippets are offered with yours. A song that uses a sound from a pack carries that sound along, so it plays for whoever opens it, with the pack or without.</p>
 <p>To make a pack, choose Yours and press <b>Make a pack</b>. Give it a name, choose which of your sounds, presets and snippets go in, and save it. The file is the pack: give it to anyone who uses Weft Loom.</p>`,
     },

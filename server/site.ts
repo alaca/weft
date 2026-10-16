@@ -9,7 +9,7 @@ import { analyze } from '../src/song/analyze'
 import { readMeter } from '../src/song/meter'
 import { readTempoLane, secondsOf as barsLast } from '../src/song/tempo'
 import { DEFAULT_SONG, songLength } from '../src/song/arrange'
-import { docsPage, downloadPage, homePage, licencePage, makerPage, notePage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type Named, type OwnSound, type Part, type Platform, type Search, type Shown } from './pages'
+import { docsPage, downloadPage, homePage, licencePage, makerPage, notePage, packsPage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type Named, type OwnSound, type Pack, type Part, type Platform, type Search, type Shown } from './pages'
 import { songPicture } from './picture'
 import { senderOf } from './sender'
 import { createTries } from './tries'
@@ -55,6 +55,11 @@ export type SiteOptions = {
     // is what an installed app reads to learn of a newer version. Both are read anew when they
     // change, so a release needs no restart.
     releases?: string
+    // A folder of packs that are handed out. `packs.json` in it lists them, in the order they are
+    // shown, as { packs: [{ id, name, about, tempo, sounds, presets, snippets, seconds, peaks }] },
+    // and each has `<id>.weftpack` and a preview, `<id>.mp3`, beside it. The list is read anew
+    // when it changes, so new packs need no restart.
+    packs?: string
     // How often one sender, or one email, may ask for an account, a sign-in or a code within a
     // quarter of an hour. Only raised where the site is tried out on one's own machine.
     asks?: number
@@ -160,7 +165,7 @@ type Report = { song: string; reason: string; at: number }
 type Kept = { people: Person[]; sessions: Session[]; songs: Song[]; reports: Report[] }
 type Code = { hash: string; until: number; wrong: number }
 type Kind = { bytes: Buffer; type: string; kept: string; rules?: string }
-type Answer = { status: number; body?: unknown; html?: string; file?: { bytes?: Buffer; type: string; name?: string; head?: Record<string, string> }; fixed?: Kind; build?: { file: string; bytes: number } }
+type Answer = { status: number; body?: unknown; html?: string; file?: { bytes?: Buffer; type: string; name?: string; head?: Record<string, string> }; fixed?: Kind; build?: { file: string; bytes: number; name?: string } }
 // What a song file says about its song once it is read.
 // `seconds` is how long the bars last, each at its own tempo, when the song says its tempo.
 type Facts = { bars: number; seconds: number | null; parts: Part[]; sounds: OwnSound[] }
@@ -370,7 +375,15 @@ export function createSite(options: SiteOptions): Promise<Site> {
     for (const [path, file] of demoFiles(options.demo ?? join(HERE, 'demo'))) fixed.set(path, file)
     // An address is only written into a page when it begins the way a web address does.
     const webAddress = (given: string | undefined) => (/^https?:\/\//.test(given ?? '') ? given : undefined)
-    const around: Around = { source: webAddress(options.source), origin: webAddress(options.origin), demo: fixed.has('/demo'), coffee: webAddress(options.coffee) }
+    const around: Around = {
+        source: webAddress(options.source),
+        origin: webAddress(options.origin),
+        demo: fixed.has('/demo'),
+        coffee: webAddress(options.coffee),
+        get packs() {
+            return packsNow().length > 0
+        },
+    }
     type Installer = { file: string; version: string; bytes: number }
     const installers = (list: { platform: Platform; file: string; version: string }[]) => {
         const there = new Map<Platform, Installer>()
@@ -403,6 +416,36 @@ export function createSite(options: SiteOptions): Promise<Site> {
         return builds
     }
     const built = (): Build[] => [...buildsNow()].map(([platform, build]) => ({ platform, version: build.version, bytes: build.bytes }))
+    // A file of a pack, by the pack's id and the kind of file.
+    const packFile = (id: string, kind: 'weftpack' | 'mp3'): string | null => {
+        if (!options.packs || !/^[a-z][a-z0-9]{1,15}$/.test(id)) return null
+        const file = join(options.packs, `${id}.${kind}`)
+        return existsSync(file) && statSync(file).isFile() ? file : null
+    }
+    let packs: Pack[] = []
+    let packsAt = -1
+    const packsNow = (): Pack[] => {
+        const list = options.packs ? join(options.packs, 'packs.json') : ''
+        const at = list && existsSync(list) ? statSync(list).mtimeMs : 0
+        if (at === packsAt) return packs
+        packsAt = at
+        try {
+            const read = at ? (JSON.parse(readFileSync(list, 'utf8')) as { packs?: unknown }).packs : []
+            packs = (Array.isArray(read) ? read : []).flatMap((one): Pack[] => {
+                const id = typeof one?.id === 'string' ? one.id : ''
+                const file = packFile(id, 'weftpack')
+                const name = clean(one?.name, 60)
+                if (!file || !name) return []
+                const count = (value: unknown) => (Number.isInteger(value) && (value as number) >= 0 ? (value as number) : 0)
+                const tempo = typeof one.tempo === 'number' && one.tempo > 0 && one.tempo < 1000 ? one.tempo : null
+                const heard = packFile(id, 'mp3') ? { seconds: secondsOf(one.seconds) ?? null, peaks: peaksOf(one.peaks) ?? [] } : null
+                return heard ? [{ id, name, about: clean(one.about, 300), tempo, sounds: count(one.sounds), presets: count(one.presets), snippets: count(one.snippets), bytes: statSync(file).size, preview: heard }] : []
+            })
+        } catch {
+            packs = []
+        }
+        return packs
+    }
     // The codes for choosing a new password that are out, by the address each was sent to.
     const codes = new Map<string, Code>()
     const tries = createTries(ASKS_WITHIN, now)
@@ -760,12 +803,17 @@ export function createSite(options: SiteOptions): Promise<Site> {
     // told so, with no bytes. A play is counted when the preview is asked for from its first
     // byte on, whatever is then sent.
     function previewOf(song: Song, stored: string, request: IncomingMessage): Answer {
+        return heardFrom(stored, `"${song.published.toString(36)}-${statSync(stored).size.toString(36)}"`, request, () => count(song, 'plays'))
+    }
+
+    // An mp3 that a page plays, sent whole or in the part a browser asks for. `played` is told
+    // when it is asked for from its first byte on, whatever is then sent.
+    function heardFrom(stored: string, mark: string, request: IncomingMessage, played?: () => void): Answer {
         const size = statSync(stored).size
-        const mark = `"${song.published.toString(36)}-${size.toString(36)}"`
         const head = { ...KEPT_BY_A_BROWSER, 'Accept-Ranges': 'bytes', ETag: mark }
         const type = 'audio/mpeg'
         const part = partAsked(request.headers.range, size)
-        if (!part || (part !== 'none' && part.from === 0 && part.to >= A_PROBE)) count(song, 'plays')
+        if (!part || (part !== 'none' && part.from === 0 && part.to >= A_PROBE)) played?.()
         const sent = (request.headers['if-none-match'] ?? '').split(',').map((one) => one.trim().replace(/^W\//, ''))
         if (sent.includes(mark)) return { status: 304, file: { type, head } }
         // A browser that names the file it has the rest of is sent a part only of that file.
@@ -822,6 +870,15 @@ export function createSite(options: SiteOptions): Promise<Site> {
         if (get && path === '/privacy') return { status: 200, html: privacyPage(around) }
         if (get && path === '/docs') return { status: 200, html: docsPage(around) }
         if (get && path === '/download') return { status: 200, html: downloadPage(around, built()) }
+        if (get && path === '/packs') return { status: 200, html: packsPage(around, packsNow()) }
+        const packed = /^\/packs\/([a-z0-9]+)\.(weftpack|mp3)$/.exec(path)
+        if (packed && get) {
+            const pack = packsNow().find((one) => one.id === packed[1])
+            const file = pack && packFile(pack.id, packed[2] as 'weftpack' | 'mp3')
+            if (!pack || !file) return note(404, 'No such pack', ['It may have been taken down, or the address may be mistyped.'], { href: '/packs', label: 'See all packs' })
+            if (packed[2] === 'mp3') return heardFrom(file, `"${statSync(file).mtimeMs.toString(36)}-${statSync(file).size.toString(36)}"`, request)
+            return { status: 200, build: { file, bytes: statSync(file).size, name: `${pack.name}.weftpack` } }
+        }
         // The app and the readme lead here, so the page they go on to can change without either.
         if (get && path === '/coffee') return around.coffee ? { status: 302, file: { type: 'text/plain; charset=utf-8', head: { Location: around.coffee }, bytes: Buffer.from('') } } : note(404, 'Not here', ['There is nowhere to buy a coffee yet.'], { href: '/', label: 'Go to the first page' })
         const wanted = /^\/download\/(macos|windows|linux)$/.exec(path)
@@ -953,7 +1010,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
             return response.end(given.fixed.bytes)
         }
         if (given.build) {
-            response.writeHead(given.status, { ...headers, 'Content-Type': 'application/octet-stream', 'Content-Length': String(given.build.bytes), 'Content-Disposition': `attachment; filename="${fileNameOf(basename(given.build.file))}"` })
+            response.writeHead(given.status, { ...headers, 'Content-Type': 'application/octet-stream', 'Content-Length': String(given.build.bytes), 'Content-Disposition': `attachment; filename="${fileNameOf(given.build.name ?? basename(given.build.file))}"` })
             return createReadStream(given.build.file)
                 .on('error', () => response.destroy())
                 .pipe(response)
