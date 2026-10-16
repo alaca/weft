@@ -1,9 +1,10 @@
+import { EFFECT_CALL, PLUGINS, pluginNamed } from '../plugins/list'
 import type { PatternBlock } from '../song/types'
 
 export type Group = 'source' | 'filter' | 'shape' | 'effects' | 'pattern'
 export type PanelGroup = Group
 export type Scale = 'linear' | 'log'
-export type SoundKind = 'synth' | 'sample'
+export type SoundKind = 'synth' | 'sample' | 'plugin'
 export type FilterType = 'low' | 'high' | 'band'
 
 export type ControlDef = {
@@ -25,9 +26,11 @@ export type ControlDef = {
     call?: [string, string]
     // Set, the knob is not offered to move by itself.
     steady?: boolean
+    // A knob of a plugin: offered with that plugin's sound, or with that effect on the pattern.
+    plugin?: string
 }
 
-type Extra = Partial<Pick<ControlDef, 'names' | 'scale' | 'unit' | 'only' | 'needs' | 'wrap' | 'call' | 'steady'>>
+type Extra = Partial<Pick<ControlDef, 'names' | 'scale' | 'unit' | 'only' | 'needs' | 'wrap' | 'call' | 'steady' | 'plugin'>>
 
 const control = (fn: string, label: string, group: Group, min: number, max: number, initial: number, describe: string, extra: Extra = {}): ControlDef => ({
     fn,
@@ -94,6 +97,9 @@ export const CONTROLS: ControlDef[] = [
     control('nudge', 'Loose timing', 'pattern', 0, 0.05, 0.012, 'Lets each hit come a little late, by a different amount every time', { unit: 's', wrap: ['rand.range(0, ', ')'] }),
     control('velocity', 'Loose volume', 'pattern', 0.3, 1, 0.75, 'Lets each hit be quieter by a different amount every time, down to this level', { wrap: ['rand.range(', ', 1)'] }),
     control('degradeBy', 'Skip hits', 'pattern', 0, 1, 0.15, 'Leaves out this share of the hits at random'),
+    ...PLUGINS.flatMap((plugin) =>
+        plugin.knobs.map((knob) => control(knob.fn, knob.label, plugin.kind === 'sound' ? 'source' : 'effects', knob.min, knob.max, knob.initial, knob.describe, { unit: knob.unit ?? '', plugin: plugin.name })),
+    ),
 ]
 
 const FEEL = ['swingBy', 'nudge', 'velocity', 'degradeBy']
@@ -108,6 +114,14 @@ export const STARTERS: Record<SoundKind, Record<PanelGroup, string[]>> = {
     },
     sample: {
         source: ['speed', 'begin', 'end'],
+        filter: ['lpf', 'lpq', 'lpenv'],
+        shape: ['attack', 'decay', 'sustain', 'release'],
+        effects: ['delay', 'pan', 'room'],
+        pattern: FEEL,
+    },
+    // The source of a plugin's sound is the plugin's own knobs.
+    plugin: {
+        source: [],
         filter: ['lpf', 'lpq', 'lpenv'],
         shape: ['attack', 'decay', 'sustain', 'release'],
         effects: ['delay', 'pan', 'room'],
@@ -138,13 +152,21 @@ export function filterTypeOf(block: PatternBlock): FilterType | null {
     return null
 }
 
-export function startersFor(kind: SoundKind, filter: FilterType): Record<PanelGroup, string[]> {
-    return { ...STARTERS[kind], filter: FILTERS[filter] }
+export function startersFor(kind: SoundKind, filter: FilterType, sound?: string | null): Record<PanelGroup, string[]> {
+    const own = kind === 'plugin' ? (pluginNamed(sound)?.knobs.map((knob) => knob.fn) ?? []) : STARTERS[kind].source
+    return { ...STARTERS[kind], source: own, filter: FILTERS[filter] }
 }
 
 export function soundKind(block: PatternBlock): SoundKind {
+    if (pluginNamed(block.soundName)?.kind === 'sound') return 'plugin'
     if (block.soundName) return SYNTHS.includes(block.soundName) ? 'synth' : 'sample'
     return block.calls.some((call) => SOUND_CALLS.includes(call.name)) ? 'sample' : 'synth'
+}
+
+// The plugin effect a pattern goes through, by the name in its .fx("…").
+export function effectOf(block: PatternBlock): string | null {
+    const arg = block.calls.find((call) => call.name === EFFECT_CALL)?.args[0]
+    return arg?.kind === 'string' && pluginNamed(arg.value)?.kind === 'effect' ? arg.value : null
 }
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n))

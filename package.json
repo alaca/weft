@@ -14,7 +14,8 @@
         "test:e2e": "playwright test",
         "tauri": "tauri",
         "tauri:dev": "tauri dev",
-        "tauri:build": "tauri build"
+        "tauri:build": "tauri build",
+        "build:plugins": "node scripts/build-plugins.mjs"
     },
     "dependencies": {
         "@breezystack/lamejs": "^1.2.7",
@@ -48,6 +49,8 @@
         "solid-js": "^1.9.17"
     },
     "devDependencies": {
+        "@aws-crypto/sha256-js": "5.2.0",
+        "@grame/faustwasm": "0.19.0",
         "@playwright/test": "^1.59.1",
         "@tauri-apps/cli": "^2.12.1",
         "@types/node": "^26.6.5",

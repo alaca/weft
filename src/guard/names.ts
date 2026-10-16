@@ -1,3 +1,5 @@
+import { PLUGINS } from '../plugins/list'
+
 // The names a song may use, as they were in Strudel 1.2.6 with the modules this app loads. The list is
 // written out and not read from Strudel as the app runs, so that a new version of Strudel cannot
 // add to what a song from someone else is allowed to do without this file being looked at.
@@ -75,6 +77,8 @@ const CHAINED = words([
     'onsetsOnly out outerJoin p p1 p2 p3 p4 p5 p6 p7 p8 p9 plyforeach plywith poly q q1 q2 q3 q4 q5 q6 q7 q8 q9 reset resetAll resetJoin restart',
     'restartAll restartJoin setSteps soundfont squeezeJoin squeezeout stepJoin structAll tremdepth tremphase tremshape tremskew',
     'tremsync unjoin withSteps pianoroll punchcard spiral pitchwheel scope tscope spectrum wordfall colour',
+    // The plugins that come with the app, which are its own code: the effect call and their knobs.
+    ['fx', ...PLUGINS.flatMap((plugin) => plugin.knobs.map((knob) => knob.fn))].join(' '),
 ])
 
 // What is only a function or a value by itself: stack(...), sine, silence.

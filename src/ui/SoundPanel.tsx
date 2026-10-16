@@ -17,12 +17,14 @@ import {
     setMidiChannel,
     setMidiOut,
     setMotion,
+    setPluginEffect,
     setPump,
     setPumpDepth,
     setWave,
     startMotion,
 } from '../app/controller'
-import { filterTypeOf, findDef, soundKind, type FilterType, type PanelGroup } from '../controls/catalog'
+import { effectOf, filterTypeOf, findDef, soundKind, type FilterType, type PanelGroup } from '../controls/catalog'
+import { PLUGIN_EFFECTS } from '../plugins/list'
 import { DEMO } from '../demo/demo'
 import { drumLabel } from '../controls/drums'
 import { envelopeOf, envelopePoints } from '../controls/envelope'
@@ -155,7 +157,7 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
                                     </Match>
                                     <Match when={group.id === 'source'}>
                                         <span class="topn">{props.block.soundName ?? 'Samples'}</span>
-                                        <Show when={props.only || !isDrums(props.block)}>
+                                        <Show when={(props.only || !isDrums(props.block)) && soundKind(props.block) !== 'plugin'}>
                                             <button
                                                 class="chip tgl"
                                                 classList={{ on: cutsItself(props.block) }}
@@ -240,6 +242,15 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
                                     {(depth) => <Knob view={depth()} disabled={stale()} onChange={setPumpDepth} />}
                                 </Show>
                             </div>
+                            <Show when={group.id === 'effects' && !props.only}>
+                                <label class="sp-px">
+                                    <span class="cap">Plugin</span>
+                                    <select class="sd-s" aria-label={`Plugin effect of ${props.id}`} disabled={stale()} value={effectOf(props.block) ?? ''} onChange={(event) => setPluginEffect(props.id, event.currentTarget.value || null)}>
+                                        <option value="">None</option>
+                                        <For each={PLUGIN_EFFECTS}>{(plugin) => <option value={plugin.name}>{plugin.label}</option>}</For>
+                                    </select>
+                                </label>
+                            </Show>
                         </div>
                     )}
                 </For>

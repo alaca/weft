@@ -5,6 +5,7 @@ import type { Arg, Call, PatternBlock } from '../song/types'
 import { readMotion, type Motion } from './motion'
 import {
     CONTROLS,
+    effectOf,
     familyOf,
     filterTypeOf,
     findDef,
@@ -156,11 +157,12 @@ export function favourites(block: PatternBlock): ControlView[] {
 
 export function browserItems(block: PatternBlock, filter: FilterType): ControlDef[] {
     const kind = soundKind(block)
-    const starters = Object.values(startersFor(kind, filterTypeOf(block) ?? filter)).flat()
+    const starters = Object.values(startersFor(kind, filterTypeOf(block) ?? filter, block.soundName)).flat()
     const not = notFor(block)
     return CONTROLS.filter(
         (def) =>
             def.group !== 'pattern' &&
+            !def.plugin &&
             !not.includes(def.fn) &&
             !MIX.includes(def.fn) &&
             !starters.includes(def.fn) &&
@@ -176,13 +178,14 @@ export function panelFor(block: PatternBlock, filter?: FilterType): { group: Pan
     // knobs under what it plays, and stay there while the panel is open.
     const inCode = present(block).filter((view) => !MIX.includes(view.fn))
     const kind = soundKind(block)
-    const starters = startersFor(kind, filterTypeOf(block) ?? filter ?? 'low')
+    const starters = startersFor(kind, filterTypeOf(block) ?? filter ?? 'low', block.soundName)
     const not = notFor(block)
+    const effect = effectOf(block)
     return PANEL_GROUPS.map((group) => {
         const first = starters[group].filter((fn) => !MIX.includes(fn) && !not.includes(fn)).map((fn) => inCode.find((view) => view.fn === fn) ?? faint(CONTROLS.find((def) => def.fn === fn) as ControlDef))
         // A control that only does something together with another is offered beside it, from the
         // moment the other is in the code.
-        const beside = CONTROLS.filter((def) => def.group === group && def.needs && !not.includes(def.fn) && (!def.only || def.only === kind) && callFor(block, def.needs))
+        const beside = CONTROLS.filter((def) => def.group === group && ((def.needs && !not.includes(def.fn) && (!def.only || def.only === kind) && callFor(block, def.needs)) || (def.plugin !== undefined && def.plugin === effect)))
         const offered = beside.map((def) => inCode.find((view) => view.fn === def.fn) ?? faint(def))
         const rest = inCode.filter((view) => view.group === group && !starters[group].includes(view.fn) && !beside.some((def) => def.fn === view.fn))
         return { group, items: [...first, ...offered, ...rest] }

@@ -1,4 +1,5 @@
 import { drumChoices } from '../controls/drums'
+import { PLUGIN_SOUNDS } from '../plugins/list'
 
 export type RawSound = { name: string; type: string; tag: string | null }
 export type SoundGroup = 'kits' | 'instruments' | 'synths' | 'samples' | 'presets' | 'packs' | 'yours'
@@ -22,6 +23,7 @@ export const YOURS_TAG = 'yours'
 export const SOUND_DRAG = 'application/x-weft-sound'
 
 const SYNTHS: Record<string, string> = {
+    ...Object.fromEntries(PLUGIN_SOUNDS.map((plugin) => [plugin.name, `${plugin.label}, a plugin`])),
     sine: 'Sine wave',
     triangle: 'Triangle wave',
     square: 'Square wave',

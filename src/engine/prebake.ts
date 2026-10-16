@@ -5,6 +5,7 @@ import { INSTRUMENT_TAG, KIT_TAG, YOURS_TAG } from '../sounds/catalog'
 import type { Job } from './ahead'
 import { builtKey, keepUpTo, MOST_KEPT, zzfxParams } from './zzfx'
 import { clearHydra, H, initHydra } from './hydra'
+import { registerPlugins } from './faust'
 
 const DOUGH = 'https://raw.githubusercontent.com/felixroos/dough-samples/main'
 const ALIASES = 'https://raw.githubusercontent.com/todepond/samples/main'
@@ -152,6 +153,7 @@ export async function loadModules(): Promise<void> {
         { initHydra, clearHydra, H },
     )
     await Promise.all([registerSynthSounds(), registerZZFXSounds()])
+    registerPlugins()
     keepBuiltNotes()
 }
 

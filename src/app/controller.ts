@@ -1,5 +1,5 @@
 import { batch, createEffect, createRoot } from 'solid-js'
-import { controlText, FILTERS, filterTypeOf, findDef, mixText, writeNumber, type FilterType } from '../controls/catalog'
+import { controlText, effectOf, FILTERS, filterTypeOf, findDef, mixText, writeNumber, type FilterType } from '../controls/catalog'
 import { drumChoices } from '../controls/drums'
 import { firstMotion, motionText, readMotion, type Motion } from '../controls/motion'
 import { callFor, controlOf, valueArg, type ControlView } from '../controls/views'
@@ -119,6 +119,8 @@ import { attachPublish, openPublish } from './publish'
 import { attachUpdate, lookForNewVersion, lookNowAndThen, lookWith } from './update'
 import { SITE } from '../site/api'
 import { formatCode } from '../song/format'
+import { EFFECT_CALL, pluginNamed } from '../plugins/list'
+import { warmPlugins } from '../engine/faust'
 import { clearHydra } from '../engine/hydra'
 import {
     cycle,
@@ -443,6 +445,7 @@ function firstSong(): SongRecord | null {
 
 function onCode(code: string) {
     if (removed() && code !== removed()?.after) setRemoved(null)
+    warmPlugins(code)
     // The tempo of every bar is read with every change of the code, and told to the engine as
     // bars a second: four beats to the bar.
     // So is how its bar is counted, which everything that reads a pattern goes by.
@@ -938,6 +941,27 @@ export function setFilterType(id: string, type: FilterType) {
         const at = def ? FILTERS[current].indexOf(def.fn) : -1
         return at >= 0 ? FILTERS[type][at] : null
     })
+    if (!edits.length) return
+    engine.applyEdit(edits)
+    replay()
+}
+
+// A plugin effect put on a pattern, swapped for another, or taken off with its knobs.
+export function setPluginEffect(id: string, name: string | null) {
+    const block = name ? forEdit(id) : find(id)
+    if (!block || stale() || effectOf(block) === name) return
+    const call = block.calls.find((entry) => entry.name === EFFECT_CALL)
+    const before = pluginNamed(effectOf(block))
+    const knobs = block.calls.filter((entry) => before?.knobs.some((knob) => knob.fn === entry.name))
+    const edits: TextEdit[] = knobs.map(removeCall)
+    if (!name) {
+        if (call) edits.push(removeCall(call))
+    } else {
+        const arg = call?.args[0]
+        if (arg?.kind === 'string') edits.push(setString(arg, name))
+        else if (call) edits.push(removeCall(call), addCall(engine.getCode(), block, `.${EFFECT_CALL}("${name}")`))
+        else edits.push(addCall(engine.getCode(), block, `.${EFFECT_CALL}("${name}")`))
+    }
     if (!edits.length) return
     engine.applyEdit(edits)
     replay()

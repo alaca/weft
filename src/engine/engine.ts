@@ -1,6 +1,7 @@
 import { history, isolateHistory, redo, undo } from '@codemirror/commands'
 import { silenceMidi } from '../library/midi'
 import { sendNotesOut } from './midiOut'
+import { throughEffect } from './faust'
 import { hydraAfter } from './hydra'
 import { drawInTheCode } from './pictures'
 import { outputRoute, playThrough } from '../library/soundDevices'
@@ -1131,7 +1132,14 @@ export function createEngine(): Engine {
                 readyToDuck(hap.value)
                 const late = lateBy(hap.value)
                 const played = late ? hap.withValue(withoutNudge) : hap
-                return webaudioOutput(metered(inRoom(played, time + late, cps)), deadline, duration, cps, time + late)
+                const sent = metered(inRoom(played, time + late, cps))
+                // A pattern with a plugin effect is sent through it; the first note waits for it to
+                // load. An effect that cannot be had leaves the pattern as it would be without it.
+                if (!sent.value?.fx) return webaudioOutput(sent, deadline, duration, cps, time + late)
+                return throughEffect(sent.value, fromOf(hap).name, time + late).then(
+                    (value) => webaudioOutput(sent.withValue(() => value), deadline, duration, cps, time + late),
+                    () => webaudioOutput(sent, deadline, duration, cps, time + late),
+                )
             },
             getTime: () => getAudioContext().currentTime,
             setInterval: startTicking,
@@ -1636,7 +1644,10 @@ export function createEngine(): Engine {
                         const fitted = inSharedRoom(rooms(), late ? withoutNudge(value) : value, startOf(hap) + late, of, 1 / cpsAt(hap))
                         if (!heard) continue
                         if (before) await leaveRoom(fitted, startOf(hap))
-                        else await superdough(fitted, startOf(hap) + late, lengthOf(hap), cpsAt(hap), hap.whole.begin.valueOf()).catch(() => void missed++)
+                        else {
+                            const sent = fitted.fx ? await throughEffect(fitted, of.name, startOf(hap) + late).catch(() => fitted) : fitted
+                            await superdough(sent, startOf(hap) + late, lengthOf(hap), cpsAt(hap), hap.whole.begin.valueOf()).catch(() => void missed++)
+                        }
                     }
                     await reverbsSound()
                 }
