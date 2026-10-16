@@ -53,8 +53,8 @@ export async function lookForNewVersion(asked: boolean) {
 }
 
 export async function installNewVersion() {
-    const version = found
-    if (!version || updateStage() === 'fetching') return
+    if (!found || updateStage() === 'fetching') return
+    let version: NewVersion = found
     deps.keep()
     batch(() => {
         setUpdateDone(0)
@@ -62,6 +62,12 @@ export async function installNewVersion() {
         setUpdateStage('fetching')
     })
     try {
+        // An app left open may have found its version a day ago. What is newest now is fetched.
+        const newest = await (deps.look ?? lookForUpdate)().catch(() => null)
+        if (newest) {
+            version = found = newest
+            setUpdateVersion(newest.version)
+        }
         await version.install(setUpdateDone)
     } catch (err) {
         batch(() => {

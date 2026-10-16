@@ -33,10 +33,23 @@ test('a newer version is offered, can be left for later, and is fetched at a pre
     expect(await page.evaluate(() => (window as any).installed)).toBe(0)
 
     await look(page, true)
+    await expect(card(page)).toContainText('Weft Loom 9.9.9 is out')
+    // A version that came out while the card was waiting is the one fetched.
+    await page.evaluate(() =>
+        (window as any).__weft.lookWith(async () => ({
+            version: '9.9.10',
+            notes: '',
+            install: async (onProgress: (done: number) => void) => {
+                onProgress(0.5)
+                await new Promise((resolve) => setTimeout(resolve, 400))
+                ;(window as any).installed = '9.9.10'
+            },
+        })),
+    )
     await card(page).getByRole('button', { name: 'Update and restart', exact: true }).click()
-    await expect(card(page)).toContainText('Fetching Weft Loom 9.9.9')
+    await expect(card(page)).toContainText('Fetching Weft Loom 9.9.10')
     await expect(card(page).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50')
-    await expect.poll(() => page.evaluate(() => (window as any).installed)).toBe(1)
+    await expect.poll(() => page.evaluate(() => (window as any).installed)).toBe('9.9.10')
 })
 
 test('a version that cannot be put in place says why and can be tried again', async ({ page }) => {
