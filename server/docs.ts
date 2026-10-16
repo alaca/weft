@@ -4,7 +4,7 @@
 export type DocPicture = { file: string; width: number; height: number; alt: string }
 export type DocSection = { id: string; title: string; pictures: DocPicture[]; html: string }
 
-export const DOCS_ABOUT = 'How Weft Loom works, one thing at a time: patterns, sounds, the song, tempo and time, choosing several notes at once, chords, knobs over the song, versions, scenes, playing live from the code, recordings, packs, MIDI, jams, and getting a song out.'
+export const DOCS_ABOUT = 'How Weft Loom works, one thing at a time: patterns, sounds, the song, tempo and time, choosing several notes at once, chords, knobs over the song, versions, varying a pattern, scenes, playing live from the code, snippets, recordings, packs, MIDI, jams, and getting a song out.'
 
 export const DOCS: DocSection[] = [
     {
@@ -16,7 +16,8 @@ export const DOCS: DocSection[] = [
 <p>On the left are the Mixer and the Sounds. The icons at the top right show and hide each part of the window, and Controls, Both and Code choose between the strips, the code, or the two side by side.</p>
 <p><kbd>Space</kbd> plays and pauses. After typing in the code, <kbd>Cmd</kbd> <kbd>Enter</kbd> plays what you typed. Where this page says Cmd, it is Ctrl on Windows and Linux.</p>
 <p>Beside Stop is the <b>metronome</b>: a click on every beat while the song plays, the first beat of each bar higher. The arrow next to it has the <b>count-in</b>: a bar of clicks before the song starts, whenever it starts, so you can come in on the beat. Neither is part of the song.</p>
-<p>Beside the play button are Song and Live. <b>Live</b> plays every pattern round and round, which is what you want while trying things out, and is where a new song starts. <b>Song</b> plays the bars you laid out in the Song panel, from the first to the last.</p>`,
+<p>Beside the play button are Song and Live. <b>Live</b> plays every pattern round and round, which is what you want while trying things out, and is where a new song starts. <b>Song</b> plays the bars you laid out in the Song panel, from the first to the last.</p>
+<p>New to it? <b>Make a first beat, step by step</b>, on the start screen and in the Help menu, makes one with you in a few minutes: drums, a bass line, a knob and a look at the code. A card at the bottom left says what to do next and rings where, and goes on once it is done.</p>`,
     },
     {
         id: 'patterns',
@@ -104,12 +105,19 @@ export const DOCS: DocSection[] = [
 <p>Remove version, in the same menu, removes the one that is shown.</p>`,
     },
     {
+        id: 'vary',
+        title: 'Varying a pattern',
+        pictures: [{ file: '/docs/vary.webp', width: 810, height: 508, alt: 'The Vary menu of a pattern of chords: every 4th bar an octave up, and an echo an 8th after.' }],
+        html: `<p><b>Vary</b>, in the head of every pattern, plays it otherwise without changing what is in it. <b>Every few bars</b> changes one bar out of every 2, 4 or 8: twice as fast, each hit twice, backwards, half the hits, or for notes an octave up, for a fill or a lift. <b>Shift</b> moves every hit a 16th or an 8th along the bar. <b>Backwards</b> plays each bar from its end. <b>Turn</b> starts each bar a beat or a 16th further on than the one before. <b>Echo</b> adds a copy a little later, an octave up for notes and quieter for drums. For notes, <b>Spread evenly</b> puts them on hits spread as evenly over the bar as they go, 3 in 8 or 5 in 16.</p>
+<p>Each choice is a line at the end of the pattern's code, a call of Strudel's, and one you type there shows in the menu. The grid or the roll still shows the pattern as it is written. Leaving hits out at random, loose timing and loose volume are in the Feel of a pattern's sound controls.</p>`,
+    },
+    {
         id: 'scenes',
         title: 'Scenes',
         pictures: [{ file: '/docs/scenes.webp', width: 980, height: 360, alt: 'The Song panel in Live with a row of three scenes: Intro, Build, which is waiting for the next bar, and Drop, which is playing.' }],
         html: `<p>Scenes are for playing a song live. Switch to Live and the Song panel gets a row of them.</p>
 <p>A scene is a set of patterns that play together. Mute and unmute patterns until you hear one part of your song, and press <b>Keep what plays now</b>. Do the same for the next part.</p>
-<p>While the song plays, press a scene. It waits for the bar to end and comes in on the first beat of the next one. Pressed in the last half second of a bar, it waits for the bar after. Double click a scene to give it a name.</p>`,
+<p>While the song plays, press a scene. It waits for the bar to end and comes in on the first beat of the next one. Pressed in the last half second of a bar, it waits for the bar after. Double click a scene to give it a name. A pad of a MIDI controller can switch it too: see MIDI.</p>`,
     },
     {
         id: 'live',
@@ -117,6 +125,13 @@ export const DOCS: DocSection[] = [
         pictures: [{ file: '/docs/perform.webp', width: 1440, height: 900, alt: 'The performance view: the code over the whole window in large letters, the scenes over it, and beside Update a change waiting for the next bar, a beat away.' }],
         html: `<p>For playing a set from the code, two things help. The arrow beside <b>Update</b> chooses when a change comes in: at once, on the next bar, or on the next four bars. While a change waits, the song plays on as it was and the code counts the beats that are left, so the change comes in in time. Only Update and <kbd>Cmd</kbd> <kbd>Enter</kbd> wait; a knob, a step or a note comes in at once.</p>
 <p>The <b>performance view</b>, the button at the top right of the code or <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>F</kbd>, puts the code over the whole window, large enough for a projector, with the scenes over it in Live. <kbd>Cmd</kbd> <kbd>+</kbd> and <kbd>Cmd</kbd> <kbd>-</kbd> make it larger and smaller, and the size is kept. The strips are out of the window while it is on, so that nothing beside the code takes the window's time from the sound.</p>`,
+    },
+    {
+        id: 'snippets',
+        title: 'Snippets',
+        pictures: [{ file: '/docs/snippets.webp', width: 521, height: 316, alt: 'Typing in the code: the editor offers two snippets, deepecho and dub, above everything else, and shows what deepecho puts in.' }],
+        html: `<p>A snippet is a bit of code kept under a short name: a drum pattern, a run of effects, anything you type again and again. Select it in the code, press <b>Snippets</b> at the top of the code and give it a name of one word. From then on, type the name in the code and the editor offers it first; <kbd>Enter</kbd> puts it in. The same menu lists them all, to put one in where the cursor is, and to remove yours.</p>
+<p>Weft Loom comes with a few: fourfloor, offhats and backbeat are drum patterns, and dub, acid and wobble go on the end of a pattern. One of yours with the same name takes the place of one of them. Yours are kept on this machine, and a pack can carry them to someone else.</p>`,
     },
     {
         id: 'keys',
@@ -137,7 +152,7 @@ export const DOCS: DocSection[] = [
         html: `<p>Plug in a MIDI keyboard or pad and it plays at once: the pattern you are on, the notes of a piano roll or the sounds of a drum grid, where the pads go by the drum numbers every machine agrees on. A key sounds for as long as you hold it, and as loud as you pressed it. The sound settings, Devices at the top of the mixer, name the keyboards that are plugged in.</p>
 <p>With Keys and Write on, what you play while the song plays is written in, and every note keeps how hard its key was pressed. <b>Level</b> under the roll shows it, and quieter notes are paler. Drag over the bars to change them, and double click one to put it back. A chord keeps how hard each of its keys was pressed. To change one note of a chord, choose it first: the Level bar of that step is then its own.</p>
 <p>A pattern can be played by a synth or another music program instead of Weft Loom. Open its sound controls and choose the synth under <b>Played by</b>, and a channel beside it. Each note goes out as hard as its level says, times the pattern's volume.</p>
-<p>In the sound settings, <b>Clock</b> sends the tempo of the song to a drum machine or a synth that follows one, with its start and its stop. <b>Follow</b> is the other way round: the song starts, stops and keeps the tempo of a drum machine or a program that sends a MIDI clock, and its own tempo comes back when that clock stops. <b>Learn the knobs of a controller</b> lets a knob or a fader of yours turn a knob of the app: press the knob in the app, then turn yours. It turns that knob in every song that has the same pattern and the same knob.</p>
+<p>In the sound settings, <b>Clock</b> sends the tempo of the song to a drum machine or a synth that follows one, with its start and its stop. <b>Follow</b> is the other way round: the song starts, stops and keeps the tempo of a drum machine or a program that sends a MIDI clock, and its own tempo comes back when that clock stops. <b>Learn the knobs and pads of a controller</b> lets a knob or a fader of yours turn a knob of the app: press the knob in the app, then turn yours. It turns that knob in every song that has the same pattern and the same knob. A pad or a button is learnt the same way: press a scene, or the M or S of a pattern, then the pad. It then switches that scene on the next bar, or mutes or solos that pattern, and plays no note. What is learnt is listed there, to forget one.</p>
 <p>On a Mac and on Linux, other music programs on the same computer see Weft Loom as a MIDI device. They can play it as they would a keyboard and send it their clock, and a pattern can be played by them: choose other programs under Played by.</p>
 <p>Export has <b>MIDI (.mid)</b>: a track for every pattern of notes or drums, to open in another music program. Open a File takes a MIDI file and makes a song of it, a piano roll for each instrument and a drum grid for the drums. A long file is cut into parts of eight bars, each a pattern that plays in its own bars, and a part that comes again is the same pattern again.</p>`,
     },
@@ -170,9 +185,9 @@ export const DOCS: DocSection[] = [
         id: 'packs',
         title: 'Packs',
         pictures: [{ file: '/docs/packs.webp', width: 300, height: 520, alt: 'The Sounds with Packs chosen: a pack called Starter loops with nine sounds, and its loops and hits listed under it with buttons to use, slice and put each in the song.' }],
-        html: `<p>A pack is one file with sounds and presets in it, made for Weft Loom: drum loops, single hits, instruments, whatever its maker put in. In the Sounds choose <b>Packs</b> and press <b>Add a pack</b>. The pack is listed with who made it, and its sounds are under it.</p>
-<p>A sound from a pack goes wherever a sound of your own goes: a row in a drum grid, the sound of a pattern of notes, a loop to cut into parts, a recording along the song. Its presets are among the Presets, under the pack's name. A song that uses a sound from a pack carries that sound along, so it plays for whoever opens it, with the pack or without.</p>
-<p>To make a pack, choose Yours and press <b>Make a pack</b>. Give it a name, choose which of your sounds and presets go in, and save it. The file is the pack: give it to anyone who uses Weft Loom.</p>`,
+        html: `<p>A pack is one file with sounds, presets and snippets in it, made for Weft Loom: drum loops, single hits, instruments, whatever its maker put in. In the Sounds choose <b>Packs</b> and press <b>Add a pack</b>. The pack is listed with who made it, and its sounds are under it.</p>
+<p>A sound from a pack goes wherever a sound of your own goes: a row in a drum grid, the sound of a pattern of notes, a loop to cut into parts, a recording along the song. Its presets are among the Presets, under the pack's name, and its snippets are offered with yours. A song that uses a sound from a pack carries that sound along, so it plays for whoever opens it, with the pack or without.</p>
+<p>To make a pack, choose Yours and press <b>Make a pack</b>. Give it a name, choose which of your sounds, presets and snippets go in, and save it. The file is the pack: give it to anyone who uses Weft Loom.</p>`,
     },
     {
         id: 'mixer',
