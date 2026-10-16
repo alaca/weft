@@ -7,3 +7,8 @@ declare module '@strudel/webaudio'
 declare module '@strudel/codemirror'
 declare module '@strudel/soundfonts'
 declare module 'superdough'
+
+declare module 'hydra-synth' {
+    const Hydra: any
+    export default Hydra
+}

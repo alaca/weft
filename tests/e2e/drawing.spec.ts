@@ -84,3 +84,29 @@ test('every picture Strudel has is drawn under the line that asks for it', async
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
     expect(errors).toEqual([])
 })
+
+const HYDRA = 'setcpm(120/4)\n\nawait initHydra()\nosc(10, 0.1, 1.2).kaleid(H("<3 6>")).out()\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n'
+
+// Hydra comes with the app and draws behind the code while the code asks for it. Going, it
+// gives back the names of Strudel's it took, such as speed.
+test('hydra draws behind the code while the code asks for it, and leaves nothing behind', async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', (err) => errors.push(err.message))
+    await page.addInitScript((value) => localStorage.setItem('weft.song', value), HYDRA)
+    await page.goto('/')
+    await page.waitForFunction(() => Boolean((window as any).__weft))
+    const canvas = page.getByTestId('code').locator('#hydra-canvas')
+    await expect(canvas).toHaveCount(1, { timeout: 15000 })
+    const size = await canvas.boundingBox()
+    expect(size!.width).toBeGreaterThan(200)
+    expect(await page.evaluate(() => typeof (window as any).osc)).toBe('function')
+
+    await page.evaluate(async () => {
+        const { engine } = (window as any).__weft
+        engine.setCode('setcpm(120/4)\n\n// await initHydra()\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n')
+        await engine.evaluate()
+    })
+    await expect(canvas).toHaveCount(0)
+    expect(await page.evaluate(() => [typeof (window as any).osc, typeof (window as any).speed])).toEqual(['undefined', 'function'])
+    expect(errors).toEqual([])
+})

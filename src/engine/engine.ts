@@ -1,6 +1,7 @@
 import { history, isolateHistory, redo, undo } from '@codemirror/commands'
 import { silenceMidi } from '../library/midi'
 import { sendNotesOut } from './midiOut'
+import { hydraAfter } from './hydra'
 import { drawInTheCode } from './pictures'
 import { outputRoute, playThrough } from '../library/soundDevices'
 import { Annotation, EditorState, Prec, StateEffect, Transaction } from '@codemirror/state'
@@ -1154,6 +1155,7 @@ export function createEngine(): Engine {
                 sounding = pendingSounding
                 evaluated = true
                 evaluatedCode = done?.code ?? mirror.code
+                hydraAfter(evaluatedCode as string)
                 // The code sets the tempo of the song every time it is evaluated. Where each
                 // bar has its own, the bar the song is in gets it back at once.
                 // A song that has just started is a moment before its first bar, which is still that bar.

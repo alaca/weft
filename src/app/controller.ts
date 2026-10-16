@@ -119,6 +119,7 @@ import { attachPublish, openPublish } from './publish'
 import { attachUpdate, lookForNewVersion, lookNowAndThen, lookWith } from './update'
 import { SITE } from '../site/api'
 import { formatCode } from '../song/format'
+import { clearHydra } from '../engine/hydra'
 import {
     cycle,
     deletedSong,
@@ -3243,6 +3244,7 @@ function show(record: SongRecord) {
         setExportNote(null)
         setSelected(null)
         closePanel()
+        clearHydra()
         setFoldedStrips([])
         setSoloIds([])
         setRemoved(null)
