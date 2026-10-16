@@ -22,6 +22,7 @@ import { readVaried, varyEdit, type Kind, type Value, type Varied } from '../son
 import { fitTempo, readTempoLane, secondsOf, tempoAt, tempoLaneEdit } from '../song/tempo'
 import { cleanPresetName, LIBRARY, presetCalls, presetEdits, previewText, PREVIEW_PITCH, readPresets, soundCalls, withPreset, writePresets, type Preset } from '../sounds/presets'
 import { keeping } from '../library/kept'
+import { allSnippets as withStarters, cleanSnippetName, CODE_MOST, readSnippets, withSnippet, writeSnippets, type Snippet } from '../library/snippets'
 import { cleanName, createShelf, freeTitle, infoOf, NEW_SONG, newId, UNTITLED, type SongInfo, type SongRecord } from '../library/shelf'
 import { CODE_LEAST, DEFAULT_LAYOUT, fitShare, fitWidth, isUsual, LEFT_PANELS, MIDDLE_LEAST, readLayout, SOUNDS_LEAST, SOUNDS_WIDTH, usualCode, type Layout, type LeftPanel, type ViewMode } from '../library/layout'
 import { fitSoundName, readSongFile, readSource, renameSound, SONG_FILE, SOUND_NAME, soundsUsed, writeSongFileInTurns, type PackedSound } from '../library/songfile'
@@ -133,6 +134,7 @@ import {
     gridNotes,
     openPanel,
     ownPresets,
+    ownSnippets,
     ownSounds,
     removed,
     rollRanges,
@@ -166,6 +168,7 @@ import {
     setOpenPanel,
     setOwnSoundNote,
     setOwnPresets,
+    setOwnSnippets,
     setOwnSounds,
     setPosition,
     setRemoved,
@@ -467,6 +470,8 @@ function tick() {
 
 export async function mount(root: HTMLElement): Promise<void> {
     setOwnPresets(readPresets(keeping.getItem(PRESETS_KEY)))
+    setOwnSnippets(readSnippets(keeping.getItem(SNIPPETS_KEY)))
+    engine.offerSnippets(allSnippets)
     setPacks(readPacks(keeping.getItem(PACKS_KEY)))
     setSoundChoice(readChoice())
     void engine.setOutput(soundChoice().output)
@@ -2196,6 +2201,42 @@ export const soundCatalogue = (): SoundItem[] => {
         }),
         ...allPresets().map(presetItem),
     ]
+}
+
+// ---- snippets. Bits of code kept under a short name, offered by the editor when the name is
+// typed, and listed in the Code pane.
+const SNIPPETS_KEY = 'weft.snippets'
+export const allSnippets = (): Snippet[] => withStarters(ownSnippets())
+
+function keepSnippets(next: Snippet[]): boolean {
+    try {
+        keeping.setItem(SNIPPETS_KEY, writeSnippets(next))
+    } catch {
+        return false
+    }
+    setOwnSnippets(next)
+    return true
+}
+
+export const selectedCode = (): string => engine.selectedText()
+
+// The code that is selected, kept under a name. Says what came of it.
+export function saveSnippet(text: string, selected: string): string {
+    const name = cleanSnippetName(text)
+    const code = selected.trim()
+    if (!code) return 'Select the code to keep first.'
+    if (!name) return 'Give the snippet a name: one word of letters, digits, _ or -.'
+    if (code.length > CODE_MOST) return 'That is too much code for one snippet.'
+    const replaced = allSnippets().some((snippet) => snippet.name === name)
+    if (!keepSnippets(withSnippet(ownSnippets(), name, code))) return 'There is no room left to keep it. Remove a snippet or a song you no longer need.'
+    return `${replaced ? 'Saved over' : 'Saved as'} ${name}. Type ${name} in the code to put it in.`
+}
+
+export const removeSnippet = (name: string) => void keepSnippets(ownSnippets().filter((snippet) => snippet.name !== name))
+
+export function insertSnippet(name: string) {
+    const snippet = allSnippets().find((each) => each.name === name)
+    if (snippet) engine.insertText(snippet.code)
 }
 
 // ---- presets. A preset is listed with the sounds, under its own heading: the ones you saved

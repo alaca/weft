@@ -627,6 +627,13 @@ svg.mini rect { fill: var(--h); }
 .sm h4 { font: 600 16px/1 var(--voice); margin-top: 4px; }
 .sm { max-height: calc(100vh - 110px); overflow-y: auto; }
 .sm-list { display: flex; flex-direction: column; gap: 1px; max-height: 190px; overflow-y: auto; margin: 0 -4px; flex: none; }
+.snp-w { position: relative; display: flex; }
+.sm.snp { left: auto; right: 0; top: 36px; width: 380px; }
+.sm.snp .sm-list { max-height: 260px; }
+.snp-c { max-height: 96px; overflow: auto; padding: 8px 10px; border-radius: 8px; background: var(--vat); border: 1px solid var(--seam); color: var(--linen-2); font: 11px/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.snp-n { flex: 1; min-width: 0; font-family: var(--mono); }
+.sm-o b.snp-b { font-family: var(--mono); font-weight: 600; }
+.snp-l { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
 .sm-i { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding-right: 9px; border-radius: 8px; }
 .sm-i:hover { background: var(--cloth-3); }
 .sm-i.on { background: var(--vat); }

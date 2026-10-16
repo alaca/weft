@@ -5,7 +5,10 @@ import { drawInTheCode } from './pictures'
 import { outputRoute, playThrough } from '../library/soundDevices'
 import { Annotation, EditorState, Prec, StateEffect, Transaction } from '@codemirror/state'
 import { EditorView, keymap, tooltips } from '@codemirror/view'
-import { BlockWidget, StrudelMirror, codemirrorSettings, sliderPlugin, sliderValues } from '@strudel/codemirror'
+import { autocompletion, insertCompletionText, type CompletionSource } from '@codemirror/autocomplete'
+import { syntaxTree } from '@codemirror/language'
+import { BlockWidget, StrudelMirror, codemirrorSettings, extensions as strudelExtensions, sliderPlugin, sliderValues } from '@strudel/codemirror'
+import { snippetsFor, type Snippet } from '../library/snippets'
 import { evaluate as evaluateText, Pattern, pure, silence, slowcat, stack } from '@strudel/core'
 import { mini } from '@strudel/mini'
 import {
@@ -178,11 +181,71 @@ export interface Engine {
     onMoved(fn: (event: Moved) => void): void
     onState(fn: (state: EngineState) => void): void
     onCursor(fn: (offset: number) => void): void
+    // The snippets the editor offers while typing, asked for each time.
+    offerSnippets(list: () => Snippet[]): void
+    selectedText(): string
+    // Puts text where the cursor is, in the place of what is selected.
+    insertText(text: string): void
     onSoundDrop(fn: (offset: number, name: string) => void): void
     onEvaluated(fn: () => void): void
 }
 
 const bareId = (id: string) => id.replace(/^_+|_+$/g, '')
+
+// What Strudel offers while typing, taken out of the extension it hands out, since it does not
+// hand out the offers themselves. The editor takes one list of what offers, so Strudel's and the
+// snippets go in one. Null when this Strudel is made another way: it then offers its own as it
+// always did, and the snippets are in the Code pane only.
+function strudelOffers(): CompletionSource | null {
+    const seen = new Set<unknown>()
+    const look = (value: unknown): CompletionSource | null => {
+        if (!value || typeof value !== 'object' || seen.has(value)) return null
+        seen.add(value)
+        if (Array.isArray(value)) {
+            for (const item of value) {
+                const found = look(item)
+                if (found) return found
+            }
+            return null
+        }
+        const override = (value as { value?: { override?: unknown } }).value?.override
+        return Array.isArray(override) && override.length === 1 && typeof override[0] === 'function' ? (override[0] as CompletionSource) : null
+    }
+    try {
+        return look((strudelExtensions as Record<string, (on: boolean) => unknown>).isAutoCompletionEnabled?.(true))
+    } catch {
+        return null
+    }
+}
+const theirOffers = strudelOffers()
+
+let snippetList: () => Snippet[] = () => []
+
+// A snippet is offered when its name is typed, outside a string or a remark. One that goes on
+// the end of a pattern begins with a dot, and when a dot was typed before its name it is not put
+// in twice.
+const snippetOffers: CompletionSource = (context) => {
+    const word = context.matchBefore(/[\w-]*/)
+    if (!word || (word.from === word.to && !context.explicit)) return null
+    if (/String|Template|Comment/.test(syntaxTree(context.state).resolveInner(context.pos, -1).name)) return null
+    const found = word.text ? snippetsFor(snippetList(), word.text) : snippetList()
+    if (!found.length) return null
+    return {
+        from: word.from,
+        validFor: /^[\w-]*$/,
+        options: found.map((snippet) => ({
+            label: snippet.name,
+            detail: 'snippet',
+            type: 'snippet',
+            boost: 50,
+            info: snippet.code.length > 400 ? `${snippet.code.slice(0, 400)}…` : snippet.code,
+            apply: (view: EditorView, _: unknown, from: number, to: number) => {
+                const text = snippet.code.startsWith('.') && view.state.sliceDoc(from - 1, from) === '.' ? snippet.code.slice(1) : snippet.code
+                view.dispatch(insertCompletionText(view.state, text, from, to))
+            },
+        })),
+    }
+}
 const sameGesture = Annotation.define<boolean>()
 const pause = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))
 const SETTLE = 300
@@ -317,7 +380,7 @@ export function createEngine(): Engine {
         isLineWrappingEnabled: false,
         isBracketMatchingEnabled: false,
         isBracketClosingEnabled: true,
-        isAutoCompletionEnabled: true,
+        isAutoCompletionEnabled: !theirOffers,
         isTooltipEnabled: false,
         isTabIndentationEnabled: false,
         isMultiCursorEnabled: false,
@@ -1170,6 +1233,7 @@ export function createEngine(): Engine {
                 mirror.editor.dispatch({
                     effects: StateEffect.appendConfig.of([
                         history({ joinToEvent: (tr) => tr.annotation(sameGesture) === true }),
+                        theirOffers ? autocompletion({ override: [snippetOffers, theirOffers], closeOnBlur: false }) : [],
                         marksField,
                         syncSlot.of([]),
                         // What the editor offers while typing is drawn over the whole window,
@@ -1821,6 +1885,16 @@ export function createEngine(): Engine {
         onMoved: (fn) => void movedFns.add(fn),
         onState: (fn) => void stateFns.add(fn),
         onCursor: (fn) => void cursorFns.add(fn),
+        offerSnippets: (list) => void (snippetList = list),
+        selectedText() {
+            const { from, to } = mirror.editor.state.selection.main
+            return mirror.editor.state.sliceDoc(from, to)
+        },
+        insertText(text) {
+            const view: EditorView = mirror.editor
+            view.dispatch(view.state.replaceSelection(text))
+            view.focus()
+        },
         onSoundDrop: (fn) => void dropFns.add(fn),
         onEvaluated: (fn) => void evaluatedFns.add(fn),
     }

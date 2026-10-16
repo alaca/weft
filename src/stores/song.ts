@@ -8,6 +8,7 @@ import type { PackInfo } from '../library/packs'
 import type { SoundChoice } from '../library/soundDevices'
 import type { OwnSoundInfo } from '../library/sounds'
 import type { Key } from '../song/scales'
+import type { Snippet } from '../library/snippets'
 import type { ChordLane } from '../song/chords'
 import { USUAL, type Meter } from '../song/meter'
 import type { TempoLane } from '../song/tempo'
@@ -111,6 +112,8 @@ export const [packs, setPacks] = createSignal<PackInfo[]>([])
 export const [packNote, setPackNote] = createSignal<string | null>(null)
 // The presets you saved. The ones the app comes with are not among them.
 export const [ownPresets, setOwnPresets] = createSignal<Preset[]>([])
+// The snippets you saved. The ones the app comes with are not among them.
+export const [ownSnippets, setOwnSnippets] = createSignal<Snippet[]>([])
 // When a take from the microphone was started, while one is being made.
 export const [takeSince, setTakeSince] = createSignal<number | null>(null)
 // Whether the microphone is being opened for a take. One can take seconds to answer.

@@ -7,6 +7,7 @@ import { engineState, landingBars, performing, playMode, song } from '../stores/
 import { Scenes } from './SongPanel'
 import { Divider } from './Divider'
 import { MOD } from './keys'
+import { SnippetsMenu } from './SnippetsMenu'
 
 
 // A pianoroll, a scope and most other pictures are drawn in the code itself, under the line
@@ -95,6 +96,7 @@ export function CodePane() {
                     <button class="btn" aria-label="Copy the code" title="Select the whole song and copy it" onClick={copy}>
                         {copied() ? 'Copied' : 'Copy'}
                     </button>
+                    <SnippetsMenu />
                 </Show>
                 <Show when={performing()}>
                     <div class="seg s" role="group" aria-label="Size of the code">

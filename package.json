@@ -18,6 +18,7 @@
     },
     "dependencies": {
         "@breezystack/lamejs": "^1.2.7",
+        "@codemirror/autocomplete": "^6.20.3",
         "@codemirror/collab": "^6.1.1",
         "@codemirror/commands": "^6.11.1",
         "@codemirror/language": "^6.13.1",
