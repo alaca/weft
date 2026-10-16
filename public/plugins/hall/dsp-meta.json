@@ -1,0 +1,203 @@
+{
+    "name": "hall",
+    "filename": "hall",
+    "version": "2.90.0",
+    "compile_options": "-lang wasm-i -fpga-mem-th 4 -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 2",
+    "library_list": [
+        "/usr/share/faust/stdfaust.lib",
+        "/usr/share/faust/reverbs.lib",
+        "/usr/share/faust/delays.lib",
+        "/usr/share/faust/maths.lib",
+        "/usr/share/faust/platform.lib",
+        "/usr/share/faust/signals.lib",
+        "/usr/share/faust/filters.lib",
+        "/usr/share/faust/basics.lib",
+        "/usr/share/faust/routes.lib"
+    ],
+    "include_pathnames": [
+        "/faust/user/inc0",
+        "/share/faust",
+        "/share/faust",
+        "/usr/local/share/faust",
+        "/usr/share/faust",
+        "."
+    ],
+    "size": 1786416,
+    "inputs": 2,
+    "outputs": 2,
+    "meta": [
+        {
+            "basics.lib/name": "Faust Basic Element Library"
+        },
+        {
+            "basics.lib/version": "1.23.1"
+        },
+        {
+            "compile_options": "-lang wasm-i -fpga-mem-th 4 -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 2"
+        },
+        {
+            "delays.lib/name": "Faust Delay Library"
+        },
+        {
+            "delays.lib/version": "1.2.0"
+        },
+        {
+            "description": "A large hall: a long, smooth reverb, after a short wait."
+        },
+        {
+            "filename": "hall"
+        },
+        {
+            "filters.lib/allpass_comb:author": "Julius O. Smith III"
+        },
+        {
+            "filters.lib/allpass_comb:copyright": "Copyright (C) 2003-2019 by Julius O. Smith III <jos@ccrma.stanford.edu>"
+        },
+        {
+            "filters.lib/allpass_comb:license": "LicenseRef-STK-4.3"
+        },
+        {
+            "filters.lib/lowpass0_highpass1:author": "Julius O. Smith III"
+        },
+        {
+            "filters.lib/lowpass0_highpass1:copyright": "Copyright (C) 2003-2019 by Julius O. Smith III <jos@ccrma.stanford.edu>"
+        },
+        {
+            "filters.lib/lowpass0_highpass1:license": "LicenseRef-STK-4.3"
+        },
+        {
+            "filters.lib/lowpass:author": "Julius O. Smith III"
+        },
+        {
+            "filters.lib/lowpass:copyright": "Copyright (C) 2003-2019 by Julius O. Smith III <jos@ccrma.stanford.edu>"
+        },
+        {
+            "filters.lib/lowpass:license": "LicenseRef-STK-4.3"
+        },
+        {
+            "filters.lib/name": "Faust Filters Library"
+        },
+        {
+            "filters.lib/tf1:author": "Julius O. Smith III"
+        },
+        {
+            "filters.lib/tf1:copyright": "Copyright (C) 2003-2019 by Julius O. Smith III <jos@ccrma.stanford.edu>"
+        },
+        {
+            "filters.lib/tf1:license": "LicenseRef-STK-4.3"
+        },
+        {
+            "filters.lib/tf1s:author": "Julius O. Smith III"
+        },
+        {
+            "filters.lib/tf1s:copyright": "Copyright (C) 2003-2019 by Julius O. Smith III <jos@ccrma.stanford.edu>"
+        },
+        {
+            "filters.lib/tf1s:license": "LicenseRef-STK-4.3"
+        },
+        {
+            "filters.lib/version": "1.9.0"
+        },
+        {
+            "maths.lib/author": "GRAME"
+        },
+        {
+            "maths.lib/copyright": "GRAME"
+        },
+        {
+            "maths.lib/license": "LicenseRef-LGPL-2.1-or-later-with-Faust-exception"
+        },
+        {
+            "maths.lib/name": "Faust Math Library"
+        },
+        {
+            "maths.lib/version": "2.9.0"
+        },
+        {
+            "name": "hall"
+        },
+        {
+            "platform.lib/name": "Generic Platform Library"
+        },
+        {
+            "platform.lib/version": "1.3.0"
+        },
+        {
+            "reverbs.lib/name": "Faust Reverb Library"
+        },
+        {
+            "reverbs.lib/version": "1.5.1"
+        },
+        {
+            "routes.lib/hadamard:author": "Remy Muller, revised by Romain Michon"
+        },
+        {
+            "routes.lib/name": "Faust Signal Routing Library"
+        },
+        {
+            "routes.lib/version": "1.4.0"
+        },
+        {
+            "signals.lib/name": "Faust Routing Library"
+        },
+        {
+            "signals.lib/version": "1.7.0"
+        }
+    ],
+    "ui": [
+        {
+            "type": "vgroup",
+            "label": "hall",
+            "items": [
+                {
+                    "type": "hslider",
+                    "label": "dark",
+                    "varname": "fHslider2",
+                    "shortname": "dark",
+                    "address": "/hall/dark",
+                    "index": 65592,
+                    "init": 0.4,
+                    "min": 0,
+                    "max": 1,
+                    "step": 0.01
+                },
+                {
+                    "type": "hslider",
+                    "label": "decay",
+                    "varname": "fHslider1",
+                    "shortname": "decay",
+                    "address": "/hall/decay",
+                    "index": 65584,
+                    "init": 3,
+                    "min": 0.5,
+                    "max": 12,
+                    "step": 0.01
+                },
+                {
+                    "type": "hslider",
+                    "label": "mix",
+                    "varname": "fHslider0",
+                    "shortname": "mix",
+                    "address": "/hall/mix",
+                    "index": 0,
+                    "init": 0.35,
+                    "min": 0,
+                    "max": 1,
+                    "step": 0.01
+                },
+                {
+                    "type": "hslider",
+                    "label": "wait",
+                    "varname": "fHslider3",
+                    "shortname": "wait",
+                    "address": "/hall/wait",
+                    "index": 65612,
+                    "init": 30,
+                    "min": 0,
+                    "max": 120,
+                    "step": 0.1
+                }
+            ]
+        }
+    ]
+}

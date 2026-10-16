@@ -1,0 +1,258 @@
+{
+    "name": "mallets",
+    "filename": "mallets",
+    "version": "2.90.0",
+    "compile_options": "-lang wasm-i -fpga-mem-th 4 -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 2",
+    "library_list": [
+        "/usr/share/faust/stdfaust.lib",
+        "/usr/share/faust/physmodels.lib",
+        "/usr/share/faust/noises.lib",
+        "/usr/share/faust/filters.lib",
+        "/usr/share/faust/maths.lib",
+        "/usr/share/faust/platform.lib",
+        "/usr/share/faust/envelopes.lib",
+        "/usr/share/faust/basics.lib",
+        "/usr/share/faust/signals.lib",
+        "/usr/share/faust/delays.lib",
+        "/usr/share/faust/routes.lib"
+    ],
+    "include_pathnames": [
+        "/faust/user/inc0",
+        "/share/faust",
+        "/share/faust",
+        "/usr/local/share/faust",
+        "/usr/share/faust",
+        "."
+    ],
+    "size": 19952,
+    "inputs": 0,
+    "outputs": 2,
+    "meta": [
+        {
+            "basics.lib/name": "Faust Basic Element Library"
+        },
+        {
+            "basics.lib/version": "1.23.1"
+        },
+        {
+            "compile_options": "-lang wasm-i -fpga-mem-th 4 -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 2"
+        },
+        {
+            "delays.lib/fdelay4:author": "Julius O. Smith III"
+        },
+        {
+            "delays.lib/fdelayltv:author": "Julius O. Smith III"
+        },
+        {
+            "delays.lib/name": "Faust Delay Library"
+        },
+        {
+            "delays.lib/version": "1.2.0"
+        },
+        {
+            "description": "A marimba: a wooden bar over a tube, struck with a mallet, worked out as the real thing rings."
+        },
+        {
+            "envelopes.lib/ar:author": "Yann Orlarey, Stéphane Letz"
+        },
+        {
+            "envelopes.lib/author": "GRAME"
+        },
+        {
+            "envelopes.lib/copyright": "GRAME"
+        },
+        {
+            "envelopes.lib/license": "LicenseRef-LGPL-2.1-or-later-with-Faust-exception"
+        },
+        {
+            "envelopes.lib/name": "Faust Envelope Library"
+        },
+        {
+            "envelopes.lib/version": "1.3.0"
+        },
+        {
+            "filename": "mallets"
+        },
+        {
+            "filters.lib/fir:author": "Julius O. Smith III"
+        },
+        {
+            "filters.lib/fir:copyright": "Copyright (C) 2003-2019 by Julius O. Smith III <jos@ccrma.stanford.edu>"
+        },
+        {
+            "filters.lib/fir:license": "LicenseRef-STK-4.3"
+        },
+        {
+            "filters.lib/highpass:author": "Julius O. Smith III"
+        },
+        {
+            "filters.lib/highpass:copyright": "Copyright (C) 2003-2019 by Julius O. Smith III <jos@ccrma.stanford.edu>"
+        },
+        {
+            "filters.lib/highpass:license": "LicenseRef-STK-4.3"
+        },
+        {
+            "filters.lib/iir:author": "Julius O. Smith III"
+        },
+        {
+            "filters.lib/iir:copyright": "Copyright (C) 2003-2019 by Julius O. Smith III <jos@ccrma.stanford.edu>"
+        },
+        {
+            "filters.lib/iir:license": "LicenseRef-STK-4.3"
+        },
+        {
+            "filters.lib/lowpass0_highpass1:author": "Julius O. Smith III"
+        },
+        {
+            "filters.lib/lowpass0_highpass1:copyright": "Copyright (C) 2003-2019 by Julius O. Smith III <jos@ccrma.stanford.edu>"
+        },
+        {
+            "filters.lib/lowpass0_highpass1:license": "LicenseRef-STK-4.3"
+        },
+        {
+            "filters.lib/lowpass:author": "Julius O. Smith III"
+        },
+        {
+            "filters.lib/lowpass:copyright": "Copyright (C) 2003-2019 by Julius O. Smith III <jos@ccrma.stanford.edu>"
+        },
+        {
+            "filters.lib/lowpass:license": "LicenseRef-STK-4.3"
+        },
+        {
+            "filters.lib/name": "Faust Filters Library"
+        },
+        {
+            "filters.lib/tf2:author": "Julius O. Smith III"
+        },
+        {
+            "filters.lib/tf2:copyright": "Copyright (C) 2003-2019 by Julius O. Smith III <jos@ccrma.stanford.edu>"
+        },
+        {
+            "filters.lib/tf2:license": "LicenseRef-STK-4.3"
+        },
+        {
+            "filters.lib/tf2s:author": "Julius O. Smith III"
+        },
+        {
+            "filters.lib/tf2s:copyright": "Copyright (C) 2003-2019 by Julius O. Smith III <jos@ccrma.stanford.edu>"
+        },
+        {
+            "filters.lib/tf2s:license": "LicenseRef-STK-4.3"
+        },
+        {
+            "filters.lib/version": "1.9.0"
+        },
+        {
+            "maths.lib/author": "GRAME"
+        },
+        {
+            "maths.lib/copyright": "GRAME"
+        },
+        {
+            "maths.lib/license": "LicenseRef-LGPL-2.1-or-later-with-Faust-exception"
+        },
+        {
+            "maths.lib/name": "Faust Math Library"
+        },
+        {
+            "maths.lib/version": "2.9.0"
+        },
+        {
+            "name": "mallets"
+        },
+        {
+            "noises.lib/name": "Faust Noise Generator Library"
+        },
+        {
+            "noises.lib/version": "1.6.0"
+        },
+        {
+            "physmodels.lib/name": "Faust Physical Models Library"
+        },
+        {
+            "physmodels.lib/version": "1.2.1"
+        },
+        {
+            "platform.lib/name": "Generic Platform Library"
+        },
+        {
+            "platform.lib/version": "1.3.0"
+        },
+        {
+            "routes.lib/name": "Faust Signal Routing Library"
+        },
+        {
+            "routes.lib/version": "1.4.0"
+        },
+        {
+            "signals.lib/name": "Faust Routing Library"
+        },
+        {
+            "signals.lib/version": "1.7.0"
+        }
+    ],
+    "ui": [
+        {
+            "type": "vgroup",
+            "label": "mallets",
+            "items": [
+                {
+                    "type": "hslider",
+                    "label": "freq",
+                    "varname": "fHslider0",
+                    "shortname": "freq",
+                    "address": "/mallets/freq",
+                    "index": 9208,
+                    "init": 440,
+                    "min": 20,
+                    "max": 4000,
+                    "step": 0.01
+                },
+                {
+                    "type": "hslider",
+                    "label": "gain",
+                    "varname": "fHslider1",
+                    "shortname": "gain",
+                    "address": "/mallets/gain",
+                    "index": 9232,
+                    "init": 0.8,
+                    "min": 0,
+                    "max": 1,
+                    "step": 0.01
+                },
+                {
+                    "type": "button",
+                    "label": "gate",
+                    "varname": "fButton0",
+                    "shortname": "gate",
+                    "address": "/mallets/gate",
+                    "index": 9312
+                },
+                {
+                    "type": "hslider",
+                    "label": "mallet",
+                    "varname": "fHslider2",
+                    "shortname": "mallet",
+                    "address": "/mallets/mallet",
+                    "index": 9240,
+                    "init": 0.5,
+                    "min": 0,
+                    "max": 1,
+                    "step": 0.01
+                },
+                {
+                    "type": "hslider",
+                    "label": "spot",
+                    "varname": "fHslider3",
+                    "shortname": "spot",
+                    "address": "/mallets/spot",
+                    "index": 9364,
+                    "init": 1,
+                    "min": 0,
+                    "max": 4,
+                    "step": 1
+                }
+            ]
+        }
+    ]
+}

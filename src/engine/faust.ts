@@ -1,6 +1,6 @@
 import { registerControl } from '@strudel/core'
 import { getAudioContext, getSuperdoughAudioController, registerSound } from '@strudel/webaudio'
-import { getADSRValues, getFrequencyFromValue, getParamADSR } from 'superdough'
+import { getADSRValues, getFrequencyFromValue, getParamADSR, webAudioTimeout } from 'superdough'
 import { EFFECT_CALL, PLUGINS, pluginNamed, type Plugin } from '../plugins/list'
 
 // The plugins that come with the app (plugins/list.ts), played by Faust compiled to WebAssembly.
@@ -107,6 +107,8 @@ function registerPluginSound(plugin: Plugin) {
                 getParamADSR(out.gain, attack, decay, sustain, release, 0, 1, t, end, 'linear')
             }
             voice.node.connect(out)
+            // The note is done on the clock it plays on, which for a file being made runs faster
+            // than the one on the wall, and is gone before the wall's would go off.
             let over = false
             const finish = () => {
                 if (over) return
@@ -114,13 +116,12 @@ function registerPluginSound(plugin: Plugin) {
                 voice.node.disconnect(out)
                 onended()
             }
-            const timer = setTimeout(finish, Math.max(0, (end + RING - context.currentTime) * 1000))
+            webAudioTimeout(context, finish, t, end + RING)
             return {
                 node: out,
                 stop: (when: number) => {
                     set('gate', 0, when)
-                    clearTimeout(timer)
-                    setTimeout(finish, Math.max(0, (when + 0.1 - context.currentTime) * 1000))
+                    webAudioTimeout(context, finish, context.currentTime, Math.max(when, context.currentTime) + 0.1)
                 },
             }
         },

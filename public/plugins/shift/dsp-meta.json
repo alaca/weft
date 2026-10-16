@@ -1,0 +1,96 @@
+{
+    "name": "shift",
+    "filename": "shift",
+    "version": "2.90.0",
+    "compile_options": "-lang wasm-i -fpga-mem-th 4 -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 2",
+    "library_list": [
+        "/usr/share/faust/stdfaust.lib",
+        "/usr/share/faust/misceffects.lib",
+        "/usr/share/faust/delays.lib",
+        "/usr/share/faust/maths.lib"
+    ],
+    "include_pathnames": [
+        "/faust/user/inc0",
+        "/share/faust",
+        "/share/faust",
+        "/usr/local/share/faust",
+        "/usr/share/faust",
+        "."
+    ],
+    "size": 65560,
+    "inputs": 2,
+    "outputs": 2,
+    "meta": [
+        {
+            "compile_options": "-lang wasm-i -fpga-mem-th 4 -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 2"
+        },
+        {
+            "delays.lib/name": "Faust Delay Library"
+        },
+        {
+            "delays.lib/version": "1.2.0"
+        },
+        {
+            "description": "A pitch shifter: the sound moved up or down by a number of semitones, beside itself."
+        },
+        {
+            "filename": "shift"
+        },
+        {
+            "maths.lib/author": "GRAME"
+        },
+        {
+            "maths.lib/copyright": "GRAME"
+        },
+        {
+            "maths.lib/license": "LicenseRef-LGPL-2.1-or-later-with-Faust-exception"
+        },
+        {
+            "maths.lib/name": "Faust Math Library"
+        },
+        {
+            "maths.lib/version": "2.9.0"
+        },
+        {
+            "misceffects.lib/name": "Misc Effects Library"
+        },
+        {
+            "misceffects.lib/version": "2.6.0"
+        },
+        {
+            "name": "shift"
+        }
+    ],
+    "ui": [
+        {
+            "type": "vgroup",
+            "label": "shift",
+            "items": [
+                {
+                    "type": "hslider",
+                    "label": "mix",
+                    "varname": "fHslider0",
+                    "shortname": "mix",
+                    "address": "/shift/mix",
+                    "index": 0,
+                    "init": 0.5,
+                    "min": 0,
+                    "max": 1,
+                    "step": 0.01
+                },
+                {
+                    "type": "hslider",
+                    "label": "semitones",
+                    "varname": "fHslider1",
+                    "shortname": "semitones",
+                    "address": "/shift/semitones",
+                    "index": 32776,
+                    "init": 12,
+                    "min": -24,
+                    "max": 24,
+                    "step": 0.01
+                }
+            ]
+        }
+    ]
+}

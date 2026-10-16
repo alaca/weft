@@ -98,6 +98,13 @@ export const DOCS: DocSection[] = [
 <p>To let a knob stand still again, point at the name of its row and press the cross.</p>`,
     },
     {
+        id: 'plugins',
+        title: 'Plugins',
+        pictures: [],
+        html: `<p>Plugins are sounds and effects that come with the app, written in <a href="https://faust.grame.fr" rel="noopener">Faust</a>. The sounds are with the synths in the Sounds: <b>Pluck</b>, a plucked string; <b>Electric piano</b>; <b>Ladder bass</b>, through a filter that squelches; and <b>Mallets</b>, a marimba worked out as a real one rings. Each has knobs of its own under Source in its sound controls, and the filter, shape and effects work on it as on any sound. In the code it is <code>s("epiano")</code> and so on.</p>
+<p>The effects are under Effects in a pattern's sound controls, at <b>Plugin</b>: <b>Wah</b>, <b>Tape echo</b>, <b>Hall</b>, <b>Flanger</b> and <b>Pitch shift</b>. Choose one and its knobs appear beside the others. In the code it is <code>.fx("hall")</code>, one to a pattern. Plugins play in an exported file as they do in the song.</p>`,
+    },
+    {
         id: 'versions',
         title: 'Versions of a pattern',
         pictures: [{ file: '/docs/versions.webp', width: 980, height: 327, alt: 'A pattern with two versions, shown as tabs A and B beside its name, and its menu open.' }],
