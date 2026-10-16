@@ -518,6 +518,24 @@ describe('a folder of packs', () => {
     })
 })
 
+describe('crawlers', () => {
+    it('asks the crawlers of AI models to stay away and turns them away when they come, and lets search engines in', async () => {
+        const robots = await fetch(`${site.origin}/robots.txt`, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)' } })
+        const text = await robots.text()
+        expect([robots.status, robots.headers.get('content-type')]).toEqual([200, 'text/plain; charset=utf-8'])
+        expect(text).toContain('User-agent: GPTBot\n')
+        expect(text).toContain('User-agent: Google-Extended\n')
+        expect(text).toMatch(/Disallow: \/\n\nUser-agent: \*\nAllow: \/\n$/)
+        expect(text).not.toContain('Googlebot')
+        const as = (agent: string, path = '/') => fetch(site.origin + path, { headers: { 'user-agent': agent } }).then((answer) => answer.status)
+        expect(await as('Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)')).toBe(403)
+        expect(await as('Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)', '/site.css')).toBe(403)
+        expect(await as('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)')).toBe(200)
+        expect(await as('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15')).toBe(200)
+        expect(await as('facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)')).toBe(200)
+    })
+})
+
 describe('every page', () => {
     it('leaves nothing a person typed as markup, in text or in an attribute', async () => {
         const token = await signIn('ante@example.com', '<b>')

@@ -11,6 +11,7 @@ import { readTempoLane, secondsOf as barsLast } from '../src/song/tempo'
 import { DEFAULT_SONG, songLength } from '../src/song/arrange'
 import { docsPage, downloadPage, homePage, licencePage, makerPage, notePage, packsPage, privacyPage, REASON_LIMIT, songPage, songsPage, type Around, type Build, type Found, type Listed, type Maker, type Named, type OwnSound, type Pack, type Part, type Platform, type Search, type Shown } from './pages'
 import { songPicture } from './picture'
+import { isAiCrawler, ROBOTS } from './crawlers'
 import { senderOf } from './sender'
 import { createTries } from './tries'
 
@@ -292,6 +293,7 @@ function fixedFiles(): Map<string, Kind> {
     const files = new Map<string, Kind>()
     const own = (path: string, type: string) => files.set(path, { bytes: readFileSync(join(HERE, 'assets', path.slice(1))), type, kept: KEPT_AN_HOUR })
     own('/site.css', 'text/css; charset=utf-8')
+    files.set('/robots.txt', { bytes: Buffer.from(ROBOTS), type: 'text/plain; charset=utf-8', kept: KEPT_AN_HOUR })
     own('/site.js', 'text/javascript; charset=utf-8')
     // The first picture is also there as a PNG: it is what is shown where the site's address is
     // pasted, and not every place that shows such a picture can read the other kind.
@@ -935,6 +937,7 @@ export function createSite(options: SiteOptions): Promise<Site> {
         const method = request.method ?? 'GET'
         const from = senderOf(request, options.behindProxy)
 
+        if (path !== '/robots.txt' && isAiCrawler(request.headers['user-agent'])) return { status: 403, file: { bytes: Buffer.from('Crawlers that gather pages for AI models are not let in here. See /robots.txt.\n'), type: 'text/plain; charset=utf-8' } }
         const same = method === 'GET' ? fixed.get(path) : undefined
         if (same) return { status: 200, fixed: same }
         if (!path.startsWith('/api/')) return pageAnswer(request, url, body, from)
