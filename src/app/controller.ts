@@ -604,7 +604,7 @@ export async function mount(root: HTMLElement): Promise<void> {
             'line',
             { id: 'weft-help-coffee', text: 'Buy Me a Coffee', action: () => void openInBrowser(`${SITE}/coffee`) },
         ],
-    })
+    }, () => void import('@tauri-apps/plugin-process').then((process) => process.exit(0)))
     createRoot(() => {
         createEffect(() => {
             layoutNow()

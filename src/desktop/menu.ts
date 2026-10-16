@@ -8,9 +8,20 @@ export type MenuEntry = { id: string; text: string; keys?: string; checked?: () 
 
 const inDesktop = () => '__TAURI_INTERNALS__' in window
 
+// The system's own menu has File, Edit, View, Window and Help on a Mac, no View on Windows, and
+// neither File nor View on Linux. One that is missing is put where it stands on a Mac, never
+// after Help: before the first menu there is that comes after it.
+const ORDER = ['File', 'Edit', 'View', 'Window', 'Help']
+export function placeOf(name: string, names: string[]): number {
+    const after = ORDER.slice(ORDER.indexOf(name) + 1)
+    const at = names.findIndex((one) => after.includes(one))
+    return at < 0 ? names.length : at
+}
+
 // Gives back a function that puts the ticks and what can be chosen right again after something
-// changed.
-export async function installMenus(menus: Record<string, MenuEntry[]>): Promise<() => void> {
+// changed. A File menu the system does not have, as on Linux, has no Quit of its own either, so
+// it is given `quit`.
+export async function installMenus(menus: Record<string, MenuEntry[]>, quit?: () => void): Promise<() => void> {
     if (!inDesktop()) return () => undefined
     try {
         const { Menu, Submenu, MenuItem, CheckMenuItem, PredefinedMenuItem } = await import('@tauri-apps/api/menu')
@@ -18,10 +29,14 @@ export async function installMenus(menus: Record<string, MenuEntry[]>): Promise<
         const gates: { item: Item | Tick; enabled: () => boolean }[] = []
         const menu = await Menu.default()
         const there = new Map<string, Sub>()
+        const names: string[] = []
         for (const item of await menu.items()) {
-            if (item instanceof Submenu) there.set(await item.text(), item)
+            const text = item instanceof Submenu ? await item.text() : ''
+            if (item instanceof Submenu) there.set(text, item)
+            names.push(text)
         }
-        for (const [name, entries] of Object.entries(menus)) {
+        for (const [name, given] of Object.entries(menus)) {
+            const entries: MenuEntry[] = name === 'File' && !there.has(name) && quit ? [...given, 'line', { id: 'weft-file-quit', text: 'Quit', keys: 'CmdOrCtrl+Q', action: quit }] : given
             const made = []
             for (const entry of entries) {
                 if (entry === 'line') {
@@ -36,7 +51,11 @@ export async function installMenus(menus: Record<string, MenuEntry[]>): Promise<
             }
             const before = there.get(name)
             if (before) await before.insert([...made, await PredefinedMenuItem.new({ item: 'Separator' })], 0)
-            else await menu.append(await Submenu.new({ text: name, items: made }))
+            else {
+                const at = placeOf(name, names)
+                await menu.insert(await Submenu.new({ text: name, items: made }), at)
+                names.splice(at, 0, name)
+            }
         }
         await menu.setAsAppMenu()
         return () => {
