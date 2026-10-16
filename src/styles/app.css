@@ -132,7 +132,13 @@ kbd { font: 500 9.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); b
 .st.muted { background: transparent; border-style: dashed; }
 .st.muted .st-n, .st.muted .chip { opacity: 0.5; }
 .st.muted .st-b, .st.rest .st-b { opacity: 0.55; }
-.st-h { position: relative; min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 6px 11px; padding: 8px 252px 4px 17px; }
+.st-h { position: sticky; top: -14px; z-index: 3; min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 6px 11px; padding: 8px 252px 4px 10px; background: var(--cloth); border-radius: 10px 10px 0 0; }
+.st.muted .st-h { background: var(--vat); }
+.st.folded .st-h { border-radius: 10px; padding-bottom: 8px; }
+.st-h .fold { margin: 0 -6px 0 0; }
+.st-mini { display: flex; align-items: center; padding: 3px 4px; margin: -3px -4px; border-radius: 6px; }
+.st-mini:hover { background: var(--cloth-3); }
+.sp-w { scroll-margin-top: 52px; }
 /* What ends a strip's head stays at its top right. On a narrow window the rest of the head
    goes onto a second line under it, where it would otherwise run out of the strip. */
 .st-e { position: absolute; top: 12px; right: 14px; display: flex; align-items: center; gap: 11px; }

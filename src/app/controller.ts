@@ -217,7 +217,7 @@ import {
     setStartBar,
     setStartOpen,
     setClosingSong,
-    setUnfolded,
+    setFoldedStrips,
     setStale,
     soloIds,
     song,
@@ -226,7 +226,7 @@ import {
     soundsOpen,
     stale,
     startBar,
-    unfolded,
+    foldedStrips,
     setClockTempo,
     beat,
     landingBars,
@@ -551,7 +551,7 @@ export async function mount(root: HTMLElement): Promise<void> {
     engine.onCursor((offset) => {
         if (stale()) return
         const hit = song().patterns.find((p) => offset >= p.from && offset <= p.to)
-        if (hit) markSelected(hit.id)
+        if (hit) setSelected(hit.id)
     })
     engine.onEvaluated(() =>
         batch(() => {
@@ -589,6 +589,9 @@ export async function mount(root: HTMLElement): Promise<void> {
             { id: 'weft-view-mixer', text: 'Mixer', checked: mixerOpen, action: toggleMixer },
             { id: 'weft-view-wave', text: 'Waveform', checked: waveShown, action: toggleWaveform },
             { id: 'weft-view-song', text: 'Song Panel', checked: songShown, action: toggleSongPanel },
+            'line',
+            { id: 'weft-view-fold', text: 'Fold All Patterns', action: foldAllStrips },
+            { id: 'weft-view-unfold', text: 'Unfold All Patterns', action: unfoldAllStrips },
             'line',
             { id: 'weft-view-perform', text: 'Performance View', keys: 'CmdOrCtrl+Shift+F', checked: performing, action: togglePerform },
             'line',
@@ -680,25 +683,27 @@ export const pause = () => engine.pause()
 
 export const togglePlay = () => (engineState().playing ? pause() : play())
 
-// While a sound panel is open the other strips are folded. One that is chosen opens and stays
-// open until the panel changes, so choosing or adding another never folds it again.
-function markSelected(id: string) {
+const closePanel = () => setOpenPanel(null)
+export const closeSoundControls = () => closePanel()
+
+// Strips folded to their heading, and unfolded again. A strip that folds takes its open sound
+// controls with it. With `all` every strip goes the way the pressed one goes.
+const allStrips = () => [...new Set(song().patterns.map((p) => p.id))]
+function foldStrips(ids: string[], fold: boolean) {
     batch(() => {
-        setSelected(id)
-        if (openPanel() !== null && !unfolded().includes(id)) setUnfolded([...unfolded(), id])
+        setFoldedStrips(fold ? [...new Set([...foldedStrips(), ...ids])] : foldedStrips().filter((one) => !ids.includes(one)))
+        const panel = openPanel()
+        if (fold && panel !== null && ids.includes(ownerOf(panel))) closePanel()
     })
 }
-
-const closePanel = () =>
-    batch(() => {
-        setOpenPanel(null)
-        setUnfolded([])
-    })
+export const toggleStrip = (id: string, all = false) => foldStrips(all ? allStrips() : [id], !foldedStrips().includes(id))
+export const foldAllStrips = () => foldStrips(allStrips(), true)
+export const unfoldAllStrips = () => setFoldedStrips([])
 
 export function select(id: string) {
     const block = find(id)
     if (!block) return
-    markSelected(id)
+    setSelected(id)
     if (!stale()) engine.reveal(block.from)
 }
 
@@ -881,7 +886,7 @@ export function togglePanel(target: string) {
     if (!forEdit(target)) return
     batch(() => {
         setOpenPanel(target)
-        setUnfolded([])
+        setFoldedStrips(foldedStrips().filter((one) => one !== ownerOf(target)))
     })
     select(ownerOf(target))
 }
@@ -2135,6 +2140,7 @@ export function renamePattern(id: string, text: string): boolean {
         if (selected() === id) setSelected(name)
         if (soloIds().includes(id)) setSoloIds(soloIds().map((solo) => (solo === id ? name : solo)))
         if (panel === id || panel?.startsWith(`${id}/`)) setOpenPanel(name + panel.slice(id.length))
+        if (foldedStrips().includes(id)) setFoldedStrips(foldedStrips().map((one) => (one === id ? name : one)))
     })
     if (lastLength.has(id)) lastLength.set(name, lastLength.get(id) as number)
     lastLength.delete(id)
@@ -3211,6 +3217,7 @@ function show(record: SongRecord) {
         setExportNote(null)
         setSelected(null)
         closePanel()
+        setFoldedStrips([])
         setSoloIds([])
         setRemoved(null)
         setGridNotes({})

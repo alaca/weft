@@ -34,7 +34,8 @@ export const DOCS: DocSection[] = [
 <p><b>Notes</b> are a piano roll. Click an empty cell for a note, or press there and drag to the right to draw one as long as the drag. Drag a note to move it, drag its right edge to make it longer, and double click it to remove it. Higher and Lower show more of the keyboard. Choose a Key and the roll keeps to the notes of that key; with Chords on, one click puts in the whole chord. <b>Level</b> puts a bar under the roll for every step a note starts on: drag over them to make notes louder or quieter.</p>
 <p><b>Glide</b> under the roll makes a note slide into its pitch from the note before it, as on an acid bass line. Switch it on for the step the note starts on, or press All glide. Glide time beside it is how long a slide takes, 80 thousandths of a second to begin with, the sound of an acid line. It works on a line of single notes: a step with a chord on it cannot glide.</p>
 <p><b>Length</b> is how many bars the pattern lasts before it comes round again. <b>Steps</b> is how finely a bar is divided: 16 is the usual, 12 and 24 divide each beat in three, for a shuffle or a swing. When a pattern is longer than one bar, <b>Cycle</b> pages through its bars.</p>
-<p>At the right of a strip, M mutes the pattern and S plays it alone. The three dots rename, duplicate and move it, and the cross removes it. Under the grid or the roll are the pattern's knobs, with Volume and Pan first.</p>`,
+<p>At the right of a strip, M mutes the pattern and S plays it alone. The three dots rename, duplicate and move it, and the cross removes it. Under the grid or the roll are the pattern's knobs, with Volume and Pan first.</p>
+<p>The arrow at the left of a strip folds it to its heading, with a small picture of what it plays, and opens it again. Hold Alt, Option on a Mac, as you press it and every strip folds or opens. The View menu has the same, as Fold All Patterns and Unfold All Patterns.</p>`,
     },
     {
         id: 'several',

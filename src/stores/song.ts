@@ -49,7 +49,8 @@ export const [position, setPosition] = createSignal(0)
 export const [bpm, setBpm] = createSignal(120)
 export const [revision, setRevision] = createSignal(0)
 export const [openPanel, setOpenPanel] = createSignal<string | null>(null)
-export const [unfolded, setUnfolded] = createSignal<string[]>([])
+// The strips folded to their heading, by the name of their pattern.
+export const [foldedStrips, setFoldedStrips] = createSignal<string[]>([])
 export const [mixNow, setMixNow] = createSignal<Mix>(DEFAULT_MIX)
 export const [mixerOpen, setMixerOpen] = createSignal(false)
 // The panels of the left column that are folded to their heading.

@@ -1,6 +1,6 @@
 import { muteOrLearn, soloOrLearn } from '../app/knobs'
 import { createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { codeNow, addVariantOf, colorAt, dropOnPattern, duplicatePattern, eventsOf, movePattern, openSounds, removePattern, removeVariantOf, renamePattern, restsNow, select, setControl, setMix, showVariant, songLengthNow, togglePanel } from '../app/controller'
+import { codeNow, addVariantOf, colorAt, dropOnPattern, duplicatePattern, eventsOf, movePattern, openSounds, removePattern, removeVariantOf, renamePattern, restsNow, select, setControl, setMix, showVariant, songLengthNow, togglePanel, toggleStrip } from '../app/controller'
 import { MOST_VARIANTS, variantBars, variantName } from '../song/variants'
 import { writeNumber } from '../controls/catalog'
 import { favourites, panOf, volumeOf, type ControlView } from '../controls/views'
@@ -13,7 +13,8 @@ import type { PatternBlock, PatternView } from '../song/types'
 import { describe, STEPS } from '../song/view'
 import { fits, takesKit } from '../sounds/apply'
 import { jamHand, jamPeer } from '../stores/jam'
-import { cycle, draggedSound, engineState, openPanel, position, revision, selected, soloIds, song, stale, unfolded } from '../stores/song'
+import { cycle, draggedSound, engineState, foldedStrips, openPanel, position, revision, selected, soloIds, song, stale } from '../stores/song'
+import { ALT } from './keys'
 import { Knob } from './Knob'
 import { MiniView } from './MiniView'
 import { NoteRoll } from './NoteRoll'
@@ -42,7 +43,7 @@ export function Strip(props: { id: string }) {
     const playing = createMemo(() => engineState().playing && !block()?.muted && !resting())
     const panelOwner = () => openPanel()?.split('/')[0] ?? null
     const open = () => openPanel() === props.id
-    const folded = () => panelOwner() !== null && panelOwner() !== props.id && !unfolded().includes(props.id)
+    const folded = () => foldedStrips().includes(props.id)
     const soundOpen = createMemo(() => {
         const target = openPanel()
         if (!block() || panelOwner() !== props.id || target === props.id) return undefined
@@ -162,7 +163,7 @@ export function Strip(props: { id: string }) {
                 <section
                     ref={watch}
                     class="st"
-                    classList={{ sel: selected() === props.id, muted: current().muted, rest: resting() }}
+                    classList={{ sel: selected() === props.id, muted: current().muted, rest: resting(), folded: folded() }}
                     style={{ '--h': colorAt(index()) }}
                     data-testid={`strip-${props.id}`}
                     data-drop={over() && takes() ? '' : undefined}
@@ -190,6 +191,20 @@ export function Strip(props: { id: string }) {
                         </span>
                     </Show>
                     <div class="st-h">
+                        <button
+                            class="fold"
+                            aria-expanded={!folded()}
+                            aria-label={`${folded() ? 'Unfold' : 'Fold'} ${props.id}`}
+                            title={folded() ? `Unfold. ${ALT}-click unfolds every pattern` : `Fold to the heading. ${ALT}-click folds every pattern`}
+                            onClick={(event) => {
+                                event.stopPropagation()
+                                toggleStrip(props.id, event.altKey)
+                            }}
+                        >
+                            <svg viewBox="0 0 10 10" aria-hidden="true">
+                                <path d="M2 3.6 5 6.6 8 3.6" />
+                            </svg>
+                        </button>
                         <i class="bead-h" />
                         <Show
                             when={naming()}
@@ -251,7 +266,18 @@ export function Strip(props: { id: string }) {
                         </Show>
                         <span class="st-g" ref={head} onClick={(event) => event.stopPropagation()} />
                         <Show when={folded()}>
-                            <MiniView view={view()} />
+                            <button
+                                class="st-mini"
+                                aria-hidden="true"
+                                tabIndex={-1}
+                                title="Unfold"
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    toggleStrip(props.id)
+                                }}
+                            >
+                                <MiniView view={view()} />
+                            </button>
                         </Show>
                         <span class="st-e">
                             <VaryMenu id={props.id} block={block()} />

@@ -117,8 +117,35 @@ test('while the song plays a strip draws the bar that is played, also when it is
     await expect(notes).toHaveCount(3)
     await expect(notes).toHaveCount(2)
 
-    await page.getByRole('button', { name: 'Sound controls for bass' }).click()
+    await page.getByRole('button', { name: 'Fold keys' }).click()
     const small = page.getByTestId('strip-keys').locator('svg.mini rect')
     await expect(small).toHaveCount(3)
     await expect(small).toHaveCount(2)
+})
+
+test('a strip folds to its heading and back, all fold at once with Alt, and the sound controls of one leave the others open', async ({ page }) => {
+    await open(page, SONG)
+    const drums = page.getByTestId('strip-drums')
+    const bass = page.getByTestId('strip-bass')
+    await page.getByRole('button', { name: 'Sound controls for drums' }).click()
+    await expect(page.getByTestId('sound-panel')).toBeVisible()
+    await expect(bass.locator('.st-b')).toBeVisible()
+    await page.getByRole('button', { name: 'Close the sound controls of drums' }).click()
+    await expect(page.getByTestId('sound-panel')).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Fold bass' }).click()
+    await expect(bass.locator('.st-b')).toHaveCount(0)
+    await expect(bass.locator('.mini')).toBeVisible()
+    await expect(drums.locator('.st-b')).toBeVisible()
+    await bass.locator('.st-mini').click()
+    await expect(bass.locator('.st-b')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Fold drums' }).click({ modifiers: ['Alt'] })
+    await expect(page.locator('.st .st-b')).toHaveCount(0)
+    // Opening the sound controls of a folded strip unfolds it, and only it.
+    await page.getByRole('button', { name: 'Sound controls for bass' }).click()
+    await expect(page.getByTestId('sound-panel')).toBeVisible()
+    await expect(drums.locator('.st-b')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Unfold drums' }).click({ modifiers: ['Alt'] })
+    await expect(page.locator('.st .st-b')).toHaveCount(3)
 })

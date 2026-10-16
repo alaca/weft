@@ -1,6 +1,7 @@
-import { createMemo, createResource, createSignal, For, Match, Show, Switch } from 'solid-js'
+import { createMemo, createResource, createSignal, For, Match, onMount, Show, Switch } from 'solid-js'
 import {
     addControl,
+    closeSoundControls,
     cutsItself,
     isPumped,
     midiOutOf,
@@ -107,8 +108,17 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
         else setChoice(type)
     }
 
+    // Opened under a long grid, the controls would start out of sight. They are brought up far
+    // enough that their top shows.
+    let box!: HTMLDivElement
+    onMount(() => {
+        const list = box.closest('.ctl')
+        if (!list || box.getBoundingClientRect().top < list.getBoundingClientRect().bottom - 140) return
+        box.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+    })
+
     return (
-        <div onClick={(event) => event.stopPropagation()} data-testid={props.only ? 'row-panel' : 'sound-panel'}>
+        <div ref={box} class="sp-w" onClick={(event) => event.stopPropagation()} data-testid={props.only ? 'row-panel' : 'sound-panel'}>
             <Show when={props.only}>
                 {(sound) => (
                     <p class="sp-o">
@@ -253,6 +263,9 @@ export function SoundPanel(props: { id: string; block: PatternBlock; only?: stri
                 </Show>
                 <button class="btn" classList={{ on: browsing() }} aria-expanded={browsing()} onClick={() => setBrowsing(!browsing())}>
                     Browse all controls
+                </button>
+                <button class="btn" aria-label={`Close the sound controls of ${props.only ?? props.id}`} onClick={closeSoundControls}>
+                    Close
                 </button>
             </div>
             <Show when={!DEMO && !props.only && !isDrums(props.block) && !isLaid(props.block)}>
