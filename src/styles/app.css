@@ -223,7 +223,7 @@ button.rn:hover { border-color: var(--linen-3); }
 /* Where the code pane is narrow, Update leaves out its keys, which the status bar also shows,
    and the header keeps to one line. */
 .code { container-type: inline-size; }
-@container (max-width: 520px) { .upd kbd { display: none; } }
+@container (max-width: 520px) { .upd > .btn kbd { display: none; } }
 .upd > .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .upd .up-m { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 0; padding: 0 8px; gap: 5px; }
 .up-m b { font: 600 10px/1 var(--mono); font-stretch: 87%; color: var(--saffron); }
