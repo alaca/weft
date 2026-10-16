@@ -192,6 +192,15 @@ export interface Engine {
 
 const bareId = (id: string) => id.replace(/^_+|_+$/g, '')
 
+// Loose timing is Strudel's nudge: how many seconds a sound comes late. Strudel's sound engine
+// reads it only for samples, so a synth played every note on the beat. It is taken out of the
+// note here and the sound is asked for that much later, whatever kind it is.
+const lateBy = (value: any): number => {
+    const by = Number(value?.nudge)
+    return Number.isFinite(by) ? by : 0
+}
+const withoutNudge = ({ nudge: _, ...rest }: Record<string, unknown>) => rest
+
 // What Strudel offers while typing, taken out of the extension it hands out, since it does not
 // hand out the offers themselves. The editor takes one list of what offers, so Strudel's and the
 // snippets go in one. Null when this Strudel is made another way: it then offers its own as it
@@ -1113,7 +1122,9 @@ export function createEngine(): Engine {
                 toLight(hap)
                 if (guarded && carriesCode(hap.value)) return
                 readyToDuck(hap.value)
-                return webaudioOutput(metered(inRoom(hap, time, cps)), deadline, duration, cps, time)
+                const late = lateBy(hap.value)
+                const played = late ? hap.withValue(withoutNudge) : hap
+                return webaudioOutput(metered(inRoom(played, time + late, cps)), deadline, duration, cps, time + late)
             },
             getTime: () => getAudioContext().currentTime,
             setInterval: startTicking,
@@ -1601,10 +1612,11 @@ export function createEngine(): Engine {
                         if (!before && duckorbit !== undefined && duckorbit !== null && (only === undefined || !heard)) duckAt(hap.value, startOf(hap))
                         // The pattern asked for is in the list once more for what it pushes down.
                         if (!heard && of.name === only) continue
-                        const fitted = inSharedRoom(rooms(), value, startOf(hap), of, 1 / cpsAt(hap))
+                        const late = lateBy(value)
+                        const fitted = inSharedRoom(rooms(), late ? withoutNudge(value) : value, startOf(hap) + late, of, 1 / cpsAt(hap))
                         if (!heard) continue
                         if (before) await leaveRoom(fitted, startOf(hap))
-                        else await superdough(fitted, startOf(hap), lengthOf(hap), cpsAt(hap), hap.whole.begin.valueOf()).catch(() => void missed++)
+                        else await superdough(fitted, startOf(hap) + late, lengthOf(hap), cpsAt(hap), hap.whole.begin.valueOf()).catch(() => void missed++)
                     }
                     await reverbsSound()
                 }
