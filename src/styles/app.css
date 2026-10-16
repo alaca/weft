@@ -525,6 +525,15 @@ svg.mini rect { fill: var(--h); }
 .rs.on { background: var(--linen); color: var(--vat); }
 .rs.on svg { fill: var(--linen); }
 .rs:disabled { opacity: 0.4; cursor: default; }
+.vy-w { position: relative; flex: none; display: flex; }
+.vy-b { height: 20px; padding: 0 7px; border-radius: 5px; display: flex; align-items: center; gap: 4px; background: var(--cloth-3); color: var(--linen-3); font: 600 10.5px/1 var(--ui); }
+.vy-b b { font: 600 10px/1 var(--mono); color: var(--saffron); }
+.vy-b.lit, .vy-b:hover:not(.on) { color: var(--linen); }
+.vy-b.on { background: var(--linen); color: var(--vat); }
+.vy-b.on b { color: var(--vat); }
+.sm.vy { left: auto; right: -9px; top: 30px; width: 450px; gap: 12px; }
+.vy-r { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.vy-r .seg { flex-wrap: wrap; }
 .sp-o { margin: 0 16px 0 17px; padding: 11px 0 0; border-top: 1px solid var(--seam); color: var(--linen-3); font-size: 11.5px; }
 .sp-o b { color: var(--linen); font-weight: 600; }
 .sp-o code { font: 500 10.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); }

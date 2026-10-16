@@ -18,6 +18,7 @@ import { DEMO } from '../demo/demo'
 import { MAX_BARS } from '../song/bars'
 import { chordAt, chordsEdit, followAgain, followerCode, followerEdits, FOLLOW_KINDS, keepOwnEdits, readChords, readFollower, registerEdit, TONES, USUAL_CHORD, type Follower, type FollowKind, type Register } from '../song/chords'
 import { meterEdits, meterNow, METERS, readMeter, setMeterNow, sliceSteps } from '../song/meter'
+import { readVaried, varyEdit, type Kind, type Value, type Varied } from '../song/vary'
 import { fitTempo, readTempoLane, secondsOf, tempoAt, tempoLaneEdit } from '../song/tempo'
 import { cleanPresetName, LIBRARY, presetCalls, presetEdits, previewText, PREVIEW_PITCH, readPresets, soundCalls, withPreset, writePresets, type Preset } from '../sounds/presets'
 import { keeping } from '../library/kept'
@@ -1901,6 +1902,27 @@ export function setAllGlides(id: string, on: boolean) {
 }
 
 // How long a slide of this roll takes, in seconds: the pattack written with its glides.
+// How a pattern is varied: the calls that play it otherwise than written. A recording laid along
+// the song has none; its place in the song is a call of the same kind.
+export function variedOf(id: string): Varied | null {
+    const block = find(id)
+    return block && !readLaid(block) ? readVaried(engine.getCode(), block, meterNow()) : null
+}
+
+export const variesNotes = (id: string): boolean => {
+    const block = find(id)
+    return Boolean(block && readNotes(block))
+}
+
+export function setVariation<K extends Kind>(id: string, kind: K, value: Value<K>) {
+    const block = find(id)
+    if (!block || stale() || readLaid(block)) return
+    const edit = varyEdit(engine.getCode(), block, meterNow(), kind, value, Boolean(readNotes(block)))
+    if (!edit) return
+    engine.applyEdit(edit)
+    replay()
+}
+
 export function setGlideTime(id: string, seconds: number) {
     const block = find(id)
     const source = block && !stale() ? readNotes(block) : null

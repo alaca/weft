@@ -23,6 +23,7 @@ import { SliceRack } from './SliceRack'
 import { SoundPanel } from './SoundPanel'
 import { Rack } from './Rack'
 import { askSoon } from './askSoon'
+import { VaryMenu } from './VaryMenu'
 
 // Every evaluation asks each pattern again what it plays. Most of the time the answer is the
 // same, and saying so here spares the grid or roll below from being worked out again.
@@ -252,6 +253,7 @@ export function Strip(props: { id: string }) {
                             <MiniView view={view()} />
                         </Show>
                         <span class="st-e">
+                            <VaryMenu id={props.id} block={block()} />
                             <button
                                 class="rs"
                                 classList={{ on: open() }}
