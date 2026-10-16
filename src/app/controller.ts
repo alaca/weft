@@ -596,6 +596,7 @@ export async function mount(root: HTMLElement): Promise<void> {
         ],
         Help: [
             { id: 'weft-help-docs', text: 'Weft Loom Docs', action: () => void openInBrowser(`${SITE}/docs`) },
+            { id: 'weft-help-guide', text: 'Make a First Beat', action: () => void import('./guide').then((guide) => guide.startGuide()) },
             { id: 'weft-help-update', text: 'Check for Updates…', action: () => void lookForNewVersion(true) },
             'line',
             { id: 'weft-help-coffee', text: 'Buy Me a Coffee', action: () => void openInBrowser(`${SITE}/coffee`) },

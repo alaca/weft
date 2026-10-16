@@ -1,6 +1,7 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js'
 import { openAccount, refreshAccount, signOutOfSite } from '../app/account'
 import { goOn, newSong, openFromSite, openSong, openSongFile, recentSongs } from '../app/controller'
+import { startGuide } from '../app/guide'
 import { whenText } from '../library/shelf'
 import { site, type SiteSong } from '../site/api'
 import { me } from '../stores/account'
@@ -149,6 +150,9 @@ export function StartScreen() {
                             <div class="sx-none" data-testid="start-none">
                                 <b>You have no songs yet.</b>
                                 Press New song to start one. Or open a copy of a song from the site, on the right, and see how it is made.
+                                <button class="btn go sx-guide" onClick={startGuide}>
+                                    Make a first beat, step by step
+                                </button>
                             </div>
                         }
                     >

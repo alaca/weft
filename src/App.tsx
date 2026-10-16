@@ -23,6 +23,7 @@ import { KnobLearn } from './ui/KnobLearn'
 import { SoundDialog } from './ui/SoundDialog'
 import { TrimDialog } from './ui/TrimDialog'
 import { UpdateCard } from './ui/UpdateCard'
+import { GuideCard } from './ui/GuideCard'
 
 export function App() {
     const onKey = (event: KeyboardEvent) => {
@@ -115,6 +116,7 @@ export function App() {
                 <LinkDialog />
                 <JamAsk />
                 <UpdateCard />
+                <GuideCard />
                 <ExportDialog />
                 <TrimDialog />
                 <SoundDialog />

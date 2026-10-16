@@ -132,7 +132,7 @@ kbd { font: 500 9.5px/1 var(--mono); font-stretch: 87%; color: var(--linen-2); b
 .st.muted { background: transparent; border-style: dashed; }
 .st.muted .st-n, .st.muted .chip { opacity: 0.5; }
 .st.muted .st-b, .st.rest .st-b { opacity: 0.55; }
-.st-h { position: relative; min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 6px 11px; padding: 8px 188px 4px 17px; }
+.st-h { position: relative; min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 6px 11px; padding: 8px 252px 4px 17px; }
 /* What ends a strip's head stays at its top right. On a narrow window the rest of the head
    goes onto a second line under it, where it would otherwise run out of the strip. */
 .st-e { position: absolute; top: 12px; right: 14px; display: flex; align-items: center; gap: 11px; }
@@ -775,6 +775,14 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .up .btn:disabled { opacity: 0.45; cursor: default; }
 .up-p { height: 6px; border-radius: 3px; background: var(--vat); overflow: hidden; }
 .up-p i { display: block; height: 100%; background: var(--lichen); }
+.gd { position: fixed; left: 14px; bottom: 40px; z-index: 72; width: min(360px, calc(100vw - 28px)); display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 14px; background: var(--cloth-2); border: 1px solid var(--saffron); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55); }
+.gd p { color: var(--linen); font-size: 13px; line-height: 1.5; }
+.gd p.good { color: var(--lichen); font-weight: 600; }
+.gd-a { display: flex; gap: 8px; padding-top: 2px; }
+.gd-ring { position: fixed; z-index: 71; pointer-events: none; border: 2px solid var(--saffron); border-radius: 10px; animation: gd-pulse 1.6s ease-in-out infinite; transition: left 0.15s, top 0.15s, width 0.15s, height 0.15s; }
+.gd-ring.good { border-color: var(--lichen); animation: none; }
+@keyframes gd-pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--saffron) 25%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .gd-ring { animation: none; transition: none; } }
 .ja-b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .ja-b h3 { font: 600 17px/1.15 var(--voice); overflow-wrap: anywhere; }
 .ja-b p { color: var(--linen-2); font-size: 12px; line-height: 1.45; }
@@ -931,6 +939,7 @@ input.jm-code::placeholder { letter-spacing: 0; color: var(--linen-3); }
 .sx-mark i { width: 6px; height: 6px; border-radius: 50%; background: var(--lichen); }
 .sx-none { margin: 22px 16px 0 18px; padding: 18px; border: 1px dashed var(--seam); border-radius: 11px; color: var(--linen-2); font-size: 13px; line-height: 1.6; }
 .sx-none b { display: block; margin-bottom: 4px; font: 600 17px/1.2 var(--voice); color: var(--linen); }
+.sx-guide { margin-top: 14px; }
 .sx-acc { flex: none; margin: auto 14px 14px; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; background: var(--cloth-2); border: 1px solid var(--seam); border-radius: 12px; }
 .sx-acc-t { color: var(--linen-2); font-size: 12px; line-height: 1.5; }
 .sx-acc .seg { align-self: flex-start; }
