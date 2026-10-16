@@ -114,7 +114,7 @@ import { jamsOpen, jamStage, setJamsOpen, setJamUnread, setSoundsShare, soundsSh
 import { attachJam, leaveJam, tellJam } from './jam'
 import { openAccount } from './account'
 import { attachPublish, openPublish } from './publish'
-import { attachUpdate, lookForNewVersion, lookWith } from './update'
+import { attachUpdate, lookForNewVersion, lookNowAndThen, lookWith } from './update'
 import { SITE } from '../site/api'
 import {
     cycle,
@@ -540,6 +540,7 @@ export async function mount(root: HTMLElement): Promise<void> {
     attachPublish({ prepare: prepareToPublish, preview: previewToPublish, busiestBar, cameFrom: () => current?.source?.id ?? null, published: publishedAs })
     attachUpdate({ keep: flush })
     window.setTimeout(() => void lookForNewVersion(false), UPDATE_AFTER)
+    lookNowAndThen(() => engineState().playing || performing() || jamStage() === 'jamming')
     engine.onSoundDrop(dropSound)
     engine.onCursor((offset) => {
         if (stale()) return

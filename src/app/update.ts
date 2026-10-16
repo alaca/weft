@@ -2,14 +2,18 @@ import { batch } from 'solid-js'
 import { lookForUpdate, versionNow, type NewVersion } from '../desktop/update'
 import { setUpdateDone, setUpdateNote, setUpdateNotes, setUpdateStage, setUpdateVersion, updateStage } from '../stores/update'
 
-// Keeping the app up to date. It looks once a little after it starts and says nothing unless
-// there is a newer version; asked from the menu, it answers either way. Nothing is fetched or
-// changed until Update is pressed, and the song is kept first, because the app starts anew.
+// Keeping the app up to date. It looks a little after it starts, and again every few hours while
+// it stays open, and says nothing unless there is a newer version; asked from the menu, it answers
+// either way. Nothing is fetched or changed until Update is pressed, and the song is kept first,
+// because the app starts anew.
 export type UpdateDeps = { keep(): void; look?: () => Promise<NewVersion | null> }
 
 let deps: UpdateDeps
 let found: NewVersion | null = null
 let looking = false
+let lookedAt = 0
+// The version Later was pressed on. The app does not bring it back by itself until it starts again.
+let putOff: string | null = null
 
 export function attachUpdate(given: UpdateDeps) {
     deps = given
@@ -39,9 +43,10 @@ const say = (note: string) =>
 export async function lookForNewVersion(asked: boolean) {
     if (looking || updateStage() === 'fetching') return
     looking = true
+    lookedAt = Date.now()
     try {
         const version = await (deps.look ?? lookForUpdate)()
-        if (version) return offer(version)
+        if (version && (asked || version.version !== putOff)) return offer(version)
         if (!asked) return
         const mine = await versionNow().catch(() => null)
         say(mine ? `You have the newest Weft Loom, ${mine}.` : 'You have the newest Weft Loom.')
@@ -78,4 +83,22 @@ export async function installNewVersion() {
 }
 
 // Not now. It is offered again the next time the app starts, or when it is asked for.
-export const putUpdateOff = () => setUpdateStage('none')
+export function putUpdateOff() {
+    if (updateStage() === 'found' || updateStage() === 'failed') putOff = found?.version ?? null
+    setUpdateStage('none')
+}
+
+// An app left open for days still hears of a version that came out meanwhile. It looks again
+// when the last look is a few hours old, and only while nothing plays and no jam is on, so that
+// the card never comes up in the middle of a set. Gives back what stops it.
+const LOOK_AGAIN_AFTER = 6 * 60 * 60 * 1000
+const SEE_WHETHER_DUE = 10 * 60 * 1000
+
+export function lookNowAndThen(busy: () => boolean): () => void {
+    const timer = setInterval(() => {
+        const stage = updateStage()
+        if (busy() || Date.now() - lookedAt < LOOK_AGAIN_AFTER || (stage !== 'none' && stage !== 'found')) return
+        void lookForNewVersion(false)
+    }, SEE_WHETHER_DUE)
+    return () => clearInterval(timer)
+}

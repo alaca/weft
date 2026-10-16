@@ -229,6 +229,6 @@ export const DOCS: DocSection[] = [
 <div><dt>Arrow keys</dt><dd>Move the chosen notes in a roll; with <kbd>Shift</kbd>, left and right change the length of one</dd></div>
 <div><dt><kbd>Delete</kbd></dt><dd>Take out what is chosen</dd></div>
 </dl>
-<p>Weft Loom looks for a newer version of itself when it starts, and offers it in a card at the bottom right. Update and restart puts it in.</p>`,
+<p>Weft Loom looks for a newer version of itself when it starts, and again every few hours while it stays open and nothing plays, and offers it in a card at the bottom right. Later puts it off until the next start. Update and restart puts it in.</p>`,
     },
 ]
