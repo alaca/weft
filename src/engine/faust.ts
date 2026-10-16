@@ -31,7 +31,7 @@ let nextBus = 1000
 // otherwise take it in and shorten its names.
 let runtime: Promise<any> | null = null
 const generator = async () => {
-    runtime ??= fetch('/plugins/faust.js')
+    runtime ??= fetch(`${import.meta.env.BASE_URL}plugins/faust.js`)
         .then((answer) => answer.text())
         .then((text) => import(/* @vite-ignore */ URL.createObjectURL(new Blob([text], { type: 'text/javascript' }))))
     runtime.catch(() => (runtime = null))
@@ -44,8 +44,8 @@ function loaded(name: string) {
     if (!made) {
         made = (async () => {
             const [bytes, json] = await Promise.all([
-                fetch(`/plugins/${name}/dsp-module.wasm`).then((answer) => answer.arrayBuffer()),
-                fetch(`/plugins/${name}/dsp-meta.json`).then((answer) => answer.text()),
+                fetch(`${import.meta.env.BASE_URL}plugins/${name}/dsp-module.wasm`).then((answer) => answer.arrayBuffer()),
+                fetch(`${import.meta.env.BASE_URL}plugins/${name}/dsp-meta.json`).then((answer) => answer.text()),
             ])
             const paths = new Map<string, string>()
             const walk = (items: { label?: string; address?: string; items?: unknown[] }[]) => {
