@@ -2,7 +2,7 @@ import { createResource, createSignal, onCleanup, onMount, Show, For } from 'sol
 import { chooseInput, chooseOutput, closeSoundSettings, testOutput } from '../app/controller'
 import { askForNames, listInputs, listOutputs, outputRoute } from '../library/soundDevices'
 import { chooseClock, chooseFollow, midiOutputs } from '../app/controller'
-import { bindings, forgetKnob, knobName, learnKnobs } from '../app/knobs'
+import { bindings, forgetKnob, forgetPad, knobName, learnKnobs, padName, pads } from '../app/knobs'
 import { hearKeyboards } from '../app/piano'
 import { canHearMidi, canSendClock, outputLabel, ownMidiPort, OWN_PORT } from '../library/midi'
 import { midiKeyboards, soundChoice, soundOpen } from '../stores/song'
@@ -172,16 +172,16 @@ function Settings() {
                 </Show>
                 <Show when={canHearMidi()}>
                     <div class="sd-r">
-                        <span>Knobs</span>
+                        <span>Knobs and pads</span>
                         <button
                             class="btn sd-b"
-                            title="Teaches the knobs and faders of a MIDI controller to turn knobs of the app"
+                            title="Teaches the knobs and faders of a MIDI controller to turn knobs of the app, and its pads to switch scenes and mute or solo patterns"
                             onClick={() => {
                                 closeSoundSettings()
                                 learnKnobs(true)
                             }}
                         >
-                            Learn the knobs of a controller
+                            Learn the knobs and pads of a controller
                         </button>
                     </div>
                     <ul class="sd-k" aria-label="Knobs of a controller that turn knobs of the app">
@@ -192,6 +192,23 @@ function Settings() {
                                         {to.label}, by {knobName(from)}
                                     </span>
                                     <button class="rx" aria-label={`Forget ${knobName(from)}`} title="Forget it" onClick={() => forgetKnob(from)}>
+                                        <svg viewBox="0 0 8 8">
+                                            <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
+                                        </svg>
+                                    </button>
+                                </li>
+                            )}
+                        </For>
+                    </ul>
+                    <ul class="sd-k" aria-label="Pads of a controller that switch scenes and patterns">
+                        <For each={Object.entries(pads())}>
+                            {([from, to]) => (
+                                <li>
+                                    <span>
+                                        {to.label[0].toUpperCase()}
+                                        {to.label.slice(1)}, by {padName(from)}
+                                    </span>
+                                    <button class="rx" aria-label={`Forget ${padName(from)}`} title="Forget it" onClick={() => forgetPad(from)}>
                                         <svg viewBox="0 0 8 8">
                                             <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
                                         </svg>

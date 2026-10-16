@@ -2,7 +2,7 @@ import { createSignal, For, Match, onCleanup, onMount, Show, Switch } from 'soli
 import { fromUnit, toUnit, type Scale } from '../controls/catalog'
 import { MOTION_BARS, MOTION_SHAPES, type Motion } from '../controls/motion'
 import type { ControlView } from '../controls/views'
-import { boundTo, knobName, learning, pickKnob } from '../app/knobs'
+import { boundTo, isPad, knobName, learning, pickKnob } from '../app/knobs'
 import { cycle } from '../stores/song'
 
 const ARC = 94.25
@@ -61,7 +61,7 @@ export function Knob(props: {
     const learns = () => learning() !== null && Boolean(props.of)
     const waits = () => {
         const now = learning()
-        return now !== null && now !== 'picking' && now.id === props.of && now.fn === props.view.fn
+        return now !== null && now !== 'picking' && !isPad(now) && now.id === props.of && now.fn === props.view.fn
     }
     const bound = () => (props.of ? boundTo(props.of, props.view.fn) : null)
     const onPointerDown = (event: PointerEvent) => {

@@ -1,5 +1,6 @@
+import { muteOrLearn, sceneOrLearn, soloOrLearn } from '../app/knobs'
 import { batch, createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { addChords, addFollower, chooseScene, nameSection, removeSection, renameSection, sectionsOf, clearLoop, codeNow, colorAt, drawControl, drawTempo, eventsOf, paintChords, removeChords, inStep, keepSceneNow, loopBetween, nameScene, patternText, removeLoop, removeScene, repeatLoop, scenesOf, select, setBars, setCurve, setMix, setMotion, setTempoCurve, songLengthNow, spaceLoop, startFrom, stillTempo, takeKnobs, toggleBar, toggleMute, toggleSolo } from '../app/controller'
+import { addChords, addFollower, nameSection, removeSection, renameSection, sectionsOf, clearLoop, codeNow, colorAt, drawControl, drawTempo, eventsOf, paintChords, removeChords, inStep, keepSceneNow, loopBetween, nameScene, patternText, removeLoop, removeScene, repeatLoop, scenesOf, select, setBars, setCurve, setMix, setMotion, setTempoCurve, songLengthNow, spaceLoop, startFrom, stillTempo, takeKnobs, toggleBar } from '../app/controller'
 import { fromUnit, toUnit } from '../controls/catalog'
 import { drawableIn, drawnIn, panOf, volumeOf, type ControlView } from '../controls/views'
 import { barsOf, clips, paint, type Clip } from '../song/arrange'
@@ -461,10 +462,10 @@ function NameRows(props: { id: string; index: number }) {
         <>
             <div class="sg-nr" ref={row} style={{ '--h': colorAt(props.index) }}>
                 <span class="ms">
-                    <button classList={{ on: block()?.muted }} aria-label={`Mute ${props.id}`} aria-pressed={block()?.muted ?? false} disabled={stale()} onClick={() => toggleMute(props.id)}>
+                    <button classList={{ on: block()?.muted }} aria-label={`Mute ${props.id}`} aria-pressed={block()?.muted ?? false} disabled={stale()} onClick={() => muteOrLearn(props.id)}>
                         M
                     </button>
-                    <button classList={{ on: soloIds().includes(props.id) }} aria-label={`Solo ${props.id}`} aria-pressed={soloIds().includes(props.id)} onClick={() => toggleSolo(props.id)}>
+                    <button classList={{ on: soloIds().includes(props.id) }} aria-label={`Solo ${props.id}`} aria-pressed={soloIds().includes(props.id)} onClick={() => soloOrLearn(props.id)}>
                         S
                     </button>
                 </span>
@@ -600,7 +601,7 @@ export function Scenes() {
                                     aria-pressed={on()}
                                     disabled={stale()}
                                     title={sceneWaiting() === name ? 'Comes in on the first beat of a bar' : `Plays ${scene()?.on.join(', ') || 'nothing'}. Double click to change the name.`}
-                                    onClick={() => chooseScene(name)}
+                                    onClick={() => sceneOrLearn(name)}
                                     onDblClick={() => !stale() && setNaming(name)}
                                 >
                                     {name}

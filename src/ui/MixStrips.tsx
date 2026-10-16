@@ -1,5 +1,6 @@
+import { muteOrLearn, soloOrLearn } from '../app/knobs'
 import { createMemo, For, onCleanup, onMount, Show } from 'solid-js'
-import { colorAt, levelOfPattern, select, setMix, showMeters, toggleMute, toggleSolo, turnControl } from '../app/controller'
+import { colorAt, levelOfPattern, select, setMix, showMeters, turnControl } from '../app/controller'
 import { findDef } from '../controls/catalog'
 import { controlOf, panOf, volumeOf } from '../controls/views'
 import { meterShare, settle, shareOf } from '../library/mix'
@@ -113,10 +114,10 @@ export function MixStrips() {
                                             </For>
                                         </div>
                                         <span class="ms">
-                                            <button classList={{ on: now().muted }} aria-label={`Mute ${id}`} aria-pressed={now().muted} disabled={stale()} onClick={() => toggleMute(id)}>
+                                            <button classList={{ on: now().muted }} aria-label={`Mute ${id}`} aria-pressed={now().muted} disabled={stale()} onClick={() => muteOrLearn(id)}>
                                                 M
                                             </button>
-                                            <button classList={{ on: soloIds().includes(id) }} aria-label={`Solo ${id}`} aria-pressed={soloIds().includes(id)} onClick={() => toggleSolo(id)}>
+                                            <button classList={{ on: soloIds().includes(id) }} aria-label={`Solo ${id}`} aria-pressed={soloIds().includes(id)} onClick={() => soloOrLearn(id)}>
                                                 S
                                             </button>
                                         </span>

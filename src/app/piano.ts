@@ -6,7 +6,7 @@ import { readKit } from '../song/kit'
 import { levelOfForce } from '../song/notes'
 import { bpm, midiKeyboards, patternKeys, pianoFor, pianoOctave, pianoWrites, selected, setMidiKeyboards, setPianoFor, setPianoOctave, song, stale } from '../stores/song'
 import { clockHeard, gridPlace, holdNote, letNoteGo, previewSound, putHit, putNote, resizeNoteTo, rollPlace } from './controller'
-import { knobHeard } from './knobs'
+import { knobHeard, padHeard } from './knobs'
 
 // A pattern of notes played from the computer's keyboard. The two rows of letters are the keys
 // of a piano, laid out the way most music programs do it: A S D F G H J K are the white keys
@@ -109,7 +109,7 @@ export function keysLetGo() {
 // whose Keys are on is written into. The keys of a MIDI keyboard are the notes they are, so
 // nothing here follows the octave of the computer's keyboard.
 export function midiHeard(bytes: Uint8Array) {
-    if (knobHeard(bytes)) return
+    if (padHeard(bytes) || knobHeard(bytes)) return
     const key = readKey(bytes)
     if (!key) return
     const name = `midi:${key.note}`

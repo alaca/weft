@@ -1,5 +1,6 @@
+import { muteOrLearn, soloOrLearn } from '../app/knobs'
 import { createEffect, createMemo, createSignal, For, Index, onCleanup, onMount, Show, untrack } from 'solid-js'
-import { codeNow, addVariantOf, colorAt, dropOnPattern, duplicatePattern, eventsOf, movePattern, openSounds, removePattern, removeVariantOf, renamePattern, restsNow, select, setControl, setMix, showVariant, songLengthNow, toggleMute, togglePanel, toggleSolo } from '../app/controller'
+import { codeNow, addVariantOf, colorAt, dropOnPattern, duplicatePattern, eventsOf, movePattern, openSounds, removePattern, removeVariantOf, renamePattern, restsNow, select, setControl, setMix, showVariant, songLengthNow, togglePanel } from '../app/controller'
 import { MOST_VARIANTS, variantBars, variantName } from '../song/variants'
 import { writeNumber } from '../controls/catalog'
 import { favourites, panOf, volumeOf, type ControlView } from '../controls/views'
@@ -279,7 +280,7 @@ export function Strip(props: { id: string }) {
                                     disabled={stale()}
                                     onClick={(event) => {
                                         event.stopPropagation()
-                                        toggleMute(props.id)
+                                        muteOrLearn(props.id)
                                     }}
                                 >
                                     M
@@ -291,7 +292,7 @@ export function Strip(props: { id: string }) {
                                     disabled={stale()}
                                     onClick={(event) => {
                                         event.stopPropagation()
-                                        toggleSolo(props.id)
+                                        soloOrLearn(props.id)
                                     }}
                                 >
                                     S

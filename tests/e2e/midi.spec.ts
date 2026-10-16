@@ -169,7 +169,7 @@ test('a pad writes hits into a drum grid, a note sounds for as long as its key i
     // A knob of the controller is taught to turn the cutoff of the lead, and then turns it.
     await page.getByRole('button', { name: 'Mixer', exact: true }).click()
     await page.getByTestId('mixer').getByRole('button', { name: 'Devices', exact: true }).click()
-    await page.getByRole('button', { name: 'Learn the knobs of a controller', exact: true }).click()
+    await page.getByRole('button', { name: 'Learn the knobs and pads of a controller', exact: true }).click()
     await expect(page.getByTestId('knob-learn')).toContainText('Press a knob in the app')
     await page.getByTestId('strip-lead').getByRole('slider', { name: 'Cutoff', exact: true }).click()
     await expect(page.getByTestId('knob-learn')).toContainText('for Cutoff of lead')
@@ -269,4 +269,46 @@ test('the song follows the MIDI clock of a drum machine: it starts with it, keep
     await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible()
     await expect(page.getByTestId('tempo')).toHaveValue('120')
     await expect(page.locator('.ro .cap').first()).toHaveText('Tempo')
+})
+
+test('pads of a controller are taught to switch a scene and to mute a pattern, and then do', async ({ page }) => {
+    await page.addInitScript(() => {
+        if (!sessionStorage.getItem('seeded')) {
+            localStorage.setItem('weft.song', 'setcpm(120/4)\n// scene Drop: drums\n\ndrums: s("bd*4").bank("RolandTR909")\n\nbass: note("c2").s("sawtooth")\n')
+            sessionStorage.setItem('seeded', '1')
+        }
+        const input: { name: string; state: string; onmidimessage: ((event: { data: Uint8Array }) => void) | null } = { name: 'Test pads', state: 'connected', onmidimessage: null }
+        ;(window as any).__keys = { send: (bytes: number[]) => input.onmidimessage?.({ data: new Uint8Array(bytes) }) }
+        ;(navigator as any).requestMIDIAccess = async () => ({ inputs: new Map([['one', input]]), onstatechange: null })
+    })
+    await page.goto('/')
+    await page.waitForFunction(() => Boolean((window as any).__weft))
+    await page.getByRole('button', { name: 'Live', exact: true }).click()
+    const send = (bytes: number[]) => page.evaluate((b) => (window as any).__keys.send(b), bytes)
+    const learn = page.getByTestId('knob-learn')
+    const scene = page.getByRole('button', { name: 'Drop', exact: true })
+
+    await page.getByRole('button', { name: 'Mixer', exact: true }).click()
+    await page.getByTestId('mixer').getByRole('button', { name: 'Devices', exact: true }).click()
+    await page.getByRole('button', { name: 'Learn the knobs and pads of a controller', exact: true }).click()
+    await expect(learn).toContainText('a scene, or the M or S of a pattern')
+    await scene.click()
+    await expect(learn).toContainText('Now press a pad or a button on your controller for the scene Drop.')
+    await expect(scene).toHaveAttribute('aria-pressed', 'false')
+    await send([0x99, 36, 100])
+    await send([0x89, 36, 0])
+    await expect(learn).toContainText('The scene Drop is pressed by pad 36, channel 10.')
+    await page.getByTestId('strip-bass').getByRole('button', { name: 'Mute bass', exact: true }).click()
+    await expect(learn).toContainText('for Mute bass.')
+    await send([0xb0, 20, 127])
+    await send([0xb0, 20, 0])
+    await expect(learn).toContainText('Mute bass is pressed by button 20.')
+    expect(await page.evaluate(() => (window as any).__weft.engine.getCode())).toContain('\nbass: note')
+    await learn.getByRole('button', { name: 'Done', exact: true }).click()
+
+    await send([0xb0, 20, 127])
+    await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.getCode() as string)).toContain('\n_bass: note')
+    await send([0xb0, 20, 0])
+    await send([0x99, 36, 100])
+    await expect(scene).toHaveAttribute('aria-pressed', 'true')
 })
