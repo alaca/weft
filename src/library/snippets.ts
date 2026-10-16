@@ -1,8 +1,8 @@
 // Snippets: bits of code kept under a short name, a drum pattern or a run of effects, put into
 // the code by typing the name and choosing it from what the editor offers, or from the list in
 // the Code pane. Yours are kept on this machine; the app comes with a few, which a snippet of
-// yours with the same name takes the place of.
-export type Snippet = { name: string; code: string; own?: boolean }
+// yours with the same name takes the place of. One that came in a pack has the pack's name.
+export type Snippet = { name: string; code: string; own?: boolean; pack?: string }
 
 export const NAME_MOST = 24
 export const CODE_MOST = 20000
@@ -48,8 +48,12 @@ export const writeSnippets = (snippets: Snippet[]): string => JSON.stringify(sni
 // The list with this one in it, first, in the place of one of the same name.
 export const withSnippet = (snippets: Snippet[], name: string, code: string): Snippet[] => [{ name, code, own: true }, ...snippets.filter((snippet) => snippet.name !== name)]
 
-// Yours, then those the app comes with that none of yours has the name of.
-export const allSnippets = (own: Snippet[]): Snippet[] => [...own, ...STARTERS.filter((starter) => !own.some((snippet) => snippet.name === starter.name))]
+// Yours, then those of the packs that were added, then those the app comes with: each name once,
+// the first that has it.
+export function allSnippets(own: Snippet[], packed: Snippet[] = []): Snippet[] {
+    const taken = new Set<string>()
+    return [...own, ...packed, ...STARTERS].filter((snippet) => !taken.has(snippet.name) && Boolean(taken.add(snippet.name)))
+}
 
 // The snippets whose name begins with what has been typed.
 export const snippetsFor = (snippets: Snippet[], typed: string): Snippet[] => (typed ? snippets.filter((snippet) => snippet.name.startsWith(typed.toLowerCase())) : [])

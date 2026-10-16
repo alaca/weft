@@ -1,9 +1,9 @@
 import { createSignal, For, onCleanup, onMount, Show } from 'solid-js'
 import { makePack } from '../app/controller'
 import { lengthText } from '../library/sounds'
-import { ownPresets, ownSounds } from '../stores/song'
+import { ownPresets, ownSnippets, ownSounds } from '../stores/song'
 
-// A pack is made from sounds and presets of your own: which of them, under what name and by
+// A pack is made from sounds, presets and snippets of your own: which of them, under what name and by
 // whom. It is saved as one file to give to others, and whoever adds it to their app has
 // its sounds in every song.
 export function PackDialog(props: { onClose: () => void }) {
@@ -13,6 +13,7 @@ export function PackDialog(props: { onClose: () => void }) {
     const [about, setAbout] = createSignal('')
     const [sounds, setSounds] = createSignal<string[]>(mine().map((sound) => sound.name))
     const [presets, setPresets] = createSignal<string[]>(ownPresets().map((preset) => preset.id))
+    const [snippets, setSnippets] = createSignal<string[]>(ownSnippets().map((snippet) => snippet.name))
     const [note, setNote] = createSignal('')
     const [busy, setBusy] = createSignal(false)
     const flip = (list: string[], one: string) => (list.includes(one) ? list.filter((other) => other !== one) : [...list, one])
@@ -26,7 +27,7 @@ export function PackDialog(props: { onClose: () => void }) {
     const save = async () => {
         setBusy(true)
         setNote('Making the pack.')
-        setNote(await makePack({ name: name(), by: by(), about: about(), sounds: sounds(), presets: presets() }))
+        setNote(await makePack({ name: name(), by: by(), about: about(), sounds: sounds(), presets: presets(), snippets: snippets() }))
         setBusy(false)
     }
 
@@ -41,7 +42,7 @@ export function PackDialog(props: { onClose: () => void }) {
                 <div class="xp-h">
                     <h2>Make a pack</h2>
                 </div>
-                <p class="pb-t">A pack is one file with sounds and presets of yours in it. Whoever adds it to their Weft Loom has them in every song. A song that uses a sound from a pack carries that sound along, as it does a sound of your own.</p>
+                <p class="pb-t">A pack is one file with sounds, presets and snippets of yours in it. Whoever adds it to their Weft Loom has them in every song. A song that uses a sound from a pack carries that sound along, as it does a sound of your own.</p>
                 <div class="pk-f">
                     <input class="br-s" aria-label="Name of the pack" placeholder="Name of the pack" maxLength={60} value={name()} onInput={(event) => setName(event.currentTarget.value)} />
                     <input class="br-s" aria-label="Who made it" placeholder="Who made it" maxLength={40} value={by()} onInput={(event) => setBy(event.currentTarget.value)} />
@@ -84,6 +85,23 @@ export function PackDialog(props: { onClose: () => void }) {
                         </For>
                     </div>
                 </Show>
+                <Show when={ownSnippets().length}>
+                    <div class="pk-h">
+                        <span>
+                            Snippets, {snippets().length} of {ownSnippets().length}
+                        </span>
+                    </div>
+                    <div class="pk-c" role="group" aria-label="Snippets to put in the pack">
+                        <For each={ownSnippets()}>
+                            {(snippet) => (
+                                <label>
+                                    <input type="checkbox" checked={snippets().includes(snippet.name)} onChange={() => setSnippets(flip(snippets(), snippet.name))} />
+                                    {snippet.name}
+                                </label>
+                            )}
+                        </For>
+                    </div>
+                </Show>
                 <p class="xp-n" role="status" data-testid="pack-made">
                     {note()}
                 </p>
@@ -92,7 +110,7 @@ export function PackDialog(props: { onClose: () => void }) {
                         Close
                     </button>
                     <span class="grow" />
-                    <button class="btn go" disabled={busy() || !name().trim() || (!sounds().length && !presets().length)} onClick={() => void save()}>
+                    <button class="btn go" disabled={busy() || !name().trim() || (!sounds().length && !presets().length && !snippets().length)} onClick={() => void save()}>
                         Save the pack
                     </button>
                 </div>

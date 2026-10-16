@@ -31,7 +31,7 @@ import { prepareForPublishing, type Prepared } from '../library/publish'
 import { withoutLead } from '../library/shrink'
 import { turnWhenDue } from '../library/turn'
 import { startTake, whyNot, type NoTake, type Take } from '../library/recorder'
-import { fitPreset, isOfPack, PACK_FILE, packIdFor, packOf, packSoundName, readPackFile, readPacks, writePackFile, writePacks, type PackFile, type PackInfo, type PackPreset } from '../library/packs'
+import { fitPreset, fitSnippet, isOfPack, PACK_FILE, packIdFor, packOf, packSoundName, readPackFile, readPacks, writePackFile, writePacks, type PackFile, type PackInfo, type PackPreset } from '../library/packs'
 import { clockMidi, followMidiClock, listMidiOutputs, silenceMidi } from '../library/midi'
 import { followClock } from '../library/clockIn'
 import { DRUM_CHANNEL, readMidiFile, writeMidiFile, type MidiNote, type MidiSong, type MidiTrack } from '../library/midifile'
@@ -2207,7 +2207,7 @@ export const soundCatalogue = (): SoundItem[] => {
 // ---- snippets. Bits of code kept under a short name, offered by the editor when the name is
 // typed, and listed in the Code pane.
 const SNIPPETS_KEY = 'weft.snippets'
-export const allSnippets = (): Snippet[] => withStarters(ownSnippets())
+export const allSnippets = (): Snippet[] => withStarters(ownSnippets(), packs().flatMap((pack) => pack.snippets.map((snippet) => ({ ...snippet, pack: pack.name }))))
 
 function keepSnippets(next: Snippet[]): boolean {
     try {
@@ -2769,14 +2769,18 @@ export async function addPack(file: File): Promise<boolean> {
             names.push(sound.name)
         }
         for (const gone of before?.sounds.filter((name) => !names.includes(name)) ?? []) await forget(gone)
-        if (!names.length && !pack.presets.length) return setPackNote(`${file.name} was not added. There is nothing in it that the app can use.`), false
-        const info: PackInfo = { id: pack.id, name: pack.name, by: pack.by, about: pack.about, sounds: names.sort(), presets: pack.presets, addedAt: Date.now() }
+        if (!names.length && !pack.presets.length && !pack.snippets.length) return setPackNote(`${file.name} was not added. There is nothing in it that the app can use.`), false
+        const info: PackInfo = { id: pack.id, name: pack.name, by: pack.by, about: pack.about, sounds: names.sort(), presets: pack.presets, snippets: pack.snippets, addedAt: Date.now() }
         if (!keepPacks([...packs().filter((mine) => mine.id !== pack.id), info].sort(byName))) return setPackNote(`${pack.name} could not be kept: there is no room left. ${MAKE_ROOM}`), false
         const kept = await ownSoundStore.all()
         setOwnSounds(kept.map(infoOfSound).sort(byName))
         replay()
-        const holds = [names.length ? `${names.length} ${names.length === 1 ? 'sound' : 'sounds'}` : '', pack.presets.length ? `${pack.presets.length} ${pack.presets.length === 1 ? 'preset' : 'presets'}` : ''].filter(Boolean).join(' and ')
-        setPackNote(`${before ? 'Renewed' : 'Added'} ${pack.name}: ${holds}.${left ? ` ${left} ${left === 1 ? 'thing in it was' : 'things in it were'} left out, as no sound or preset the app can use, or under a name that is taken.` : ''}`)
+        const holds = countText([
+            [names.length, 'sound'],
+            [pack.presets.length, 'preset'],
+            [pack.snippets.length, 'snippet'],
+        ])
+        setPackNote(`${before ? 'Renewed' : 'Added'} ${pack.name}: ${holds}.${left ? ` ${left} ${left === 1 ? 'thing in it was' : 'things in it were'} left out, as nothing the app can use, or under a name that is taken.` : ''}`)
         return true
     } catch (err) {
         setPackNote(`${file.name} could not be added: ${String((err as Error)?.message ?? err)}`)
@@ -2804,14 +2808,21 @@ export async function removePack(id: string) {
     replay()
 }
 
-export type PackWanted = { name: string; by: string; about: string; sounds: string[]; presets: string[] }
+export type PackWanted = { name: string; by: string; about: string; sounds: string[]; presets: string[]; snippets: string[] }
 
-// A pack made from sounds and presets of your own, as a file to give to others. Each sound gets
-// the pack's short name in front of its own, in the presets that use it as well.
+// How many of each there are, in words: 2 sounds, 1 preset and 3 snippets.
+function countText(counts: [number, string][]): string {
+    const said = counts.filter(([count]) => count).map(([count, what]) => `${count} ${what}${count === 1 ? '' : 's'}`)
+    return said.length > 1 ? `${said.slice(0, -1).join(', ')} and ${said[said.length - 1]}` : (said[0] ?? '')
+}
+
+// A pack made from sounds, presets and snippets of your own, as a file to give to others. Each
+// sound gets the pack's short name in front of its own, in the presets and snippets that use it
+// as well.
 export async function makePack(wanted: PackWanted): Promise<string> {
     const name = wanted.name.replace(/\s+/g, ' ').trim()
     if (!name) return 'Give the pack a name first.'
-    if (!wanted.sounds.length && !wanted.presets.length) return 'Choose at least one sound or preset to put in it.'
+    if (!wanted.sounds.length && !wanted.presets.length && !wanted.snippets.length) return 'Choose at least one sound, preset or snippet to put in it.'
     const id = packIdFor(name, () => false)
     try {
         const renamed = new Map<string, string>()
@@ -2830,10 +2841,22 @@ export async function makePack(wanted: PackWanted): Promise<string> {
             const made: PackPreset = { name: preset.name, calls }
             return fitPreset(made) ? [made] : []
         })
-        if (!sounds.length && !presets.length) return 'None of what was chosen could be put in a pack.'
-        const text = await writePackFile({ id, name, by: wanted.by.replace(/\s+/g, ' ').trim(), about: wanted.about.replace(/\s+/g, ' ').trim(), sounds, presets })
+        const snippets: Snippet[] = wanted.snippets.flatMap((wantedName) => {
+            const snippet = ownSnippets().find((mine) => mine.name === wantedName)
+            if (!snippet) return []
+            const made = { name: snippet.name, code: [...renamed].reduce((text, [from, to]) => renameSound(text, from, to), snippet.code) }
+            return fitSnippet(made) ? [made] : []
+        })
+        if (!sounds.length && !presets.length && !snippets.length) return 'None of what was chosen could be put in a pack.'
+        const text = await writePackFile({ id, name, by: wanted.by.replace(/\s+/g, ' ').trim(), about: wanted.about.replace(/\s+/g, ' ').trim(), sounds, presets, snippets })
         const saved = await saveFile(fileName(name, PACK_FILE), text, PACK_KIND)
-        return saved.saved === false ? 'Not saved.' : `Saved the pack ${name}: ${[sounds.length ? `${sounds.length} ${sounds.length === 1 ? 'sound' : 'sounds'}` : '', presets.length ? `${presets.length} ${presets.length === 1 ? 'preset' : 'presets'}` : ''].filter(Boolean).join(' and ')}.`
+        return saved.saved === false
+            ? 'Not saved.'
+            : `Saved the pack ${name}: ${countText([
+                  [sounds.length, 'sound'],
+                  [presets.length, 'preset'],
+                  [snippets.length, 'snippet'],
+              ])}.`
     } catch (err) {
         return `The pack could not be saved: ${String((err as Error)?.message ?? err)}`
     }

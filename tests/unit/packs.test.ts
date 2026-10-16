@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fitPreset, isOfPack, packIdFor, packOf, packSoundName, readPackFile, readPacks, writePackFile, writePacks, type PackFile, type PackInfo } from '../../src/library/packs'
+import { fitPreset, fitSnippet, isOfPack, packIdFor, packOf, packSoundName, readPackFile, readPacks, writePackFile, writePacks, type PackFile, type PackInfo } from '../../src/library/packs'
 
 // The start of a WAV file, which is as much as the app looks at to see that a file is sound.
 const wav = () => new Uint8Array([...'RIFF'].map((c) => c.charCodeAt(0)).concat([36, 0, 0, 0], [...'WAVEfmt '].map((c) => c.charCodeAt(0)), [16, 0, 0, 0]))
@@ -13,6 +13,10 @@ const pack = (): PackFile => ({
         { name: 'dust_kick', file: 'kick.wav', type: 'audio/wav', seconds: 0.4, data: wav() },
     ],
     presets: [{ name: 'Dust bass', calls: ['.s("sawtooth")', '.lpf(slider(500, 100, 8000))'], pitch: 36 }],
+    snippets: [
+        { name: 'dusty', code: 'drums: s("dust_kick*4")' },
+        { name: 'haze', code: '.room(0.8).delay(0.5)' },
+    ],
 })
 
 describe('a pack', () => {
@@ -35,10 +39,12 @@ describe('a pack', () => {
         const made = JSON.parse(await writePackFile(pack()))
         made.sounds.push({ ...made.sounds[0], name: 'other_break' }, { ...made.sounds[0], name: 'dust_text', data: btoa('just some words here') }, { ...made.sounds[0] })
         made.presets.push({ name: 'Not music', calls: ['.lpf(fetch("https://example.com"))'] }, { name: 'No dot', calls: ['s("sawtooth")'] })
+        made.snippets.push({ name: 'grab', code: 'fetch("https://example.com")' }, { name: 'haze', code: '.room(0.1)' }, { name: '', code: '.room(0.1)' })
         const read = readPackFile(JSON.stringify(made))
         expect('pack' in read && read.pack.sounds.map((sound) => sound.name)).toEqual(['dust_break_1', 'dust_kick'])
         expect('pack' in read && read.pack.presets.map((preset) => preset.name)).toEqual(['Dust bass'])
-        expect('pack' in read && read.left).toBe(5)
+        expect('pack' in read && read.pack.snippets.map((snippet) => snippet.name)).toEqual(['dusty', 'haze'])
+        expect('pack' in read && read.left).toBe(8)
     })
 
     it('says why when the file is no pack', async () => {
@@ -53,8 +59,15 @@ describe('a pack', () => {
         expect(fitPreset({ name: 'Bad', calls: ['.s("x")); fetch("https://example.com"); note("c"'] })).toBe(false)
     })
 
+    it('takes a snippet only when it is music code, a pattern or the end of one', () => {
+        expect(fitSnippet({ name: 'hats', code: 'hats: s("hh*8")' })).toBe(true)
+        expect(fitSnippet({ name: 'dub', code: '.delay(0.6).room(0.5)' })).toBe(true)
+        expect(fitSnippet({ name: 'bad', code: '.room(0.5)); fetch("https://example.com"' })).toBe(false)
+        expect(fitSnippet({ name: 'bad', code: 'window.location = "https://example.com"' })).toBe(false)
+    })
+
     it('is kept between starts as what it holds, without the sounds themselves', () => {
-        const info: PackInfo = { id: 'dust', name: 'Dust loops', by: 'Ante', about: '', sounds: ['dust_break_1', 'dust_kick'], presets: pack().presets, addedAt: 5 }
+        const info: PackInfo = { id: 'dust', name: 'Dust loops', by: 'Ante', about: '', sounds: ['dust_break_1', 'dust_kick'], presets: pack().presets, snippets: pack().snippets, addedAt: 5 }
         expect(readPacks(writePacks([info]))).toEqual([info])
         expect(readPacks('{')).toEqual([])
         expect(packOf([info], 'dust_kick')?.name).toBe('Dust loops')

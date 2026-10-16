@@ -30,6 +30,7 @@ test('a pack is made from sounds of your own, added to the app, used in a song, 
     await page.addInitScript((value) => {
         if (!sessionStorage.getItem('seeded')) {
             localStorage.setItem('weft.song', value)
+            localStorage.setItem('weft.snippets', JSON.stringify([{ name: 'dusty', code: 'dust: s("low_hit*4")' }]))
             sessionStorage.setItem('seeded', '1')
         }
     }, SONG)
@@ -37,7 +38,7 @@ test('a pack is made from sounds of your own, added to the app, used in a song, 
     await page.waitForFunction(() => Boolean((window as any).__weft))
     await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
 
-    // Two sounds of your own go into a pack, which is saved as one file.
+    // Two sounds of your own and a snippet that uses one go into a pack, which is saved as one file.
     await page.getByRole('button', { name: 'Sounds', exact: true }).click()
     await browser(page).getByRole('radio', { name: /^Yours/ }).click()
     await page.getByTestId('own-files').setInputFiles([
@@ -51,17 +52,24 @@ test('a pack is made from sounds of your own, added to the app, used in a song, 
     await making.getByLabel('Who made it').fill('Ante')
     const [download] = await Promise.all([page.waitForEvent('download'), making.getByRole('button', { name: 'Save the pack', exact: true }).click()])
     expect(download.suggestedFilename()).toBe('Dust loops.weftpack')
-    await expect(page.getByTestId('pack-made')).toHaveText('Saved the pack Dust loops: 2 sounds.')
+    await expect(page.getByTestId('pack-made')).toHaveText('Saved the pack Dust loops: 2 sounds and 1 snippet.')
     const file = await readFile(await download.path())
     const made = JSON.parse(file.toString('utf8'))
     expect([made.weftpack, made.id, made.by, made.sounds.map((sound: { name: string }) => sound.name)]).toEqual([1, 'dustloops', 'Ante', ['dustloops_long_loop', 'dustloops_low_hit']])
+    expect(made.snippets).toEqual([{ name: 'dusty', code: 'dust: s("dustloops_low_hit*4")' }])
     await making.getByRole('button', { name: 'Close', exact: true }).click()
+    await page.getByRole('button', { name: 'Snippets', exact: true }).click()
+    await page.getByTestId('snippets').getByRole('button', { name: 'Remove the snippet dusty', exact: true }).click()
+    await page.keyboard.press('Escape')
 
     // Added, the pack is listed with what it holds, and its sounds are beside your own.
     await browser(page).getByRole('radio', { name: /^Packs/ }).click()
     await expect(browser(page)).toContainText('No packs yet')
     await page.getByTestId('pack-file').setInputFiles({ name: 'Dust loops.weftpack', mimeType: 'application/json', buffer: file })
-    await expect(page.getByTestId('pack-note')).toHaveText('Added Dust loops: 2 sounds.')
+    await expect(page.getByTestId('pack-note')).toHaveText('Added Dust loops: 2 sounds and 1 snippet.')
+    await page.getByRole('button', { name: 'Snippets', exact: true }).click()
+    await expect(page.getByTestId('snippets').getByRole('button', { name: 'Put in dusty', exact: true })).toContainText('Dust loops: dust: s("dustloops_low_hit*4")')
+    await page.keyboard.press('Escape')
     await expect(page.getByTestId('pack-dustloops')).toContainText('Dust loops')
     await expect(page.getByTestId('pack-dustloops')).toContainText('by Ante')
     await expect(browser(page).locator('.sb-i')).toHaveCount(2)
@@ -92,7 +100,7 @@ test('a pack is made from sounds of your own, added to the app, used in a song, 
     // Adding the pack afterwards takes those two back as its own.
     await browser(page).getByRole('radio', { name: /^Packs/ }).click()
     await page.getByTestId('pack-file').setInputFiles({ name: 'Dust loops.weftpack', mimeType: 'application/json', buffer: file })
-    await expect(page.getByTestId('pack-note')).toHaveText('Added Dust loops: 2 sounds.')
+    await expect(page.getByTestId('pack-note')).toHaveText('Added Dust loops: 2 sounds and 1 snippet.')
     await expect(browser(page).locator('.sb-i')).toHaveCount(2)
     await browser(page).getByRole('radio', { name: /^Yours/ }).click()
     await expect(browser(page).locator('.sb-i')).toHaveCount(2)

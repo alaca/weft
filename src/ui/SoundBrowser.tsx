@@ -189,7 +189,7 @@ export function SoundBrowser() {
                                 Stop, {elapsed()}
                             </button>
                         </Show>
-                        <button class="btn" disabled={loaded() === 'loading'} title="Puts sounds and presets of yours into one file that others add to their app" onClick={() => setMaking(true)}>
+                        <button class="btn" disabled={loaded() === 'loading'} title="Puts sounds, presets and snippets of yours into one file that others add to their app" onClick={() => setMaking(true)}>
                             Make a pack
                         </button>
                     </div>

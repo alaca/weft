@@ -24,6 +24,8 @@ describe('snippets', () => {
         expect(all.filter((snippet) => snippet.name === 'dub')).toEqual([{ name: 'dub', code: '.room(0.9)', own: true }])
         expect(all).toHaveLength(STARTERS.length)
         expect(snippetsFor(all, 'Of').map((snippet) => snippet.name)).toEqual(['offhats'])
+        const packed = allSnippets(own, [{ name: 'dub', code: '.room(0.1)', pack: 'Dust' }, { name: 'haze', code: '.room(0.8)', pack: 'Dust' }])
+        expect(packed.slice(0, 2)).toEqual([{ name: 'dub', code: '.room(0.9)', own: true }, { name: 'haze', code: '.room(0.8)', pack: 'Dust' }])
         expect(snippetsFor(all, '')).toEqual([])
     })
 })

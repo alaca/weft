@@ -87,7 +87,7 @@ export function SnippetsMenu() {
                                         }}
                                     >
                                         <b class="snp-b">{snippet.name}</b>
-                                        <span class="snp-l">{firstLine(snippet.code)}</span>
+                                        <span class="snp-l">{snippet.pack ? `${snippet.pack}: ${firstLine(snippet.code)}` : firstLine(snippet.code)}</span>
                                     </button>
                                     <Show when={snippet.own} fallback={<span />}>
                                         <button class="rx" aria-label={`Remove the snippet ${snippet.name}`} onClick={() => removeSnippet(snippet.name)}>

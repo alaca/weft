@@ -1,9 +1,10 @@
 import { checkSong } from '../guard/check'
 import { looksLikeAudio } from '../guard/file'
+import { cleanSnippetName, CODE_MOST, type Snippet } from './snippets'
 import { fitSoundName, fromBase64, toBase64InTurns } from './songfile'
 import { turnWhenDue } from './turn'
 
-// A pack is sounds and presets that someone made for others to use, as one file. Added to the
+// A pack is sounds, presets and snippets that someone made for others to use, as one file. Added to the
 // app, its sounds are in the Sounds like the ones the app comes with, in any song. A song
 // that uses one of them carries that sound along, as it carries a sound of your own, so it
 // plays for whoever opens it, with the pack or without.
@@ -15,13 +16,14 @@ const VERSION = 1
 
 export type PackPreset = { name: string; calls: string[]; pitch?: number }
 export type PackSound = { name: string; file: string; type: string; seconds: number; data: Uint8Array }
-export type PackFile = { id: string; name: string; by: string; about: string; sounds: PackSound[]; presets: PackPreset[] }
+export type PackFile = { id: string; name: string; by: string; about: string; sounds: PackSound[]; presets: PackPreset[]; snippets: Snippet[] }
 // What is kept of a pack that was added: everything but the sounds themselves, which are kept
 // where your own sounds are.
-export type PackInfo = { id: string; name: string; by: string; about: string; sounds: string[]; presets: PackPreset[]; addedAt: number }
+export type PackInfo = { id: string; name: string; by: string; about: string; sounds: string[]; presets: PackPreset[]; snippets: Snippet[]; addedAt: number }
 export const PACK_ID = /^[a-z][a-z0-9]{1,15}$/
 export const MOST_SOUNDS = 500
 export const MOST_PRESETS = 200
+export const MOST_SNIPPETS = 200
 const NAME_MOST = 60
 const BY_MOST = 40
 const ABOUT_MOST = 300
@@ -62,6 +64,29 @@ function readPreset(entry: unknown): PackPreset | null {
     return fitPreset(preset) ? preset : null
 }
 
+// A snippet is code that is written into a song too, and is taken on the same terms. One that
+// goes on the end of a pattern is asked as the end of one.
+export function fitSnippet(snippet: Snippet): boolean {
+    if (!snippet.name || !snippet.code.trim() || snippet.code.length > CODE_MOST) return false
+    return checkSong(snippet.code.startsWith('.') ? `sound: note("c")${snippet.code}` : snippet.code) === null
+}
+
+function readSnippet(entry: unknown): Snippet | null {
+    const given = entry as { name?: unknown; code?: unknown } | null
+    const snippet = { name: typeof given?.name === 'string' ? cleanSnippetName(given.name) : '', code: typeof given?.code === 'string' ? given.code.trim() : '' }
+    return fitSnippet(snippet) ? snippet : null
+}
+
+const readSnippets = (given: unknown): Snippet[] => {
+    const seen = new Set<string>()
+    return (Array.isArray(given) ? given : []).flatMap((entry) => {
+        const snippet = readSnippet(entry)
+        if (!snippet || seen.has(snippet.name)) return []
+        seen.add(snippet.name)
+        return [snippet]
+    })
+}
+
 export type PackRead = { pack: PackFile; left: number } | { why: string }
 
 // A pack as it is read from a file. What does not belong in one is left out and counted; a
@@ -79,7 +104,8 @@ export function readPackFile(text: string): PackRead {
     if (!PACK_ID.test(id) || !name) return { why: 'It does not say which pack it is.' }
     const given = Array.isArray(kept.sounds) ? kept.sounds : []
     const presetsGiven = Array.isArray(kept.presets) ? kept.presets : []
-    if (given.length > MOST_SOUNDS || presetsGiven.length > MOST_PRESETS) return { why: `A pack holds ${MOST_SOUNDS} sounds and ${MOST_PRESETS} presets at most.` }
+    const snippetsGiven = Array.isArray(kept.snippets) ? kept.snippets : []
+    if (given.length > MOST_SOUNDS || presetsGiven.length > MOST_PRESETS || snippetsGiven.length > MOST_SNIPPETS) return { why: `A pack holds ${MOST_SOUNDS} sounds, ${MOST_PRESETS} presets and ${MOST_SNIPPETS} snippets at most.` }
     const sounds: PackSound[] = []
     const seen = new Set<string>()
     for (const entry of given as { name?: unknown; file?: unknown; type?: unknown; seconds?: unknown; data?: unknown }[]) {
@@ -102,8 +128,9 @@ export function readPackFile(text: string): PackRead {
         })
     }
     const presets = presetsGiven.flatMap((entry) => readPreset(entry) ?? [])
-    if (!sounds.length && !presets.length) return { why: 'There is nothing in it that the app can use.' }
-    return { pack: { id, name, by: clean(kept.by, BY_MOST), about: clean(kept.about, ABOUT_MOST), sounds, presets }, left: given.length - sounds.length + presetsGiven.length - presets.length }
+    const snippets = readSnippets(snippetsGiven)
+    if (!sounds.length && !presets.length && !snippets.length) return { why: 'There is nothing in it that the app can use.' }
+    return { pack: { id, name, by: clean(kept.by, BY_MOST), about: clean(kept.about, ABOUT_MOST), sounds, presets, snippets }, left: given.length - sounds.length + presetsGiven.length - presets.length + snippetsGiven.length - snippets.length }
 }
 
 // The text of the file. A pack can be many megabytes of sound, so it is made a piece at a time.
@@ -122,6 +149,7 @@ export async function writePackFile(pack: PackFile): Promise<string> {
         about: pack.about,
         sounds: pack.sounds.map(({ data: _, ...rest }, at) => ({ ...rest, data: texts[at] })),
         presets: pack.presets,
+        snippets: pack.snippets.map(({ name, code }) => ({ name, code })),
     })
 }
 
@@ -140,6 +168,7 @@ export function readPacks(text: string | null): PackInfo[] {
                     about: clean(entry.about, ABOUT_MOST),
                     sounds: Array.isArray(entry.sounds) ? entry.sounds.filter((name): name is string => typeof name === 'string' && isOfPack(entry.id!, name)) : [],
                     presets: Array.isArray(entry.presets) ? entry.presets.flatMap((preset) => readPreset(preset) ?? []) : [],
+                    snippets: readSnippets(entry.snippets),
                     addedAt: typeof entry.addedAt === 'number' ? entry.addedAt : 0,
                 },
             ]
