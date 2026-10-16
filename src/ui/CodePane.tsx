@@ -1,12 +1,12 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { chooseLanding, codeNow, copyCode, dragCode, landingBeats, mount, performLarger, togglePerform, trustSong, update, usualWidth } from '../app/controller'
+import { chooseLanding, codeNow, copyCode, dragCode, formatTheCode, landingBeats, mount, performLarger, toggleFormatOnUpdate, togglePerform, trustSong, update, usualWidth } from '../app/controller'
 import { DEMO } from '../demo/demo'
 import { LARGE_ONLY } from '../engine/pictures'
 import { jamming } from '../stores/jam'
-import { engineState, landingBars, performing, playMode, song } from '../stores/song'
+import { engineState, formatOnUpdate, formatSaid, landingBars, performing, playMode, song } from '../stores/song'
 import { Scenes } from './SongPanel'
 import { Divider } from './Divider'
-import { MOD } from './keys'
+import { ALT, MOD } from './keys'
 import { SnippetsMenu } from './SnippetsMenu'
 
 
@@ -70,6 +70,8 @@ export function CodePane() {
     }
 
     const status = () => {
+        const said = formatSaid()
+        if (said) return { kind: 'idle', text: said }
         const state = engineState()
         if (state.error) {
             return { kind: 'err', text: state.error.line ? `Line ${state.error.line}: ${state.error.message}` : state.error.message }
@@ -112,7 +114,7 @@ export function CodePane() {
                     <button class="btn" onClick={update}>
                         Update <kbd>{MOD} Enter</kbd>
                     </button>
-                    <button class="btn up-m" aria-label="When a change comes in" aria-haspopup="menu" aria-expanded={landingOpen()} title={LANDINGS.find((one) => one.bars === landingBars())?.about} onClick={() => setLandingOpen(!landingOpen())}>
+                    <button class="btn up-m" aria-label="Options for updating" aria-haspopup="menu" aria-expanded={landingOpen()} title={LANDINGS.find((one) => one.bars === landingBars())?.about} onClick={() => setLandingOpen(!landingOpen())}>
                         <Show when={landingBars()}>
                             <b>{landingBars() === 1 ? 'Bar' : '4 bars'}</b>
                         </Show>
@@ -121,7 +123,8 @@ export function CodePane() {
                         </svg>
                     </button>
                     <Show when={landingOpen()}>
-                        <div class="menu single up-dm" role="menu" aria-label="When a change comes in">
+                        <div class="menu single up-dm" role="menu" aria-label="Options for updating">
+                            <p class="up-h">When a change comes in</p>
                             <For each={LANDINGS}>
                                 {(one) => (
                                     <button
@@ -138,6 +141,22 @@ export function CodePane() {
                                 )}
                             </For>
                             <p>While the song plays, a change waits for the bar and the song plays on as it was until then, so that it comes in in time.</p>
+                            <hr />
+                            <button
+                                role="menuitem"
+                                title="Puts each call of a pattern on a line of its own and the parts of a stack one to a line. Only spaces and line breaks move."
+                                onClick={() => {
+                                    formatTheCode()
+                                    setLandingOpen(false)
+                                }}
+                            >
+                                Format the code
+                                <kbd>{ALT} Shift F</kbd>
+                            </button>
+                            <button role="menuitemcheckbox" aria-checked={formatOnUpdate()} onClick={toggleFormatOnUpdate}>
+                                Format on every update
+                                <i class="ck-x" classList={{ on: formatOnUpdate() }} />
+                            </button>
                         </div>
                     </Show>
                 </div>

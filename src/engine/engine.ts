@@ -92,6 +92,10 @@ export interface Engine {
     // change comes in on the next bar, or the next of every four, when that is chosen.
     update(): Promise<void>
     setLanding(bars: number): void
+    // Run first whenever the code is updated, by the button or the keys.
+    setBeforeUpdate(fn: (() => void) | null): void
+    // What the keys for laying out the code do.
+    setFormatKey(fn: (() => void) | null): void
     // How large the code is written, in pixels.
     setCodeSize(pixels: number): void
     refresh(): Promise<void>
@@ -358,6 +362,8 @@ export function createEngine(): Engine {
     // It is given a quarter of a second at least, as Strudel hands notes out a little ahead.
     let landing = 0
     let landNext = false
+    let beforeUpdate: (() => void) | null = null
+    let formatKey: (() => void) | null = null
     let landed: { at: number; timer: number } | null = null
     const LAND_LEAD = 0.25
     const dropLanding = () => {
@@ -1132,7 +1138,11 @@ export function createEngine(): Engine {
             transpiler: prepare,
             root,
             initialCode,
-            drawTime: [0, 0],
+            // Strudel keeps this stretch around the present only for a picture that shows one,
+            // a punchcard or a spiral; for everything else it draws the present alone.
+            drawTime: [-2, 2],
+            // What draws on Strudel's large canvas draws on the strip under the code.
+            drawContext: (document.getElementById('test-canvas') as HTMLCanvasElement | null)?.getContext('2d') ?? undefined,
             bgFill: false,
             solo: false,
             prebake: loadModules,
@@ -1255,6 +1265,7 @@ export function createEngine(): Engine {
                             keymap.of([
                                 { key: 'Mod-Enter', run: () => (void engine.update(), true) },
                                 { key: 'Mod-.', run: () => (engine.stop(), true) },
+                                { key: 'Shift-Alt-f', run: () => (formatKey?.(), formatKey !== null) },
                             ]),
                         ),
                         EditorView.updateListener.of((update) => {
@@ -1364,12 +1375,19 @@ export function createEngine(): Engine {
             await mirror.evaluate(true)
         },
         async update() {
+            beforeUpdate?.()
             landNext = state.playing && landing > 0
             await engine.evaluate()
             landNext = false
         },
         setLanding(bars) {
             landing = bars > 0 ? bars : 0
+        },
+        setBeforeUpdate(fn) {
+            beforeUpdate = fn
+        },
+        setFormatKey(fn) {
+            formatKey = fn
         },
         setCodeSize(pixels) {
             codeSize = pixels

@@ -12,7 +12,7 @@ export const DOCS: DocSection[] = [
         title: 'The window',
         pictures: [{ file: '/app-1.webp', width: 1440, height: 900, alt: 'The Weft Loom window while a song plays: the mixer and the sounds on the left, the Song panel and the patterns in the middle, the code on the right.' }],
         html: `<p>A song in Weft Loom is a handful of patterns: drums, a bass line, a melody. Each pattern has a strip in the middle of the window, where you click steps and notes and turn knobs. On the right is the song's code.</p>
-<p>The strips and the code are the same song. Whatever you do in a strip is written into the code, and whatever you type into the code shows up in the strips, so you can use whichever suits you at the moment. The code is <a href="https://strudel.cc" rel="noopener">Strudel</a>, and everything Strudel can do works here.</p>
+<p>The strips and the code are the same song. Whatever you do in a strip is written into the code, and whatever you type into the code shows up in the strips, so you can use whichever suits you at the moment. The code is <a href="https://strudel.cc" rel="noopener">Strudel</a>, and everything Strudel can do works here. Its pictures, <code>.pianoroll()</code>, <code>.punchcard()</code>, <code>.spiral()</code>, <code>.pitchwheel()</code>, <code>.wordfall()</code>, <code>.scope()</code> and <code>.spectrum()</code>, are drawn in the code, under the line that asks for them.</p>
 <p>On the left are the Mixer and the Sounds. The icons at the top right show and hide each part of the window, and Controls, Both and Code choose between the strips, the code, or the two side by side.</p>
 <p><kbd>Space</kbd> plays and pauses. After typing in the code, <kbd>Cmd</kbd> <kbd>Enter</kbd> plays what you typed. Where this page says Cmd, it is Ctrl on Windows and Linux.</p>
 <p>Beside Stop is the <b>metronome</b>: a click on every beat while the song plays, the first beat of each bar higher. The arrow next to it has the <b>count-in</b>: a bar of clicks before the song starts, whenever it starts, so you can come in on the beat. Neither is part of the song.</p>
@@ -244,7 +244,9 @@ export const DOCS: DocSection[] = [
 <div><dt><kbd>Cmd</kbd> <kbd>A</kbd></dt><dd>Choose every note of a roll, or every step of the bar in sight</dd></div>
 <div><dt>Arrow keys</dt><dd>Move the chosen notes in a roll; with <kbd>Shift</kbd>, left and right change the length of one</dd></div>
 <div><dt><kbd>Delete</kbd></dt><dd>Take out what is chosen</dd></div>
+<div><dt><kbd>Option</kbd> <kbd>Shift</kbd> <kbd>F</kbd></dt><dd>Format the code; Alt instead of Option on Windows and Linux</dd></div>
 </dl>
+<p>The arrow beside <b>Update</b> also has <b>Format the code</b>: each call of a pattern on a line of its own, the parts of a stack one to a line, and a blank line between patterns. Only spaces and line breaks move, so the song stays the same, and <kbd>Cmd</kbd> <kbd>Z</kbd> takes it back. <b>Format on every update</b> does it each time the code is updated.</p>
 <p>Weft Loom looks for a newer version of itself when it starts, and again every few hours while it stays open and nothing plays, and offers it in a card at the bottom right. Later puts it off until the next start. Update and restart puts it in.</p>`,
     },
 ]

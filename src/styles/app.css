@@ -230,6 +230,9 @@ button.rn:hover { border-color: var(--linen-3); }
 .up-m svg { width: 9px; height: 9px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .menu.single.up-dm { left: auto; right: 0; top: 36px; width: 250px; z-index: 30; }
 .up-dm p { margin: 4px 8px 6px; color: var(--linen-3); font-size: 11px; line-height: 1.45; }
+.up-dm .up-h { margin: 4px 8px 2px; color: var(--linen-2); font-weight: 600; }
+.up-dm hr { border: 0; border-top: 1px solid var(--seam); margin: 4px 2px; }
+.up-dm kbd { font: 400 10px/1 var(--mono); font-stretch: 87%; color: var(--linen-3); }
 .pf svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .pf-sc { flex: none; padding: 6px 14px 8px 18px; border-bottom: 1px solid var(--seam); }
 .pf-sc .sg-sc { margin: 0; }

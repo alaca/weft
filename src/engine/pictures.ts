@@ -15,7 +15,11 @@ const TWINS: Record<string, string> = {
 }
 
 // The pictures that have no small twin, and are still drawn on Strudel's one large canvas.
-export const LARGE_ONLY = ['wordfall', 'fscope', 'draw', 'onPaint', 'animate']
+export const LARGE_ONLY = ['fscope', 'draw', 'onPaint', 'animate']
+
+// A wordfall is Strudel's punchcard stood on end, with the name of each note on it. Small, it is
+// the small punchcard stood on end, tall enough to read.
+const WORDFALL = { vertical: 1, labels: 1, stroke: 0, fillActive: 1, active: 'white', height: 200 }
 
 let done = false
 
@@ -34,5 +38,12 @@ export function drawInTheCode() {
         pattern[name] = function (this: unknown, first: unknown, options?: unknown) {
             return typeof first === 'string' ? small.call(this, first, options) : large.call(this, first, options)
         }
+    }
+    const large = pattern.wordfall
+    const small = pattern._punchcard
+    if (typeof large !== 'function' || typeof small !== 'function') return
+    registerWidgetType('wordfall')
+    pattern.wordfall = function (this: unknown, first: unknown, options?: Record<string, unknown>) {
+        return typeof first === 'string' ? small.call(this, first, { ...WORDFALL, ...options }) : large.call(this, first, options)
     }
 }

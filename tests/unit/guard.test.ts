@@ -129,9 +129,9 @@ describe('what is not music code', () => {
         // the machine made to speak
         expect(why('seq("alpha", "bravo").speak("en-GB", 0)')).toBe('.speak is not something a song can use')
         expect(why('speak("en-GB", 0, seq("alpha"))')).toBe('speak is not something a song can use')
-        // drawings that cover the whole window; those that draw inside the code stay
-        for (const drawing of ['pianoroll', 'scope', 'tscope', 'fscope', 'spectrum', 'spiral', 'pitchwheel', 'punchcard', 'wordfall']) expect([drawing, why(`s("bd*4").${drawing}()`)]).toEqual([drawing, `.${drawing} is not something a song can use`])
-        for (const drawing of ['_pianoroll', '_scope', '_spectrum', '_spiral', '_pitchwheel', '_punchcard']) expect([drawing, why(`s("bd*4").${drawing}()`)]).toEqual([drawing, null])
+        // drawings that would cover the whole window or draw what they are told; those that draw inside the code stay
+        for (const drawing of ['fscope', 'draw', 'onPaint', 'animate']) expect([drawing, why(`s("bd*4").${drawing}()`)]).toEqual([drawing, `.${drawing} is not something a song can use`])
+        for (const drawing of ['_pianoroll', '_scope', '_spectrum', '_spiral', '_pitchwheel', '_punchcard', 'pianoroll', 'scope', 'tscope', 'spectrum', 'spiral', 'pitchwheel', 'punchcard', 'wordfall']) expect([drawing, why(`s("bd*4").${drawing}()`)]).toEqual([drawing, null])
         // what every JavaScript function, list and text has, under names that patterns have too
         expect(why('note.apply(0, [1])')).toBe('.apply is not something a song can use')
         expect(why('(x => x).bind(0)')).toBe('.bind is not something a song can use')

@@ -37,3 +37,50 @@ test('a pianoroll written into the code is drawn under the line that asks for it
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
     expect(errors).toEqual([])
 })
+
+const PICTURES = `setcpm(120/4)
+
+cards: note("c3 e3 g3 c4").s("triangle")
+  .punchcard()
+
+curl: note("c3 e3 g3").s("sine")
+  .spiral()
+
+wheel: note("c4 e4 g4").s("sine")
+  .pitchwheel()
+
+bands: s("bd*4").bank("RolandTR909")
+  .spectrum()
+
+words: note("c3 e3").s("sawtooth")
+  .wordfall()
+`
+
+// A punchcard, a spiral and a wordfall show a stretch of time around the present; a pitchwheel
+// and a spectrum show the present. Each is drawn under its own line.
+test('every picture Strudel has is drawn under the line that asks for it', async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', (err) => errors.push(err.message))
+    await page.addInitScript((value) => localStorage.setItem('weft.song', value), PICTURES)
+    await page.goto('/')
+    await page.waitForFunction(() => Boolean((window as any).__weft))
+    await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
+    await page.getByRole('button', { name: 'Live', exact: true }).click()
+    await page.getByRole('button', { name: 'Play', exact: true }).click()
+    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    const pictures = page.getByTestId('code').locator('.cm-content canvas')
+    await expect(pictures).toHaveCount(5)
+    const filled = () =>
+        pictures.evaluateAll((canvases: HTMLCanvasElement[]) =>
+            canvases.map((canvas) => {
+                const dots = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data
+                let count = 0
+                for (let at = 3; at < dots.length; at += 4) if (dots[at]) count++
+                return count > 50
+            }),
+        )
+    await expect.poll(filled, { timeout: 15000 }).toEqual([true, true, true, true, true])
+    await expect(page.getByTestId('code-picture')).toBeHidden()
+    await page.getByRole('button', { name: 'Stop', exact: true }).click()
+    expect(errors).toEqual([])
+})

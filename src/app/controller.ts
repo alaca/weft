@@ -118,6 +118,7 @@ import { openAccount } from './account'
 import { attachPublish, openPublish } from './publish'
 import { attachUpdate, lookForNewVersion, lookNowAndThen, lookWith } from './update'
 import { SITE } from '../site/api'
+import { formatCode } from '../song/format'
 import {
     cycle,
     deletedSong,
@@ -235,6 +236,9 @@ import {
     setPerforming,
     performSize,
     setPerformSize,
+    formatOnUpdate,
+    setFormatOnUpdate,
+    setFormatSaid,
 } from '../stores/song'
 
 // Where the one song was kept before there could be several. It is read once, to become the
@@ -281,21 +285,40 @@ const PERFORM_MOST = 48
 
 function keepLive() {
     try {
-        keeping.setItem(LIVE_KEY, JSON.stringify({ landing: landingBars(), size: performSize() }))
+        keeping.setItem(LIVE_KEY, JSON.stringify({ landing: landingBars(), size: performSize(), format: formatOnUpdate() }))
     } catch {
         // Not kept: both still hold until the app is closed.
     }
 }
 
-function readLive(): { landing: 0 | 1 | 4; size: number } {
+function readLive(): { landing: 0 | 1 | 4; size: number; format: boolean } {
     try {
-        const kept = JSON.parse(keeping.getItem(LIVE_KEY) ?? '{}') as { landing?: unknown; size?: unknown } | null
+        const kept = JSON.parse(keeping.getItem(LIVE_KEY) ?? '{}') as { landing?: unknown; size?: unknown; format?: unknown } | null
         const landing = kept?.landing === 1 || kept?.landing === 4 ? kept.landing : 0
         const size = typeof kept?.size === 'number' && kept.size >= PERFORM_LEAST && kept.size <= PERFORM_MOST ? kept.size : 20
-        return { landing, size }
+        return { landing, size, format: kept?.format === true }
     } catch {
-        return { landing: 0, size: 20 }
+        return { landing: 0, size: 20, format: false }
     }
+}
+
+// The code laid out the way the app writes it. What came of it is said for a moment beside the
+// code; laid out on the way to an update it says nothing, and code with an error is left to the
+// update to point out.
+let formatTimer = 0
+export function formatTheCode(quietly = false) {
+    const code = engine.getCode()
+    const done = formatCode(code)
+    if ('code' in done && done.code !== code) engine.applyEdit({ from: 0, to: code.length, insert: done.code })
+    if (quietly) return
+    setFormatSaid('why' in done ? done.why : done.code === code ? 'Already laid out' : 'Laid out')
+    window.clearTimeout(formatTimer)
+    formatTimer = window.setTimeout(() => setFormatSaid(null), 'why' in done ? 5000 : 1600)
+}
+
+export function toggleFormatOnUpdate() {
+    setFormatOnUpdate(!formatOnUpdate())
+    keepLive()
 }
 
 // The code made to sound as it now reads, coming in when it was chosen to.
@@ -481,7 +504,10 @@ export async function mount(root: HTMLElement): Promise<void> {
     const live = readLive()
     setLandingBars(live.landing)
     setPerformSize(live.size)
+    setFormatOnUpdate(live.format)
     engine.setLanding(live.landing)
+    engine.setBeforeUpdate(() => formatOnUpdate() && formatTheCode(true))
+    engine.setFormatKey(() => formatTheCode())
     createRoot(() => createEffect(() => engine.setCodeSize(performing() ? performSize() : CODE_SIZE)))
     const clicked = readClick()
     setClickOn(clicked.click)

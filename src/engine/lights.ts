@@ -36,6 +36,19 @@ export function lightNotes(mirror: any, root: HTMLElement): (hap: any) => void {
     let owed: [number, number] | null = null
     const notEnded = (time: number) => (hap: any) => hap.whole && hap.endClipped >= time
 
+    // A picture that shows a stretch around the present, as a punchcard or a spiral does, is given
+    // the notes of that stretch. They are asked of the song once a bar, not on every frame.
+    let stretch: { from: number; haps: any[] } | null = null
+    const around = (time: number): any[] => {
+        const [behind, ahead] = drawer.drawTime
+        const from = Math.floor(time + behind)
+        if (!stretch || stretch.from !== from) {
+            const haps = scheduler.pattern.queryArc(from, Math.ceil(time + ahead) + 1)
+            stretch = { from, haps: haps.filter((hap: any) => hap.hasOnset() && !isClick(hap)) }
+        }
+        return stretch.haps.filter((hap) => hap.endClipped >= time + behind && hap.whole.begin <= time + ahead)
+    }
+
     drawer.framer.onFrame = () => {
         if (idle()) return
         const time: number = scheduler.now()
@@ -53,8 +66,8 @@ export function lightNotes(mirror: any, root: HTMLElement): (hap: any) => void {
             lit = sounding
             mirror.highlight(sounding, time)
         }
-        // Weft Loom has Strudel draw the present moment only, so a picture is given the same notes.
-        if (drawer.painters.length) mirror.onDraw(sounding, time, drawer.painters)
+        // Strudel keeps a stretch of time only while a picture shows one, and the present otherwise.
+        if (drawer.painters.length) mirror.onDraw(drawer.drawTime[0] || drawer.drawTime[1] ? around(time) : sounding, time, drawer.painters)
     }
 
     // After the code is played again Strudel asks the song once, for the tenth of a bar that
@@ -67,6 +80,7 @@ export function lightNotes(mirror: any, root: HTMLElement): (hap: any) => void {
         const at: number = t ?? from.now()
         ask(from, at)
         lit = null
+        stretch = null
         const asked = Math.max(at + drawer.drawTime[1] + 0.1, 0)
         owed = !idle() && from.lastEnd > asked ? [asked, from.lastEnd] : null
         if (idle()) drawer.visibleHaps = []

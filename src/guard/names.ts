@@ -4,10 +4,11 @@
 //
 // Left out on purpose: everything that reaches outside the song (loading samples from an
 // address, styles, the screen, the engine's own insides, text that is run as code). Also left
-// out, after others tried to get past the check: speech (`speak`); the drawings that cover the
-// whole window (`pianoroll`, `scope` and the like, whose `_` forms draw inside the code and
-// stay); `as`, which makes a value's name out of text; and `apply` and `bind`, which are also
-// the names of what every JavaScript function has.
+// out, after others tried to get past the check: speech (`speak`); the drawings that would cover
+// the whole window or draw what they are told (`fscope`, `draw`, `onPaint`, `animate`); `as`,
+// which makes a value's name out of text; and `apply` and `bind`, which are also the names of what
+// every JavaScript function has. `pianoroll`, `scope` and the others with a small twin are drawn
+// small inside the code, the same as their `_` forms (see engine/pictures.ts), and stay.
 const words = (lines: string[]): string[] => lines.join(' ').split(' ')
 
 // What Strudel offers both as a function and as a step in a chain: note("c").fast(2), fast(2, note("c")).
@@ -73,7 +74,7 @@ const CHAINED = words([
     'fmi77 fmi78 fmi80 fmi81 fmi82 fmi83 fmi84 fmi85 fmi86 fmi87 fmi88 focus hasSteps in innerJoin into join layer log2 maskAll mix modulate',
     'onsetsOnly out outerJoin p p1 p2 p3 p4 p5 p6 p7 p8 p9 plyforeach plywith poly q q1 q2 q3 q4 q5 q6 q7 q8 q9 reset resetAll resetJoin restart',
     'restartAll restartJoin setSteps soundfont squeezeJoin squeezeout stepJoin structAll tremdepth tremphase tremshape tremskew',
-    'tremsync unjoin withSteps',
+    'tremsync unjoin withSteps pianoroll punchcard spiral pitchwheel scope tscope spectrum wordfall colour',
 ])
 
 // What is only a function or a value by itself: stack(...), sine, silence.

@@ -92,6 +92,9 @@ export const [landingBars, setLandingBars] = createSignal<0 | 1 | 4>(0)
 // The performance view: the code over the whole window, as large as is asked for.
 export const [performing, setPerforming] = createSignal(false)
 export const [performSize, setPerformSize] = createSignal(20)
+// Whether the code is laid out each time it is updated, and what the last lay-out said.
+export const [formatOnUpdate, setFormatOnUpdate] = createSignal(false)
+export const [formatSaid, setFormatSaid] = createSignal<string | null>(null)
 // For the patterns that have versions, which one is in sight. The first when nothing is said.
 export const [shownVariants, setShownVariants] = createSignal<Record<string, number>>({})
 // The scene that was chosen while the song plays and waits for the next bar to begin.

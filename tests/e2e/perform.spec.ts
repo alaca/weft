@@ -45,9 +45,9 @@ test('a change of the code comes in at once, or waits for the next bar while the
     await updateTo(page, SONG)
     await expect.poll(() => loudestOver(page, 600)).toBeGreaterThan(0.01)
 
-    await page.getByRole('button', { name: 'When a change comes in', exact: true }).click()
+    await page.getByRole('button', { name: 'Options for updating', exact: true }).click()
     await page.getByRole('menuitemradio', { name: 'On the next bar' }).click()
-    await expect(page.getByRole('button', { name: 'When a change comes in', exact: true })).toContainText('Bar')
+    await expect(page.getByRole('button', { name: 'Options for updating', exact: true })).toContainText('Bar')
     // Early in a bar, so that most of it is left to wait through.
     await expect.poll(() => now(page).then((at) => at % 1), { timeout: 8000, intervals: [50] }).toBeLessThan(0.15)
     const bar = Math.floor(await now(page))
