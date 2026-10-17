@@ -1,7 +1,7 @@
 {
     "name": "weft",
     "private": true,
-    "version": "0.1.13",
+    "version": "0.1.14",
     "description": "Controls and code for making music with Strudel",
     "license": "AGPL-3.0-or-later",
     "type": "module",
