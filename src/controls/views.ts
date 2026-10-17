@@ -1,4 +1,5 @@
 import { readLaid } from '../song/audio'
+import { readKit, type KitRow } from '../song/kit'
 import { readCurve } from '../song/curves'
 import { GLIDE, readNotes } from '../song/notes'
 import type { Arg, Call, PatternBlock } from '../song/types'
@@ -197,4 +198,23 @@ export const controlOf = (block: PatternBlock, fn: string): ControlView => prese
 const mixOf = controlOf
 
 export const volumeOf = (block: PatternBlock): ControlView => mixOf(block, 'volume')
-export const panOf = (block: PatternBlock): ControlView => mixOf(block, 'pan')
+
+// The sounds of a drum kit that its pan as a whole moves: those with no pan of their own, or one
+// that stands still. A pan that moves by itself is left to move.
+export function kitPans(block: PatternBlock): { row: KitRow; view: ControlView }[] {
+    return (readKit(block)?.rows ?? []).flatMap((row) => {
+        const call = callFor(row.block, 'pan')
+        return call && !valueArg(call) ? [] : [{ row, view: mixOf(row.block, 'pan') }]
+    })
+}
+
+// A drum kit's pan as a whole is where its sounds stand on average, and turning it moves each of
+// them by as much (see turnControl). A pan of the whole pattern written in the code, as in older
+// songs, takes the place of every sound's own, and is shown as it is.
+export function panOf(block: PatternBlock): ControlView {
+    const pans = kitPans(block)
+    if (!pans.length || callFor(block, 'pan')) return mixOf(block, 'pan')
+    const centre = pans.reduce((sum, pan) => sum + pan.view.value, 0) / pans.length
+    const own = pans.some((pan) => pan.view.state !== 'faint')
+    return { ...mixOf(block, 'pan'), value: centre, text: writeNumber(centre, 0, 1), state: own ? 'number' : 'faint' }
+}

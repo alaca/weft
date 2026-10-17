@@ -1,8 +1,8 @@
 import { batch, createEffect, createRoot } from 'solid-js'
-import { controlText, effectOf, FILTERS, filterTypeOf, findDef, mixText, writeNumber, type FilterType } from '../controls/catalog'
+import { controlText, effectOf, FILTERS, filterTypeOf, findDef, mixText, writeNumber, type ControlDef, type FilterType } from '../controls/catalog'
 import { drumChoices } from '../controls/drums'
 import { firstMotion, motionText, readMotion, type Motion } from '../controls/motion'
-import { callFor, controlOf, valueArg, type ControlView } from '../controls/views'
+import { callFor, controlOf, kitPans, valueArg, type ControlView } from '../controls/views'
 import { audioCode, audioEdits, barsOfSound, heardIn, JOIN, listFrom, LONGEST_FADE, readLaid, relist, startOf, type Audio, type AudioPlan } from '../song/audio'
 import { curveOver, curveText, followSong, readCurve, stretched } from '../song/curves'
 import { dropScene, freeSceneName, keepScene, readScenes, renameScene, sceneBar, sceneEdits, type Scene } from '../song/scenes'
@@ -905,8 +905,36 @@ export function knobAsItStands(id: string, fn: string): ControlView | null {
 
 export function turnControl(id: string, fn: string, value: number) {
     const block = find(id)
+    if (fn === 'pan' && block && panKit(id, block, value)) return
     if (block && callFor(block, fn)) setControl(id, fn, value)
     else addControl(id, fn, value)
+}
+
+// A drum kit is panned as a whole by moving each of its sounds by as much, so that it keeps its
+// spread: a pan of the whole pattern would take the place of every sound's own. One that is in
+// the code already goes, and the sounds' own pans are heard again.
+function panKit(id: string, block: PatternBlock, value: number): boolean {
+    const pans = kitPans(block)
+    if (!pans.length) return false
+    if (stale()) return true
+    const def = findDef('pan') as ControlDef
+    const whole = callFor(block, 'pan')
+    const centre = pans.reduce((sum, pan) => sum + pan.view.value, 0) / pans.length
+    const next = pans.map((pan) => Math.min(def.max, Math.max(def.min, pan.view.value + value - centre)))
+    if (!whole && pans.every((pan) => valueArg(callFor(pan.row.block, 'pan'))?.kind === 'slider')) {
+        pans.forEach((pan, at) => setControl(rowTarget(id, pan.row.sound), 'pan', next[at]))
+        return true
+    }
+    const code = engine.getCode()
+    const edits: TextEdit[] = pans.map((pan, at) => {
+        const arg = valueArg(callFor(pan.row.block, 'pan'))
+        if (!arg) return addCall(code, pan.row.block, controlText(def, next[at]))
+        return { from: arg.from, to: arg.to, insert: `slider(${writeNumber(next[at], def.min, def.max)}, ${def.min}, ${def.max})` }
+    })
+    if (whole) edits.push(removeCall(whole))
+    engine.applyEdit(edits)
+    replay()
+    return true
 }
 
 export const setMix = (id: string, fn: 'volume' | 'pan', value: number) => turnControl(id, fn, value)

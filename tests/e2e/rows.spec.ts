@@ -75,3 +75,28 @@ test('every sound has a mute button that silences that sound only', async ({ pag
     await expect.poll(() => code(page)).toContain(`${BD},\n${HH},\n)\n`)
     await expect.poll(() => heard(page)).toBe('bd bd bd bd hh hh hh hh')
 })
+
+test('the pan of a whole kit moves every sound of it, and each keeps its own place', async ({ page }) => {
+    await open(page)
+    await knob(page, 'Pan of bd').focus()
+    await page.keyboard.press('Home')
+    await expect.poll(() => code(page)).toContain(`${BD}.pan(slider(0, 0, 1)),\n${HH},\n`)
+    // The kit stands where its sounds do on average.
+    const kit = knob(page, 'Pan of drums')
+    await expect(kit).toHaveAttribute('aria-valuenow', '0.25')
+    await kit.focus()
+    await page.keyboard.press('PageUp')
+    await expect.poll(() => code(page)).toContain(`${BD}.pan(slider(0.1, 0, 1)),\n${HH}.pan(slider(0.6, 0, 1)),\n)\n  .bank("RolandTR909")\n\n`)
+    await page.keyboard.press('PageUp')
+    await expect.poll(() => code(page)).toContain(`${BD}.pan(slider(0.2, 0, 1)),\n${HH}.pan(slider(0.7, 0, 1)),\n`)
+})
+
+test('a kit with a pan of the whole pattern, as older songs have, gets its sounds own pans back when the kit is panned', async ({ page }) => {
+    await open(page, `setcpm(120/4)\n\ndrums: stack(\n${BD}.pan(0.2),\n${HH},\n)\n  .bank("RolandTR909")\n  .pan(0.9)\n`)
+    const kit = knob(page, 'Pan of drums')
+    await expect(kit).toHaveAttribute('aria-valuenow', '0.9')
+    await kit.focus()
+    await page.keyboard.press('Home')
+    await expect.poll(() => code(page)).toContain(`${BD}.pan(slider(0, 0, 1)),\n${HH}.pan(slider(0.15, 0, 1)),\n)\n  .bank("RolandTR909")\n`)
+    expect(await code(page)).not.toContain('.pan(0.9)')
+})
