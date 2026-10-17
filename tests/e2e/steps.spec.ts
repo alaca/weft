@@ -52,7 +52,7 @@ test('each hit of a drum row gets a level, a chance, repeats and a pan of its ow
     expect(await hats(page)).toContain('.pan("0.3 0.5 0.5 0.5   0.5 0.5 0.5 0.5   0.5 0.5 0.5 0.5   0.5 0.5 0.5 0.5")')
 
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect.poll(async () => Number(await page.getByTestId('cycle').textContent()), { timeout: 20_000 }).toBeGreaterThanOrEqual(2)
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
 

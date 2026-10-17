@@ -190,7 +190,7 @@ for (const demo of ['Slow burn', 'Undertow']) {
         expect(count).toBeGreaterThanOrEqual(4)
         for (let at = 0; at < count; at++) await expect(strips.nth(at).locator('.dg, .nr-g')).toHaveCount(1)
         await page.getByRole('button', { name: 'Play', exact: true }).click()
-        await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+        await expect(page.getByTestId('code-status')).toHaveText('Playing')
         await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.now() as number)).toBeGreaterThan(0.3)
         expect(errors).toEqual([])
     })
@@ -269,7 +269,7 @@ test('a song can be exported as audio, from its first bar to its last, and plays
     await page.keyboard.press('Escape')
     await expect(page.getByTestId('export')).toHaveCount(0)
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.now() as number)).toBeGreaterThan(0.5)
     await expect
         .poll(() =>

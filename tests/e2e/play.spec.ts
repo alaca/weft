@@ -13,7 +13,7 @@ test('plays, counts cycles and stops', async ({ page }) => {
     await expect(page.getByTestId('code-status')).toHaveText('Stopped')
 
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect.poll(async () => Number(await page.getByTestId('cycle').textContent()), { timeout: 20_000 }).toBeGreaterThanOrEqual(2)
 
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
@@ -49,7 +49,7 @@ test('the play button pauses, and the song goes on from where it was', async ({ 
     await expect(page.getByTestId('cycle')).toHaveText(String(Math.floor(at) + 1))
 
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect.poll(() => now(page)).toBeGreaterThan(at + 0.2)
     expect(await now(page)).toBeLessThan(at + 2)
 
@@ -78,7 +78,7 @@ test('the keys that update and silence the song work from anywhere in the window
     }, before.length)
     await expect(status).toContainText(/^Line \d+: /)
     await page.keyboard.press('ControlOrMeta+Enter')
-    await expect(status).toHaveText('Playing this code')
+    await expect(status).toHaveText('Playing')
     await page.keyboard.press('ControlOrMeta+.')
     await expect(status).toHaveText('Stopped')
 })
@@ -123,7 +123,7 @@ test('a song that was stopped after very many effects plays on a new audio clock
     await expect.poll(clocks, { timeout: 20_000 }).toEqual(['closed', 'running'])
 
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect.poll(loudest, { timeout: 20_000 }).toBeGreaterThan(0.01)
     expect(await page.evaluate(() => (window as any).__weft.engine.mix())).toMatchObject({ volume: 0.4, pan: -0.5 })
 })

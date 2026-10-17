@@ -65,7 +65,7 @@ test('a song from a file that is all music code plays without a word', async ({ 
     await page.getByRole('button', { name: 'Play', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible()
     await expect(guard(page)).toHaveCount(0)
-    await expect(status(page)).toHaveText('Playing this code')
+    await expect(status(page)).toHaveText('Playing')
 })
 
 async function person(browser: Browser, name: string): Promise<Page> {

@@ -56,7 +56,7 @@ test('a change of the code comes in at once, or waits for the next bar while the
     expect(await loudestOver(page, 1500)).toBeGreaterThan(0.01)
     await expect.poll(() => now(page), { timeout: 6000 }).toBeGreaterThan(bar + 1.2)
     expect(await loudestOver(page, 800)).toBeLessThan(0.001)
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
 })
 
 test('the performance view puts the code over the whole window, as large as is asked, with the strips out of it', async ({ page }) => {

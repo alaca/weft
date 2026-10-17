@@ -30,7 +30,7 @@ test('a song is put in three quarters: its tempo stays, its bars get shorter, an
     // A bar of three quarter notes at 120 lasts a second and a half, and that is how it plays.
     await page.getByRole('button', { name: 'Live', exact: true }).click()
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     expect(await page.evaluate(() => (window as any).__weft.engine.barSeconds())).toBeCloseTo(1.5, 5)
     expect(await page.evaluate(() => Math.round((window as any).__weft.engine.bpm()))).toBe(120)
     await expect.poll(async () => Number(await page.getByTestId('cycle').textContent()), { timeout: 20_000 }).toBeGreaterThanOrEqual(3)

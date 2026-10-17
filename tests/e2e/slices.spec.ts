@@ -57,7 +57,7 @@ test('a sound of your own is cut into parts that are played in any order, from a
 
     await page.getByRole('button', { name: 'Live', exact: true }).click()
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect(strip.locator('.sl-p.now')).toHaveCount(1)
     await expect.poll(async () => Number(await page.getByTestId('cycle').textContent()), { timeout: 20_000 }).toBeGreaterThanOrEqual(2)
     await page.getByRole('button', { name: 'Stop', exact: true }).click()

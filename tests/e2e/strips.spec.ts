@@ -32,7 +32,7 @@ test('draws one strip per named pattern of the starter song, in code order', asy
 test('mute writes the underscore into the code and takes the pattern out of what plays', async ({ page }) => {
     await open(page, SONG)
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
 
     await page.getByTestId('strip-bass').getByRole('button', { name: 'Mute bass' }).click()
     await expect.poll(() => code(page)).toContain('_bass: note(')
@@ -47,7 +47,7 @@ test('mute writes the underscore into the code and takes the pattern out of what
 test('solo silences the others and leaves the code alone', async ({ page }) => {
     await open(page, SONG)
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     const before = await code(page)
 
     await page.getByTestId('strip-bass').getByRole('button', { name: 'Solo bass' }).click()
@@ -89,7 +89,7 @@ test('while the song plays a strip draws a change once it is played, and a turne
     const notes = page.getByTestId('strip-keys').locator('.roll svg rect.n')
     await expect(notes).toHaveCount(4)
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
 
     const cutoff = page.getByTestId('strip-bass').getByRole('slider', { name: 'Cutoff' })
     await cutoff.focus()

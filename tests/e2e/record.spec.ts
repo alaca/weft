@@ -78,7 +78,7 @@ test('after a take the next press gives the sound a fresh clock, and one more on
 
     // The song plays on it as on any other.
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect.poll(async () => Number(await page.getByTestId('cycle').textContent()), { timeout: 20_000 }).toBeGreaterThanOrEqual(2)
     expect(await clocks(page)).toBe(before + 2)
 })

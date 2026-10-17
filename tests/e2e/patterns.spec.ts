@@ -86,7 +86,7 @@ test('a pattern gets a second version that is changed by itself, chosen for bars
     await page.mouse.click(bar.x + bar.width / 2, bar.y + bar.height / 2)
     await expect.poll(() => code(page)).toContain('drums: "<0!2 1 0!13>".pick([')
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
     expect(await events(0)).toBe(1)
     expect(await events(2)).toBe(2)

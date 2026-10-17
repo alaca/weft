@@ -12,7 +12,7 @@ test('a pianoroll written into the code is drawn under the line that asks for it
     await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
     await page.getByRole('button', { name: 'Live', exact: true }).click()
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
 
     // The picture is in the code, between the line that asks for it and the pattern after it.
     const picture = page.getByTestId('code').locator('.cm-content canvas')
@@ -67,7 +67,7 @@ test('every picture Strudel has is drawn under the line that asks for it', async
     await expect(page.getByTestId('sounds')).toHaveText('Sounds ready', { timeout: 30000 })
     await page.getByRole('button', { name: 'Live', exact: true }).click()
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     const pictures = page.getByTestId('code').locator('.cm-content canvas')
     await expect(pictures).toHaveCount(5)
     const filled = () =>

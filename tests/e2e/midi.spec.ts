@@ -40,7 +40,7 @@ test('a MIDI keyboard plays the pattern you are on, and is written into a piano 
     // While the song plays, what is played is written into the roll.
     await page.getByRole('button', { name: 'Live', exact: true }).click()
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await press(page, 67, 64)
     await page.waitForTimeout(150)
     await letGo(page, 67)
@@ -69,7 +69,7 @@ test('a MIDI keyboard plays the pattern you are on, and is written into a piano 
     await page.getByTestId('strip-lead').locator('.st-n').click()
     await page.getByRole('button', { name: 'Play lead on the keyboard', exact: true }).click()
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await page.evaluate(() => {
         ;(window as any).__keys.send([0x90, 72, 120])
         ;(window as any).__keys.send([0x90, 76, 40])
@@ -151,7 +151,7 @@ test('a pad writes hits into a drum grid, a note sounds for as long as its key i
     await expect(page.getByTestId('pad-note')).toContainText('A MIDI pad or keyboard plays them too')
     await page.getByRole('button', { name: 'Live', exact: true }).click()
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await press(page, 36)
     await expect.poll(() => code(page)).toMatch(/s\("bd"\)\.struct\("[~ ]*x/)
     expect(await code(page)).toMatch(/s\("sd"\)\.struct\("[~ ]+"\)/)
@@ -253,7 +253,7 @@ test('the song follows the MIDI clock of a drum machine: it starts with it, keep
         clock.send([0xfa])
         clock.since = 0
     })
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect(page.getByTestId('tempo')).toHaveValue('90')
     await expect(page.locator('.ro .cap').first()).toHaveText('Clock')
 

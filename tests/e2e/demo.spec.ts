@@ -27,7 +27,7 @@ test('the demo opens into a song, plays it, lets it be changed, and keeps nothin
     await expect(page.getByRole('link', { name: 'Get the app' })).toHaveAttribute('href', /\/download$/)
 
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect.poll(async () => Number(await page.getByTestId('cycle').textContent()), { timeout: 20_000 }).toBeGreaterThanOrEqual(2)
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
 

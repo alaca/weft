@@ -114,7 +114,7 @@ test('a pattern is played on the computer keyboard, and what is played while the
 
     // While the song plays the note goes where it was played, and is as long as the key was held.
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await page.keyboard.down('KeyD')
     await page.waitForTimeout(700)
     await page.keyboard.up('KeyD')

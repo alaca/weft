@@ -36,7 +36,7 @@ test('a knob is set moving by itself, changed, and made to stand still again', a
     await expect.poll(() => code(page)).toContain('.lpf(saw.range(4000, 200))\n')
 
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
 
     await expect(box).toHaveCount(0)

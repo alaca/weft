@@ -109,7 +109,7 @@ test('a knob that is turned while the song plays is drawn over the song when it 
     const cutoff = page.getByTestId('strip-bass').getByRole('slider', { name: 'Cutoff', exact: true })
     await page.getByRole('button', { name: 'Record knobs', exact: true }).click()
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.now() as number)).toBeGreaterThan(0.1)
     await cutoff.focus()
     await page.keyboard.press('End')

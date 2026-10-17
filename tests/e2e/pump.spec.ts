@@ -31,7 +31,7 @@ test('a pattern is switched to pump under the kick, and the kick is told to duck
     await expect.poll(() => code(page)).toContain('.duckdepth(slider(0, 0, 1))')
 
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect.poll(() => page.evaluate(() => (window as any).__weft.engine.now() as number)).toBeGreaterThan(0.6)
     await page.getByRole('button', { name: 'Stop', exact: true }).click()
 })

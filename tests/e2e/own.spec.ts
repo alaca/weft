@@ -80,7 +80,7 @@ test('your own sound can be the sound of a pattern that plays notes', async ({ p
     await expect.poll(() => code(page)).toContain('  .s("hook")\n')
     await expect(browser(page).locator('.sb-i')).toContainText('In use')
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect.poll(() => heard(page)).toBeGreaterThan(0.05)
 })
 

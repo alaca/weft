@@ -79,7 +79,7 @@ export function CodePane() {
         if (state.dirty) return { kind: 'dirty', text: 'Changed', about: `The sound is still the code as it was. Press Update, or ${MOD} Enter, to hear the change.` }
         const waits = landingBeats()
         if (waits !== null) return { kind: 'wait', text: `In ${waits} ${waits === 1 ? 'beat' : 'beats'}`, about: 'The change comes in at the start of the bar. Until then the song plays on as it was.' }
-        if (state.playing) return { kind: 'live', text: 'Playing this code' }
+        if (state.playing) return { kind: 'live', text: 'Playing' }
         if (state.paused) return { kind: 'idle', text: 'Paused' }
         return { kind: 'idle', text: 'Stopped' }
     }

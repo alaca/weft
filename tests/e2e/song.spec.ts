@@ -81,7 +81,7 @@ test('playing starts from the bar that was chosen', async ({ page }) => {
     await expect(five).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByTestId('cycle')).toHaveText('5')
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect.poll(() => now(page)).toBeGreaterThan(4.05)
     expect(await now(page)).toBeLessThan(6)
     // Stop goes back to the beginning of the song, and the next Play starts there.
@@ -95,7 +95,7 @@ test('what plays follows the bars: a pattern is silent where it rests', async ({
     await open(page)
     await drag(page, 'bass', 1, 2)
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     const sounds = (cycle: number) => page.evaluate((at) => ((window as any).__weft.engine.audible(at) as { sound: string }[]).map((event) => event.sound), cycle)
     expect(await sounds(0)).not.toContain('sawtooth')
     expect(await sounds(2)).toContain('sawtooth')
@@ -110,7 +110,7 @@ test('an arranged song stops at its end and goes back to the start', async ({ pa
     await open(page, 'setcpm(480/4)\n\ndrums: s("bd*4")\n  .bank("RolandTR909")\n  .mask("<0 1!3>")\n\nbass: note("c2 e2")\n  .s("sawtooth")\n')
     await expect(page.getByTestId('song-length')).toContainText('4 bars')
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     expect(await sounding(page, 3)).toBeGreaterThan(0)
     expect(await sounding(page, 4)).toBe(0)
     await expect(page.getByTestId('code-status')).toHaveText('Stopped', { timeout: 8000 })
@@ -119,11 +119,11 @@ test('an arranged song stops at its end and goes back to the start', async ({ pa
     expect(await now(page)).toBe(0)
 
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await drag(page, 'bass', 5, 8)
     await expect(page.getByTestId('song-length')).toContainText('8 bars')
     await expect.poll(() => now(page)).toBeGreaterThan(4.5)
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect(page.getByTestId('code-status')).toHaveText('Stopped', { timeout: 8000 })
 })
 
@@ -152,7 +152,7 @@ test('dragging across bar numbers makes those bars go round', async ({ page }) =
         await page.waitForTimeout(100)
     }
     expect([...seen].sort()).toEqual([2, 3])
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
 
     await page.getByRole('button', { name: 'Stop going round', exact: true }).click()
     await expect(page.getByTestId('loop')).toHaveCount(0)

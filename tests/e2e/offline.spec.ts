@@ -46,7 +46,7 @@ test('the sounds that were fetched once are there, and play, when the network is
     await kick.click()
     await expect.poll(() => heard(page)).toBeGreaterThan(0.05)
     await page.getByRole('button', { name: 'Play', exact: true }).click()
-    await expect(page.getByTestId('code-status')).toHaveText('Playing this code')
+    await expect(page.getByTestId('code-status')).toHaveText('Playing')
     await expect.poll(async () => Number(await page.getByTestId('cycle').textContent()), { timeout: 20_000 }).toBeGreaterThanOrEqual(2)
     // The lists were asked for anew, in vain, and the copies answered meanwhile.
     expect(asked).toBeGreaterThan(0)
